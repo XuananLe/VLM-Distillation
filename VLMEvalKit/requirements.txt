@@ -69,3 +69,4 @@ bert_score
 modal
 hf_transfer
 wandb
+unsloth

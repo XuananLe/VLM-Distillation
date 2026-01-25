@@ -3,13 +3,24 @@ import subprocess
 import os
 from pathlib import Path
 
+import wandb
+
 MODEL_DIR = Path("/models")
 DATASET_DIR = Path("/dataset")
 OUTPUT_DIR = Path("/outputs")
 ROOT_DIR = Path("/root/VLM-Distillation")
 EVAL_DIR = ROOT_DIR / "VLMEvalKit"
-RUN_NAME = "Evaluate InternVL-3 on TextVQA"
-
+MODAL_RUN_NAME = "Test Modal Run"
+WANDB_PROJECT = "VLM-Distillation"
+config = {
+    "hidden_layer_sizes": [32, 64],
+    "kernel_sizes": [3],
+    "activation": "ReLU",
+    "pool_sizes": [2],
+    "dropout": 0.5,
+    "num_classes": 10,
+}
+RUN = wandb.init(project=WANDB_PROJECT, config = config)
 volume = modal.Volume.from_name("model-weights-vol", create_if_missing=True)
 dataset_volume = modal.Volume.from_name("dataset-vol", create_if_missing=True)
 output_volume = modal.Volume.from_name("output-vol", create_if_missing=True)
@@ -33,7 +44,7 @@ base_image = (
 )
 
 app = modal.App(
-    name=RUN_NAME,
+    name=MODAL_RUN_NAME,
     image=base_image,
     secrets=[
         modal.Secret.from_name("wandb-secret")
@@ -52,9 +63,11 @@ app = modal.App(
 def exec_cmd(cmd):
     cmd = cmd.strip()
     env = os.environ.copy()
+    env.setdefault("WANDB_PROJECT", WANDB_PROJECT)
     env.setdefault("PYTHONUNBUFFERED", "1")  # ensure unbuffered output for python cmds
     env.setdefault("HF_DATASETS_CACHE", str(DATASET_DIR / ".hf_cache" / "datasets"))
     env.setdefault("HF_HUB_CACHE", str(MODEL_DIR / ".hf_cache" / "hub"))
+    os.environ.setdefault("WANDB_MODE", "online")
     os.makedirs(env.get("HF_DATASETS_CACHE", "/tmp"), exist_ok=True)
     os.makedirs(env.get("HF_HUB_CACHE", "/tmp"), exist_ok=True)
 
@@ -89,5 +102,10 @@ def exec_cmd(cmd):
 
 
 @app.local_entrypoint()
-def run():
-    exec_cmd.remote(f"cd {EVAL_DIR} && python run.py --data TextVQA_VAL --model InternVL3-1B")
+def run(): 
+    table = wandb.Table(columns=["step", "input", "label", "prediction"],
+                        log_mode="INCREMENTAL")
+    for i in range(5):
+        table.add_data(i, f"input_{i}", f"label_{i}", f"prediction_{i}")
+    RUN.log({"sample_predictions": table})
+    print("Logged sample predictions to WandB")
