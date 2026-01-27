@@ -9,7 +9,10 @@ from .thyme import Thyme
 from .cogvlm import CogVlm, GLM4v, GLMThinking
 from .emu import Emu, Emu3_chat, Emu3_gen
 from .eagle_x import Eagle
-from .granite_vision import GraniteVision3
+try:
+    from .granite_vision import GraniteVision3
+except ImportError:
+    GraniteVision3 = None  # AutoModelForVision2Seq requires transformers>=4.47
 from .idefics import IDEFICS, IDEFICS2
 from .instructblip import InstructBLIP
 from .kosmos import Kosmos2

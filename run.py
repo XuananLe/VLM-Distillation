@@ -2,16 +2,26 @@ import modal
 import subprocess
 import os
 from pathlib import Path
-
 import wandb
 
+
+
+# DONT CHANGE THESE PATHS
 MODEL_DIR = Path("/models")
 DATASET_DIR = Path("/dataset")
 OUTPUT_DIR = Path("/outputs")
 ROOT_DIR = Path("/root/VLM-Distillation")
 EVAL_DIR = ROOT_DIR / "VLMEvalKit"
-MODAL_RUN_NAME = "Test Modal Run"
+volume = modal.Volume.from_name("model-weights-vol", create_if_missing=True)
+dataset_volume = modal.Volume.from_name("dataset-vol", create_if_missing=True)
+output_volume = modal.Volume.from_name("output-vol", create_if_missing=True)
+#######################
+
+
+# Change this to a unique name for your Modal app
+MODAL_RUN_NAME = "Test Modal Run An"
 WANDB_PROJECT = "VLM-Distillation"
+# Log config to wandb
 config = {
     "hidden_layer_sizes": [32, 64],
     "kernel_sizes": [3],
@@ -20,10 +30,9 @@ config = {
     "dropout": 0.5,
     "num_classes": 10,
 }
+
+# Run name
 RUN = wandb.init(project=WANDB_PROJECT, config = config)
-volume = modal.Volume.from_name("model-weights-vol", create_if_missing=True)
-dataset_volume = modal.Volume.from_name("dataset-vol", create_if_missing=True)
-output_volume = modal.Volume.from_name("output-vol", create_if_missing=True)
 
 base_image = (
     modal.Image.debian_slim()
@@ -55,7 +64,6 @@ app = modal.App(
         OUTPUT_DIR.as_posix(): output_volume,
     },
 )
-
 
 @app.function(
             gpu = "L4",
@@ -103,9 +111,4 @@ def exec_cmd(cmd):
 
 @app.local_entrypoint()
 def run(): 
-    table = wandb.Table(columns=["step", "input", "label", "prediction"],
-                        log_mode="INCREMENTAL")
-    for i in range(5):
-        table.add_data(i, f"input_{i}", f"label_{i}", f"prediction_{i}")
-    RUN.log({"sample_predictions": table})
-    print("Logged sample predictions to WandB")
+    exec_cmd.remote(cmd=f"cd {ROOT_DIR} && echo 'Hello world'")
