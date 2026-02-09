@@ -17,13 +17,6 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # OPTIONAL IMPORTS (guarded)
 # =============================================================================
 
-UNSLOTH_AVAILABLE = False
-try:
-    import unsloth
-    UNSLOTH_AVAILABLE = True
-except ImportError:
-    pass
-
 GROQ_AVAILABLE = False
 try:
     import groq
@@ -83,7 +76,7 @@ LORA_ALPHA = 32
 LORA_DROPOUT = 0.05
 
 # Training defaults
-DEFAULT_MICROBATCH = 16  # Small batch per device for VLM (images use lots of memory)
+DEFAULT_MICROBATCH = 32  # Small batch per device for VLM (images use lots of memory)
 DEFAULT_GRAD_ACCUM = 8  # Effective batch = 4 * 32 = 128
 DEFAULT_MAX_STEPS = -1
 DEFAULT_NUM_EPOCHS = 5
@@ -295,10 +288,9 @@ def load_model_and_processor(
     model_id: str,
     device: str = "cpu",
     load_in_4bit: bool = False,
-    use_unsloth: bool = True,
     for_training: bool = False,
 ) -> Tuple[Any, Any]:
-    """Load model and processor with optional Unsloth/LoRA."""
+    """Load model and processor with optional LoRA."""
     import torch
     from transformers import AutoProcessor, AutoTokenizer
 
@@ -319,28 +311,6 @@ def load_model_and_processor(
             raise RuntimeError(f"Could not load processor or tokenizer for {model_id}: {e}")
 
     dtype = torch.bfloat16 if device == "cuda" and torch.cuda.is_bf16_supported() else torch.float32
-
-    # Try Unsloth first
-    if use_unsloth and UNSLOTH_AVAILABLE and for_training and device == "cuda":
-        try:
-            from unsloth import FastVisionModel
-            model, tokenizer_or_proc = FastVisionModel.from_pretrained(
-                model_id,
-                load_in_4bit=load_in_4bit,
-                dtype=dtype,
-            )
-            model = FastVisionModel.get_peft_model(
-                model,
-                r=LORA_R,
-                lora_alpha=LORA_ALPHA,
-                lora_dropout=LORA_DROPOUT,
-                target_modules=["q_proj", "k_proj", "v_proj", "o_proj", "gate_proj", "up_proj", "down_proj"],
-                use_gradient_checkpointing="unsloth",
-            )
-            print(f"[INFO] Loaded model with Unsloth FastVisionModel + LoRA")
-            return model, processor or tokenizer_or_proc
-        except Exception as e:
-            print(f"[WARN] Unsloth load failed: {e}, falling back to HF")
 
     # Standard HF loading
     from transformers import AutoModelForCausalLM, AutoModelForVision2Seq, BitsAndBytesConfig

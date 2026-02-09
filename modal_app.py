@@ -51,7 +51,6 @@ base_image = (
     .pip_install("opencv-python-headless")
     .pip_install_from_requirements("./VLMEvalKit/requirements.txt")
     .pip_install(
-        "unsloth",
         "peft",
         "trl",
         "bitsandbytes",
@@ -140,8 +139,7 @@ def _run_command(cmd: str, env: dict):
 def run_train(cmd: str):
     """Run training command on A100 GPU."""
     env = _setup_env()
-    # Add --no_unsloth due to Unsloth bug with VARIANT_KWARG_KEYS
-    full_cmd = f"cd {ROOT_DIR} && python finetune.py train --no_unsloth {cmd}"
+    full_cmd = f"cd {ROOT_DIR} && python finetune.py train {cmd}"
     _run_command(full_cmd, env)
 
 

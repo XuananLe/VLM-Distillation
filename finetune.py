@@ -3,11 +3,11 @@
 finetune.py - VLM fine-tuning script.
 
 Usage:
-  python finetune.py [options]
+  python finetune.py <command> [options]
 
 Examples:
-  python finetune.py --model HuggingFaceTB/SmolVLM-500M-Instruct --dataset lmms-lab/textvqa
-  python finetune.py --smoke  # Quick test with tiny model
+  python finetune.py train --model HuggingFaceTB/SmolVLM-500M-Instruct --dataset lmms-lab/textvqa
+  python finetune.py smoke  # Quick test with tiny model
 """
 
 import argparse
@@ -17,6 +17,7 @@ import os
 import sys
 import time
 from pathlib import Path
+from typing import Any, Dict, List
 
 import torch
 from datasets import Dataset
@@ -34,20 +35,20 @@ from utils import (
     DEFAULT_MAX_SEQ_LENGTH,
     TINY_MODEL,
     OUTPUT_DIR,
-    UNSLOTH_AVAILABLE,
     get_device,
     get_gpu_memory_mb,
     normalize_answer,
     extract_sample_fields,
     format_prompt,
+    format_vlm_messages,
     load_dataset_with_fallback,
     load_model_and_processor,
     init_wandb,
 )
+os.environ.setdefault("WANDB_MODE", "online")
 
 
 def get_next_run_number(output_dir: Path, prefix: str) -> int:
-    """Get the next sequential run number for a given prefix."""
     if not output_dir.exists():
         return 1
     
@@ -59,6 +60,137 @@ def get_next_run_number(output_dir: Path, prefix: str) -> int:
         if suffix.isdigit():
             max_num = max(max_num, int(suffix))
     return max_num + 1
+
+
+def get_trainable_param_stats(model: Any) -> Dict[str, float]:
+    if hasattr(model, "get_nb_trainable_parameters"):
+        trainable_params, total_params = model.get_nb_trainable_parameters()
+    else:
+        total_params = sum(p.numel() for p in model.parameters())
+        trainable_params = sum(p.numel() for p in model.parameters() if p.requires_grad)
+    trainable_ratio = (100.0 * trainable_params / total_params) if total_params > 0 else 0.0
+    return {
+        "total_params": float(total_params),
+        "trainable_params": float(trainable_params),
+        "trainable_ratio_pct": float(trainable_ratio),
+    }
+
+
+class MultimodalQACollator:
+    """Build image-conditioned causal-LM batches and mask prompt tokens."""
+
+    def __init__(self, processor: Any, tokenizer: Any, max_length: int):
+        self.processor = processor
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def _build_prompt(self, question: str, has_image: bool) -> str:
+        if hasattr(self.processor, "apply_chat_template"):
+            messages = format_vlm_messages(question, has_image=has_image)
+            return self.processor.apply_chat_template(messages, add_generation_prompt=True)
+        return format_prompt(question)
+
+    def _encode(self, prompts: List[str], texts: List[str], images: List[Any]) -> Dict[str, torch.Tensor]:
+        has_images = all(img is not None for img in images)
+        if has_images:
+            batch = self.processor(
+                images=images,
+                text=texts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=self.max_length,
+            )
+            prompt_batch = self.processor(
+                images=images,
+                text=prompts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=self.max_length,
+            )
+        else:
+            batch = self.processor(
+                text=texts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=self.max_length,
+            )
+            prompt_batch = self.processor(
+                text=prompts,
+                return_tensors="pt",
+                padding=True,
+                truncation=True,
+                max_length=self.max_length,
+            )
+
+        labels = batch["input_ids"].clone()
+        prompt_lens = prompt_batch["attention_mask"].sum(dim=1).tolist()
+        for i, plen in enumerate(prompt_lens):
+            labels[i, :int(plen)] = -100
+
+        if getattr(self.tokenizer, "pad_token_id", None) is not None:
+            labels[batch["input_ids"] == self.tokenizer.pad_token_id] = -100
+
+        batch["labels"] = labels
+        return batch
+
+    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
+        prompts = []
+        full_texts = []
+        images = []
+        for feature in features:
+            question = feature["question"]
+            answer = feature["answer"]
+            image = feature.get("image")
+            prompt = self._build_prompt(question, has_image=image is not None)
+            prompts.append(prompt)
+            full_texts.append(f"{prompt} {answer}".strip())
+            images.append(image)
+
+        if any(img is not None for img in images) and any(img is None for img in images):
+            raise ValueError("Mixed image/no-image samples in the same batch are not supported.")
+
+        return self._encode(prompts=prompts, texts=full_texts, images=images)
+
+
+class TextQACollator:
+    """Build text-only causal-LM batches and mask prompt tokens."""
+
+    def __init__(self, tokenizer: Any, max_length: int):
+        self.tokenizer = tokenizer
+        self.max_length = max_length
+
+    def __call__(self, features: List[Dict[str, Any]]) -> Dict[str, torch.Tensor]:
+        prompts = [format_prompt(x["question"]) for x in features]
+        full_texts = [f"{p} {x['answer']}".strip() for p, x in zip(prompts, features)]
+
+        batch = self.tokenizer(
+            full_texts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+        )
+        prompt_batch = self.tokenizer(
+            prompts,
+            return_tensors="pt",
+            padding=True,
+            truncation=True,
+            max_length=self.max_length,
+        )
+
+        labels = batch["input_ids"].clone()
+        prompt_lens = prompt_batch["attention_mask"].sum(dim=1).tolist()
+        for i, plen in enumerate(prompt_lens):
+            labels[i, :int(plen)] = -100
+
+        if self.tokenizer.pad_token_id is not None:
+            labels[batch["input_ids"] == self.tokenizer.pad_token_id] = -100
+
+        batch["labels"] = labels
+        return batch
 
 
 def cmd_doctor() -> int:
@@ -97,8 +229,6 @@ def cmd_doctor() -> int:
         print(f"  ✗ CUDA check failed: {e}")
 
     print("\nOptional Dependencies:")
-    print(f"  {'✓' if UNSLOTH_AVAILABLE else '-'} unsloth: {'available' if UNSLOTH_AVAILABLE else 'not installed'}")
-
     try:
         import groq
         print(f"  ✓ groq: available")
@@ -352,7 +482,6 @@ def cmd_train(args: argparse.Namespace) -> int:
     num_epochs = args.num_epochs if args.num_epochs else DEFAULT_NUM_EPOCHS
     lr = args.lr if args.lr else DEFAULT_LR
     load_in_4bit = args.load_in_4bit
-    use_unsloth = not args.no_unsloth
 
     device = get_device()
     if args.cpu:
@@ -369,7 +498,6 @@ def cmd_train(args: argparse.Namespace) -> int:
     print(f"  Epochs: {num_epochs}")
     print(f"  Learning rate: {lr}")
     print(f"  Load in 4bit: {load_in_4bit}")
-    print(f"  Use Unsloth: {use_unsloth and UNSLOTH_AVAILABLE}")
     print(f"  Output: {output_dir}")
 
     config = {
@@ -384,7 +512,6 @@ def cmd_train(args: argparse.Namespace) -> int:
         "num_epochs": num_epochs,
         "lr": lr,
         "load_in_4bit": load_in_4bit,
-        "unsloth": use_unsloth and UNSLOTH_AVAILABLE,
     }
 
     wandb_run = init_wandb(run_name=run_name, config=config)
@@ -394,8 +521,19 @@ def cmd_train(args: argparse.Namespace) -> int:
     try:
         model, processor = load_model_and_processor(
             model_id, device=device, load_in_4bit=load_in_4bit,
-            use_unsloth=use_unsloth, for_training=True,
+            for_training=True,
         )
+        param_stats = get_trainable_param_stats(model)
+        print(
+            f"  Trainable params: {int(param_stats['trainable_params']):,} / "
+            f"{int(param_stats['total_params']):,} "
+            f"({param_stats['trainable_ratio_pct']:.2f}%)"
+        )
+        wandb_run.log({
+            "trainable_params": param_stats["trainable_params"],
+            "total_params": param_stats["total_params"],
+            "trainable_ratio_pct": param_stats["trainable_ratio_pct"],
+        })
         print(f"  ✓ Model loaded in {time.time() - start_time:.1f}s")
     except Exception as e:
         print(f"  ✗ Failed to load model: {e}")
@@ -418,33 +556,36 @@ def cmd_train(args: argparse.Namespace) -> int:
     tokenizer = processor if hasattr(processor, "tokenizer") else processor
     if hasattr(tokenizer, "tokenizer"):
         tokenizer = tokenizer.tokenizer
-    if tokenizer.pad_token is None:
+    if hasattr(tokenizer, "pad_token") and tokenizer.pad_token is None:
         tokenizer.pad_token = tokenizer.eos_token
 
     def prepare_sample(sample, idx):
         fields = extract_sample_fields(sample, idx, dataset_info)
-        prompt = format_prompt(fields["question"])
         answer = fields["ground_truths"][0] if fields["ground_truths"] else ""
-        full_text = f"{prompt} {answer}"
-        return {"text": full_text, "prompt": prompt, "answer": answer}
+        return {
+            "question": fields["question"],
+            "answer": answer,
+            "image": fields["image"],
+        }
 
     train_data = [prepare_sample(sample, i) for i, sample in enumerate(ds)]
-
-    def tokenize_fn(examples):
-        return tokenizer(
-            examples["text"], truncation=True, max_length=DEFAULT_MAX_SEQ_LENGTH,
-            padding="max_length", return_tensors=None,
+    has_images = any(x["image"] is not None for x in train_data)
+    is_vlm_processor = hasattr(processor, "image_processor") or hasattr(processor, "apply_chat_template")
+    use_multimodal = is_vlm_processor and has_images
+    train_ds = train_data
+    if use_multimodal:
+        data_collator = MultimodalQACollator(
+            processor=processor,
+            tokenizer=tokenizer,
+            max_length=DEFAULT_MAX_SEQ_LENGTH,
         )
-
-    train_ds = Dataset.from_list(train_data)
-    train_ds = train_ds.map(tokenize_fn, batched=True, remove_columns=["text", "prompt", "answer"])
-
-    def add_labels(examples):
-        examples["labels"] = examples["input_ids"].copy()
-        return examples
-
-    train_ds = train_ds.map(add_labels)
-    print(f"  ✓ Prepared {len(train_ds)} training samples")
+        print(f"  ✓ Prepared {len(train_ds)} multimodal samples (image + text)")
+    else:
+        data_collator = TextQACollator(
+            tokenizer=tokenizer,
+            max_length=DEFAULT_MAX_SEQ_LENGTH,
+        )
+        print(f"  ✓ Prepared {len(train_ds)} text-only samples")
 
     print(f"\nStarting training...")
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -471,17 +612,14 @@ def cmd_train(args: argparse.Namespace) -> int:
         ddp_find_unused_parameters=False,
     )
 
-    try:
-        from trl import SFTTrainer
-        trainer = SFTTrainer(
-            model=model, args=training_args, train_dataset=train_ds, tokenizer=tokenizer,
-        )
-        print("  Using TRL SFTTrainer")
-    except Exception:
-        trainer = Trainer(
-            model=model, args=training_args, train_dataset=train_ds, tokenizer=tokenizer,
-        )
-        print("  Using HF Trainer")
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        train_dataset=train_ds,
+        tokenizer=tokenizer,
+        data_collator=data_collator,
+    )
+    print("  Using HF Trainer with custom QA collator")
 
     train_start = time.time()
     try:
@@ -552,7 +690,6 @@ def main():
     p_train.add_argument("--num_epochs", type=int, help="Number of epochs")
     p_train.add_argument("--lr", type=float, help="Learning rate")
     p_train.add_argument("--load_in_4bit", action="store_true", help="Load in 4-bit")
-    p_train.add_argument("--no_unsloth", action="store_true", help="Disable Unsloth")
     p_train.add_argument("--cpu", action="store_true", help="Force CPU")
     p_train.add_argument("--limit_samples", type=int, help="Limit samples")
 

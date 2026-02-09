@@ -117,7 +117,7 @@ def cmd_eval(args: argparse.Namespace) -> int:
     try:
         model, processor = load_model_and_processor(
             model_id, device=device, load_in_4bit=args.load_in_4bit,
-            use_unsloth=False, for_training=False,
+            for_training=False,
         )
 
         if checkpoint:
