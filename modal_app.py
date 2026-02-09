@@ -49,7 +49,7 @@ base_image = (
         "libglib2.0-0",
     )
     .pip_install("opencv-python-headless")
-    .pip_install_from_requirements("./VLMEvalKit/requirements.txt")
+    .pip_install_from_requirements("./eval/VLMEvalKit/requirements.txt")
     .pip_install(
         "peft",
         "trl",
