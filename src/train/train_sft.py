@@ -6,7 +6,7 @@ from transformers import AutoProcessor, BitsAndBytesConfig, HfArgumentParser, Au
 from src.trainer.sft_trainer import SmolVLMSFTTrainer
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, ModelArguments, TrainingArguments
-from train.train_utils import get_peft_state_maybe_zero_3, get_peft_state_non_lora_maybe_zero_3, safe_save_model_for_hf_trainer
+from src.train.train_utils import get_peft_state_maybe_zero_3, get_peft_state_non_lora_maybe_zero_3, safe_save_model_for_hf_trainer
 import pathlib
 import warnings
 
