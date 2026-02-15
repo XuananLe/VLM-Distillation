@@ -8,21 +8,17 @@ from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, ModelArguments, TrainingArguments
 from train.train_utils import get_peft_state_maybe_zero_3, get_peft_state_non_lora_maybe_zero_3, safe_save_model_for_hf_trainer
 import pathlib
-
 import warnings
 
 # Image handling imports
 from PIL import Image, ImageFile
-
-# AVIF support initialization
+from pillow_avif import register_avif_opener
+AVIF_SUPPORT = True
 try:
-    from pillow_avif import register_avif_opener
     register_avif_opener()
-    AVIF_SUPPORT = True
-except ImportError:
-    AVIF_SUPPORT = False
-    warnings.warn("AVIF support disabled. Install pillow-avif-plugin for AVIF support.")
-
+except Exception as e:
+    raise ImportError("pillow_avif is not installed or failed to register AVIF opener.")
+    
 # Configure image loading
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
@@ -169,7 +165,7 @@ def train():
 
     model = AutoModelForImageTextToText.from_pretrained(
         model_args.model_id,
-        torch_dtype=compute_dtype,
+        dtype=compute_dtype,
         _attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "eager", 
         **bnb_model_from_pretrained_args
     )
@@ -249,6 +245,9 @@ def train():
         args=training_args,
         **data_module
     )
+    # Keep processor on trainer so every checkpoint contains processor files.
+    trainer.processing_class = processor
+    trainer.processor = processor
 
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)

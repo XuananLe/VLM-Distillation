@@ -41,7 +41,8 @@ base_image = (
     )
     .pip_install_from_requirements("./requirements.txt")
     .uv_pip_install(
-        flash_attn_release
+        flash_attn_release,
+        "pillow-avif-plugin"
     )
     .env(
         {
@@ -112,9 +113,9 @@ def exec_cmd(cmd: str):
 
 
 @app.local_entrypoint()
-def run(
-    cmd: str = (
-        f"cd {ROOT_DIR}/src/eval && python run.py --data TextVQA_VAL --model SmolVLM-500M --work-dir {OUTPUT_DIR} --verbose"
-    ),
-):
-    exec_cmd.remote(cmd=cmd)
+def run():
+    cmd = {
+        "train": f"cd {ROOT_DIR} && python -m src.train",
+        "evaluate": f"cd {ROOT_DIR} && python -m src.evaluate",
+    }
+    exec_cmd.remote(cmd['train'])

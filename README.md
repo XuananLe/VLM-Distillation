@@ -328,3 +328,271 @@ This project is based on
 - [LLaVA-NeXT](https://github.com/LLaVA-VL/LLaVA-NeXT): An amazing open-source project of LMM.
 - [Mipha](https://github.com/zhuyiche/llava-phi): Open-source projcet of SMM with amazing capabilites.
 - [SmolVLM](https://huggingface.co/HuggingFaceTB/SmolVLM-Instruct): Awesome pretrained MLLM based on SmolLM2.
+
+
+# Flexible Baseline Configuration Guide
+
+This guide shows how to use the flexible baseline configuration system for VLM distillation experiments.
+
+## Key Features
+
+- **Optional parameters**: Only specify what you need (temperature, alpha, etc.)
+- **Custom hyperparameters**: Add any experiment-specific parameters
+- **Easy extension**: Create and register new baselines at runtime
+- **Type safety**: All parameters are validated
+
+## Basic Usage
+
+### 1. Using Pre-defined Baselines
+
+```python
+from src.distillation import BaselineRegistry
+
+# List all available baselines
+BaselineRegistry.print_baselines()
+
+# Get a specific baseline config
+config = BaselineRegistry.get_baseline("vanilla_kd")
+print(config.to_dict())
+# Output: {'name': 'vanilla_kd', 'description': '...', 'loss_type': 'kl',
+#          'temperature': 4.0, 'alpha': 0.5, 'learning_rate': 2e-5, ...}
+
+# Access parameters flexibly
+loss_type = config.loss_type  # Standard parameter
+lr = config.get("learning_rate", 1e-5)  # From hyperparameters with default
+```
+
+### 2. Creating Custom Baselines
+
+```python
+from src.distillation import create_custom_baseline
+
+# Example 1: KD with only temperature (no alpha)
+simple_kd = create_custom_baseline(
+    name="simple_kd",
+    description="Simple KD without hard targets",
+    loss_type="kl",
+    temperature=3.0,
+    learning_rate=2e-5
+)
+
+# Example 2: Vision-only distillation (no temperature/alpha)
+vision_only = create_custom_baseline(
+    name="vision_only",
+    description="Distill vision features only",
+    loss_type="mse",
+    freeze_llm=True,
+    vision_lr=1e-6,
+    projection_layers=[12, 18, 24]
+)
+
+# Example 3: Multi-stage distillation
+multi_stage = create_custom_baseline(
+    name="multi_stage",
+    description="Stage 1: Vision, Stage 2: Full model",
+    stage_1_epochs=5,
+    stage_2_epochs=10,
+    stage_1_freeze_llm=True,
+    stage_2_freeze_llm=False
+)
+
+# Example 4: Custom loss with many parameters
+advanced = create_custom_baseline(
+    name="advanced_kd",
+    description="Advanced KD with all bells and whistles",
+    loss_type="feature",
+    temperature=4.0,
+    alpha=0.5,
+    beta=0.3,
+    gamma=0.2,
+    learning_rate=2e-5,
+    use_ema_teacher=True,
+    ema_decay=0.999,
+    layer_wise_weights=[0.1, 0.2, 0.3, 0.4],
+    adaptive_temperature=True
+)
+```
+
+### 3. Training with Different Baseline Types
+
+```bash
+# Standard KD approach
+python -m src.train.train_distillation \
+    --baseline_method vanilla_kd \
+    --teacher_model_id "teacher-model" \
+    --model_id "student-model" \
+    --data_path data.json
+
+# Vision-only distillation (no teacher for LLM)
+python -m src.train.train_distillation \
+    --baseline_method vision_distill \
+    --teacher_model_id "teacher-model" \
+    --model_id "student-model" \
+    --data_path data.json
+
+# Feature-based (no temperature parameter)
+python -m src.train.train_distillation \
+    --baseline_method fitnets \
+    --teacher_model_id "teacher-model" \
+    --model_id "student-model" \
+    --data_path data.json
+
+# Self-distillation (no teacher at all!)
+python -m src.train.train_distillation \
+    --baseline_method self_distill \
+    --model_id "student-model" \
+    --data_path data.json
+```
+
+## Available Baseline Types
+
+### 1. **vanilla_kd** - Standard Knowledge Distillation
+- **Parameters**: `temperature`, `alpha`
+- **Use case**: General-purpose logit distillation
+
+### 2. **fitnets** - Feature Hints
+- **Parameters**: `alpha` (no temperature)
+- **Use case**: Intermediate layer matching
+
+### 3. **attention_transfer** - Attention Matching
+- **Parameters**: `alpha` (no temperature)
+- **Use case**: Transfer attention patterns
+
+### 4. **feature_distillation** - Multi-component
+- **Parameters**: `temperature`, `alpha`, `beta`, `gamma`
+- **Use case**: Logits + features + attention
+
+### 5. **vision_distill** - Vision Tower Only
+- **Parameters**: None (only hyperparameters)
+- **Use case**: Distill vision encoder only
+
+### 6. **mimicking** - Hidden State Matching
+- **Parameters**: None (feature-based)
+- **Use case**: Match all intermediate hidden states
+
+### 7. **contrastive_kd** - Contrastive Learning
+- **Parameters**: None (custom parameters only)
+- **Use case**: Use contrastive loss for distillation
+
+### 8. **self_distill** - Self-Distillation
+- **Parameters**: `temperature`, `alpha`
+- **Use case**: No teacher, use model's own predictions
+
+## Runtime Registration
+
+You can register new baselines during execution:
+
+```python
+from src.distillation import create_custom_baseline, register_custom_baseline
+
+# Create your custom baseline
+my_baseline = create_custom_baseline(
+    name="my_experiment",
+    description="My novel distillation approach",
+    loss_type="custom",
+    learning_rate=1e-5,
+    custom_weight=0.7,
+    use_importance_sampling=True
+)
+
+# Register it
+register_custom_baseline(my_baseline)
+
+# Now you can use it
+python -m src.train.train_distillation --baseline_method my_experiment ...
+```
+
+## Accessing Parameters in Code
+
+The flexible config works automatically in `train_distillation.py`:
+
+```python
+# In train_distillation.py
+if distillation_args.baseline_method:
+    baseline_config = BaselineRegistry.get_baseline(distillation_args.baseline_method)
+
+    # Only override if parameter exists
+    if baseline_config.loss_type is not None:
+        distillation_args.distillation_loss_type = baseline_config.loss_type
+    if baseline_config.temperature is not None:
+        distillation_args.temperature = baseline_config.temperature
+    # ... etc
+
+    # All hyperparameters automatically applied
+    for key, value in baseline_config.hyperparameters.items():
+        if hasattr(training_args, key):
+            setattr(training_args, key, value)
+```
+
+## Adding Your Own Baseline Types
+
+1. **Edit** `src/distillation/baselines.py`
+2. **Add to** `BaselineRegistry.list_baselines()`:
+
+```python
+"my_new_method": BaselineConfig(
+    name="my_new_method",
+    description="Description of my method",
+    # Only add parameters you need
+    temperature=5.0,  # Optional
+    alpha=0.6,        # Optional
+    # Custom hyperparameters
+    hyperparameters={
+        "learning_rate": 3e-5,
+        "my_custom_param": 42,
+        "use_special_trick": True,
+    }
+),
+```
+
+3. **Use it**:
+```bash
+python -m src.train.train_distillation --baseline_method my_new_method ...
+```
+
+## Examples
+
+### Example 1: Two-Stage Training
+```python
+# Stage 1: Train vision tower only
+stage1 = create_custom_baseline(
+    name="stage1_vision",
+    description="Stage 1: Vision tower only",
+    loss_type="mse",
+    freeze_llm=True,
+    learning_rate=5e-6
+)
+
+# Stage 2: Train full model
+stage2 = create_custom_baseline(
+    name="stage2_full",
+    description="Stage 2: Full model",
+    loss_type="kl",
+    temperature=3.0,
+    alpha=0.7,
+    learning_rate=2e-5
+)
+```
+
+### Example 2: Progressive Distillation
+```python
+progressive = create_custom_baseline(
+    name="progressive_kd",
+    description="Progressive temperature annealing",
+    loss_type="kl",
+    initial_temperature=10.0,
+    final_temperature=2.0,
+    alpha=0.5,
+    temperature_schedule="cosine"
+)
+```
+
+### Example 3: Minimal Configuration
+```python
+# Just hyperparameters, no standard params
+minimal = create_custom_baseline(
+    name="minimal",
+    description="Minimal config with only LR",
+    learning_rate=1e-5
+)
+```

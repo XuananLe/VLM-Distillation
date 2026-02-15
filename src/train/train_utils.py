@@ -56,6 +56,7 @@ def safe_save_model_for_hf_trainer(trainer: transformers.Trainer,
     if trainer.deepspeed:
         torch.cuda.synchronize()
         trainer.save_model(output_dir)
+        _save_processing_assets(trainer, output_dir)
         return
 
     state_dict = trainer.model.state_dict()
@@ -67,3 +68,24 @@ def safe_save_model_for_hf_trainer(trainer: transformers.Trainer,
         del state_dict
         trainer._save(output_dir, state_dict=cpu_state_dict)  # noqa
         trainer.model.config.save_pretrained(output_dir)
+        _save_processing_assets(trainer, output_dir)
+
+
+def _save_processing_assets(trainer: transformers.Trainer, output_dir: str) -> None:
+    if not getattr(trainer.args, "should_save", False):
+        return
+    if hasattr(trainer, "is_world_process_zero") and not trainer.is_world_process_zero():
+        return
+
+    saved = set()
+    for asset in (
+        getattr(trainer, "processing_class", None),
+        getattr(trainer, "processor", None),
+        getattr(trainer, "tokenizer", None),
+    ):
+        if asset is None or id(asset) in saved:
+            continue
+        if hasattr(asset, "save_pretrained"):
+            asset.save_pretrained(output_dir)
+            saved.add(id(asset))
+            break

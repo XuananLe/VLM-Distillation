@@ -15,33 +15,30 @@ from transformers.trainer import (
 from transformers.pytorch_utils import (
     ALL_LAYERNORM_LAYERS
 )
-import safetensors
-from peft import PeftModel
-from typing import Optional
-import numpy as np
-from transformers.processing_utils import ProcessorMixin
-from transformers.modeling_utils import PreTrainedModel
-from peft import PeftModel
-from train.train_utils import get_peft_state_maybe_zero_3, get_peft_state_non_lora_maybe_zero_3
-
-def maybe_zero_3(param, ignore_status=False, name=None):
-    from deepspeed import zero
-    from deepspeed.runtime.zero.partition_parameters import ZeroParamStatus
-
-    if hasattr(param, "ds_id"):
-        if param.ds_status == ZeroParamStatus.NOT_AVAILABLE:
-            if not ignore_status:
-                print(name, "no ignore status")
-        with zero.GatheredParameters([param]):
-            param = param.data.detach().cpu().clone()
-    else:
-        param = param.detach().cpu().clone()
-    return param
+from train.train_utils import get_peft_state_non_lora_maybe_zero_3
 
 class SmolVLMSFTTrainer(Trainer):
 
-    def __init__(self, *args, **kwargs):
-        super(SmolVLMSFTTrainer, self).__init__(*args, **kwargs)
+    def _save_processor_assets(self, output_dir: str) -> None:
+        """Persist processor/tokenizer files so checkpoints are directly eval-ready."""
+        if not getattr(self.args, "should_save", False):
+            return
+        if hasattr(self, "is_world_process_zero") and not self.is_world_process_zero():
+            return
+
+        saved = set()
+        for asset in (
+            getattr(self, "processing_class", None),
+            getattr(self, "processor", None),
+            getattr(self, "tokenizer", None),
+        ):
+            if asset is None or id(asset) in saved:
+                continue
+            if hasattr(asset, "save_pretrained"):
+                asset.save_pretrained(output_dir)
+                saved.add(id(asset))
+                # Avoid duplicate writes when processor and tokenizer alias each other.
+                break
 
     def create_optimizer(self):
         """
@@ -137,6 +134,7 @@ class SmolVLMSFTTrainer(Trainer):
             run_dir = self._get_output_dir(trial=trial)
             output_dir = os.path.join(run_dir, checkpoint_folder)
             self.save_model(output_dir, _internal_call=True)
+            self._save_processor_assets(output_dir)
             non_lora_weights = get_peft_state_non_lora_maybe_zero_3(self.model.named_parameters(), require_grad_only=False)
             torch.save(non_lora_weights, os.path.join(output_dir, "non_lora_state_dict.bin"))
 
@@ -173,3 +171,7 @@ class SmolVLMSFTTrainer(Trainer):
 
         else:
             super(SmolVLMSFTTrainer, self)._save_checkpoint(model, trial)
+            checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
+            run_dir = self._get_output_dir(trial=trial)
+            output_dir = os.path.join(run_dir, checkpoint_folder)
+            self._save_processor_assets(output_dir)
