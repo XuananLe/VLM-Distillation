@@ -9,11 +9,11 @@ TEMPERATURE=2.0
 ALPHA=0.7 
 
 deepspeed src/train/train_distillation.py \
-    --deepspeed scripts/zero3.json \
+    --deepspeed scripts/zero2.json \
     --model_id $STUDENT_MODEL \
     --teacher_model_id $TEACHER_MODEL \
-    --data_path /path/to/your/training/data.json \
-    --image_folder /path/to/your/image/folder \
+    --data_path /workspace/VLM-Distillation/data/textvqa/train_llava.json \
+    --image_folder /workspace/VLM-Distillation/data/textvqa/images \
     --distillation_loss $DISTILLATION_LOSS \
     --bf16 True \
     --fp16 False \
@@ -40,7 +40,7 @@ deepspeed src/train/train_distillation.py \
     --save_strategy steps \
     --save_steps 500 \
     --save_total_limit 3 \
-    --evaluation_strategy no \
+    --eval_strategy no \
     --dataloader_num_workers 4 \
     --remove_unused_columns False \
     --report_to wandb
