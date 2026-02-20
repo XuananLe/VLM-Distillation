@@ -1,6 +1,13 @@
 from transformers import Trainer, PreTrainedModel
 import torch
-import torch.nn.functional as F
+
+_TEACHER_KEYS = frozenset({
+    "teacher_input_ids",
+    "teacher_labels",
+    "teacher_attention_mask",
+    "teacher_pixel_values",
+    "teacher_pixel_attention_mask",
+})
 
 class LogitsDistillationTrainer(Trainer):
     def __init__(
@@ -13,57 +20,83 @@ class LogitsDistillationTrainer(Trainer):
         **kwargs
     ):
         super().__init__(*args, **kwargs)
-        
+
         from src.components import loss as distillation_loss_module
         self.distillation_loss_fn = getattr(distillation_loss_module, loss_function)
-        
+
         self.teacher_model = teacher_model
         self.teacher_model.eval()
         self.temperature = temperature
         self.alpha = alpha
-        
+
         print(f"Distillation Trainer initialized:")
         print(f"  - Loss function: {loss_function}")
         print(f"  - Temperature: {temperature}")
         print(f"  - Alpha: {alpha}")
-    
+
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
-        if self.teacher_model.device != model.device:
-            self.teacher_model = self.teacher_model.to(model.device)
-        
-        student_outputs = model(**inputs)
-        student_logits = student_outputs.logits
-        
-        labels = inputs.get("labels", None)
+        # Use the device of the input tensors as the reference, not model.device.
+        # With DeepSpeed ZeRO-2/3 the student model's .device property can return
+        # an unexpected value because parameters are sharded across ranks.
+        target_device = inputs["input_ids"].device
+        if next(self.teacher_model.parameters()).device != target_device:
+            self.teacher_model = self.teacher_model.to(target_device)
+
+        # Split batch into student inputs (all non-teacher keys) and teacher inputs.
+        # When the dataset encodes images with separate processors, the batch will
+        # contain teacher_* keys; otherwise we fall back to sharing student inputs.
+        has_teacher_inputs = "teacher_input_ids" in inputs
+        student_inputs = {k: v for k, v in inputs.items() if k not in _TEACHER_KEYS}
+
+        if has_teacher_inputs:
+            teacher_inputs = {
+                "input_ids":             inputs["teacher_input_ids"],
+                "attention_mask":        inputs["teacher_attention_mask"],
+                "pixel_values":          inputs["teacher_pixel_values"],
+                "pixel_attention_mask":  inputs["teacher_pixel_attention_mask"],
+            }
+            teacher_labels = inputs["teacher_labels"]
+        else:
+            teacher_inputs = {k: v for k, v in student_inputs.items() if k != "labels"}
+            teacher_labels = student_inputs.get("labels")
+
+        student_outputs = model(**student_inputs)
+        student_logits  = student_outputs.logits
+
+        student_labels = student_inputs.get("labels")
+        assert student_labels is not None, "Labels must be provided for distillation loss masking"
 
         with torch.no_grad():
-            teacher_outputs = self.teacher_model(**inputs)
-            teacher_logits = teacher_outputs.logits
+            teacher_outputs = self.teacher_model(**teacher_inputs)
+            teacher_logits  = teacher_outputs.logits
 
-        assert labels is not None, "Labels must be provided in the inputs for distillation loss masking"
+        student_mask = (student_labels != -100)
+        teacher_mask = (teacher_labels != -100)
 
-        mask = (labels != -100)
-        
-        if mask.sum() > 0:
-            student_logits_masked = student_logits.view(-1, student_logits.size(-1))[mask.view(-1)]
-            teacher_logits_masked = teacher_logits.view(-1, teacher_logits.size(-1))[mask.view(-1)]
-            
+        if student_mask.sum() > 0 and teacher_mask.sum() > 0:
+            student_logits_masked = student_logits.view(-1, student_logits.size(-1))[student_mask.view(-1)]
+            teacher_logits_masked = teacher_logits.view(-1, teacher_logits.size(-1))[teacher_mask.view(-1)]
+
+            # Truncate to the shorter response when tokenizers produce different lengths.
+            min_len = min(student_logits_masked.size(0), teacher_logits_masked.size(0))
+            student_logits_masked = student_logits_masked[:min_len]
+            teacher_logits_masked = teacher_logits_masked[:min_len]
+
             distillation_loss = self.distillation_loss_fn(
                 student_logits=student_logits_masked,
                 teacher_logits=teacher_logits_masked,
-                temperature=self.temperature
+                temperature=self.temperature,
             )
         else:
             distillation_loss = torch.tensor(0.0, device=student_logits.device)
 
         ce_loss = student_outputs.loss
         loss = self.alpha * distillation_loss + (1 - self.alpha) * ce_loss
-        
-        # Log individual loss components
+
         if self.state.global_step % self.args.logging_steps == 0:
             self.log({
                 "distillation_loss": distillation_loss.item(),
                 "ce_loss": ce_loss.item(),
             })
-        
+
         return (loss, student_outputs) if return_outputs else loss

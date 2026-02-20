@@ -16,17 +16,13 @@ from src.train.train_sft import (
     unfreeze_topk_layers,
     rank0_print,
 )
-from src.train.train_utils import (
-    safe_save_model_for_hf_trainer,
-)
-from pillow_avif import register_avif_opener
-from PIL import Image, ImageFile
+from src.train.train_utils import safe_save_model_for_hf_trainer
 
-register_avif_opener()
+import pillow_avif
+from PIL import Image, ImageFile
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
-
 
 @dataclass
 class DistillationArguments:
@@ -90,9 +86,15 @@ def train_distillation():
     rank0_print(f"Alpha: {distillation_args.alpha}")
     rank0_print("=" * 80)
     
-    # Load processor
+    # Load student and teacher processors separately — each model may use a
+    # different patch_size / image-token configuration (e.g. SmolVLM vs SmolVLM2).
     processor = AutoProcessor.from_pretrained(
         model_args.model_id,
+        padding_side="right",
+        trust_remote_code=True,
+    )
+    teacher_processor = AutoProcessor.from_pretrained(
+        distillation_args.teacher_model_id,
         padding_side="right",
         trust_remote_code=True,
     )
@@ -123,7 +125,7 @@ def train_distillation():
         model_args.model_id,
         cache_dir=training_args.cache_dir,
         attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "eager",
-        dtype=compute_dtype,
+        torch_dtype=compute_dtype,
         trust_remote_code=True,
         **bnb_model_from_pretrained_args,
     )
@@ -153,19 +155,10 @@ def train_distillation():
         cache_dir=training_args.cache_dir,
         attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "eager",
         torch_dtype=compute_dtype,
+        device_map={"": training_args.device},
         trust_remote_code=True,
-        **bnb_model_from_pretrained_args,
     )
-    
-    configure_vision_tower(
-        teacher_model,
-        processor,
-        training_args,
-        compute_dtype,
-        training_args.device
-    )
-    configure_llm(teacher_model, training_args)
-    
+
     # Freeze teacher model and set to eval mode
     teacher_model.eval()
     for param in teacher_model.parameters():
@@ -177,7 +170,7 @@ def train_distillation():
     data_module = make_supervised_data_module(
         processor=processor,
         data_args=data_args,
-        training_args=training_args,
+        teacher_processor=teacher_processor,
     )
     
     # Initialize trainer
