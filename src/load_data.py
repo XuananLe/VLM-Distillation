@@ -166,8 +166,8 @@ def _pick_contains_name(fields: list[str], tokens: tuple[str, ...]) -> str | Non
 
 
 def _infer_schema(dataset: Any) -> dict[str, str | None]:
-    all_fields = list(features.keys())
     features = dataset.features
+    all_fields = list(features.keys())
     image_fields = [name for name, feat in features.items() if _is_image_feature(feat)]
     string_fields = [name for name, feat in features.items() if _is_string_feature(feat)]
     string_sequence_fields = [name for name, feat in features.items() if _is_sequence_of_strings_feature(feat)]
@@ -308,7 +308,8 @@ def convert_dataset_to_llava(
                     quality=95,
                 )
                 image_id_to_filename[image_id] = image_filename
-            except Exception:
+            except Exception as e:
+                print(f"  Warning: skipping row {row_idx} — image error: {e}")
                 stats["skipped_image_error"] += 1
                 continue
 

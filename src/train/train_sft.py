@@ -2,23 +2,27 @@ import os
 import torch
 from peft import LoraConfig, get_peft_model
 import ast
-from transformers import AutoProcessor, BitsAndBytesConfig, HfArgumentParser, AutoModelForImageTextToText
+from transformers import AutoProcessor, BitsAndBytesConfig, HfArgumentParser, AutoModelForVision2Seq
 from src.trainer.sft_trainer import SmolVLMSFTTrainer
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, ModelArguments, TrainingArguments
-from src.train.train_utils import get_peft_state_maybe_zero_3, get_peft_state_non_lora_maybe_zero_3, safe_save_model_for_hf_trainer
+from src.train.train_utils import get_peft_state_maybe_zero_3, get_peft_state_non_lora_maybe_zero_3, safe_save_model_for_hf_trainer, get_compute_dtype
 import pathlib
+
 import warnings
 
 # Image handling imports
 from PIL import Image, ImageFile
-from pillow_avif import register_avif_opener
-AVIF_SUPPORT = True
+
+# AVIF support initialization
 try:
+    from pillow_avif import register_avif_opener
     register_avif_opener()
-except Exception as e:
-    raise ImportError("pillow_avif is not installed or failed to register AVIF opener.")
-    
+    AVIF_SUPPORT = True 
+except ImportError:
+    AVIF_SUPPORT = False
+    warnings.warn("AVIF support disabled. Install pillow-avif-plugin for AVIF support.")
+
 # Configure image loading
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
@@ -119,20 +123,20 @@ def train():
     
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
-    validate_image_files(data_args)
+    if data_args.image_folder:
+        validate_image_files(data_args)
 
-    
     if training_args.lora_enable and not training_args.freeze_llm:
         raise ValueError("If `lora_enable` is True, `freeze_llm` must also be True.")
 
     if not training_args.lora_enable:
         assert not training_args.vision_lora, \
             "Error: training_args.lora_enable is not enabled, but training_args.vision_lora is enabled."
-        
+
     if training_args.vision_lora and not training_args.freeze_vision_tower:
         raise ValueError("If `vision_lora` is True, `freeze_vision_tower` must also be True.")
 
-    else:
+    if training_args.lora_enable:
         if training_args.lora_namespan_exclude is not None:
             training_args.lora_namespan_exclude = ast.literal_eval(training_args.lora_namespan_exclude)
         else:
@@ -142,15 +146,16 @@ def train():
             training_args.lora_namespan_exclude += ["vision_model"]
 
     local_rank = training_args.local_rank
-    compute_dtype = (torch.float16 if training_args.fp16 else (torch.bfloat16 if training_args.bf16 else torch.float32))
+    compute_dtype = get_compute_dtype(training_args)
 
     processor = AutoProcessor.from_pretrained(model_args.model_id,
                                             padding_side="right")
 
-    bnb_model_from_pretrained_args = {}
+    model_from_pretrained_args = {
+        "device_map": {"": training_args.device},
+    }
     if training_args.bits in [4,8]:
-        bnb_model_from_pretrained_args.update(dict(
-            device_map={"":training_args.device},
+        model_from_pretrained_args.update(dict(
             quantization_config = BitsAndBytesConfig(
                 load_in_4bit=training_args.bits==4,
                 load_in_8bit=training_args.bits==8,
@@ -163,19 +168,18 @@ def train():
             )
         ))
 
-    model = AutoModelForImageTextToText.from_pretrained(
+    model = AutoModelForVision2Seq.from_pretrained(
         model_args.model_id,
-        dtype=compute_dtype,
-        _attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "eager", 
-        **bnb_model_from_pretrained_args
+        torch_dtype=compute_dtype,
+        attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "eager",
+        **model_from_pretrained_args
     )
 
-    model_to_configure = model
-    configure_llm(model_to_configure, training_args)
-    configure_vision_tower(model_to_configure, processor, training_args, compute_dtype, training_args.device)
+    configure_llm(model, training_args)
+    configure_vision_tower(model, processor, training_args, compute_dtype, training_args.device)
 
     unfreeze_topk_layers(
-        model_to_configure,
+        model,
         k_llm=getattr(training_args, "unfreeze_topk_llm", 0),
         k_vis=getattr(training_args, "unfreeze_topk_vision", 0),
     )
@@ -245,9 +249,6 @@ def train():
         args=training_args,
         **data_module
     )
-    # Keep processor on trainer so every checkpoint contains processor files.
-    trainer.processing_class = processor
-    trainer.processor = processor
 
     if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)

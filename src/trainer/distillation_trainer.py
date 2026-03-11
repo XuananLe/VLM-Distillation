@@ -7,7 +7,9 @@ _TEACHER_KEYS = frozenset({
     "teacher_attention_mask",
     "teacher_pixel_values",
     "teacher_pixel_attention_mask",
+    "teacher_image_grid_thw",
 })
+
 
 class LogitsDistillationTrainer(Trainer):
     def __init__(
@@ -42,49 +44,44 @@ class LogitsDistillationTrainer(Trainer):
         if next(self.teacher_model.parameters()).device != target_device:
             self.teacher_model = self.teacher_model.to(target_device)
 
-        # Split batch into student inputs (all non-teacher keys) and teacher inputs.
-        # When the dataset encodes images with separate processors, the batch will
-        # contain teacher_* keys; otherwise we fall back to sharing student inputs.
         has_teacher_inputs = "teacher_input_ids" in inputs
         student_inputs = {k: v for k, v in inputs.items() if k not in _TEACHER_KEYS}
 
         if has_teacher_inputs:
             teacher_inputs = {
-                "input_ids":             inputs["teacher_input_ids"],
-                "attention_mask":        inputs["teacher_attention_mask"],
-                "pixel_values":          inputs["teacher_pixel_values"],
-                "pixel_attention_mask":  inputs["teacher_pixel_attention_mask"],
+                "input_ids": inputs["teacher_input_ids"],
+                "attention_mask": inputs["teacher_attention_mask"],
+                "pixel_values": inputs["teacher_pixel_values"],
             }
+            if "teacher_pixel_attention_mask" in inputs:
+                teacher_inputs["pixel_attention_mask"] = inputs["teacher_pixel_attention_mask"]
+            if "teacher_image_grid_thw" in inputs:
+                teacher_inputs["image_grid_thw"] = inputs["teacher_image_grid_thw"]
             teacher_labels = inputs["teacher_labels"]
         else:
             teacher_inputs = {k: v for k, v in student_inputs.items() if k != "labels"}
             teacher_labels = student_inputs.get("labels")
 
         student_outputs = model(**student_inputs)
-        student_logits  = student_outputs.logits
+        student_logits = student_outputs.logits
 
         student_labels = student_inputs.get("labels")
         assert student_labels is not None, "Labels must be provided for distillation loss masking"
 
         with torch.no_grad():
             teacher_outputs = self.teacher_model(**teacher_inputs)
-            teacher_logits  = teacher_outputs.logits
+            teacher_logits = teacher_outputs.logits
 
-        student_mask = (student_labels != -100)
-        teacher_mask = (teacher_labels != -100)
+        student_mask = student_labels != -100
+        teacher_mask = teacher_labels != -100
 
         if student_mask.sum() > 0 and teacher_mask.sum() > 0:
             student_logits_masked = student_logits.view(-1, student_logits.size(-1))[student_mask.view(-1)]
             teacher_logits_masked = teacher_logits.view(-1, teacher_logits.size(-1))[teacher_mask.view(-1)]
-
-            # Truncate to the shorter response when tokenizers produce different lengths.
             min_len = min(student_logits_masked.size(0), teacher_logits_masked.size(0))
-            student_logits_masked = student_logits_masked[:min_len]
-            teacher_logits_masked = teacher_logits_masked[:min_len]
-
             distillation_loss = self.distillation_loss_fn(
-                student_logits=student_logits_masked,
-                teacher_logits=teacher_logits_masked,
+                student_logits=student_logits_masked[:min_len],
+                teacher_logits=teacher_logits_masked[:min_len],
                 temperature=self.temperature,
             )
         else:

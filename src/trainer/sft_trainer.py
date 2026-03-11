@@ -15,30 +15,13 @@ from transformers.trainer import (
 from transformers.pytorch_utils import (
     ALL_LAYERNORM_LAYERS
 )
-from train.train_utils import get_peft_state_non_lora_maybe_zero_3
+from src.train.train_utils import get_peft_state_non_lora_maybe_zero_3, _save_processing_assets
 
 class SmolVLMSFTTrainer(Trainer):
 
     def _save_processor_assets(self, output_dir: str) -> None:
         """Persist processor/tokenizer files so checkpoints are directly eval-ready."""
-        if not getattr(self.args, "should_save", False):
-            return
-        if hasattr(self, "is_world_process_zero") and not self.is_world_process_zero():
-            return
-
-        saved = set()
-        for asset in (
-            getattr(self, "processing_class", None),
-            getattr(self, "processor", None),
-            getattr(self, "tokenizer", None),
-        ):
-            if asset is None or id(asset) in saved:
-                continue
-            if hasattr(asset, "save_pretrained"):
-                asset.save_pretrained(output_dir)
-                saved.add(id(asset))
-                # Avoid duplicate writes when processor and tokenizer alias each other.
-                break
+        _save_processing_assets(self, output_dir)
 
     def create_optimizer(self):
         """

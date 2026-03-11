@@ -70,6 +70,23 @@ class TrainingArguments(HFTrainingArguments):
     lora_namespan_exclude: str = field(default=None, metadata={"help": "List of namespan to exclude for LoRA"})
     num_lora_modules: int = -1
 
+    def __post_init__(self):
+        # TRL 0.17 mutates transformers.training_args._VALID_DICT_FIELDS to include
+        # fields like `model_init_kwargs` that do not exist on plain
+        # transformers.TrainingArguments in transformers 4.47.x.
+        original_valid_dict_fields = None
+        if hasattr(_ta, "_VALID_DICT_FIELDS"):
+            original_valid_dict_fields = list(_ta._VALID_DICT_FIELDS)
+            _ta._VALID_DICT_FIELDS = [
+                field_name for field_name in original_valid_dict_fields if hasattr(self, field_name)
+            ]
+
+        try:
+            super().__post_init__()
+        finally:
+            if original_valid_dict_fields is not None:
+                _ta._VALID_DICT_FIELDS = original_valid_dict_fields
+
 
 @dataclass
 class DataArguments:

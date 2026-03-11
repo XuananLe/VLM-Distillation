@@ -16,7 +16,7 @@ deepspeed src/train/train_sft.py \
     --fp16 False \
     --disable_flash_attn2 False \
     --output_dir output/testing \
-    --num_train_epochs 1 \
+    --num_train_epochs 2 \
     --per_device_train_batch_size 2 \
     --gradient_accumulation_steps 8 \
     --learning_rate 1e-5 \
@@ -24,7 +24,7 @@ deepspeed src/train/train_sft.py \
     --vision_lr 2e-6 \
     --weight_decay 0.01 \
     --warmup_ratio 0.03 \
-    --lr_scheduler_type "cosine" \
+    --lr_scheduler_type "cos`ine" \
     --logging_steps 1 \
     --tf32 True \
     --gradient_checkpointing True \
