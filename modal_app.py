@@ -7,25 +7,23 @@ import modal
 ROOT_DIR = Path("/root/VLM-Distillation")
 WANDB_PROJECT = "VLM-Distillation"
 MODEL_DIR = Path("/models")
-DATASET_DIR = Path("/dataset")
-OUTPUT_DIR = Path("/outputs")
-flash_attn_release = (
-    "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/"
-    "flash_attn-2.7.4.post1+cu12torch2.6cxx11abiFALSE-cp311-cp311-linux_x86_64.whl"
-)
+DATASET_DIR = Path("/data")
+OUTPUT_DIR = Path("/output")
+VENV_DIR = Path("/opt/venv")
 model_volume = modal.Volume.from_name("model-weights-vol", create_if_missing=True)
-dataset_volume = modal.Volume.from_name("dataset-vol", create_if_missing=True)
+dataset_volume = modal.Volume.from_name("vlm-distillation-data", create_if_missing=True)
 output_volume = modal.Volume.from_name("output-vol", create_if_missing=True)
 
 base_image = (
     modal.Image.from_registry(
-        "nvidia/cuda:12.4.1-cudnn-devel-ubuntu22.04",
-        add_python="3.11",
+        "nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04",
+        add_python="3.12"
     )
     .apt_install(
         "git",
         "curl",
         "ffmpeg",
+        "libc-bin",
         "build-essential",
         "clang",
         "ninja-build",
@@ -39,10 +37,49 @@ base_image = (
         copy=True,
         ignore=modal.FilePatternMatcher.from_file(".gitignore"),
     )
-    .pip_install_from_requirements("./requirements.txt")
-    .uv_pip_install(
-        flash_attn_release,
-        "pillow-avif-plugin"
+    .pip_install("uv")
+    .run_commands(
+        f"cd {ROOT_DIR} && uv venv {VENV_DIR} --python 3.12 --seed",
+        (
+            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
+            "uv pip install datasets Pillow tqdm pillow-avif-plugin attrdict timm ujson decord hf-transfer wandb "
+            "sentencepiece scipy matplotlib backoff tiktoken einops "
+            "'transformers>=4.57.0,<5' "
+            "'trl==0.17.0' "
+            "'peft==0.15.2'"
+        ),
+        (
+            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
+            "uv pip install num2words"
+        ),
+        (
+            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
+            "uv pip install "
+            "'torch==2.8.0' "
+            "'torchvision==0.23.0' "
+            "'torchaudio==2.8.0' "
+            "--torch-backend=cu126"
+        ),
+        (
+            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
+            "uv pip install 'xformers==0.0.32.post2'"
+        ),
+        (
+            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
+            "uv pip install wheel packaging psutil ninja setuptools deepspeed"
+        ),
+        (
+            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
+            "uv pip install --no-deps git+https://github.com/deepseek-ai/DeepSeek-VL2.git"
+        ),
+        (
+            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
+            "uv pip install --no-deps git+https://github.com/deepseek-ai/DeepSeek-VL.git"
+        ),
+        (
+            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
+            "MAX_JOBS=1 uv pip install --no-build-isolation 'flash-attn==2.8.3'"
+        ),
     )
     .env(
         {
@@ -50,13 +87,16 @@ base_image = (
             "TOKENIZERS_PARALLELISM": "false",
             "WANDB_PROJECT": WANDB_PROJECT,
             "ACCELERATE_LOG_LEVEL": "error",
+            "XFORMERS_IGNORE_FLASH_VERSION_CHECK": "1",
+            "VIRTUAL_ENV": str(VENV_DIR),
+            "PATH": f"{VENV_DIR}/bin:/usr/local/bin:/usr/bin:/bin",
         }
     )
 )
 
 app = modal.App(
     image=base_image,
-    secrets=[modal.Secret.from_name("wandb-secret")],
+    secrets=[modal.Secret.from_name("wandb-secret"), modal.Secret.from_name("huggingface-secret")],
     volumes={
         MODEL_DIR.as_posix(): model_volume,
         DATASET_DIR.as_posix(): dataset_volume,
@@ -65,17 +105,17 @@ app = modal.App(
 )
 
 
-@app.function(gpu="T4", timeout=60 * 60 * 12)
+@app.function(gpu="L40S", timeout=60 * 60 * 12)
 def exec_cmd(cmd: str):
     cmd = cmd.strip()
     if not cmd:
         raise ValueError("cmd must be non-empty")
 
     env = os.environ.copy()
-    # print the wandb api key for debugging
     print(f"WANDB_API_KEY: {env.get('WANDB_API_KEY', 'not set')}")
     env.setdefault("PYTHONUNBUFFERED", "1")
     env.setdefault("WANDB_MODE", "online")
+    env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
     env.setdefault("PYTHONPATH", f"{ROOT_DIR}:{ROOT_DIR / 'src'}")
     env.setdefault("HF_DATASETS_CACHE", str(DATASET_DIR / ".hf_cache" / "datasets"))
     env.setdefault("HF_HUB_CACHE", str(MODEL_DIR / ".hf_cache" / "hub"))
@@ -115,7 +155,6 @@ def exec_cmd(cmd: str):
 @app.local_entrypoint()
 def run():
     cmd = {
-        "train": f"cd {ROOT_DIR} && python -m src.train",
-        "evaluate": f"cd {ROOT_DIR} && python -m src.evaluate",
+        "train": f"cd {ROOT_DIR} && bash scripts/finetune_distillation.sh",
     }
     exec_cmd.remote(cmd['train'])
