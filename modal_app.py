@@ -17,8 +17,7 @@ output_volume = modal.Volume.from_name("output-vol", create_if_missing=True)
 base_image = (
     modal.Image.from_registry(
         "nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04",
-        add_python="3.12",
-        force_build=True
+        add_python="3.12"
     )
     .apt_install(
         "git",
@@ -44,9 +43,14 @@ base_image = (
         (
             f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
             "uv pip install datasets Pillow tqdm pillow-avif-plugin attrdict timm ujson decord hf-transfer wandb "
-            "'transformers<4.48.0' "
+            "sentencepiece scipy matplotlib backoff tiktoken einops "
+            "'transformers>=4.57.0,<5' "
             "'trl==0.17.0' "
             "'peft==0.15.2'"
+        ),
+        (
+            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
+            "uv pip install num2words"
         ),
         (
             f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
@@ -70,6 +74,10 @@ base_image = (
         ),
         (
             f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
+            "uv pip install --no-deps git+https://github.com/deepseek-ai/DeepSeek-VL.git"
+        ),
+        (
+            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
             "MAX_JOBS=1 uv pip install --no-build-isolation 'flash-attn==2.8.3'"
         ),
     )
@@ -88,7 +96,7 @@ base_image = (
 
 app = modal.App(
     image=base_image,
-    secrets=[modal.Secret.from_name("wandb-secret")],
+    secrets=[modal.Secret.from_name("wandb-secret"), modal.Secret.from_name("huggingface-secret")],
     volumes={
         MODEL_DIR.as_posix(): model_volume,
         DATASET_DIR.as_posix(): dataset_volume,
@@ -97,7 +105,7 @@ app = modal.App(
 )
 
 
-@app.function(gpu="A100", timeout=60 * 60 * 12)
+@app.function(gpu="L40S", timeout=60 * 60 * 12)
 def exec_cmd(cmd: str):
     cmd = cmd.strip()
     if not cmd:
@@ -107,6 +115,7 @@ def exec_cmd(cmd: str):
     print(f"WANDB_API_KEY: {env.get('WANDB_API_KEY', 'not set')}")
     env.setdefault("PYTHONUNBUFFERED", "1")
     env.setdefault("WANDB_MODE", "online")
+    env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
     env.setdefault("PYTHONPATH", f"{ROOT_DIR}:{ROOT_DIR / 'src'}")
     env.setdefault("HF_DATASETS_CACHE", str(DATASET_DIR / ".hf_cache" / "datasets"))
     env.setdefault("HF_HUB_CACHE", str(MODEL_DIR / ".hf_cache" / "hub"))

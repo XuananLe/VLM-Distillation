@@ -1,104 +1,148 @@
+from typing import Dict, Tuple
 import torch
-import torch.nn.functional as F
-from typing import Dict, List, Optional
+from tqdm import tqdm
+from src.utils import get_specific_layer
+from src.components.vision_forward import (
+    forward_with_kwarg_retry,
+    infer_batch_size,
+    pool_vision_features,
+    prepare_forward_inputs,
+    unwrap_tensor,
+)
 
 
-def pooled_embedding(
+def extract_sample_representations(
     model,
     inputs: Dict[str, torch.Tensor],
     layer_index: int = -1,
 ) -> torch.Tensor:
-    """Mean-pool hidden states from one layer over the sequence dimension.
+    """
+    Pooled representation from a specific vision encoder layer per sample.
+    Returns: (B, H)
+    """
+    fwd_inputs = prepare_forward_inputs(model, inputs)
+    batch_size = infer_batch_size(fwd_inputs)
+    layer, layer_name = get_specific_layer(model, layer_index)
+    features = {}
 
-    Args:
-        model:       Transformer model (call inside torch.no_grad()).
-        inputs:      Input dict; labels are stripped before the forward pass.
-        layer_index: Layer to extract from (-1 = last transformer layer).
+    def hook_fn(module, hook_inputs, output):
+        del module, hook_inputs
+        tensor = unwrap_tensor(output)
+        if tensor is None:
+            raise RuntimeError(f"Hook output for vision layer '{layer_name}' did not contain a tensor.")
+        features["output"] = tensor.detach()
+
+    handle = layer.register_forward_hook(hook_fn)
+    try:
+        with torch.no_grad():
+            forward_with_kwarg_retry(model, fwd_inputs)
+    finally:
+        handle.remove()
+
+    if "output" not in features:
+        raise RuntimeError(
+            f"Vision layer '{layer_name}' did not produce hook features during the forward pass."
+        )
+
+    return pool_vision_features(features["output"], batch_size)
+
+
+# ---------------------------------------------------------------------------
+# CKA — sample-relationship similarity
+# ---------------------------------------------------------------------------
+
+def _center_gram(K: torch.Tensor) -> torch.Tensor:
+    n = K.size(0)
+    H = torch.eye(n, dtype=K.dtype, device=K.device) - 1.0 / n
+    return H @ K @ H
+
+
+def linear_cka(H_A: torch.Tensor, H_B: torch.Tensor) -> float:
+    """
+    Linear CKA. Invariant to rotation and isotropic scaling.
+    Returns float in [0, 1]: 1 = identical, 0 = orthogonal.
+    """
+    K_A = _center_gram(H_A @ H_A.T)
+    K_B = _center_gram(H_B @ H_B.T)
+    num = (K_A * K_B).sum()
+    denom = torch.norm(K_A, p="fro") * torch.norm(K_B, p="fro")
+    return (num / denom.clamp_min(1e-10)).clamp(0.0, 1.0).item()
+
+
+def compute_skc_from_matrices(
+    H_A: torch.Tensor,
+    H_B: torch.Tensor,
+) -> Tuple[float, float, float, float, float, float]:
+    """
+    Compute score using linear CKA only.
 
     Returns:
-        Tensor of shape (B, H) — one vector per sample.
+        (skc, cka, 0.0, 0.0, 0.0, 0.0)
     """
-    fwd_inputs = {k: v for k, v in inputs.items() if k != "labels"}
-    outputs = model(**fwd_inputs, output_hidden_states=True)
-    hs = outputs.hidden_states[layer_index]  # (B, T, H)
-    return hs.mean(dim=1)                    # (B, H)
+    assert H_A.shape[0] == H_B.shape[0], (
+        f"Sample count mismatch: {H_A.shape[0]} vs {H_B.shape[0]}."
+    )
+
+    H_A = H_A - H_A.mean(dim=0)
+    H_B = H_B - H_B.mean(dim=0)
+
+    cka = linear_cka(H_A, H_B)
+    return cka, cka, 0.0, 0.0, 0.0, 0.0
 
 
 def skc_score(
     model_a,
     model_b,
-    dataloader,
-    k: int = 32,
+    dataloader_a,
+    dataloader_b,
     layer_index: int = -1,
+    verbose: bool = True,
+    **kwargs,  # Accept unused args for API compat
 ) -> float:
-    """Spectral Knowledge Complementarity (SKC) score.
-
-    Measures how complementary two teacher models are on a probe dataset.
-    High score → complementary (low redundancy); low score → redundant.
-
-    Algorithm:
-        1. Extract mean-pooled representations from both models over the probe set.
-        2. Center both representation matrices column-wise.
-        3. Compute economy SVD of each matrix.
-        4. Compute JSD between the spectral energy distributions (captures
-           differences in which principal directions carry the most variance).
-        5. Compute the normalised squared Frobenius norm of the top-k
-           left-singular-vector overlap (captures whether the models span
-           similar sample-space subspaces).
-        6. skc = SpectralDiff * (1 - SubspaceOverlap)
+    """
+    Compute the score between two models using linear CKA only.
 
     Args:
-        model_a:     Teacher A (should be in eval mode, no_grad is applied here).
-        model_b:     Teacher B (same).
-        dataloader:  Yields input dicts compatible with both models.
-                     Batches must not contain "labels".
-        k:           Number of top sample-space singular vectors for the
-                     subspace overlap term.
-        layer_index: Layer from which to extract representations (-1 = last).
+        model_a, model_b      : models to compare
+        dataloader_a/b        : dataloaders yielding the same samples
+        layer_index           : which hidden layer to extract (-1 = last)
 
     Returns:
-        SKC score in [0, 1].
+        CKA in [0, 1]:
+            1.0 = identical sample geometry
+            0.0 = orthogonal sample geometry
     """
-    H_A_list: List[torch.Tensor] = []
-    H_B_list: List[torch.Tensor] = []
+    del kwargs
+    reps_a, reps_b = [], []
 
-    with torch.no_grad():
-        for batch in dataloader:
-            H_A_list.append(pooled_embedding(model_a, batch, layer_index).float().cpu())
-            H_B_list.append(pooled_embedding(model_b, batch, layer_index).float().cpu())
+    for batch_a, batch_b in tqdm(
+        zip(dataloader_a, dataloader_b),
+        total=len(dataloader_a),
+        desc="Extracting representations",
+    ):
+        reps_a.append(
+            extract_sample_representations(model_a, batch_a, layer_index).float().cpu()
+        )
+        reps_b.append(
+            extract_sample_representations(model_b, batch_b, layer_index).float().cpu()
+        )
 
-    H_A = torch.cat(H_A_list, dim=0)  # (N, H_A)
-    H_B = torch.cat(H_B_list, dim=0)  # (N, H_B)
+    H_A = torch.cat(reps_a, dim=0)
+    H_B = torch.cat(reps_b, dim=0)
 
-    # Center column-wise
-    H_A = H_A - H_A.mean(dim=0)
-    H_B = H_B - H_B.mean(dim=0)
+    skc, cka, _, _, _, _ = compute_skc_from_matrices(H_A, H_B)
 
-    # Economy SVD: U (N, r), S (r,), Vh (r, H)
-    U_A, S_A, _ = torch.linalg.svd(H_A, full_matrices=False)
-    U_B, S_B, _ = torch.linalg.svd(H_B, full_matrices=False)
+    if verbose:
+        print()
+        print(f"  CKA similarity : {cka:.4f}  (1=identical, 0=orthogonal)")
+        print(f"  SKC = CKA      : {skc:.4f}")
+        print()
 
-    # Spectral energy distributions
-    lambda_A = S_A ** 2
-    lambda_B = S_B ** 2
+        if skc > 0.90:
+            print("  → REDUNDANT: models encode visual features nearly identically")
+        elif skc > 0.75:
+            print("  → MODERATE: some shared visual encoding, limited complementarity")
+        else:
+            print("  → COMPLEMENTARY: models extract diverse visual features")
 
-    L = max(lambda_A.size(0), lambda_B.size(0))
-    p_A = F.pad(lambda_A, (0, L - lambda_A.size(0)))
-    p_B = F.pad(lambda_B, (0, L - lambda_B.size(0)))
-    p_A = p_A / p_A.sum()
-    p_B = p_B / p_B.sum()
-
-    # Jensen-Shannon divergence (base-2, so JSD ∈ [0, 1])
-    m = 0.5 * (p_A + p_B)
-    jsd = 0.5 * (
-        torch.where(p_A > 0, p_A * (p_A / m).log2(), p_A.new_zeros(())).sum()
-        + torch.where(p_B > 0, p_B * (p_B / m).log2(), p_B.new_zeros(())).sum()
-    )
-    spectral_diff = jsd.clamp(0.0, 1.0).item()
-
-    # Subspace overlap via top-k left singular vectors
-    k_eff = min(k, U_A.size(1), U_B.size(1))
-    M = U_A[:, :k_eff].T @ U_B[:, :k_eff]          # (k_eff, k_eff)
-    subspace_overlap = (M ** 2).sum().item() / k_eff  # normalised ∈ [0, 1]
-
-    return spectral_diff * (1.0 - subspace_overlap)
+    return skc
