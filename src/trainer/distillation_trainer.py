@@ -1,4 +1,5 @@
 from transformers import Trainer, PreTrainedModel
+import inspect
 import torch
 
 _TEACHER_KEYS = frozenset({
@@ -18,6 +19,7 @@ class LogitsDistillationTrainer(Trainer):
         loss_function: str = "forward_kl",
         temperature: float = 2.0,
         alpha: float = 0.5,
+        ofa_eps: float = 1.0,
         *args,
         **kwargs
     ):
@@ -25,16 +27,20 @@ class LogitsDistillationTrainer(Trainer):
 
         from src.components import loss as distillation_loss_module
         self.distillation_loss_fn = getattr(distillation_loss_module, loss_function)
+        self.distillation_loss_params = inspect.signature(self.distillation_loss_fn).parameters
 
         self.teacher_model = teacher_model
         self.teacher_model.eval()
         self.temperature = temperature
         self.alpha = alpha
+        self.ofa_eps = ofa_eps
 
         print(f"Distillation Trainer initialized:")
         print(f"  - Loss function: {loss_function}")
         print(f"  - Temperature: {temperature}")
         print(f"  - Alpha: {alpha}")
+        if "eps" in self.distillation_loss_params:
+            print(f"  - OFA eps: {ofa_eps}")
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         # Use the device of the input tensors as the reference, not model.device.
@@ -78,12 +84,18 @@ class LogitsDistillationTrainer(Trainer):
         if student_mask.sum() > 0 and teacher_mask.sum() > 0:
             student_logits_masked = student_logits.view(-1, student_logits.size(-1))[student_mask.view(-1)]
             teacher_logits_masked = teacher_logits.view(-1, teacher_logits.size(-1))[teacher_mask.view(-1)]
+            student_labels_masked = student_labels.view(-1)[student_mask.view(-1)]
             min_len = min(student_logits_masked.size(0), teacher_logits_masked.size(0))
-            distillation_loss = self.distillation_loss_fn(
+            loss_kwargs = dict(
                 student_logits=student_logits_masked[:min_len],
                 teacher_logits=teacher_logits_masked[:min_len],
                 temperature=self.temperature,
             )
+            if "labels" in self.distillation_loss_params:
+                loss_kwargs["labels"] = student_labels_masked[:min_len]
+            if "eps" in self.distillation_loss_params:
+                loss_kwargs["eps"] = self.ofa_eps
+            distillation_loss = self.distillation_loss_fn(**loss_kwargs)
         else:
             distillation_loss = torch.tensor(0.0, device=student_logits.device)
 

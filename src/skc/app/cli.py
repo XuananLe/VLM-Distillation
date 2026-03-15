@@ -31,7 +31,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="CKA above this is flagged as near-identical",
     )
     parser.add_argument(
+        "--vision-layer-index",
         "--layer_index",
+        dest="layer_index",
         type=int,
         default=-1,
         help="Vision encoder layer to extract (-1 = last)",

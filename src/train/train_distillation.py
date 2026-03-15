@@ -35,7 +35,7 @@ class DistillationArguments:
     distillation_loss: str = field(
         default="forward_kl",
         metadata={
-            "help": "Type of distillation loss to use. Options: forward_kl, reverse_kl, jensen_shannon_divergence"
+            "help": "Type of distillation loss to use. Options: forward_kl, reverse_kl, jensen_shannon_divergence, ofa_loss, uld_loss"
         }
     )
 
@@ -49,6 +49,13 @@ class DistillationArguments:
         metadata={
             "help": "Weight for distillation loss vs cross-entropy loss. "
                    "alpha=1.0 means only distillation, alpha=0.0 means only CE"
+        }
+    )
+
+    ofa_eps: float = field(
+        default=1.0,
+        metadata={
+            "help": "Adaptive target enhancement exponent for OFA-KD. Only used when --distillation_loss ofa_loss."
         }
     )
 
@@ -106,6 +113,8 @@ def train_distillation():
     rank0_print(f"Distillation Loss: {distillation_args.distillation_loss}")
     rank0_print(f"Temperature: {distillation_args.temperature}")
     rank0_print(f"Alpha: {distillation_args.alpha}")
+    if distillation_args.distillation_loss == "ofa_loss":
+        rank0_print(f"OFA eps: {distillation_args.ofa_eps}")
     rank0_print("=" * 80)
 
     attn_impl = "flash_attention_2" if not training_args.disable_flash_attn2 else "eager"
@@ -179,6 +188,7 @@ def train_distillation():
         loss_function=distillation_args.distillation_loss,
         temperature=distillation_args.temperature,
         alpha=distillation_args.alpha,
+        ofa_eps=distillation_args.ofa_eps,
         args=training_args,
         **data_module,
     )
