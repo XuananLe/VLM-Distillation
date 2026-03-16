@@ -1,8 +1,10 @@
 import argparse
 import json
 import os
+import shlex
 import sys
 import traceback
+import unittest
 from pathlib import Path
 
 import torch
@@ -56,8 +58,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_args():
-    return build_parser().parse_args()
+def parse_args(argv=None):
+    return build_parser().parse_args(argv)
 
 
 def get_model_list(args) -> list[str]:
@@ -388,8 +390,8 @@ def summarize_report(report):
     return f"[FAIL] {report['model']} | {reason}{layer_suffix}"
 
 
-def main():
-    args = parse_args()
+def main(argv=None):
+    args = parse_args(argv)
     models = get_model_list(args)
     dtype = select_dtype()
     dataset, schema, loaded_from = load_probe_dataset(args.dataset, args.split, args.config)
@@ -421,8 +423,18 @@ def main():
     )
 
     if failed or (args.fail_on_review and reviews):
-        raise SystemExit(1)
+        return 1
+    return 0
+
+
+class VisionLayerAuditTest(unittest.TestCase):
+    def test_vision_layer_audit(self):
+        if os.environ.get("RUN_VISION_LAYER_AUDIT") != "1":
+            self.skipTest("Set RUN_VISION_LAYER_AUDIT=1 to run the vision-layer audit test.")
+
+        audit_args = shlex.split(os.environ.get("VISION_LAYER_AUDIT_ARGS", ""))
+        self.assertEqual(main(audit_args), 0)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

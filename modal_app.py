@@ -9,7 +9,6 @@ WANDB_PROJECT = "VLM-Distillation"
 MODEL_DIR = Path("/models")
 DATASET_DIR = Path("/data")
 OUTPUT_DIR = Path("/output")
-VENV_DIR = Path("/opt/venv")
 model_volume = modal.Volume.from_name("model-weights-vol", create_if_missing=True)
 dataset_volume = modal.Volume.from_name("vlm-distillation-data", create_if_missing=True)
 output_volume = modal.Volume.from_name("output-vol", create_if_missing=True)
@@ -37,49 +36,47 @@ base_image = (
         copy=True,
         ignore=modal.FilePatternMatcher.from_file(".gitignore"),
     )
-    .pip_install("uv")
-    .run_commands(
-        f"cd {ROOT_DIR} && uv venv {VENV_DIR} --python 3.12 --seed",
-        (
-            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
-            "uv pip install datasets Pillow tqdm pillow-avif-plugin attrdict timm ujson decord hf-transfer wandb "
-            "sentencepiece scipy matplotlib backoff tiktoken einops "
-            "'transformers>=4.57.0,<5' "
-            "'trl==0.17.0' "
-            "'peft==0.15.2'"
-        ),
-        (
-            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
-            "uv pip install num2words"
-        ),
-        (
-            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
-            "uv pip install "
-            "'torch==2.8.0' "
-            "'torchvision==0.23.0' "
-            "'torchaudio==2.8.0' "
-            "--torch-backend=cu126"
-        ),
-        (
-            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
-            "uv pip install 'xformers==0.0.32.post2'"
-        ),
-        (
-            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
-            "uv pip install wheel packaging psutil ninja setuptools deepspeed"
-        ),
-        (
-            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
-            "uv pip install --no-deps git+https://github.com/deepseek-ai/DeepSeek-VL2.git"
-        ),
-        (
-            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
-            "uv pip install --no-deps git+https://github.com/deepseek-ai/DeepSeek-VL.git"
-        ),
-        (
-            f"cd {ROOT_DIR} && . {VENV_DIR}/bin/activate && "
-            "MAX_JOBS=1 uv pip install --no-build-isolation 'flash-attn==2.8.3'"
-        ),
+    .uv_pip_install(
+        "datasets",
+        "Pillow",
+        "tqdm",
+        "pillow-avif-plugin",
+        "attrdict",
+        "timm",
+        "ujson",
+        "decord",
+        "hf-transfer",
+        "wandb",
+        "sentencepiece",
+        "scipy",
+        "matplotlib",
+        "backoff",
+        "tiktoken",
+        "einops",
+        "transformers>=4.57.0,<5",
+        "trl==0.17.0",
+        "peft==0.15.2",
+    )
+    .uv_pip_install("num2words")
+    .uv_pip_install(
+        "torch==2.8.0",
+        "torchvision==0.23.0",
+        "torchaudio==2.8.0",
+        extra_options="--torch-backend=cu126",
+    )
+    .uv_pip_install("xformers==0.0.32.post2")
+    .uv_pip_install("wheel", "packaging", "psutil", "ninja", "setuptools", "deepspeed")
+    .uv_pip_install(
+        "git+https://github.com/deepseek-ai/DeepSeek-VL2.git",
+        extra_options="--no-deps",
+    )
+    .uv_pip_install(
+        "git+https://github.com/deepseek-ai/DeepSeek-VL.git",
+        extra_options="--no-deps",
+    )
+    .uv_pip_install(
+        "flash-attn==2.8.3",
+        extra_options="--no-build-isolation",
     )
     .env(
         {
@@ -88,8 +85,7 @@ base_image = (
             "WANDB_PROJECT": WANDB_PROJECT,
             "ACCELERATE_LOG_LEVEL": "error",
             "XFORMERS_IGNORE_FLASH_VERSION_CHECK": "1",
-            "VIRTUAL_ENV": str(VENV_DIR),
-            "PATH": f"{VENV_DIR}/bin:/usr/local/bin:/usr/bin:/bin",
+            "MAX_JOBS": "1",
         }
     )
 )
@@ -105,7 +101,7 @@ app = modal.App(
 )
 
 
-@app.function(gpu="L40S", timeout=60 * 60 * 12)
+@app.function(gpu="L4", timeout=60 * 60 * 12)
 def exec_cmd(cmd: str):
     cmd = cmd.strip()
     if not cmd:

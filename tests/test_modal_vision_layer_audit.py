@@ -1,7 +1,8 @@
 import argparse
+import os
 import shlex
 import subprocess
-import sys
+import unittest
 from pathlib import Path
 
 
@@ -15,19 +16,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "audit_args",
         nargs=argparse.REMAINDER,
-        help="Arguments forwarded to scripts/audit_vision_last_layer.py",
+        help="Arguments forwarded to tests/test_vision_layer_audit.py",
     )
     return parser
 
 
-def main():
-    args = build_parser().parse_args()
+def main(argv=None):
+    args = build_parser().parse_args(argv)
     audit_args = list(args.audit_args)
     if audit_args[:1] == ["--"]:
         audit_args = audit_args[1:]
 
     forwarded = " ".join(shlex.quote(arg) for arg in audit_args)
-    audit_cmd = "python scripts/audit_vision_last_layer.py"
+    audit_cmd = "python tests/test_vision_layer_audit.py"
     if forwarded:
         audit_cmd = f"{audit_cmd} {forwarded}"
 
@@ -43,8 +44,19 @@ def main():
 
     print("Launching Modal audit:")
     print(" ".join(shlex.quote(part) for part in command))
-    raise SystemExit(subprocess.call(command, cwd=ROOT))
+    return subprocess.call(command, cwd=ROOT)
+
+
+class ModalVisionLayerAuditTest(unittest.TestCase):
+    def test_modal_vision_layer_audit(self):
+        if os.environ.get("RUN_MODAL_VISION_LAYER_AUDIT") != "1":
+            self.skipTest(
+                "Set RUN_MODAL_VISION_LAYER_AUDIT=1 to run the Modal vision-layer audit test."
+            )
+
+        audit_args = shlex.split(os.environ.get("MODAL_VISION_LAYER_AUDIT_ARGS", ""))
+        self.assertEqual(main(audit_args), 0)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -1,3 +1,10 @@
+import sys
+from pathlib import Path
+
+ROOT_DIR = Path(__file__).resolve().parents[2]
+if str(ROOT_DIR) not in sys.path:
+    sys.path.insert(0, str(ROOT_DIR))
+
 import torch
 from dataclasses import dataclass, field
 from typing import Optional
@@ -157,6 +164,7 @@ def train_distillation():
             k_llm=training_args.unfreeze_topk_llm,
             k_vis=training_args.unfreeze_topk_vision,
         )
+    student_model.config.use_cache = False
 
     rank0_print("\nLoading teacher model...")
     teacher_model = AutoModelForVision2Seq.from_pretrained(
@@ -170,7 +178,7 @@ def train_distillation():
     teacher_model.config.use_cache = False
     teacher_model.eval()
     for param in teacher_model.parameters():
-        param.requires_grad = False
+        param.requires_grad_(False)
     rank0_print("Teacher model loaded and frozen")
     torch.cuda.empty_cache()
 

@@ -27,6 +27,7 @@ class LogitsDistillationTrainer(Trainer):
 
         from src.components import loss as distillation_loss_module
         self.distillation_loss_fn = getattr(distillation_loss_module, loss_function)
+        self.loss_function = loss_function
         self.distillation_loss_params = inspect.signature(self.distillation_loss_fn).parameters
 
         self.teacher_model = teacher_model
@@ -76,26 +77,46 @@ class LogitsDistillationTrainer(Trainer):
 
         with torch.no_grad():
             teacher_outputs = self.teacher_model(**teacher_inputs)
-            teacher_logits = teacher_outputs.logits
+            teacher_logits = teacher_outputs.logits.detach()
 
         student_mask = student_labels != -100
         teacher_mask = teacher_labels != -100
 
         if student_mask.sum() > 0 and teacher_mask.sum() > 0:
-            student_logits_masked = student_logits.view(-1, student_logits.size(-1))[student_mask.view(-1)]
-            teacher_logits_masked = teacher_logits.view(-1, teacher_logits.size(-1))[teacher_mask.view(-1)]
-            student_labels_masked = student_labels.view(-1)[student_mask.view(-1)]
-            min_len = min(student_logits_masked.size(0), teacher_logits_masked.size(0))
-            loss_kwargs = dict(
-                student_logits=student_logits_masked[:min_len],
-                teacher_logits=teacher_logits_masked[:min_len],
-                temperature=self.temperature,
-            )
-            if "labels" in self.distillation_loss_params:
-                loss_kwargs["labels"] = student_labels_masked[:min_len]
-            if "eps" in self.distillation_loss_params:
-                loss_kwargs["eps"] = self.ofa_eps
-            distillation_loss = self.distillation_loss_fn(**loss_kwargs)
+            if self.loss_function == "uld_loss":
+                sample_losses = []
+                for i in range(student_logits.size(0)):
+                    student_logits_masked = student_logits[i][student_mask[i]]
+                    teacher_logits_masked = teacher_logits[i][teacher_mask[i]]
+                    if student_logits_masked.size(0) == 0 or teacher_logits_masked.size(0) == 0:
+                        continue
+                    min_len = min(student_logits_masked.size(0), teacher_logits_masked.size(0))
+                    sample_losses.append(
+                        self.distillation_loss_fn(
+                            student_logits=student_logits_masked[:min_len],
+                            teacher_logits=teacher_logits_masked[:min_len],
+                            temperature=self.temperature,
+                        )
+                    )
+                if sample_losses:
+                    distillation_loss = torch.stack(sample_losses).mean()
+                else:
+                    distillation_loss = torch.tensor(0.0, device=student_logits.device)
+            else:
+                student_logits_masked = student_logits.view(-1, student_logits.size(-1))[student_mask.view(-1)]
+                teacher_logits_masked = teacher_logits.view(-1, teacher_logits.size(-1))[teacher_mask.view(-1)]
+                student_labels_masked = student_labels.view(-1)[student_mask.view(-1)]
+                min_len = min(student_logits_masked.size(0), teacher_logits_masked.size(0))
+                loss_kwargs = dict(
+                    student_logits=student_logits_masked[:min_len],
+                    teacher_logits=teacher_logits_masked[:min_len],
+                    temperature=self.temperature,
+                )
+                if "labels" in self.distillation_loss_params:
+                    loss_kwargs["labels"] = student_labels_masked[:min_len]
+                if "eps" in self.distillation_loss_params:
+                    loss_kwargs["eps"] = self.ofa_eps
+                distillation_loss = self.distillation_loss_fn(**loss_kwargs)
         else:
             distillation_loss = torch.tensor(0.0, device=student_logits.device)
 
