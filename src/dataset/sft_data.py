@@ -1,5 +1,6 @@
 import copy
 import os
+import re
 from typing import Dict, Optional
 import torch
 import transformers
@@ -44,6 +45,7 @@ class SupervisedDataset(Dataset):
         processor: transformers.ProcessorMixin,
         data_args: DataArguments,
         padding=True,
+        teacher_processors: Optional[list[transformers.ProcessorMixin]] = None,
         teacher_processor: Optional[transformers.ProcessorMixin] = None,
     ):
         super(SupervisedDataset, self).__init__()
@@ -53,7 +55,9 @@ class SupervisedDataset(Dataset):
             list_data_dict = data_path
 
         self.processor = processor
-        self.teacher_processor = teacher_processor
+        self.teacher_processors = list(teacher_processors or [])
+        if teacher_processor is not None:
+            self.teacher_processors.append(teacher_processor)
         self.list_data_dict = list_data_dict
         self.data_args = data_args
         self.padding = padding
@@ -225,6 +229,104 @@ class SupervisedDataset(Dataset):
             image_grid_thw=image_grid_thw,
         )
 
+    def _encode_teacher_data(
+        self,
+        sources,
+        images,
+        teacher_processor,
+    ) -> Dict[str, torch.Tensor]:
+        if isinstance(teacher_processor, dict):
+            tokenizer = teacher_processor["tokenizer"]
+            image_processor = teacher_processor["image_processor"]
+            num_image_token = teacher_processor.get("num_image_token", 256)
+            img_start_token = teacher_processor.get("img_start_token", "<img>")
+            img_end_token = teacher_processor.get("img_end_token", "</img>")
+            img_context_token = teacher_processor.get("img_context_token", "<IMG_CONTEXT>")
+
+            all_input_ids = [torch.tensor([tokenizer.bos_token_id or 1])]
+            all_labels = [torch.tensor([IGNORE_INDEX])]
+            pixel_values = None
+            image_flags = None
+
+            for idx, j in enumerate(range(0, len(sources), 2)):
+                user_input = sources[j]
+                gpt_response = sources[j + 1]
+                is_last_turn = (idx == (len(sources) // 2 - 1))
+
+                if user_input["content"].startswith(LLAVA_IMAGE_TOKEN):
+                    user_prompt = f"User:{user_input['content']}{EOS_TOKEN}\nAssistant: "
+                else:
+                    user_prompt = f"User: {user_input['content']}{EOS_TOKEN}\nAssistant: "
+
+                gpt_prompt = (
+                    f"{gpt_response['content']}{EOS_TOKEN}"
+                    if is_last_turn
+                    else f"{gpt_response['content']}{EOS_TOKEN}\n"
+                )
+
+                if LLAVA_IMAGE_TOKEN in user_prompt and images is not None:
+                    pixel_values = image_processor(images=images, return_tensors="pt").pixel_values
+                    if pixel_values.dim() == 3:
+                        pixel_values = pixel_values.unsqueeze(0)
+                    num_patches = pixel_values.shape[0]
+                    image_tokens = (
+                        img_start_token
+                        + img_context_token * (num_image_token * num_patches)
+                        + img_end_token
+                    )
+                    user_prompt = user_prompt.replace(LLAVA_IMAGE_TOKEN, image_tokens)
+                    image_flags = torch.ones((num_patches, 1), dtype=torch.long)
+
+                prompt_input_ids = tokenizer(
+                    user_prompt, add_special_tokens=False, return_tensors="pt"
+                )["input_ids"]
+                response_input_ids = tokenizer(
+                    gpt_prompt, add_special_tokens=False, return_tensors="pt"
+                )["input_ids"]
+
+                input_ids = torch.cat([prompt_input_ids, response_input_ids], dim=1).squeeze(0)
+                labels = torch.cat(
+                    [
+                        torch.tensor([IGNORE_INDEX] * len(prompt_input_ids[0])),
+                        response_input_ids.squeeze(0),
+                    ],
+                    dim=0,
+                )
+                all_input_ids.append(input_ids)
+                all_labels.append(labels)
+
+            teacher_data = dict(
+                input_ids=torch.cat(all_input_ids, dim=0).to(torch.long),
+                labels=torch.cat(all_labels, dim=0).to(torch.long),
+                attention_mask=None,
+                pixel_values=pixel_values,
+                pixel_attention_mask=None,
+                image_flags=image_flags,
+            )
+        elif "Qwen" in type(teacher_processor).__name__:
+            teacher_data = self.qwen_encode_conversation(sources, images, teacher_processor)
+        else:
+            teacher_data = self._encode_conversation(sources, images, teacher_processor)
+
+        if teacher_data["attention_mask"] is None:
+            teacher_data["attention_mask"] = torch.ones_like(teacher_data["input_ids"])
+
+        if teacher_data["pixel_values"] is None and isinstance(teacher_processor, dict):
+            teacher_data["pixel_values"] = torch.zeros((1, 3, 448, 448))
+            teacher_data["image_flags"] = torch.zeros((1, 1), dtype=torch.long)
+        elif teacher_data["pixel_values"] is None and "Qwen" not in type(teacher_processor).__name__:
+            pixel_values, pixel_attention_mask = self._dummy_pixel_tensors()
+            teacher_data["pixel_values"] = pixel_values
+            teacher_data["pixel_attention_mask"] = pixel_attention_mask
+
+        return teacher_data
+
+    @staticmethod
+    def _teacher_prefix(index: int, count: int) -> str:
+        if count == 1:
+            return "teacher"
+        return f"teacher_{index}"
+
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         sources = self.list_data_dict[i]
         is_video = False
@@ -262,39 +364,112 @@ class SupervisedDataset(Dataset):
             data_dict["pixel_values"] = pixel_values
             data_dict["pixel_attention_mask"] = pixel_attention_mask
 
-        if self.teacher_processor is None:
+        if not self.teacher_processors:
             return data_dict
 
-        teacher_processor_name = type(self.teacher_processor).__name__
-        is_qwen_teacher = "Qwen" in teacher_processor_name
+        teacher_count = len(self.teacher_processors)
+        for teacher_index, teacher_processor in enumerate(self.teacher_processors):
+            teacher_data = self._encode_teacher_data(sources, images, teacher_processor)
+            prefix = self._teacher_prefix(teacher_index, teacher_count)
 
-        if is_qwen_teacher:
-            teacher_data = self.qwen_encode_conversation(sources, images, self.teacher_processor)
-        else:
-            teacher_data = self._encode_conversation(sources, images, self.teacher_processor)
-
-        data_dict["teacher_input_ids"] = teacher_data["input_ids"]
-        data_dict["teacher_labels"] = teacher_data["labels"]
-        data_dict["teacher_attention_mask"] = teacher_data["attention_mask"]
-
-        if teacher_data["pixel_values"] is None and not is_qwen_teacher:
-            pixel_values, pixel_attention_mask = self._dummy_pixel_tensors()
-            teacher_data["pixel_values"] = pixel_values
-            teacher_data["pixel_attention_mask"] = pixel_attention_mask
-
-        data_dict["teacher_pixel_values"] = teacher_data["pixel_values"]
-        data_dict["teacher_pixel_attention_mask"] = teacher_data["pixel_attention_mask"]
-        if teacher_data.get("image_grid_thw") is not None:
-            data_dict["teacher_image_grid_thw"] = teacher_data["image_grid_thw"]
+            data_dict[f"{prefix}_input_ids"] = teacher_data["input_ids"]
+            data_dict[f"{prefix}_labels"] = teacher_data["labels"]
+            data_dict[f"{prefix}_attention_mask"] = teacher_data["attention_mask"]
+            data_dict[f"{prefix}_pixel_values"] = teacher_data["pixel_values"]
+            data_dict[f"{prefix}_pixel_attention_mask"] = teacher_data["pixel_attention_mask"]
+            if teacher_data.get("image_grid_thw") is not None:
+                data_dict[f"{prefix}_image_grid_thw"] = teacher_data["image_grid_thw"]
+            if teacher_data.get("image_flags") is not None:
+                data_dict[f"{prefix}_image_flags"] = teacher_data["image_flags"]
 
         return data_dict
 
 class DataCollatorForSupervisedDataset(object):
     """Collate examples for supervised fine-tuning."""
 
-    def __init__(self, pad_token_id: int, teacher_pad_token_id: Optional[int] = None):
+    def __init__(
+        self,
+        pad_token_id: int,
+        teacher_pad_token_id: Optional[int] = None,
+        teacher_pad_token_ids: Optional[list[Optional[int]]] = None,
+    ):
         self.pad_token_id         = pad_token_id
         self.teacher_pad_token_id = teacher_pad_token_id
+        self.teacher_pad_token_ids = teacher_pad_token_ids or []
+
+    def _teacher_input_prefixes(self, example: Dict[str, torch.Tensor]) -> list[str]:
+        if "teacher_input_ids" in example:
+            return ["teacher"]
+
+        prefixes = []
+        for key in example:
+            match = re.fullmatch(r"(teacher_\d+)_input_ids", key)
+            if match:
+                prefixes.append(match.group(1))
+        return sorted(prefixes, key=lambda prefix: int(prefix.split("_")[1]))
+
+    def _teacher_pad_for_prefix(self, prefix: str) -> int:
+        if prefix == "teacher":
+            return self.teacher_pad_token_id or self.pad_token_id
+
+        teacher_index = int(prefix.split("_")[1])
+        if teacher_index < len(self.teacher_pad_token_ids):
+            teacher_pad = self.teacher_pad_token_ids[teacher_index]
+            if teacher_pad is not None:
+                return teacher_pad
+        return self.pad_token_id
+
+    def _collate_teacher_batch(self, examples, batch_dict, prefix: str) -> None:
+        teacher_pad = self._teacher_pad_for_prefix(prefix)
+        teacher_input_ids = pad_sequence(
+            [e[f"{prefix}_input_ids"] for e in examples],
+            padding_side="right",
+            padding_value=teacher_pad,
+        )
+        teacher_labels = pad_sequence(
+            [e[f"{prefix}_labels"] for e in examples],
+            padding_side="right",
+            padding_value=IGNORE_INDEX,
+        )
+        batch_dict.update(
+            {
+                f"{prefix}_input_ids": teacher_input_ids,
+                f"{prefix}_labels": teacher_labels,
+                f"{prefix}_attention_mask": teacher_input_ids != teacher_pad,
+            }
+        )
+
+        pixel_key = f"{prefix}_pixel_values"
+        if pixel_key not in examples[0]:
+            return
+
+        teacher_pixel_values = [e[pixel_key] for e in examples]
+        if teacher_pixel_values[0].dim() == 5:
+            batch_dict[pixel_key] = pad_pixel_values(teacher_pixel_values, pad_value=0.0)
+        else:
+            batch_dict[pixel_key] = torch.cat(teacher_pixel_values, dim=0)
+
+        pixel_attention_key = f"{prefix}_pixel_attention_mask"
+        teacher_pixel_attention_masks = [e.get(pixel_attention_key) for e in examples]
+        if teacher_pixel_attention_masks[0] is not None:
+            batch_dict[pixel_attention_key] = pad_pixel_attention_masks(
+                teacher_pixel_attention_masks,
+                pad_value=0,
+            )
+
+        image_grid_key = f"{prefix}_image_grid_thw"
+        if image_grid_key in examples[0]:
+            batch_dict[image_grid_key] = torch.cat(
+                [e[image_grid_key] for e in examples],
+                dim=0,
+            )
+
+        image_flags_key = f"{prefix}_image_flags"
+        if image_flags_key in examples[0]:
+            batch_dict[image_flags_key] = torch.cat(
+                [e[image_flags_key] for e in examples],
+                dim=0,
+            )
 
     def __call__(self, examples):
         batch_input_ids            = [e["input_ids"]                    for e in examples]
@@ -318,44 +493,8 @@ class DataCollatorForSupervisedDataset(object):
         if pixel_values is not None:
             batch_dict.update(pixel_values=pixel_values, pixel_attention_mask=pixel_attention_mask)
 
-        # Collate teacher inputs when present
-        if "teacher_input_ids" in examples[0]:
-            teacher_pad = self.teacher_pad_token_id or self.pad_token_id
-            teacher_input_ids = pad_sequence(
-                [e["teacher_input_ids"] for e in examples],
-                padding_side="right",
-                padding_value=teacher_pad,
-            )
-            teacher_labels = pad_sequence(
-                [e["teacher_labels"] for e in examples],
-                padding_side="right",
-                padding_value=IGNORE_INDEX,
-            )
-            batch_dict.update(
-                teacher_input_ids=teacher_input_ids,
-                teacher_labels=teacher_labels,
-                teacher_attention_mask=teacher_input_ids != teacher_pad,
-            )
-
-            if "teacher_pixel_values" in examples[0]:
-                teacher_pixel_values = [e["teacher_pixel_values"] for e in examples]
-                if teacher_pixel_values[0].dim() == 5:
-                    batch_dict["teacher_pixel_values"] = pad_pixel_values(teacher_pixel_values, pad_value=0.0)
-                else:
-                    batch_dict["teacher_pixel_values"] = torch.cat(teacher_pixel_values, dim=0)
-
-                teacher_pixel_attention_masks = [e.get("teacher_pixel_attention_mask") for e in examples]
-                if teacher_pixel_attention_masks[0] is not None:
-                    batch_dict["teacher_pixel_attention_mask"] = pad_pixel_attention_masks(
-                        teacher_pixel_attention_masks,
-                        pad_value=0,
-                    )
-
-                if "teacher_image_grid_thw" in examples[0]:
-                    batch_dict["teacher_image_grid_thw"] = torch.cat(
-                        [e["teacher_image_grid_thw"] for e in examples],
-                        dim=0,
-                    )
+        for prefix in self._teacher_input_prefixes(examples[0]):
+            self._collate_teacher_batch(examples, batch_dict, prefix)
 
         return batch_dict
 
@@ -401,21 +540,39 @@ def llava_to_openai(conversations, is_video=False, num_frames=None):
 def make_supervised_data_module(
     processor,
     data_args,
+    teacher_processors: Optional[list[transformers.ProcessorMixin]] = None,
     teacher_processor: Optional[transformers.ProcessorMixin] = None,
 ):
     """Make dataset and collator for supervised fine-tuning."""
+    normalized_teacher_processors = list(teacher_processors or [])
+    if teacher_processor is not None:
+        normalized_teacher_processors.append(teacher_processor)
     sft_dataset = SupervisedDataset(
         data_path=data_args.data_path,
         processor=processor,
         data_args=data_args,
-        teacher_processor=teacher_processor,
+        teacher_processors=normalized_teacher_processors,
     )
-    teacher_pad = (
-        teacher_processor.tokenizer.pad_token_id if teacher_processor is not None else None
-    )
+    teacher_pad = None
+    if len(normalized_teacher_processors) == 1:
+        if isinstance(normalized_teacher_processors[0], dict):
+            teacher_pad = normalized_teacher_processors[0]["tokenizer"].pad_token_id
+        elif hasattr(normalized_teacher_processors[0], "tokenizer"):
+            teacher_pad = normalized_teacher_processors[0].tokenizer.pad_token_id
+        else:
+            teacher_pad = normalized_teacher_processors[0].pad_token_id
+    teacher_pad_ids = []
+    for teacher_processor in normalized_teacher_processors:
+        if isinstance(teacher_processor, dict):
+            teacher_pad_ids.append(teacher_processor["tokenizer"].pad_token_id)
+        elif hasattr(teacher_processor, "tokenizer"):
+            teacher_pad_ids.append(teacher_processor.tokenizer.pad_token_id)
+        else:
+            teacher_pad_ids.append(teacher_processor.pad_token_id)
     data_collator = DataCollatorForSupervisedDataset(
         pad_token_id=processor.tokenizer.pad_token_id,
         teacher_pad_token_id=teacher_pad,
+        teacher_pad_token_ids=teacher_pad_ids,
     )
 
     return dict(train_dataset=sft_dataset, eval_dataset=None, data_collator=data_collator)

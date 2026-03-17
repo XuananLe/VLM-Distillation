@@ -1,12 +1,10 @@
 import inspect
 import re
 from typing import Dict
-
 import torch
 
 
 def forward_with_kwarg_retry(model, call_inputs):
-    """Retry forward by stripping unsupported kwargs one-by-one."""
     inputs = dict(call_inputs)
     while True:
         try:

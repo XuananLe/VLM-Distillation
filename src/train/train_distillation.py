@@ -9,7 +9,10 @@ import torch
 from dataclasses import dataclass, field
 from typing import Optional
 from transformers import (
+    AutoModel,
     AutoProcessor,
+    AutoTokenizer,
+    CLIPImageProcessor,
     HfArgumentParser,
     AutoModelForVision2Seq,
     BitsAndBytesConfig
@@ -37,6 +40,11 @@ class DistillationArguments:
 
     teacher_model_id: str = field(
         metadata={"help": "The model ID or path for the teacher model"}
+    )
+
+    teacher_model_id_2: Optional[str] = field(
+        default=None,
+        metadata={"help": "Optional second teacher model ID for uniform 2-teacher distillation."}
     )
 
     distillation_loss: str = field(
@@ -92,6 +100,13 @@ def _build_model_from_pretrained_args(training_args, compute_dtype):
     return model_kwargs
 
 
+def _teacher_model_ids(distillation_args: DistillationArguments) -> list[str]:
+    teacher_ids = [distillation_args.teacher_model_id]
+    if distillation_args.teacher_model_id_2:
+        teacher_ids.append(distillation_args.teacher_model_id_2)
+    return teacher_ids
+
+
 def train_distillation():
     """
     Main training function for VLM distillation.
@@ -111,12 +126,15 @@ def train_distillation():
 
     local_rank = training_args.local_rank
     compute_dtype = get_compute_dtype(training_args)
+    teacher_model_ids = _teacher_model_ids(distillation_args)
 
     rank0_print("=" * 80)
     rank0_print("Logits Distillation Training")
     rank0_print("=" * 80)
     rank0_print(f"Student Model: {model_args.model_id}")
-    rank0_print(f"Teacher Model: {distillation_args.teacher_model_id}")
+    rank0_print(f"Teacher Model(s): {teacher_model_ids}")
+    if len(teacher_model_ids) == 2:
+        rank0_print("Teacher Weighting: uniform (0.5 / 0.5)")
     rank0_print(f"Distillation Loss: {distillation_args.distillation_loss}")
     rank0_print(f"Temperature: {distillation_args.temperature}")
     rank0_print(f"Alpha: {distillation_args.alpha}")
@@ -131,11 +149,7 @@ def train_distillation():
         padding_side="right",
         trust_remote_code=True,
     )
-    teacher_processor = AutoProcessor.from_pretrained(
-        distillation_args.teacher_model_id,
-        padding_side="right",
-        trust_remote_code=True,
-    )
+    teacher_processors = []
 
     model_kwargs = _build_model_from_pretrained_args(training_args, compute_dtype)
 
@@ -166,33 +180,82 @@ def train_distillation():
         )
     student_model.config.use_cache = False
 
-    rank0_print("\nLoading teacher model...")
-    teacher_model = AutoModelForVision2Seq.from_pretrained(
-        distillation_args.teacher_model_id,
-        cache_dir=training_args.cache_dir,
-        attn_implementation=attn_impl,
-        torch_dtype=compute_dtype,
-        trust_remote_code=True,
-        device_map={"": training_args.device},
-    )
-    teacher_model.config.use_cache = False
-    teacher_model.eval()
-    for param in teacher_model.parameters():
-        param.requires_grad_(False)
-    rank0_print("Teacher model loaded and frozen")
+    teacher_models = []
+    for teacher_idx, teacher_model_id in enumerate(teacher_model_ids, start=1):
+        rank0_print(f"\nLoading teacher model {teacher_idx}/{len(teacher_model_ids)}...")
+        if "internvl" in teacher_model_id.lower():
+            teacher_model = AutoModel.from_pretrained(
+                teacher_model_id,
+                cache_dir=training_args.cache_dir,
+                torch_dtype=compute_dtype,
+                low_cpu_mem_usage=True,
+                use_flash_attn=not training_args.disable_flash_attn2,
+                trust_remote_code=True,
+            ).to(training_args.device)
+        else:
+            teacher_model = AutoModelForVision2Seq.from_pretrained(
+                teacher_model_id,
+                cache_dir=training_args.cache_dir,
+                attn_implementation=attn_impl,
+                torch_dtype=compute_dtype,
+                trust_remote_code=True,
+                device_map={"": training_args.device},
+            )
+        if hasattr(teacher_model.config, "use_cache"):
+            teacher_model.config.use_cache = False
+        teacher_model._suppress_forward_stdout = "internvl" in teacher_model_id.lower()
+        teacher_model.eval()
+        for param in teacher_model.parameters():
+            param.requires_grad_(False)
+        teacher_models.append(teacher_model)
+
+        if "internvl" in teacher_model_id.lower():
+            teacher_tokenizer = AutoTokenizer.from_pretrained(
+                teacher_model_id,
+                cache_dir=training_args.cache_dir,
+                padding_side="right",
+                trust_remote_code=True,
+                use_fast=False,
+            )
+            img_context_token_id = teacher_tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
+            if hasattr(teacher_model, "img_context_token_id"):
+                teacher_model.img_context_token_id = img_context_token_id
+            teacher_processors.append(
+                {
+                    "tokenizer": teacher_tokenizer,
+                    "image_processor": CLIPImageProcessor.from_pretrained(
+                        teacher_model_id,
+                        cache_dir=training_args.cache_dir,
+                    ),
+                    "num_image_token": getattr(teacher_model, "num_image_token", 256),
+                    "img_start_token": "<img>",
+                    "img_end_token": "</img>",
+                    "img_context_token": "<IMG_CONTEXT>",
+                }
+            )
+        else:
+            teacher_processors.append(
+                AutoProcessor.from_pretrained(
+                    teacher_model_id,
+                    cache_dir=training_args.cache_dir,
+                    padding_side="right",
+                    trust_remote_code=True,
+                )
+            )
+        rank0_print(f"Teacher model loaded and frozen: {teacher_model_id}")
     torch.cuda.empty_cache()
 
     rank0_print("\nPreparing datasets...")
     data_module = make_supervised_data_module(
         processor=processor,
         data_args=data_args,
-        teacher_processor=teacher_processor,
+        teacher_processors=teacher_processors,
     )
 
     rank0_print("\nInitializing distillation trainer...")
     trainer = LogitsDistillationTrainer(
         model=student_model,
-        teacher_model=teacher_model,
+        teacher_model=teacher_models,
         loss_function=distillation_args.distillation_loss,
         temperature=distillation_args.temperature,
         alpha=distillation_args.alpha,
@@ -206,6 +269,12 @@ def train_distillation():
     rank0_print("=" * 80 + "\n")
 
     trainer.train()
+
+    if trainer.state.best_model_checkpoint is not None:
+        rank0_print("\nLoading best checkpoint based on train ce_loss...")
+        rank0_print(f"Best checkpoint: {trainer.state.best_model_checkpoint}")
+        rank0_print(f"Best train ce_loss: {trainer.state.best_metric:.6f}")
+        trainer._load_best_model()
 
     rank0_print("\nSaving trained model...")
     trainer.save_state()
