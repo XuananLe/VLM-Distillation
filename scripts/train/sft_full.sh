@@ -5,7 +5,7 @@ MODEL_NAME="HuggingFaceTB/SmolVLM-Instruct"
 export PYTHONPATH=src:$PYTHONPATH
 
 deepspeed src/train/train_sft.py \
-    --deepspeed scripts/zero3.json \
+    --deepspeed scripts/deepspeed/zero3.json \
     --model_id $MODEL_NAME \
     --data_path /path/to/your/training/data.json \
     --image_folder /path/to/your/image/folder \
@@ -24,7 +24,7 @@ deepspeed src/train/train_sft.py \
     --vision_lr 2e-6 \
     --weight_decay 0.01 \
     --warmup_ratio 0.03 \
-    --lr_scheduler_type "cos`ine" \
+    --lr_scheduler_type "cosine" \
     --logging_steps 1 \
     --tf32 True \
     --gradient_checkpointing True \

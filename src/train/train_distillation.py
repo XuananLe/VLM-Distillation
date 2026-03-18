@@ -17,7 +17,7 @@ from transformers import (
     AutoModelForVision2Seq,
     BitsAndBytesConfig
 )
-from src.trainer.distillation_trainer import LogitsDistillationTrainer
+from src.trainer.distillation_trainer import DistillationTrainer
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import ModelArguments, DataArguments, TrainingArguments
 from src.train.train_sft import (
@@ -75,7 +75,7 @@ class DistillationArguments:
     )
 
 
-def _build_model_from_pretrained_args(training_args, compute_dtype):
+def build_model_from_pretrained_args(training_args, compute_dtype):
     model_kwargs = {
         "device_map": {"": training_args.device},
     }
@@ -100,7 +100,7 @@ def _build_model_from_pretrained_args(training_args, compute_dtype):
     return model_kwargs
 
 
-def _teacher_model_ids(distillation_args: DistillationArguments) -> list[str]:
+def teacher_model_ids(distillation_args: DistillationArguments) -> list[str]:
     teacher_ids = [distillation_args.teacher_model_id]
     if distillation_args.teacher_model_id_2:
         teacher_ids.append(distillation_args.teacher_model_id_2)
@@ -126,14 +126,14 @@ def train_distillation():
 
     local_rank = training_args.local_rank
     compute_dtype = get_compute_dtype(training_args)
-    teacher_model_ids = _teacher_model_ids(distillation_args)
+    teacher_ids = teacher_model_ids(distillation_args)
 
     rank0_print("=" * 80)
     rank0_print("Logits Distillation Training")
     rank0_print("=" * 80)
     rank0_print(f"Student Model: {model_args.model_id}")
-    rank0_print(f"Teacher Model(s): {teacher_model_ids}")
-    if len(teacher_model_ids) == 2:
+    rank0_print(f"Teacher Model(s): {teacher_ids}")
+    if len(teacher_ids) == 2:
         rank0_print("Teacher Weighting: uniform (0.5 / 0.5)")
     rank0_print(f"Distillation Loss: {distillation_args.distillation_loss}")
     rank0_print(f"Temperature: {distillation_args.temperature}")
@@ -151,7 +151,7 @@ def train_distillation():
     )
     teacher_processors = []
 
-    model_kwargs = _build_model_from_pretrained_args(training_args, compute_dtype)
+    model_kwargs = build_model_from_pretrained_args(training_args, compute_dtype)
 
     rank0_print("Loading student model...")
     student_model = AutoModelForVision2Seq.from_pretrained(
@@ -181,8 +181,8 @@ def train_distillation():
     student_model.config.use_cache = False
 
     teacher_models = []
-    for teacher_idx, teacher_model_id in enumerate(teacher_model_ids, start=1):
-        rank0_print(f"\nLoading teacher model {teacher_idx}/{len(teacher_model_ids)}...")
+    for teacher_idx, teacher_model_id in enumerate(teacher_ids, start=1):
+        rank0_print(f"\nLoading teacher model {teacher_idx}/{len(teacher_ids)}...")
         if "internvl" in teacher_model_id.lower():
             teacher_model = AutoModel.from_pretrained(
                 teacher_model_id,
@@ -243,6 +243,7 @@ def train_distillation():
                 )
             )
         rank0_print(f"Teacher model loaded and frozen: {teacher_model_id}")
+
     torch.cuda.empty_cache()
 
     rank0_print("\nPreparing datasets...")
@@ -253,7 +254,7 @@ def train_distillation():
     )
 
     rank0_print("\nInitializing distillation trainer...")
-    trainer = LogitsDistillationTrainer(
+    trainer = DistillationTrainer(
         model=student_model,
         teacher_model=teacher_models,
         loss_function=distillation_args.distillation_loss,

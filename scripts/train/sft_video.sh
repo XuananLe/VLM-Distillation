@@ -5,7 +5,7 @@ MODEL_NAME="HuggingFaceTB/SmolVLM-Instruct"
 export PYTHONPATH=src:$PYTHONPATH
 
 deepspeed src/train/train_sft.py \
-    --deepspeed scripts/zero3_offload.json \
+    --deepspeed scripts/deepspeed/zero3_offload.json \
     --model_id $MODEL_NAME \
     --data_path /path/to/your/training/data.json \
     --image_folder /path/to/your/image/folder \

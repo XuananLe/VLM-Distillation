@@ -37,7 +37,14 @@ base_image = (
         ignore=modal.FilePatternMatcher.from_file(".gitignore"),
     )
     .uv_pip_install(
+        "accelerate",
+        "anls>=0.0.2",
+        "apted>=1.0.3",
+        "bert_score",
+        "cairosvg",
+        "colormath>=3.0.0",
         "datasets",
+        "distance>=0.1.3",
         "Pillow",
         "tqdm",
         "pillow-avif-plugin",
@@ -46,16 +53,62 @@ base_image = (
         "ujson",
         "decord",
         "hf-transfer",
+        "google-genai",
+        "gradio",
+        "huggingface_hub",
         "wandb",
+        "jieba>=0.42.1",
+        "json_repair",
+        "levenshtein>=0.27.1",
+        "lpips",
+        "math-verify",
+        "nltk",
+        "numpy",
         "sentencepiece",
         "scipy",
         "matplotlib",
         "backoff",
+        "openai",
+        "openai-clip",
+        "pdf2image>=1.17.0",
+        "polygon3>=3.0.9.1",
+        "protobuf",
+        "qwen_vl_utils",
+        "requests",
+        "rich",
+        "scikit-image",
+        "scikit-learn",
+        "sentence_transformers",
         "tiktoken",
         "einops",
         "transformers>=4.57.0,<5",
         "trl==0.17.0",
         "peft==0.15.2",
+        "sty",
+        "portalocker",
+        "validators",
+        "python-dotenv",
+        "tabulate",
+        "timeout-decorator",
+        "imageio",
+        "openpyxl",
+        "xlsxwriter",
+        "jsonlines",
+        "termcolor",
+        "unidecode",
+        "opencv-python-headless",
+        "natsort",
+        "sacrebleu",
+        "ipdb",
+        "rapidfuzz",
+        "editdistance",
+        "word2number",
+        "omegaconf>=2.4.0.dev4",
+        "antlr4-python3-runtime==4.11.1",
+        "pylatexenc",
+        "torchmetrics",
+        "typing_extensions",
+        "zss>=1.2.0",
     )
     .uv_pip_install("num2words")
     .uv_pip_install(
@@ -101,7 +154,7 @@ app = modal.App(
 )
 
 
-@app.function(gpu="A100-80GB", timeout=60 * 60 * 12)
+@app.function(gpu="H200", timeout=60 * 60 * 12)
 def exec_cmd(cmd: str):
     cmd = cmd.strip()
     if not cmd:
@@ -151,6 +204,6 @@ def exec_cmd(cmd: str):
 @app.local_entrypoint()
 def run():
     cmd = {
-        "train": f"cd {ROOT_DIR} && bash scripts/finetune_distillation.sh",
+        "train": f"cd {ROOT_DIR} && bash scripts/train/distill_single_teacher.sh",
     }
     exec_cmd.remote(cmd['train'])

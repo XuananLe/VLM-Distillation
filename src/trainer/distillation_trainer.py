@@ -7,7 +7,7 @@ import torch
 from transformers.trainer import PREFIX_CHECKPOINT_DIR
 
 
-class LogitsDistillationTrainer(Trainer):
+class DistillationTrainer(Trainer):
     def __init__(
         self,
         teacher_model: PreTrainedModel = None,

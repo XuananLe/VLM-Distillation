@@ -202,7 +202,7 @@ To run the training script, use the following command:
 ### Full Finetuning
 
 ```bash
-bash scripts/finetune.sh
+bash scripts/train/sft_full.sh
 ```
 
 ### Finetune with LoRA
@@ -210,13 +210,13 @@ bash scripts/finetune.sh
 If you want to train only the language model with LoRA and perform full training for the vision model:
 
 ```bash
-bash scripts/finetune_lora.sh
+bash scripts/train/sft_lora.sh
 ```
 
 If you want to train both the language model and the vision model with LoRA:
 
 ```bash
-bash scripts/finetune_lora_vision.sh
+bash scripts/train/sft_lora_vision.sh
 ```
 
 **IMPORTANT:** If you want to tune the `embed_token` with LoRA, You need to tune `lm_head` together.
@@ -224,7 +224,7 @@ bash scripts/finetune_lora_vision.sh
 <details>
 <summary>Training arguments</summary>
 
-- `--deepspeed` (str): Path to DeepSpeed config file (default: "scripts/zero2.json").
+- `--deepspeed` (str): Path to DeepSpeed config file (default: "scripts/deepspeed/zero2.json").
 - `--data_path` (str): Path to the LLaVA formatted training data (a JSON file). **(Required)**
 - `--image_folder` (str): Path to the images folder as referenced in the LLaVA formatted training data. **(Required)**
 - `--model_id` (str): Path to the SmolVLM model. **(Required)**
@@ -267,20 +267,20 @@ bash scripts/finetune_lora_vision.sh
 You can train the model using a video dataset. However, SmolVLm processes videos as a sequence of images, so you’ll need to select specific frames and treat them as multiple images for training. You can set LoRA configs and use for LoRA too.
 
 ```bash
-bash scripts/finetune_video.sh
+bash scripts/train/sft_video.sh
 ```
 
 **Note:** When training with video, it just as multi-image so you should adjust the `max_pixels` for maximum resolution and `fps` based on the available VRAM.
 
-If you run out of vram, you can use [zero3_offload](./scripts/zero3_offload.json) instead of [zero3](./scripts/zero3_offload.json). However, using zero3 is preferred.
+If you run out of vram, you can use [zero3_offload](./scripts/deepspeed/zero3_offload.json) instead of [zero3](./scripts/deepspeed/zero3.json). However, using zero3 is preferred.
 
 #### Merge LoRA Weights
 
 ```
-bash scripts/merge_lora.sh
+bash scripts/merge/merge_lora_weights.sh
 ```
 
-**Note:** Remember to replace the paths in `finetune.sh` or `finetune_lora.sh` with your specific paths. (Also in `merge_lora.sh` when using LoRA.)
+**Note:** Remember to replace the paths in `sft_full.sh` or `sft_lora.sh` with your specific paths. (Also in `merge_lora_weights.sh` when using LoRA.)
 
 #### Issue for libcudnn error
 
