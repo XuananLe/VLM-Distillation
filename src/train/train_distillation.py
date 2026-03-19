@@ -1,4 +1,6 @@
+import os
 import sys
+import ast
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -8,6 +10,7 @@ if str(ROOT_DIR) not in sys.path:
 import torch
 from dataclasses import dataclass, field
 from typing import Optional
+from peft import LoraConfig, get_peft_model
 from transformers import (
     AutoModel,
     AutoProcessor,
@@ -15,18 +18,27 @@ from transformers import (
     CLIPImageProcessor,
     HfArgumentParser,
     AutoModelForVision2Seq,
-    BitsAndBytesConfig
 )
+from src.components.adapters import TeacherOutputAdapter
 from src.trainer.distillation_trainer import DistillationTrainer
 from src.dataset.sft_data import make_supervised_data_module
-from src.params import ModelArguments, DataArguments, TrainingArguments
-from src.train.train_sft import (
+from src.params import DataArguments, TrainingArguments
+from src.train.train_utils import (
+    safe_save_model_for_hf_trainer,
+    get_compute_dtype,
+    get_peft_state_maybe_zero_3,
+    get_peft_state_non_lora_maybe_zero_3,
+    set_local_rank,
+    rank0_print,
+    find_target_linear_names,
     configure_vision_tower,
     configure_llm,
     unfreeze_topk_layers,
-    rank0_print,
+    infer_hidden_size,
+    log_trainable_parameter_summary,
+    build_model_from_pretrained_args,
+    parse_model_id_list,
 )
-from src.train.train_utils import safe_save_model_for_hf_trainer, get_compute_dtype
 
 import pillow_avif
 from PIL import Image, ImageFile
@@ -38,19 +50,18 @@ Image.MAX_IMAGE_PIXELS = None
 class DistillationArguments:
     """Arguments for knowledge distillation."""
 
-    teacher_model_id: str = field(
-        metadata={"help": "The model ID or path for the teacher model"}
+    student_model_id: str = field(
+        metadata={"help": "Student model ID or path."}
     )
 
-    teacher_model_id_2: Optional[str] = field(
-        default=None,
-        metadata={"help": "Optional second teacher model ID for uniform 2-teacher distillation."}
+    teacher_model_ids: str = field(
+        metadata={"help": "Teacher model IDs as a Python list literal or comma-separated string."}
     )
 
     distillation_loss: str = field(
         default="forward_kl",
         metadata={
-            "help": "Type of distillation loss to use. Options: forward_kl, reverse_kl, jensen_shannon_divergence, ofa_loss, uld_loss"
+            "help": "Type of distillation loss to use. Options: forward_kl, reverse_kl, jensen_shannon_divergence, uld_loss"
         }
     )
 
@@ -67,45 +78,12 @@ class DistillationArguments:
         }
     )
 
-    ofa_eps: float = field(
-        default=1.0,
+    representation_loss_weight: float = field(
+        default=0.0,
         metadata={
-            "help": "Adaptive target enhancement exponent for OFA-KD. Only used when --distillation_loss ofa_loss."
+            "help": "Weight of the teacher-adapter hidden-state distillation term inside the distillation loss."
         }
     )
-
-
-def build_model_from_pretrained_args(training_args, compute_dtype):
-    model_kwargs = {
-        "device_map": {"": training_args.device},
-    }
-    if training_args.bits not in [4, 8]:
-        return model_kwargs
-
-    model_kwargs.update(
-        dict(
-            load_in_4bit=training_args.bits == 4,
-            load_in_8bit=training_args.bits == 8,
-            quantization_config=BitsAndBytesConfig(
-                load_in_4bit=training_args.bits == 4,
-                load_in_8bit=training_args.bits == 8,
-                llm_int8_threshold=6.0,
-                llm_int8_has_fp16_weight=False,
-                bnb_4bit_compute_dtype=compute_dtype,
-                bnb_4bit_use_double_quant=training_args.double_quant,
-                bnb_4bit_quant_type=training_args.quant_type,
-            ),
-        )
-    )
-    return model_kwargs
-
-
-def teacher_model_ids(distillation_args: DistillationArguments) -> list[str]:
-    teacher_ids = [distillation_args.teacher_model_id]
-    if distillation_args.teacher_model_id_2:
-        teacher_ids.append(distillation_args.teacher_model_id_2)
-    return teacher_ids
-
 
 def train_distillation():
     """
@@ -119,43 +97,63 @@ def train_distillation():
     global local_rank
 
     parser = HfArgumentParser(
-        (ModelArguments, DataArguments, TrainingArguments, DistillationArguments)
+        (DataArguments, TrainingArguments, DistillationArguments)
     )
 
-    model_args, data_args, training_args, distillation_args = parser.parse_args_into_dataclasses()
+    data_args, training_args, distillation_args = parser.parse_args_into_dataclasses()
 
     local_rank = training_args.local_rank
+    set_local_rank(local_rank)
     compute_dtype = get_compute_dtype(training_args)
-    teacher_ids = teacher_model_ids(distillation_args)
+    teacher_ids = parse_model_id_list(
+        distillation_args.teacher_model_ids,
+        arg_name="--teacher_model_ids",
+    )
+
+    if training_args.lora_enable:
+        if training_args.lora_namespan_exclude is not None:
+            training_args.lora_namespan_exclude = ast.literal_eval(training_args.lora_namespan_exclude)
+        else:
+            training_args.lora_namespan_exclude = []
+
+        if not training_args.vision_lora:
+            training_args.lora_namespan_exclude += ["vision_model"]
 
     rank0_print("=" * 80)
     rank0_print("Logits Distillation Training")
     rank0_print("=" * 80)
-    rank0_print(f"Student Model: {model_args.model_id}")
+    rank0_print(f"Student Model: {distillation_args.student_model_id}")
     rank0_print(f"Teacher Model(s): {teacher_ids}")
-    if len(teacher_ids) == 2:
-        rank0_print("Teacher Weighting: uniform (0.5 / 0.5)")
+    if len(teacher_ids) > 1:
+        rank0_print(f"Teacher Weighting: uniform ({1 / len(teacher_ids):.3f} each)")
     rank0_print(f"Distillation Loss: {distillation_args.distillation_loss}")
     rank0_print(f"Temperature: {distillation_args.temperature}")
     rank0_print(f"Alpha: {distillation_args.alpha}")
-    if distillation_args.distillation_loss == "ofa_loss":
-        rank0_print(f"OFA eps: {distillation_args.ofa_eps}")
+    if distillation_args.representation_loss_weight > 0:
+        rank0_print(
+            "Teacher Adapter Hidden-State KD: "
+            f"enabled (weight={distillation_args.representation_loss_weight})"
+        )
     rank0_print("=" * 80)
 
     attn_impl = "flash_attention_2" if not training_args.disable_flash_attn2 else "eager"
 
     processor = AutoProcessor.from_pretrained(
-        model_args.model_id,
+        distillation_args.student_model_id,
         padding_side="right",
         trust_remote_code=True,
     )
     teacher_processors = []
 
-    model_kwargs = build_model_from_pretrained_args(training_args, compute_dtype)
+    model_kwargs = build_model_from_pretrained_args(
+        training_args,
+        compute_dtype,
+        include_load_flags=True,
+    )
 
     rank0_print("Loading student model...")
     student_model = AutoModelForVision2Seq.from_pretrained(
-        model_args.model_id,
+        distillation_args.student_model_id,
         cache_dir=training_args.cache_dir,
         attn_implementation=attn_impl,
         torch_dtype=compute_dtype,
@@ -180,12 +178,78 @@ def train_distillation():
         )
     student_model.config.use_cache = False
 
+    if training_args.bits in [4, 8]:
+        student_model.config.torch_dtype = (
+            torch.float32
+            if training_args.fp16
+            else (torch.bfloat16 if training_args.bf16 else torch.float32)
+        )
+        from peft import prepare_model_for_kbit_training
+
+        student_model = prepare_model_for_kbit_training(
+            student_model,
+            use_gradient_checkpointing=training_args.gradient_checkpointing,
+            gradient_checkpointing_kwargs={"use_reentrant": True},
+        )
+
+    if training_args.gradient_checkpointing:
+        student_model.enable_input_require_grads()
+        training_args.gradient_checkpointing_kwargs = {"use_reentrant": True}
+
+    if training_args.lora_enable:
+        lora_namespan_exclude = training_args.lora_namespan_exclude
+        lora_target_modules = find_target_linear_names(
+            student_model,
+            lora_namespan_exclude=lora_namespan_exclude,
+            num_lora_modules=training_args.num_lora_modules,
+        )
+        peft_config = LoraConfig(
+            r=training_args.lora_rank,
+            lora_alpha=training_args.lora_alpha,
+            target_modules=lora_target_modules,
+            lora_dropout=training_args.lora_dropout,
+            bias=training_args.lora_bias,
+            use_dora=training_args.use_dora,
+        )
+        if training_args.bits == 16:
+            if training_args.bf16:
+                student_model.to(torch.bfloat16)
+            if training_args.fp16:
+                student_model.to(torch.float16)
+        student_model = get_peft_model(student_model, peft_config)
+        log_trainable_parameter_summary(
+            student_model,
+            "Trainable parameters after PEFT wrapping:",
+        )
+
+        if not training_args.freeze_vision_tower:
+            for name, param in student_model.named_parameters():
+                if "vision_model" in name:
+                    param.requires_grad = True
+
+        if not training_args.freeze_connector:
+            for name, param in student_model.named_parameters():
+                if "connector" in name:
+                    param.requires_grad = True
+
+        if training_args.bits in [4, 8]:
+            from peft.tuners.lora import LoraLayer
+
+            for name, module in student_model.named_modules():
+                if isinstance(module, LoraLayer) and training_args.bf16:
+                    module = module.to(torch.bfloat16)
+                if "norm" in name:
+                    module = module.to(torch.float32)
+                if ("lm_head" in name or "embed_token" in name) and hasattr(module, "weight"):
+                    if training_args.bf16 and module.weight.dtype == torch.float32:
+                        module = module.to(torch.bfloat16)
+
     teacher_models = []
-    for teacher_idx, teacher_model_id in enumerate(teacher_ids, start=1):
+    for teacher_idx, teacher_id in enumerate(teacher_ids, start=1):
         rank0_print(f"\nLoading teacher model {teacher_idx}/{len(teacher_ids)}...")
-        if "internvl" in teacher_model_id.lower():
+        if "internvl" in teacher_id.lower():
             teacher_model = AutoModel.from_pretrained(
-                teacher_model_id,
+                teacher_id,
                 cache_dir=training_args.cache_dir,
                 torch_dtype=compute_dtype,
                 low_cpu_mem_usage=True,
@@ -194,7 +258,7 @@ def train_distillation():
             ).to(training_args.device)
         else:
             teacher_model = AutoModelForVision2Seq.from_pretrained(
-                teacher_model_id,
+                teacher_id,
                 cache_dir=training_args.cache_dir,
                 attn_implementation=attn_impl,
                 torch_dtype=compute_dtype,
@@ -203,15 +267,15 @@ def train_distillation():
             )
         if hasattr(teacher_model.config, "use_cache"):
             teacher_model.config.use_cache = False
-        teacher_model._suppress_forward_stdout = "internvl" in teacher_model_id.lower()
+        teacher_model._suppress_forward_stdout = "internvl" in teacher_id.lower()
         teacher_model.eval()
         for param in teacher_model.parameters():
             param.requires_grad_(False)
         teacher_models.append(teacher_model)
 
-        if "internvl" in teacher_model_id.lower():
+        if "internvl" in teacher_id.lower():
             teacher_tokenizer = AutoTokenizer.from_pretrained(
-                teacher_model_id,
+                teacher_id,
                 cache_dir=training_args.cache_dir,
                 padding_side="right",
                 trust_remote_code=True,
@@ -224,7 +288,7 @@ def train_distillation():
                 {
                     "tokenizer": teacher_tokenizer,
                     "image_processor": CLIPImageProcessor.from_pretrained(
-                        teacher_model_id,
+                        teacher_id,
                         cache_dir=training_args.cache_dir,
                     ),
                     "num_image_token": getattr(teacher_model, "num_image_token", 256),
@@ -236,13 +300,40 @@ def train_distillation():
         else:
             teacher_processors.append(
                 AutoProcessor.from_pretrained(
-                    teacher_model_id,
+                    teacher_id,
                     cache_dir=training_args.cache_dir,
                     padding_side="right",
                     trust_remote_code=True,
                 )
             )
-        rank0_print(f"Teacher model loaded and frozen: {teacher_model_id}")
+        rank0_print(f"Teacher model loaded and frozen: {teacher_id}")
+
+    if distillation_args.representation_loss_weight > 0:
+        student_hidden_size = infer_hidden_size(student_model)
+        teacher_hidden_sizes = [infer_hidden_size(teacher_model) for teacher_model in teacher_models]
+        teacher_output_adapters = torch.nn.ModuleList(
+            [
+                TeacherOutputAdapter(
+                    input_dim=teacher_hidden_size,
+                    output_dim=student_hidden_size,
+                    teacher_id=teacher_ids[idx],
+                )
+                for idx, teacher_hidden_size in enumerate(teacher_hidden_sizes)
+            ]
+        )
+        teacher_output_adapters.to(
+            device=training_args.device,
+            dtype=compute_dtype,
+        )
+        student_model.teacher_output_adapters = teacher_output_adapters
+        rank0_print(
+            "Attached teacher output adapters: "
+            f"{teacher_hidden_sizes} -> {student_hidden_size}"
+        )
+        log_trainable_parameter_summary(
+            student_model,
+            "Trainable parameters after attaching teacher adapters:",
+        )
 
     torch.cuda.empty_cache()
 
@@ -260,7 +351,7 @@ def train_distillation():
         loss_function=distillation_args.distillation_loss,
         temperature=distillation_args.temperature,
         alpha=distillation_args.alpha,
-        ofa_eps=distillation_args.ofa_eps,
+        representation_loss_weight=distillation_args.representation_loss_weight,
         args=training_args,
         **data_module,
     )
@@ -279,11 +370,28 @@ def train_distillation():
 
     rank0_print("\nSaving trained model...")
     trainer.save_state()
+    student_model.config.use_cache = True
 
-    safe_save_model_for_hf_trainer(
-        trainer=trainer,
-        output_dir=training_args.output_dir
-    )
+    if training_args.lora_enable:
+        state_dict = get_peft_state_maybe_zero_3(
+            student_model.named_parameters(), training_args.lora_bias
+        )
+        non_lora_state_dict = get_peft_state_non_lora_maybe_zero_3(
+            student_model.named_parameters(), require_grad_only=True
+        )
+        if local_rank == 0 or local_rank == -1:
+            student_model.config.save_pretrained(training_args.output_dir)
+            student_model.save_pretrained(training_args.output_dir, state_dict=state_dict)
+            processor.save_pretrained(training_args.output_dir)
+            torch.save(
+                non_lora_state_dict,
+                os.path.join(training_args.output_dir, "non_lora_state_dict.bin"),
+            )
+    else:
+        safe_save_model_for_hf_trainer(
+            trainer=trainer,
+            output_dir=training_args.output_dir
+        )
 
     rank0_print("\n" + "=" * 80)
     rank0_print("Training completed successfully!")

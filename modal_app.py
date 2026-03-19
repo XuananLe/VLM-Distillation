@@ -9,10 +9,11 @@ WANDB_PROJECT = "VLM-Distillation"
 MODEL_DIR = Path("/models")
 DATASET_DIR = Path("/data")
 OUTPUT_DIR = Path("/output")
+CACHE_DIR = Path("/cache")
 model_volume = modal.Volume.from_name("model-weights-vol", create_if_missing=True)
 dataset_volume = modal.Volume.from_name("vlm-distillation-data", create_if_missing=True)
 output_volume = modal.Volume.from_name("output-vol", create_if_missing=True)
-
+cache_volume = modal.Volume.from_name("cache-vol", create_if_missing=True)
 base_image = (
     modal.Image.from_registry(
         "nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04",
@@ -120,14 +121,6 @@ base_image = (
     .uv_pip_install("xformers==0.0.32.post2")
     .uv_pip_install("wheel", "packaging", "psutil", "ninja", "setuptools", "deepspeed")
     .uv_pip_install(
-        "git+https://github.com/deepseek-ai/DeepSeek-VL2.git",
-        extra_options="--no-deps",
-    )
-    .uv_pip_install(
-        "git+https://github.com/deepseek-ai/DeepSeek-VL.git",
-        extra_options="--no-deps",
-    )
-    .uv_pip_install(
         "flash-attn==2.8.3",
         extra_options="--no-build-isolation",
     )
@@ -150,6 +143,7 @@ app = modal.App(
         MODEL_DIR.as_posix(): model_volume,
         DATASET_DIR.as_posix(): dataset_volume,
         OUTPUT_DIR.as_posix(): output_volume,
+        CACHE_DIR.as_posix(): cache_volume,
     },
 )
 
@@ -173,6 +167,7 @@ def exec_cmd(cmd: str):
     os.makedirs(env["HF_DATASETS_CACHE"], exist_ok=True)
     os.makedirs(env["HF_HUB_CACHE"], exist_ok=True)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
+    os.makedirs(CACHE_DIR, exist_ok=True)
     os.makedirs(DATASET_DIR / ".hf_cache" / "datasets", exist_ok=True)
     os.makedirs(MODEL_DIR / ".hf_cache" / "hub", exist_ok=True)
 
@@ -199,6 +194,8 @@ def exec_cmd(cmd: str):
 
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, cmd)
+
+    cache_volume.commit()
 
 
 @app.local_entrypoint()
