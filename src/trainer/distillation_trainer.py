@@ -24,6 +24,9 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         loss_function: str = "forward_kl",
         temperature: float = 2.0,
         alpha: float = 0.5,
+        loss_weighting: str = "fixed",
+        gradnorm_alpha: float = 1.5,
+        gradnorm_lr: float = 0.025,
         layer_distill_source: str = "none",
         layer_distill_weight: float = 0.0,
         student_layer_indices: list[int] | None = None,
@@ -48,11 +51,19 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             model.eval()
         self.temperature = temperature
         self.alpha = alpha
+        self.loss_weighting = loss_weighting
+        self.gradnorm_alpha = gradnorm_alpha
+        self.gradnorm_lr = gradnorm_lr
         self.latest_ce_loss = None
         self.layer_distill_source = layer_distill_source
         self.layer_distill_weight = layer_distill_weight
         self.student_layer_indices = list(student_layer_indices or [])
         self.teacher_layer_indices = list(teacher_layer_indices) if teacher_layer_indices is not None else None
+        self.gradnorm_eps = 1e-8
+        self.gradnorm_weights = {}
+        self.gradnorm_initial_losses = {}
+        self.gradnorm_reference_param_name = None
+        self.gradnorm_active = False
         self.layer_distillation_enabled = (
             self.layer_distill_source == "vision"
             and self.layer_distill_weight > 0.0
@@ -65,6 +76,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         print(f"  - Loss function: {loss_function}")
         print(f"  - Temperature: {temperature}")
         print(f"  - Alpha: {alpha}")
+        print(f"  - Loss weighting: {loss_weighting}")
         if self.layer_distillation_enabled:
             self._initialize_vision_layer_distillation()
             print("  - Layer distillation: enabled")
@@ -75,6 +87,18 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 print(f"  - Teacher {teacher_index} layer pairs: {layer_pairs}")
         else:
             print("  - Layer distillation: disabled")
+        if self.loss_weighting == "gradnorm":
+            self._initialize_gradnorm()
+            print("  - GradNorm: enabled")
+            print(f"  - GradNorm alpha: {self.gradnorm_alpha}")
+            print(f"  - GradNorm lr: {self.gradnorm_lr}")
+            print(f"  - Initial auxiliary weights: {self.gradnorm_weights}")
+            if self.gradnorm_active:
+                print("  - GradNorm mode: adaptive auxiliary weighting with fixed CE weight = 1.0")
+            else:
+                print("  - GradNorm mode: inactive (<2 auxiliary losses); using fixed CE=1.0 + auxiliary weights")
+        else:
+            print("  - GradNorm: disabled")
 
     @staticmethod
     def _unwrap_layer_model(model):
@@ -173,6 +197,13 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             handle.remove()
 
     @staticmethod
+    def _distributed_mean_(tensor: torch.Tensor) -> torch.Tensor:
+        if torch.distributed.is_available() and torch.distributed.is_initialized():
+            torch.distributed.all_reduce(tensor, op=torch.distributed.ReduceOp.SUM)
+            tensor /= torch.distributed.get_world_size()
+        return tensor
+
+    @staticmethod
     def _pool_vision_representations(
         raw_outputs: dict[int, torch.Tensor],
         layer_indices: list[int],
@@ -221,6 +252,128 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         if image_flags_key in inputs:
             teacher_inputs["image_flags"] = inputs[image_flags_key]
         return teacher_inputs, inputs[f"{prefix}_labels"]
+
+    def _initialize_gradnorm(self) -> None:
+        if self.alpha > 0.0:
+            self.gradnorm_weights["distillation"] = float(self.alpha)
+        if self.layer_distillation_enabled and self.layer_distill_weight > 0.0:
+            self.gradnorm_weights["vision"] = float(self.layer_distill_weight)
+        self.gradnorm_active = len(self.gradnorm_weights) > 1
+
+    def _resolve_gradnorm_reference_param(self, model):
+        if self.gradnorm_reference_param_name is not None:
+            for name, parameter in model.named_parameters():
+                if (
+                    name == self.gradnorm_reference_param_name
+                    and parameter.requires_grad
+                    and torch.is_floating_point(parameter)
+                ):
+                    return parameter
+
+        named_parameters = list(model.named_parameters())
+        for keyword in ("connector", "vision_model"):
+            for name, parameter in reversed(named_parameters):
+                if (
+                    keyword in name
+                    and parameter.requires_grad
+                    and torch.is_floating_point(parameter)
+                ):
+                    self.gradnorm_reference_param_name = name
+                    return parameter
+
+        for name, parameter in reversed(named_parameters):
+            if parameter.requires_grad and torch.is_floating_point(parameter):
+                self.gradnorm_reference_param_name = name
+                return parameter
+
+        raise ValueError("GradNorm requires at least one floating-point trainable parameter.")
+
+    def _sync_gradnorm_weights(self, device, dtype) -> None:
+        if not self.gradnorm_weights:
+            return
+        weight_names = list(self.gradnorm_weights.keys())
+        weight_tensor = torch.tensor(
+            [self.gradnorm_weights[name] for name in weight_names],
+            device=device,
+            dtype=dtype,
+        )
+        weight_tensor = self._distributed_mean_(weight_tensor)
+        for name, value in zip(weight_names, weight_tensor.tolist()):
+            self.gradnorm_weights[name] = float(max(value, self.gradnorm_eps))
+
+    def _update_gradnorm_weights(self, model, aux_losses: dict[str, torch.Tensor]) -> None:
+        if not self.gradnorm_active or not model.training:
+            return
+
+        weight_names = list(aux_losses.keys())
+        if len(weight_names) < 2:
+            return
+
+        reference_param = self._resolve_gradnorm_reference_param(model)
+        weight_tensors = {
+            name: aux_losses[name].detach().new_tensor(
+                self.gradnorm_weights[name],
+                requires_grad=True,
+            )
+            for name in weight_names
+        }
+        current_losses = {}
+        for name in weight_names:
+            current_loss = aux_losses[name].detach().float().clamp_min(self.gradnorm_eps)
+            current_losses[name] = current_loss
+            self.gradnorm_initial_losses.setdefault(name, current_loss.item())
+
+        grad_norms = []
+        for name in weight_names:
+            grad = torch.autograd.grad(
+                weight_tensors[name] * aux_losses[name],
+                reference_param,
+                retain_graph=True,
+                create_graph=True,
+                allow_unused=True,
+            )[0]
+            if grad is None:
+                return
+            grad_norms.append(grad.norm(p=2))
+
+        grad_norm_tensor = torch.stack(grad_norms)
+        if not torch.isfinite(grad_norm_tensor).all():
+            return
+
+        loss_ratio_tensor = torch.stack(
+            [
+                current_losses[name]
+                / current_losses[name].new_tensor(self.gradnorm_initial_losses[name]).clamp_min(self.gradnorm_eps)
+                for name in weight_names
+            ]
+        )
+        inverse_train_rate = loss_ratio_tensor / loss_ratio_tensor.mean().clamp_min(self.gradnorm_eps)
+        grad_norm_target = grad_norm_tensor.detach().mean() * inverse_train_rate.pow(self.gradnorm_alpha)
+        gradnorm_loss = torch.abs(grad_norm_tensor - grad_norm_target.detach()).sum()
+        if not torch.isfinite(gradnorm_loss):
+            return
+
+        weight_grads = torch.autograd.grad(
+            gradnorm_loss,
+            [weight_tensors[name] for name in weight_names],
+            retain_graph=True,
+            allow_unused=True,
+        )
+        with torch.no_grad():
+            for name, grad in zip(weight_names, weight_grads):
+                if grad is None or not torch.isfinite(grad):
+                    continue
+                updated = (weight_tensors[name] - self.gradnorm_lr * grad).clamp_min(self.gradnorm_eps)
+                self.gradnorm_weights[name] = float(updated.item())
+
+            weight_sum = sum(self.gradnorm_weights[name] for name in weight_names)
+            if weight_sum <= 0.0:
+                return
+            renorm = len(weight_names) / weight_sum
+            for name in weight_names:
+                self.gradnorm_weights[name] *= renorm
+
+        self._sync_gradnorm_weights(reference_param.device, reference_param.dtype)
 
     def _compute_single_teacher_loss(
         self,
@@ -393,11 +546,24 @@ class DistillationTrainer(SmolVLMSFTTrainer):
 
         ce_loss = student_outputs.loss
         self.latest_ce_loss = ce_loss.detach().float().item()
-        loss = (
-            self.alpha * distillation_loss
-            + (1 - self.alpha) * ce_loss
-            + self.layer_distill_weight * layer_distillation_loss
-        )
+        if self.loss_weighting == "gradnorm":
+            aux_losses = {}
+            if "distillation" in self.gradnorm_weights:
+                aux_losses["distillation"] = distillation_loss
+            if self.layer_distillation_enabled and "vision" in self.gradnorm_weights:
+                aux_losses["vision"] = layer_distillation_loss
+            self._update_gradnorm_weights(model, aux_losses)
+
+            loss = ce_loss
+            for name, aux_loss in aux_losses.items():
+                aux_weight = aux_loss.new_tensor(self.gradnorm_weights[name])
+                loss = loss + aux_weight * aux_loss
+        else:
+            loss = (
+                self.alpha * distillation_loss
+                + (1 - self.alpha) * ce_loss
+                + self.layer_distill_weight * layer_distillation_loss
+            )
 
         if self.state.global_step % self.args.logging_steps == 0:
             metrics = {
@@ -406,6 +572,9 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             }
             if self.layer_distillation_enabled:
                 metrics["vision_layer_distill_loss"] = layer_distillation_loss.item()
+            if self.loss_weighting == "gradnorm":
+                for name, value in self.gradnorm_weights.items():
+                    metrics[f"gradnorm_w_{name}"] = value
             self.log(metrics)
 
         return (loss, student_outputs) if return_outputs else loss

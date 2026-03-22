@@ -16,6 +16,7 @@ from transformers import (
     AutoProcessor,
     AutoTokenizer,
     CLIPImageProcessor,
+    Gemma3ForConditionalGeneration,
     HfArgumentParser,
     AutoModelForVision2Seq,
 )
@@ -72,8 +73,27 @@ class DistillationArguments:
         default=0.5,
         metadata={
             "help": "Weight for distillation loss vs cross-entropy loss. "
-                   "alpha=1.0 means only distillation, alpha=0.0 means only CE"
+                   "alpha=1.0 means only distillation, alpha=0.0 means only CE. "
+                   "When --loss_weighting=gradnorm, this becomes the initial KD weight."
         }
+    )
+
+    loss_weighting: str = field(
+        default="fixed",
+        metadata={
+            "help": "Loss weighting strategy. Supported: fixed, gradnorm. "
+                    "GradNorm keeps CE weight fixed at 1.0 and adapts the auxiliary weights."
+        },
+    )
+
+    gradnorm_alpha: float = field(
+        default=1.5,
+        metadata={"help": "GradNorm asymmetry exponent from the original paper."},
+    )
+
+    gradnorm_lr: float = field(
+        default=0.025,
+        metadata={"help": "Manual update step size for GradNorm auxiliary weights."},
     )
 
     layer_distill_source: str = field(
@@ -83,7 +103,10 @@ class DistillationArguments:
 
     layer_distill_weight: float = field(
         default=0.0,
-        metadata={"help": "Extra weight applied to the vision-layer CKA distillation loss."},
+        metadata={
+            "help": "Extra weight applied to the vision-layer CKA distillation loss. "
+                    "When --loss_weighting=gradnorm, this becomes the initial vision distillation weight."
+        },
     )
 
     student_layer_indices: Optional[str] = field(
@@ -155,6 +178,15 @@ def train_distillation():
         distillation_args.teacher_layer_indices,
         arg_name="--teacher_layer_indices",
     )
+    if distillation_args.loss_weighting not in {"fixed", "gradnorm"}:
+        raise ValueError(
+            f"--loss_weighting must be one of 'fixed' or 'gradnorm', got "
+            f"{distillation_args.loss_weighting!r}."
+        )
+    if distillation_args.gradnorm_lr <= 0.0:
+        raise ValueError("--gradnorm_lr must be > 0.")
+    if distillation_args.gradnorm_alpha < 0.0:
+        raise ValueError("--gradnorm_alpha must be >= 0.")
     if distillation_args.layer_distill_source not in {"none", "vision"}:
         raise ValueError(
             f"--layer_distill_source must be one of 'none' or 'vision', got "
@@ -184,7 +216,11 @@ def train_distillation():
         rank0_print(f"Teacher Weighting: uniform ({1 / len(teacher_ids):.3f} each)")
     rank0_print(f"Distillation Loss: {distillation_args.distillation_loss}")
     rank0_print(f"Temperature: {distillation_args.temperature}")
+    rank0_print(f"Loss Weighting: {distillation_args.loss_weighting}")
     rank0_print(f"Alpha: {distillation_args.alpha}")
+    if distillation_args.loss_weighting == "gradnorm":
+        rank0_print(f"GradNorm Alpha: {distillation_args.gradnorm_alpha}")
+        rank0_print(f"GradNorm LR: {distillation_args.gradnorm_lr}")
     rank0_print(f"Layer Distill Source: {distillation_args.layer_distill_source}")
     rank0_print(f"Layer Distill Weight: {distillation_args.layer_distill_weight}")
     rank0_print(f"Student Layer Indices: {student_layer_indices}")
@@ -311,6 +347,15 @@ def train_distillation():
                 use_flash_attn=not training_args.disable_flash_attn2,
                 trust_remote_code=True,
             ).to(training_args.device)
+        elif "gemma-3" in teacher_id.lower():
+            teacher_model = Gemma3ForConditionalGeneration.from_pretrained(
+                teacher_id,
+                cache_dir=training_args.cache_dir,
+                attn_implementation=attn_impl,
+                torch_dtype=compute_dtype,
+                trust_remote_code=True,
+                device_map={"": training_args.device},
+            )
         else:
             teacher_model = AutoModelForVision2Seq.from_pretrained(
                 teacher_id,
@@ -379,6 +424,9 @@ def train_distillation():
         loss_function=distillation_args.distillation_loss,
         temperature=distillation_args.temperature,
         alpha=distillation_args.alpha,
+        loss_weighting=distillation_args.loss_weighting,
+        gradnorm_alpha=distillation_args.gradnorm_alpha,
+        gradnorm_lr=distillation_args.gradnorm_lr,
         layer_distill_source=distillation_args.layer_distill_source,
         layer_distill_weight=distillation_args.layer_distill_weight,
         student_layer_indices=student_layer_indices,

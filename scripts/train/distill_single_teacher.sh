@@ -9,11 +9,14 @@ STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 DISTILLATION_LOSS="uld_loss"
 TEMPERATURE=1.0
 ALPHA=0.5
+LOSS_WEIGHTING="gradnorm"
+GRADNORM_ALPHA=1.5
+GRADNORM_LR=0.025
 LAYER_DISTILL_SOURCE="vision"
 LAYER_DISTILL_WEIGHT=0.2
-STUDENT_LAYER_INDICES="1,2,3,4,7,8,9,10"
-TEACHER_LAYER_INDICES="12,12,12,13,30,30,30,30"
-DATASET_NAME="chartqa"
+STUDENT_LAYER_INDICES="0,1,3,4,5,6,7,8"
+TEACHER_LAYER_INDICES="1,4,20,20,20,21,21,21"
+DATASET_NAME="docvqa"
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME="${TEACHER_MODEL##*/}"
 OUTPUT_DIR="/output/${DISTILLATION_LOSS}_single_teacher_${TEACHER_NAME}_${STUDENT_NAME}_${DATASET_NAME}"
@@ -32,6 +35,9 @@ deepspeed src/train/train_distillation.py \
     --output_dir "$OUTPUT_DIR" \
     --temperature "$TEMPERATURE" \
     --alpha "$ALPHA" \
+    --loss_weighting "$LOSS_WEIGHTING" \
+    --gradnorm_alpha "$GRADNORM_ALPHA" \
+    --gradnorm_lr "$GRADNORM_LR" \
     --layer_distill_source "$LAYER_DISTILL_SOURCE" \
     --layer_distill_weight "$LAYER_DISTILL_WEIGHT" \
     --student_layer_indices "$STUDENT_LAYER_INDICES" \

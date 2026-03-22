@@ -229,6 +229,102 @@ class SupervisedDataset(Dataset):
             image_grid_thw=image_grid_thw,
         )
 
+    def gemma3_encode_conversation(
+        self,
+        sources,
+        images,
+        processor: transformers.ProcessorMixin,
+    ) -> Dict[str, torch.Tensor]:
+        """Encode a conversation with a Gemma 3 processor.
+
+        Gemma 3 requires multimodal prompts to be built through
+        ``apply_chat_template`` so image placeholders are injected before the
+        processor receives image tensors.
+        """
+        all_input_ids = []
+        all_labels = []
+
+        pixel_values = None
+        image_idx = 0
+
+        for j in range(0, len(sources), 2):
+            user_input = sources[j]
+            gpt_response = sources[j + 1]
+
+            user_text = user_input["content"]
+            has_image = LLAVA_IMAGE_TOKEN in user_text and images is not None
+            n_images = user_text.count(LLAVA_IMAGE_TOKEN)
+            clean_text = user_text.replace(LLAVA_IMAGE_TOKEN, "").strip()
+
+            user_content = []
+            if has_image:
+                turn_images = images[image_idx: image_idx + n_images]
+                image_idx += n_images
+                user_content.extend({"type": "image", "image": image} for image in turn_images)
+            else:
+                turn_images = None
+
+            if clean_text:
+                user_content.append({"type": "text", "text": clean_text})
+            if not user_content:
+                user_content = [{"type": "text", "text": ""}]
+
+            prompt_messages = [{"role": "user", "content": user_content}]
+            full_messages = [
+                {"role": "user", "content": user_content},
+                {"role": "assistant", "content": [{"type": "text", "text": gpt_response["content"]}]},
+            ]
+
+            prompt_enc = processor.apply_chat_template(
+                prompt_messages,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+                add_generation_prompt=True,
+            )
+            full_enc = processor.apply_chat_template(
+                full_messages,
+                tokenize=True,
+                return_dict=True,
+                return_tensors="pt",
+                add_generation_prompt=False,
+            )
+
+            prompt_ids = prompt_enc["input_ids"]
+            full_ids = full_enc["input_ids"]
+            if prompt_ids.size(1) > full_ids.size(1):
+                raise ValueError(
+                    "Gemma 3 prompt encoding is longer than full conversation encoding."
+                )
+
+            response_ids = full_ids[:, prompt_ids.size(1):]
+            input_ids = full_ids.squeeze(0)
+            labels = torch.cat(
+                [
+                    torch.full((prompt_ids.size(1),), IGNORE_INDEX, dtype=torch.long),
+                    response_ids.squeeze(0).to(torch.long),
+                ],
+                dim=0,
+            )
+
+            all_input_ids.append(input_ids.to(torch.long))
+            all_labels.append(labels)
+
+            if has_image:
+                pixel_values = full_enc.get("pixel_values", prompt_enc.get("pixel_values"))
+
+        input_ids = torch.cat(all_input_ids, dim=0).to(torch.long)
+        labels = torch.cat(all_labels, dim=0).to(torch.long)
+        attention_mask = torch.ones_like(input_ids)
+
+        return dict(
+            input_ids=input_ids,
+            labels=labels,
+            attention_mask=attention_mask,
+            pixel_values=pixel_values,
+            pixel_attention_mask=None,
+        )
+
     def _encode_teacher_data(
         self,
         sources,
@@ -303,6 +399,8 @@ class SupervisedDataset(Dataset):
                 pixel_attention_mask=None,
                 image_flags=image_flags,
             )
+        elif "Gemma3" in type(teacher_processor).__name__:
+            teacher_data = self.gemma3_encode_conversation(sources, images, teacher_processor)
         elif "Qwen" in type(teacher_processor).__name__:
             teacher_data = self.qwen_encode_conversation(sources, images, teacher_processor)
         else:

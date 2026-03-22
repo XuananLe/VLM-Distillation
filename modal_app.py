@@ -148,8 +148,8 @@ app = modal.App(
 )
 
 
-@app.function(gpu="A100-80GB", timeout=60 * 60 * 12)
-def exec_cmd(cmd: str):
+@app.function(gpu="L4", timeout=60 * 60 * 12)
+def exec_cmd(cmd: str) -> None:
     cmd = cmd.strip()
     if not cmd:
         raise ValueError("cmd must be non-empty")
@@ -203,6 +203,6 @@ def exec_cmd(cmd: str):
 def run():
     cmd = {
         "train": f"cd {ROOT_DIR} && bash scripts/train/distill_single_teacher.sh",
-        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data ChartQA_TEST --model SmolVLM-256M-ChartQA --work-dir /output/vlmeval",
+        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data ChartQA_TEST --model SmolVLM-500M-ChartQA-Gemma --work-dir /output/vlmeval",
     }
     exec_cmd.remote(cmd['eval'])
