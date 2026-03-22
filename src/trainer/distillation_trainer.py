@@ -1,14 +1,20 @@
 import contextlib
 import io
 import os
-import torch.nn.functional as F
 from transformers import PreTrainedModel
 import inspect
 import torch
 from transformers.trainer import PREFIX_CHECKPOINT_DIR, TRAINER_STATE_NAME, ExportableState, SaveStrategy
-from src.components.vision_forward import forward_with_kwarg_retry
+from src.components.forward_utils import (
+    forward_with_kwarg_retry,
+    infer_batch_size,
+    unwrap_tensor,
+)
+from src.components.skc import linear_cka_loss
+from src.components.vision_forward import infer_vision_group_counts, pool_vision_features
 from src.trainer.sft_trainer import SmolVLMSFTTrainer
 from src.train.train_utils import get_peft_state_non_lora_maybe_zero_3
+from src.utils import find_vision_layer_indices, get_specific_layer
 
 
 class DistillationTrainer(SmolVLMSFTTrainer):
@@ -18,7 +24,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         loss_function: str = "forward_kl",
         temperature: float = 2.0,
         alpha: float = 0.5,
-        representation_loss_weight: float = 0.0,
+        layer_distill_source: str = "none",
+        layer_distill_weight: float = 0.0,
+        student_layer_indices: list[int] | None = None,
+        teacher_layer_indices: list[int] | None = None,
         *args,
         **kwargs
     ):
@@ -39,16 +48,150 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             model.eval()
         self.temperature = temperature
         self.alpha = alpha
-        self.representation_loss_weight = representation_loss_weight
         self.latest_ce_loss = None
+        self.layer_distill_source = layer_distill_source
+        self.layer_distill_weight = layer_distill_weight
+        self.student_layer_indices = list(student_layer_indices or [])
+        self.teacher_layer_indices = list(teacher_layer_indices) if teacher_layer_indices is not None else None
+        self.layer_distillation_enabled = (
+            self.layer_distill_source == "vision"
+            and self.layer_distill_weight > 0.0
+            and bool(self.student_layer_indices)
+        )
+        self.teacher_layer_pairs = []
 
         print(f"Distillation Trainer initialized:")
         print(f"  - Teachers: {len(self.teacher_models)}")
         print(f"  - Loss function: {loss_function}")
         print(f"  - Temperature: {temperature}")
         print(f"  - Alpha: {alpha}")
-        if representation_loss_weight > 0:
-            print(f"  - Representation loss weight: {representation_loss_weight}")
+        if self.layer_distillation_enabled:
+            self._initialize_vision_layer_distillation()
+            print("  - Layer distillation: enabled")
+            print(f"  - Layer distill source: {self.layer_distill_source}")
+            print(f"  - Layer distill weight: {self.layer_distill_weight}")
+            print(f"  - Student vision layers: {self.student_layer_indices}")
+            for teacher_index, layer_pairs in enumerate(self.teacher_layer_pairs):
+                print(f"  - Teacher {teacher_index} layer pairs: {layer_pairs}")
+        else:
+            print("  - Layer distillation: disabled")
+
+    @staticmethod
+    def _unwrap_layer_model(model):
+        if hasattr(model, "get_base_model"):
+            return model.get_base_model()
+        return model
+
+    @staticmethod
+    def _resolve_layer_indices(total_layers: int, layer_indices: list[int], label: str) -> list[int]:
+        resolved = []
+        for layer_index in layer_indices:
+            normalized = total_layers + layer_index if layer_index < 0 else layer_index
+            if normalized < 0 or normalized >= total_layers:
+                raise IndexError(
+                    f"{label} layer index {layer_index} resolved to {normalized}, "
+                    f"but valid range is 0-{total_layers - 1}."
+                )
+            resolved.append(int(normalized))
+        return resolved
+
+    @staticmethod
+    def _auto_map_teacher_layers(
+        student_layer_indices: list[int],
+        student_total_layers: int,
+        teacher_total_layers: int,
+    ) -> list[int]:
+        if teacher_total_layers < 1:
+            raise ValueError("Teacher model does not expose any vision layers.")
+        if teacher_total_layers == 1:
+            return [0 for _ in student_layer_indices]
+        denominator = max(student_total_layers - 1, 1)
+        return [
+            int(round((student_layer_index / denominator) * (teacher_total_layers - 1)))
+            for student_layer_index in student_layer_indices
+        ]
+
+    def _initialize_vision_layer_distillation(self) -> None:
+        if self.layer_distill_source != "vision":
+            raise ValueError(
+                f"Unsupported layer_distill_source={self.layer_distill_source!r}. "
+                "Only 'vision' is implemented."
+            )
+
+        student_vision_info = find_vision_layer_indices(self._unwrap_layer_model(self.model))
+        self.student_layer_indices = self._resolve_layer_indices(
+            student_vision_info["total_layers"],
+            self.student_layer_indices,
+            "Student vision",
+        )
+        if self.teacher_layer_indices is not None and len(self.teacher_layer_indices) != len(self.student_layer_indices):
+            raise ValueError(
+                "--teacher_layer_indices must have the same number of entries as --student_layer_indices."
+            )
+
+        self.teacher_layer_pairs = []
+        for teacher_index, teacher_model in enumerate(self.teacher_models):
+            teacher_vision_info = find_vision_layer_indices(self._unwrap_layer_model(teacher_model))
+            if self.teacher_layer_indices is None:
+                teacher_indices = self._auto_map_teacher_layers(
+                    self.student_layer_indices,
+                    student_vision_info["total_layers"],
+                    teacher_vision_info["total_layers"],
+                )
+            else:
+                teacher_indices = self._resolve_layer_indices(
+                    teacher_vision_info["total_layers"],
+                    self.teacher_layer_indices,
+                    f"Teacher {teacher_index} vision",
+                )
+            self.teacher_layer_pairs.append(list(zip(self.student_layer_indices, teacher_indices)))
+
+    @staticmethod
+    def _register_layer_hooks(model, layer_indices: list[int]):
+        raw_outputs = {}
+        handles = []
+        layer_model = DistillationTrainer._unwrap_layer_model(model)
+
+        for layer_index in layer_indices:
+            layer, _ = get_specific_layer(layer_model, layer_index)
+
+            def make_hook(index: int):
+                def hook(module, hook_inputs, output):
+                    del module, hook_inputs
+                    tensor = unwrap_tensor(output)
+                    if tensor is not None:
+                        raw_outputs[index] = tensor
+                return hook
+
+            handles.append(layer.register_forward_hook(make_hook(layer_index)))
+
+        return raw_outputs, handles
+
+    @staticmethod
+    def _remove_hook_handles(handles) -> None:
+        for handle in handles:
+            handle.remove()
+
+    @staticmethod
+    def _pool_vision_representations(
+        raw_outputs: dict[int, torch.Tensor],
+        layer_indices: list[int],
+        batch_size: int,
+        model_inputs,
+    ) -> dict[int, torch.Tensor]:
+        group_counts = infer_vision_group_counts(model_inputs, batch_size)
+        pooled_outputs = {}
+        for layer_index in layer_indices:
+            if layer_index not in raw_outputs:
+                raise RuntimeError(
+                    f"Vision layer {layer_index} did not produce hook features during the forward pass."
+                )
+            pooled_outputs[layer_index] = pool_vision_features(
+                raw_outputs[layer_index],
+                batch_size,
+                group_counts=group_counts,
+            )
+        return pooled_outputs
 
     @staticmethod
     def _teacher_prefixes(inputs) -> list[str]:
@@ -125,72 +268,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         return self.distillation_loss_fn(**loss_kwargs)
 
     @staticmethod
-    def _extract_last_hidden_state(model_outputs):
-        hidden_states = getattr(model_outputs, "hidden_states", None)
-        if isinstance(hidden_states, (tuple, list)) and hidden_states:
-            return hidden_states[-1]
-
-        last_hidden_state = getattr(model_outputs, "last_hidden_state", None)
-        if isinstance(last_hidden_state, torch.Tensor):
-            return last_hidden_state
-
-        if isinstance(model_outputs, (tuple, list)):
-            for item in model_outputs:
-                if isinstance(item, torch.Tensor) and item.ndim >= 3:
-                    return item
-
-        raise ValueError("Could not extract a final hidden-state tensor from model outputs.")
-
-    @staticmethod
-    def _teacher_adapter_modules(model):
-        if hasattr(model, "teacher_output_adapters"):
-            return model.teacher_output_adapters
-        if hasattr(model, "module") and hasattr(model.module, "teacher_output_adapters"):
-            return model.module.teacher_output_adapters
-        return None
-
-    @staticmethod
-    def _forward_model(model, model_inputs, *, output_hidden_states: bool):
+    def _forward_model(model, model_inputs):
         call_inputs = dict(model_inputs)
         call_inputs["return_dict"] = True
-        if output_hidden_states:
-            call_inputs["output_hidden_states"] = True
         return forward_with_kwarg_retry(model, call_inputs)
-
-    @staticmethod
-    def _representation_mask(labels: torch.Tensor) -> torch.Tensor:
-        return labels != -100
-
-    def _compute_representation_loss(
-        self,
-        student_hidden_states: torch.Tensor,
-        student_labels: torch.Tensor,
-        teacher_hidden_states: torch.Tensor,
-        teacher_labels: torch.Tensor,
-    ) -> torch.Tensor:
-        student_mask = self._representation_mask(student_labels)
-        teacher_mask = self._representation_mask(teacher_labels)
-
-        if student_mask.sum() == 0 or teacher_mask.sum() == 0:
-            return torch.tensor(0.0, device=student_hidden_states.device)
-
-        sample_losses = []
-        for i in range(student_hidden_states.size(0)):
-            student_hidden_masked = student_hidden_states[i][student_mask[i]]
-            teacher_hidden_masked = teacher_hidden_states[i][teacher_mask[i]]
-            if student_hidden_masked.size(0) == 0 or teacher_hidden_masked.size(0) == 0:
-                continue
-            min_len = min(student_hidden_masked.size(0), teacher_hidden_masked.size(0))
-            sample_losses.append(
-                F.mse_loss(
-                    student_hidden_masked[:min_len],
-                    teacher_hidden_masked[:min_len].to(student_hidden_masked.dtype),
-                )
-            )
-
-        if sample_losses:
-            return torch.stack(sample_losses).mean()
-        return torch.tensor(0.0, device=student_hidden_states.device)
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         # Use the device of the input tensors as the reference, not model.device.
@@ -226,105 +307,105 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 f"for {len(self.teacher_models)} teacher models."
             )
 
-        need_hidden_states = self.representation_loss_weight > 0
-        student_outputs = self._forward_model(
-            model,
-            student_inputs,
-            output_hidden_states=need_hidden_states,
-        )
+        student_layer_outputs = None
+        student_hook_handles = []
+        if self.layer_distillation_enabled:
+            student_layer_outputs, student_hook_handles = self._register_layer_hooks(
+                model,
+                self.student_layer_indices,
+            )
+        try:
+            student_outputs = self._forward_model(model, student_inputs)
+        finally:
+            self._remove_hook_handles(student_hook_handles)
         student_logits = student_outputs.logits
-        student_hidden_states = (
-            self._extract_last_hidden_state(student_outputs) if need_hidden_states else None
-        )
 
         student_labels = student_inputs.get("labels")
         assert student_labels is not None, "Labels must be provided for distillation loss masking"
+        layer_distillation_losses = []
+        if self.layer_distillation_enabled:
+            student_batch_size = infer_batch_size(student_inputs)
+            student_layer_representations = self._pool_vision_representations(
+                student_layer_outputs,
+                self.student_layer_indices,
+                student_batch_size,
+                student_inputs,
+            )
 
         teacher_losses = []
-        teacher_hidden_targets = []
-        with torch.no_grad():
-            for teacher_model, (teacher_inputs, teacher_labels) in zip(self.teacher_models, teacher_batches):
-                if getattr(teacher_model, "_suppress_forward_stdout", False):
-                    with contextlib.redirect_stdout(io.StringIO()):
-                        teacher_outputs = self._forward_model(
-                            teacher_model,
-                            teacher_inputs,
-                            output_hidden_states=need_hidden_states,
-                        )
-                else:
-                    teacher_outputs = self._forward_model(
-                        teacher_model,
-                        teacher_inputs,
-                        output_hidden_states=need_hidden_states,
-                    )
-                teacher_logits = teacher_outputs.logits.detach()
-                teacher_losses.append(
-                    self._compute_single_teacher_loss(
-                        student_logits=student_logits,
-                        student_labels=student_labels,
-                        teacher_logits=teacher_logits,
-                        teacher_labels=teacher_labels,
-                    )
+        for teacher_index, (teacher_model, (teacher_inputs, teacher_labels)) in enumerate(
+            zip(self.teacher_models, teacher_batches)
+        ):
+            teacher_layer_outputs = None
+            teacher_hook_handles = []
+            teacher_layer_indices = []
+            if self.layer_distillation_enabled:
+                teacher_layer_indices = [teacher_layer for _, teacher_layer in self.teacher_layer_pairs[teacher_index]]
+                teacher_layer_outputs, teacher_hook_handles = self._register_layer_hooks(
+                    teacher_model,
+                    teacher_layer_indices,
                 )
-                if need_hidden_states:
-                    teacher_hidden_targets.append(
-                        (
-                            self._extract_last_hidden_state(teacher_outputs).detach(),
-                            teacher_labels,
+            try:
+                with torch.no_grad():
+                    if getattr(teacher_model, "_suppress_forward_stdout", False):
+                        with contextlib.redirect_stdout(io.StringIO()):
+                            teacher_outputs = self._forward_model(teacher_model, teacher_inputs)
+                    else:
+                        teacher_outputs = self._forward_model(teacher_model, teacher_inputs)
+            finally:
+                self._remove_hook_handles(teacher_hook_handles)
+            teacher_logits = teacher_outputs.logits.detach()
+            teacher_losses.append(
+                self._compute_single_teacher_loss(
+                    student_logits=student_logits,
+                    student_labels=student_labels,
+                    teacher_logits=teacher_logits,
+                    teacher_labels=teacher_labels,
+                )
+            )
+            if self.layer_distillation_enabled:
+                teacher_batch_size = infer_batch_size(teacher_inputs)
+                teacher_layer_representations = self._pool_vision_representations(
+                    teacher_layer_outputs,
+                    teacher_layer_indices,
+                    teacher_batch_size,
+                    teacher_inputs,
+                )
+                pair_losses = []
+                for student_layer_index, teacher_layer_index in self.teacher_layer_pairs[teacher_index]:
+                    pair_losses.append(
+                        linear_cka_loss(
+                            student_layer_representations[student_layer_index],
+                            teacher_layer_representations[teacher_layer_index],
                         )
                     )
+                if pair_losses:
+                    layer_distillation_losses.append(torch.stack(pair_losses).mean())
 
         if teacher_losses:
             distillation_loss = torch.stack(teacher_losses).mean()
         else:
             distillation_loss = torch.tensor(0.0, device=student_logits.device)
-
-        representation_loss = torch.tensor(0.0, device=student_logits.device)
-        if need_hidden_states:
-            teacher_adapters = self._teacher_adapter_modules(model)
-            if teacher_adapters is None:
-                raise ValueError("Representation distillation requested but no teacher_output_adapters found.")
-            if len(teacher_adapters) != len(teacher_hidden_targets):
-                raise ValueError(
-                    "Teacher adapter count does not match teacher hidden-state targets: "
-                    f"{len(teacher_adapters)} vs {len(teacher_hidden_targets)}"
-                )
-
-            representation_losses = []
-            for teacher_adapter, (teacher_hidden_states, teacher_labels) in zip(
-                teacher_adapters, teacher_hidden_targets
-            ):
-                adapter_dtype = next(teacher_adapter.parameters()).dtype
-                adapted_teacher_hidden_states = teacher_adapter(
-                    teacher_hidden_states.to(dtype=adapter_dtype)
-                )
-                representation_losses.append(
-                    self._compute_representation_loss(
-                        student_hidden_states=student_hidden_states,
-                        student_labels=student_labels,
-                        teacher_hidden_states=adapted_teacher_hidden_states,
-                        teacher_labels=teacher_labels,
-                    )
-                )
-
-            if representation_losses:
-                representation_loss = torch.stack(representation_losses).mean()
-                distillation_loss = (
-                    distillation_loss
-                    + self.representation_loss_weight * representation_loss
-                )
+        if layer_distillation_losses:
+            layer_distillation_loss = torch.stack(layer_distillation_losses).mean()
+        else:
+            layer_distillation_loss = torch.tensor(0.0, device=student_logits.device)
 
         ce_loss = student_outputs.loss
         self.latest_ce_loss = ce_loss.detach().float().item()
-        loss = self.alpha * distillation_loss + (1 - self.alpha) * ce_loss
+        loss = (
+            self.alpha * distillation_loss
+            + (1 - self.alpha) * ce_loss
+            + self.layer_distill_weight * layer_distillation_loss
+        )
 
         if self.state.global_step % self.args.logging_steps == 0:
             metrics = {
                 "distillation_loss": distillation_loss.item(),
                 "ce_loss": ce_loss.item(),
             }
-            if need_hidden_states:
-                metrics["representation_loss"] = representation_loss.item()
+            if self.layer_distillation_enabled:
+                metrics["vision_layer_distill_loss"] = layer_distillation_loss.item()
             self.log(metrics)
 
         return (loss, student_outputs) if return_outputs else loss

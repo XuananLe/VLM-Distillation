@@ -1,12 +1,99 @@
 import torch
 import os.path as osp
 import warnings
+import json
+import glob
 from .base import BaseModel
 from ..smp import splitlen
 from PIL import Image
 
 import os
 import math
+
+
+def _checkpoint_sort_key(path):
+    name = osp.basename(path.rstrip("/"))
+    if name.startswith("checkpoint-"):
+        step = name.split("checkpoint-", 1)[1]
+        if step.isdigit():
+            return int(step)
+    return -1
+
+
+def _resolve_model_path(model_path):
+    if not osp.isdir(model_path):
+        return model_path
+
+    has_model_weights = any(
+        osp.exists(osp.join(model_path, filename))
+        for filename in ("model.safetensors", "pytorch_model.bin")
+    )
+    if has_model_weights:
+        return model_path
+
+    trainer_state_path = osp.join(model_path, "trainer_state.json")
+    if osp.isfile(trainer_state_path):
+        try:
+            with open(trainer_state_path, "r", encoding="utf-8") as f:
+                trainer_state = json.load(f)
+            best_checkpoint = trainer_state.get("best_model_checkpoint")
+            if isinstance(best_checkpoint, str) and osp.isdir(best_checkpoint):
+                warnings.warn(
+                    f"Resolved SmolVLM model path from {model_path} to best checkpoint {best_checkpoint}."
+                )
+                return best_checkpoint
+        except (OSError, json.JSONDecodeError) as err:
+            warnings.warn(f"Failed to inspect {trainer_state_path}: {err}")
+
+    checkpoints = sorted(
+        glob.glob(osp.join(model_path, "checkpoint-*")),
+        key=_checkpoint_sort_key,
+    )
+    if checkpoints:
+        resolved_path = checkpoints[-1]
+        warnings.warn(
+            f"Resolved SmolVLM model path from {model_path} to latest checkpoint {resolved_path}."
+        )
+        return resolved_path
+
+    return model_path
+
+
+def _normalize_legacy_tokenizer_config(model_path):
+    if not osp.isdir(model_path):
+        return
+
+    tokenizer_config_path = osp.join(model_path, "tokenizer_config.json")
+    if not osp.isfile(tokenizer_config_path):
+        return
+
+    try:
+        with open(tokenizer_config_path, "r", encoding="utf-8") as f:
+            tokenizer_config = json.load(f)
+    except (OSError, json.JSONDecodeError) as err:
+        warnings.warn(f"Failed to read {tokenizer_config_path}: {err}")
+        return
+
+    extra_special_tokens = tokenizer_config.get("extra_special_tokens")
+    if not isinstance(extra_special_tokens, list):
+        return
+
+    if (
+        "additional_special_tokens" not in tokenizer_config
+        and all(isinstance(token, str) for token in extra_special_tokens)
+    ):
+        tokenizer_config["additional_special_tokens"] = extra_special_tokens
+    tokenizer_config["extra_special_tokens"] = {}
+
+    try:
+        with open(tokenizer_config_path, "w", encoding="utf-8") as f:
+            json.dump(tokenizer_config, f, indent=2, ensure_ascii=True)
+            f.write("\n")
+        warnings.warn(
+            f"Normalized legacy extra_special_tokens in {tokenizer_config_path}."
+        )
+    except OSError as err:
+        warnings.warn(f"Failed to update {tokenizer_config_path}: {err}")
 
 
 class SmolVLM(BaseModel):
@@ -16,11 +103,13 @@ class SmolVLM(BaseModel):
     def __init__(self, model_path="HuggingFaceTB/SmolVLM-Instruct", **kwargs):
         from transformers import AutoProcessor, Idefics3ForConditionalGeneration
 
-        assert osp.exists(model_path) or splitlen(model_path) == 2
+        resolved_model_path = _resolve_model_path(model_path)
+        assert osp.exists(resolved_model_path) or splitlen(resolved_model_path) == 2
 
-        self.processor = AutoProcessor.from_pretrained(model_path)
+        _normalize_legacy_tokenizer_config(resolved_model_path)
+        self.processor = AutoProcessor.from_pretrained(resolved_model_path)
         self.model = Idefics3ForConditionalGeneration.from_pretrained(
-            model_path, torch_dtype=torch.float32, device_map="cuda"
+            resolved_model_path, torch_dtype=torch.float32, device_map="cuda"
         )
         kwargs_default = {"max_new_tokens": 2048, "use_cache": True}
         kwargs_default.update(kwargs)
@@ -359,20 +448,22 @@ class SmolVLM2(BaseModel):
         from transformers import AutoProcessor, AutoModelForImageTextToText
         import torch
 
-        assert osp.exists(model_path) or splitlen(model_path) == 2
+        resolved_model_path = _resolve_model_path(model_path)
+        assert osp.exists(resolved_model_path) or splitlen(resolved_model_path) == 2
 
         self.sampling_frames = 64
         # Set resolution based on model
-        if "SmolVLM2-2.2B" in model_path:
+        if "SmolVLM2-2.2B" in resolved_model_path:
             self.resolution = 384
-        elif "SmolVLM2-256M" in model_path or "SmolVLM2-500M" in model_path:
+        elif "SmolVLM2-256M" in resolved_model_path or "SmolVLM2-500M" in resolved_model_path:
             self.resolution = 512
         else:
-            raise ValueError(f"Unknown model {model_path}, cannot determine resolution")
+            raise ValueError(f"Unknown model {resolved_model_path}, cannot determine resolution")
 
-        self.processor = AutoProcessor.from_pretrained(model_path)
+        _normalize_legacy_tokenizer_config(resolved_model_path)
+        self.processor = AutoProcessor.from_pretrained(resolved_model_path)
         self.model = AutoModelForImageTextToText.from_pretrained(
-            model_path,
+            resolved_model_path,
             torch_dtype=torch.float32,
         ).to("cuda")
 

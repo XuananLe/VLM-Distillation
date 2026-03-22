@@ -20,13 +20,13 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
 from src.components.skc import compute_skc_from_matrices
-from src.components.vision_forward import (
+from src.components.forward_utils import (
     forward_with_kwarg_retry,
     infer_batch_size,
-    pool_vision_features,
     prepare_forward_inputs,
     unwrap_tensor,
 )
+from src.components.vision_forward import pool_vision_features
 from src.dataset.vqa_loading import extract_image_as_pil, pick_first_text
 from src.skc.data.loading import load_probe_dataset
 from src.skc.data.probe import build_loader

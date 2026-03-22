@@ -2,13 +2,13 @@ from typing import Dict, Tuple
 import torch
 from tqdm import tqdm
 from src.utils import get_specific_layer
-from src.components.vision_forward import (
+from src.components.forward_utils import (
     forward_with_kwarg_retry,
     infer_batch_size,
-    pool_vision_features,
     prepare_forward_inputs,
     unwrap_tensor,
 )
+from src.components.vision_forward import pool_vision_features
 
 
 def extract_sample_representations(
@@ -57,16 +57,37 @@ def _center_gram(K: torch.Tensor) -> torch.Tensor:
     return H @ K @ H
 
 
-def linear_cka(H_A: torch.Tensor, H_B: torch.Tensor) -> float:
+def linear_cka_tensor(H_A: torch.Tensor, H_B: torch.Tensor) -> torch.Tensor:
     """
-    Linear CKA. Invariant to rotation and isotropic scaling.
-    Returns float in [0, 1]: 1 = identical, 0 = orthogonal.
+    Linear CKA as a tensor scalar. Keeps gradients intact for training use.
     """
     K_A = _center_gram(H_A @ H_A.T)
     K_B = _center_gram(H_B @ H_B.T)
     num = (K_A * K_B).sum()
     denom = torch.norm(K_A, p="fro") * torch.norm(K_B, p="fro")
-    return (num / denom.clamp_min(1e-10)).clamp(0.0, 1.0).item()
+    return (num / denom.clamp_min(1e-10)).clamp(0.0, 1.0)
+
+
+def linear_cka(H_A: torch.Tensor, H_B: torch.Tensor) -> float:
+    """
+    Linear CKA. Invariant to rotation and isotropic scaling.
+    Returns float in [0, 1]: 1 = identical, 0 = orthogonal.
+    """
+    return linear_cka_tensor(H_A, H_B).item()
+
+
+def linear_cka_loss(H_A: torch.Tensor, H_B: torch.Tensor) -> torch.Tensor:
+    """
+    Differentiable loss form of linear CKA for training.
+    """
+    if H_A.shape[0] != H_B.shape[0]:
+        raise ValueError(f"Sample count mismatch: {H_A.shape[0]} vs {H_B.shape[0]}.")
+    if H_A.shape[0] < 2:
+        return H_A.new_tensor(0.0)
+
+    H_A = H_A.float() - H_A.float().mean(dim=0, keepdim=True)
+    H_B = H_B.float() - H_B.float().mean(dim=0, keepdim=True)
+    return 1.0 - linear_cka_tensor(H_A, H_B)
 
 
 def compute_skc_from_matrices(

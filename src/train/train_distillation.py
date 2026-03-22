@@ -19,7 +19,6 @@ from transformers import (
     HfArgumentParser,
     AutoModelForVision2Seq,
 )
-from src.components.adapters import TeacherOutputAdapter
 from src.trainer.distillation_trainer import DistillationTrainer
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, TrainingArguments
@@ -34,7 +33,6 @@ from src.train.train_utils import (
     configure_vision_tower,
     configure_llm,
     unfreeze_topk_layers,
-    infer_hidden_size,
     log_trainable_parameter_summary,
     build_model_from_pretrained_args,
     parse_model_id_list,
@@ -78,12 +76,52 @@ class DistillationArguments:
         }
     )
 
-    representation_loss_weight: float = field(
-        default=0.0,
-        metadata={
-            "help": "Weight of the teacher-adapter hidden-state distillation term inside the distillation loss."
-        }
+    layer_distill_source: str = field(
+        default="none",
+        metadata={"help": "Optional hidden-state distillation source. Supported: none, vision."},
     )
+
+    layer_distill_weight: float = field(
+        default=0.0,
+        metadata={"help": "Extra weight applied to the vision-layer CKA distillation loss."},
+    )
+
+    student_layer_indices: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Student vision layer indices as a Python list literal or comma-separated string."
+        },
+    )
+
+    teacher_layer_indices: Optional[str] = field(
+        default=None,
+        metadata={
+            "help": "Optional teacher vision layer indices. If omitted, each teacher is auto-mapped by depth."
+        },
+    )
+
+
+def parse_layer_index_list(raw_value: Optional[str], arg_name: str) -> Optional[list[int]]:
+    if raw_value is None:
+        return None
+    value = raw_value.strip()
+    if not value:
+        return None
+
+    try:
+        parsed = ast.literal_eval(value)
+    except (ValueError, SyntaxError):
+        parsed = [item.strip() for item in value.split(",") if item.strip()]
+
+    if isinstance(parsed, int):
+        parsed = [parsed]
+    if not isinstance(parsed, (list, tuple)):
+        raise ValueError(f"{arg_name} must be a list literal or comma-separated integers, got: {raw_value!r}")
+
+    try:
+        return [int(item) for item in parsed]
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{arg_name} must contain only integers, got: {raw_value!r}") from exc
 
 def train_distillation():
     """
@@ -109,6 +147,24 @@ def train_distillation():
         distillation_args.teacher_model_ids,
         arg_name="--teacher_model_ids",
     )
+    student_layer_indices = parse_layer_index_list(
+        distillation_args.student_layer_indices,
+        arg_name="--student_layer_indices",
+    )
+    teacher_layer_indices = parse_layer_index_list(
+        distillation_args.teacher_layer_indices,
+        arg_name="--teacher_layer_indices",
+    )
+    if distillation_args.layer_distill_source not in {"none", "vision"}:
+        raise ValueError(
+            f"--layer_distill_source must be one of 'none' or 'vision', got "
+            f"{distillation_args.layer_distill_source!r}."
+        )
+    if distillation_args.layer_distill_source == "vision" and distillation_args.layer_distill_weight > 0.0:
+        if not student_layer_indices:
+            raise ValueError(
+                "--student_layer_indices must be provided when vision layer distillation is enabled."
+            )
 
     if training_args.lora_enable:
         if training_args.lora_namespan_exclude is not None:
@@ -129,11 +185,10 @@ def train_distillation():
     rank0_print(f"Distillation Loss: {distillation_args.distillation_loss}")
     rank0_print(f"Temperature: {distillation_args.temperature}")
     rank0_print(f"Alpha: {distillation_args.alpha}")
-    if distillation_args.representation_loss_weight > 0:
-        rank0_print(
-            "Teacher Adapter Hidden-State KD: "
-            f"enabled (weight={distillation_args.representation_loss_weight})"
-        )
+    rank0_print(f"Layer Distill Source: {distillation_args.layer_distill_source}")
+    rank0_print(f"Layer Distill Weight: {distillation_args.layer_distill_weight}")
+    rank0_print(f"Student Layer Indices: {student_layer_indices}")
+    rank0_print(f"Teacher Layer Indices: {teacher_layer_indices}")
     rank0_print("=" * 80)
 
     attn_impl = "flash_attention_2" if not training_args.disable_flash_attn2 else "eager"
@@ -308,33 +363,6 @@ def train_distillation():
             )
         rank0_print(f"Teacher model loaded and frozen: {teacher_id}")
 
-    if distillation_args.representation_loss_weight > 0:
-        student_hidden_size = infer_hidden_size(student_model)
-        teacher_hidden_sizes = [infer_hidden_size(teacher_model) for teacher_model in teacher_models]
-        teacher_output_adapters = torch.nn.ModuleList(
-            [
-                TeacherOutputAdapter(
-                    input_dim=teacher_hidden_size,
-                    output_dim=student_hidden_size,
-                    teacher_id=teacher_ids[idx],
-                )
-                for idx, teacher_hidden_size in enumerate(teacher_hidden_sizes)
-            ]
-        )
-        teacher_output_adapters.to(
-            device=training_args.device,
-            dtype=compute_dtype,
-        )
-        student_model.teacher_output_adapters = teacher_output_adapters
-        rank0_print(
-            "Attached teacher output adapters: "
-            f"{teacher_hidden_sizes} -> {student_hidden_size}"
-        )
-        log_trainable_parameter_summary(
-            student_model,
-            "Trainable parameters after attaching teacher adapters:",
-        )
-
     torch.cuda.empty_cache()
 
     rank0_print("\nPreparing datasets...")
@@ -351,7 +379,10 @@ def train_distillation():
         loss_function=distillation_args.distillation_loss,
         temperature=distillation_args.temperature,
         alpha=distillation_args.alpha,
-        representation_loss_weight=distillation_args.representation_loss_weight,
+        layer_distill_source=distillation_args.layer_distill_source,
+        layer_distill_weight=distillation_args.layer_distill_weight,
+        student_layer_indices=student_layer_indices,
+        teacher_layer_indices=teacher_layer_indices,
         args=training_args,
         **data_module,
     )
@@ -360,7 +391,10 @@ def train_distillation():
     rank0_print("Starting distillation training...")
     rank0_print("=" * 80 + "\n")
 
-    trainer.train()
+    if list(Path(training_args.output_dir).glob("checkpoint-*")):
+        trainer.train(resume_from_checkpoint=True)
+    else:
+        trainer.train()
 
     if trainer.state.best_model_checkpoint is not None:
         rank0_print("\nLoading best checkpoint based on train ce_loss...")

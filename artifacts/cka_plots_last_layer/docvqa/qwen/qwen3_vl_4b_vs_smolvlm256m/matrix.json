@@ -1,0 +1,433 @@
+{
+  "sample": {
+    "dataset": "HuggingFaceM4/DocumentVQA",
+    "split": "train",
+    "config": null,
+    "schema": {
+      "image_field": "image",
+      "question_field": "question",
+      "answer_field": "answers",
+      "id_field": "questionId",
+      "image_name_field": "docId"
+    },
+    "sample_offset": 0,
+    "num_samples": 100,
+    "first_row_index": 0,
+    "last_row_index": 99,
+    "question_preview": [
+      "what is the date mentioned in this letter?",
+      "what is the contact person name mentioned in letter?",
+      "Which corporation's letterhead is this?"
+    ],
+    "first_question": "what is the date mentioned in this letter?",
+    "answer_preview": [
+      [
+        "1/8/93"
+      ],
+      [
+        "P. Carter",
+        "p. carter"
+      ],
+      [
+        "Brown & Williamson Tobacco Corporation"
+      ]
+    ],
+    "sample_id_preview": null,
+    "image_name_preview": null,
+    "image_size": [
+      1695,
+      2025
+    ]
+  },
+  "dtype": "bfloat16",
+  "n_samples": 100,
+  "layer_source": "model",
+  "model_a": {
+    "model_name": "Qwen/Qwen3-VL-4B-Instruct",
+    "family": "qwen3_vl",
+    "layer_source": "model",
+    "layer_total": 36,
+    "layer_stack_path": "model.hidden_states",
+    "selected_layer_indices": [
+      26,
+      27,
+      28,
+      29,
+      30,
+      31,
+      32,
+      33,
+      34,
+      35
+    ],
+    "selected_layers": [
+      {
+        "layer_index": 26,
+        "layer_name": "hidden_states.26",
+        "hook_shape": [
+          1,
+          3670,
+          2560
+        ],
+        "num_samples": 100,
+        "hidden_size": 2560
+      },
+      {
+        "layer_index": 27,
+        "layer_name": "hidden_states.27",
+        "hook_shape": [
+          1,
+          3670,
+          2560
+        ],
+        "num_samples": 100,
+        "hidden_size": 2560
+      },
+      {
+        "layer_index": 28,
+        "layer_name": "hidden_states.28",
+        "hook_shape": [
+          1,
+          3670,
+          2560
+        ],
+        "num_samples": 100,
+        "hidden_size": 2560
+      },
+      {
+        "layer_index": 29,
+        "layer_name": "hidden_states.29",
+        "hook_shape": [
+          1,
+          3670,
+          2560
+        ],
+        "num_samples": 100,
+        "hidden_size": 2560
+      },
+      {
+        "layer_index": 30,
+        "layer_name": "hidden_states.30",
+        "hook_shape": [
+          1,
+          3670,
+          2560
+        ],
+        "num_samples": 100,
+        "hidden_size": 2560
+      },
+      {
+        "layer_index": 31,
+        "layer_name": "hidden_states.31",
+        "hook_shape": [
+          1,
+          3670,
+          2560
+        ],
+        "num_samples": 100,
+        "hidden_size": 2560
+      },
+      {
+        "layer_index": 32,
+        "layer_name": "hidden_states.32",
+        "hook_shape": [
+          1,
+          3670,
+          2560
+        ],
+        "num_samples": 100,
+        "hidden_size": 2560
+      },
+      {
+        "layer_index": 33,
+        "layer_name": "hidden_states.33",
+        "hook_shape": [
+          1,
+          3670,
+          2560
+        ],
+        "num_samples": 100,
+        "hidden_size": 2560
+      },
+      {
+        "layer_index": 34,
+        "layer_name": "hidden_states.34",
+        "hook_shape": [
+          1,
+          3670,
+          2560
+        ],
+        "num_samples": 100,
+        "hidden_size": 2560
+      },
+      {
+        "layer_index": 35,
+        "layer_name": "hidden_states.35",
+        "hook_shape": [
+          1,
+          3670,
+          2560
+        ],
+        "num_samples": 100,
+        "hidden_size": 2560
+      }
+    ]
+  },
+  "model_b": {
+    "model_name": "HuggingFaceTB/SmolVLM-256M-Instruct",
+    "family": "idefics3",
+    "layer_source": "model",
+    "layer_total": 30,
+    "layer_stack_path": "model.hidden_states",
+    "selected_layer_indices": [
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29
+    ],
+    "selected_layers": [
+      {
+        "layer_index": 20,
+        "layer_name": "hidden_states.20",
+        "hook_shape": [
+          1,
+          1138,
+          576
+        ],
+        "num_samples": 100,
+        "hidden_size": 576
+      },
+      {
+        "layer_index": 21,
+        "layer_name": "hidden_states.21",
+        "hook_shape": [
+          1,
+          1138,
+          576
+        ],
+        "num_samples": 100,
+        "hidden_size": 576
+      },
+      {
+        "layer_index": 22,
+        "layer_name": "hidden_states.22",
+        "hook_shape": [
+          1,
+          1138,
+          576
+        ],
+        "num_samples": 100,
+        "hidden_size": 576
+      },
+      {
+        "layer_index": 23,
+        "layer_name": "hidden_states.23",
+        "hook_shape": [
+          1,
+          1138,
+          576
+        ],
+        "num_samples": 100,
+        "hidden_size": 576
+      },
+      {
+        "layer_index": 24,
+        "layer_name": "hidden_states.24",
+        "hook_shape": [
+          1,
+          1138,
+          576
+        ],
+        "num_samples": 100,
+        "hidden_size": 576
+      },
+      {
+        "layer_index": 25,
+        "layer_name": "hidden_states.25",
+        "hook_shape": [
+          1,
+          1138,
+          576
+        ],
+        "num_samples": 100,
+        "hidden_size": 576
+      },
+      {
+        "layer_index": 26,
+        "layer_name": "hidden_states.26",
+        "hook_shape": [
+          1,
+          1138,
+          576
+        ],
+        "num_samples": 100,
+        "hidden_size": 576
+      },
+      {
+        "layer_index": 27,
+        "layer_name": "hidden_states.27",
+        "hook_shape": [
+          1,
+          1138,
+          576
+        ],
+        "num_samples": 100,
+        "hidden_size": 576
+      },
+      {
+        "layer_index": 28,
+        "layer_name": "hidden_states.28",
+        "hook_shape": [
+          1,
+          1138,
+          576
+        ],
+        "num_samples": 100,
+        "hidden_size": 576
+      },
+      {
+        "layer_index": 29,
+        "layer_name": "hidden_states.29",
+        "hook_shape": [
+          1,
+          1138,
+          576
+        ],
+        "num_samples": 100,
+        "hidden_size": 576
+      }
+    ]
+  },
+  "cka_matrix": [
+    [
+      0.8997005820274353,
+      0.9127765893936157,
+      0.9052802920341492,
+      0.9061292409896851,
+      0.9043968319892883,
+      0.9068401455879211,
+      0.9091272950172424,
+      0.9082856178283691,
+      0.9166821837425232,
+      0.8998352289199829
+    ],
+    [
+      0.9014921188354492,
+      0.9127627015113831,
+      0.9051938056945801,
+      0.904870867729187,
+      0.9055644273757935,
+      0.9070757627487183,
+      0.909091591835022,
+      0.9018962979316711,
+      0.912243127822876,
+      0.8913952112197876
+    ],
+    [
+      0.9001054167747498,
+      0.9119877815246582,
+      0.909873366355896,
+      0.9093093276023865,
+      0.9113883376121521,
+      0.9129580855369568,
+      0.9139075875282288,
+      0.9051266312599182,
+      0.914099395275116,
+      0.885545551776886
+    ],
+    [
+      0.8954112529754639,
+      0.9062317609786987,
+      0.9021070599555969,
+      0.9016223549842834,
+      0.9047369956970215,
+      0.905630350112915,
+      0.9070996046066284,
+      0.8967822194099426,
+      0.9082896113395691,
+      0.8834897875785828
+    ],
+    [
+      0.8926117420196533,
+      0.9040455222129822,
+      0.9029799699783325,
+      0.9013786911964417,
+      0.9064759016036987,
+      0.9069037437438965,
+      0.9069403409957886,
+      0.8934309482574463,
+      0.9051030278205872,
+      0.8728362917900085
+    ],
+    [
+      0.8861854076385498,
+      0.8994417190551758,
+      0.9008239507675171,
+      0.900355339050293,
+      0.9040338397026062,
+      0.9049971103668213,
+      0.9048245549201965,
+      0.896136462688446,
+      0.9074016213417053,
+      0.8740466237068176
+    ],
+    [
+      0.891615092754364,
+      0.9040734171867371,
+      0.9031567573547363,
+      0.9014108180999756,
+      0.906630277633667,
+      0.906156063079834,
+      0.9062690734863281,
+      0.8930016756057739,
+      0.9077253937721252,
+      0.8760093450546265
+    ],
+    [
+      0.8929874897003174,
+      0.9037235975265503,
+      0.9049712419509888,
+      0.9014421105384827,
+      0.908219039440155,
+      0.9065447449684143,
+      0.9063909649848938,
+      0.8852133750915527,
+      0.8994073271751404,
+      0.8630574941635132
+    ],
+    [
+      0.8981120586395264,
+      0.9020959734916687,
+      0.8959512710571289,
+      0.8892344832420349,
+      0.8997732400894165,
+      0.8942481279373169,
+      0.8962331414222717,
+      0.8619518876075745,
+      0.8839848637580872,
+      0.8594509959220886
+    ],
+    [
+      0.8581043481826782,
+      0.866752564907074,
+      0.855831503868103,
+      0.8570433855056763,
+      0.8578444719314575,
+      0.8571063876152039,
+      0.8615837693214417,
+      0.8582424521446228,
+      0.876484215259552,
+      0.877845048904419
+    ]
+  ],
+  "outputs": {
+    "heatmap_png": "/__modal/volumes/vo-nlDlU0YrKhIW7oq46mp0MD/cka_plots/docvqa_model_batch11/qwen/qwen3_vl_4b_vs_smolvlm256m_docvqa_model_100samples_10layers/final_layers_cka_heatmap.png",
+    "sample_image_png": "/__modal/volumes/vo-nlDlU0YrKhIW7oq46mp0MD/cka_plots/docvqa_model_batch11/qwen/qwen3_vl_4b_vs_smolvlm256m_docvqa_model_100samples_10layers/sample_image.png"
+  }
+}

@@ -148,7 +148,7 @@ app = modal.App(
 )
 
 
-@app.function(gpu="L4", timeout=60 * 60 * 12)
+@app.function(gpu="A100-80GB", timeout=60 * 60 * 12)
 def exec_cmd(cmd: str):
     cmd = cmd.strip()
     if not cmd:
@@ -192,15 +192,17 @@ def exec_cmd(cmd: str):
     finally:
         returncode = proc.wait()
 
+    for volume in (model_volume, dataset_volume, output_volume, cache_volume):
+        volume.commit()
+
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, cmd)
-
-    cache_volume.commit()
 
 
 @app.local_entrypoint()
 def run():
     cmd = {
         "train": f"cd {ROOT_DIR} && bash scripts/train/distill_single_teacher.sh",
+        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data ChartQA_TEST --model SmolVLM-256M-ChartQA --work-dir /output/vlmeval",
     }
-    exec_cmd.remote(cmd['train'])
+    exec_cmd.remote(cmd['eval'])

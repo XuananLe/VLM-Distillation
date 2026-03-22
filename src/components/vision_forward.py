@@ -1,57 +1,58 @@
-import inspect
-import re
-from typing import Dict
 import torch
 
 
-def forward_with_kwarg_retry(model, call_inputs):
-    inputs = dict(call_inputs)
-    while True:
-        try:
-            return model(**inputs)
-        except TypeError as exc:
-            match = re.search(r"unexpected keyword argument '([^']+)'", str(exc))
-            if not match:
-                raise
-            bad_key = match.group(1)
-            if bad_key not in inputs:
-                raise
-            inputs.pop(bad_key, None)
+def infer_vision_group_counts(model_inputs, batch_size: int) -> list[int] | None:
+    image_grid_thw = model_inputs.get("image_grid_thw")
+    if isinstance(image_grid_thw, torch.Tensor) and image_grid_thw.ndim == 2 and image_grid_thw.shape[-1] == 3:
+        if image_grid_thw.shape[0] == batch_size:
+            return image_grid_thw.to(dtype=torch.long).prod(dim=-1).tolist()
 
+    pixel_attention_mask = model_inputs.get("pixel_attention_mask")
+    if isinstance(pixel_attention_mask, torch.Tensor) and pixel_attention_mask.ndim >= 3:
+        flat_mask = pixel_attention_mask.reshape(
+            pixel_attention_mask.shape[0],
+            pixel_attention_mask.shape[1],
+            -1,
+        )
+        return flat_mask.any(dim=-1).sum(dim=-1).to(dtype=torch.long).tolist()
 
-def unwrap_tensor(output):
-    if isinstance(output, torch.Tensor):
-        return output
-    if isinstance(output, (tuple, list)):
-        for item in output:
-            tensor = unwrap_tensor(item)
-            if tensor is not None:
-                return tensor
-        return None
-    if isinstance(output, dict):
-        for value in output.values():
-            tensor = unwrap_tensor(value)
-            if tensor is not None:
-                return tensor
-        return None
-    for attr_name in ("last_hidden_state", "hidden_states"):
-        value = getattr(output, attr_name, None)
-        if isinstance(value, (tuple, list)) and value:
-            return unwrap_tensor(value[-1])
-        tensor = unwrap_tensor(value)
-        if tensor is not None:
-            return tensor
+    pixel_values = model_inputs.get("pixel_values")
+    if isinstance(pixel_values, torch.Tensor) and pixel_values.ndim >= 5:
+        flat_pixels = pixel_values.reshape(
+            pixel_values.shape[0],
+            pixel_values.shape[1],
+            -1,
+        )
+        return flat_pixels.abs().sum(dim=-1).ne(0).sum(dim=-1).to(dtype=torch.long).tolist()
+
     return None
 
 
-def infer_batch_size(inputs: Dict[str, torch.Tensor]) -> int:
-    for value in inputs.values():
-        if isinstance(value, torch.Tensor) and value.ndim > 0:
-            return int(value.shape[0])
-    raise ValueError("Could not infer batch size from model inputs.")
+def pool_vision_features(
+    features: torch.Tensor,
+    batch_size: int,
+    group_counts: list[int] | None = None,
+) -> torch.Tensor:
+    if group_counts is not None and features.ndim in (2, 3):
+        total_groups = sum(int(count) for count in group_counts)
+        if len(group_counts) == batch_size and features.shape[0] == total_groups:
+            hidden_size = features.shape[-1]
+            pooled = []
+            start = 0
+            for count in group_counts:
+                count = int(count)
+                if count <= 0:
+                    pooled.append(features.new_zeros(hidden_size))
+                    continue
+                stop = start + count
+                pooled.append(features[start:stop].reshape(-1, hidden_size).mean(dim=0))
+                start = stop
+            if start != features.shape[0]:
+                raise ValueError(
+                    f"Vision grouping consumed {start} entries, expected {features.shape[0]}."
+                )
+            return torch.stack(pooled, dim=0)
 
-
-def pool_vision_features(features: torch.Tensor, batch_size: int) -> torch.Tensor:
     if features.ndim == 1:
         return features.unsqueeze(0)
     if features.ndim == 2:
@@ -68,32 +69,3 @@ def pool_vision_features(features: torch.Tensor, batch_size: int) -> torch.Tenso
     raise ValueError(
         f"Unsupported vision feature shape {tuple(features.shape)} for batch size {batch_size}."
     )
-
-
-def prepare_forward_inputs(model, batch):
-    parameter = next(model.parameters())
-    model_device = parameter.device
-    model_dtype = parameter.dtype
-
-    inputs = {}
-    for key, value in batch.items():
-        if key == "labels" or value is None:
-            continue
-        if not isinstance(value, torch.Tensor):
-            inputs[key] = value
-            continue
-        tensor = value.to(model_device)
-        if torch.is_floating_point(tensor):
-            tensor = tensor.to(model_dtype)
-        inputs[key] = tensor
-
-    signature = inspect.signature(model.forward)
-    accepts_var_kwargs = any(
-        parameter.kind == inspect.Parameter.VAR_KEYWORD
-        for parameter in signature.parameters.values()
-    )
-    if accepts_var_kwargs:
-        return inputs
-
-    allowed = set(signature.parameters.keys())
-    return {key: value for key, value in inputs.items() if key in allowed}
