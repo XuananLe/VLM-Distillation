@@ -6,11 +6,8 @@ from transformers import Trainer
 from transformers.trainer import (
     is_sagemaker_mp_enabled,
     get_parameter_names,
-    TRAINER_STATE_NAME,
     PREFIX_CHECKPOINT_DIR,
     logger,
-    ExportableState,
-    SaveStrategy
 )
 from transformers.pytorch_utils import (
     ALL_LAYERNORM_LAYERS
@@ -19,72 +16,53 @@ from src.train.train_utils import get_peft_state_non_lora_maybe_zero_3, _save_pr
 
 class SmolVLMSFTTrainer(Trainer):
 
-    def _save_processor_assets(self, output_dir: str) -> None:
-        """Persist processor/tokenizer files so checkpoints are directly eval-ready."""
-        _save_processing_assets(self, output_dir)
+    def _save_non_lora_weights(self, output_dir: str, *, require_grad_only: bool) -> None:
+        if not self.args.lora_enable:
+            return
+        torch.save(
+            get_peft_state_non_lora_maybe_zero_3(
+                self.model.named_parameters(),
+                require_grad_only=require_grad_only,
+            ),
+            os.path.join(output_dir, "non_lora_state_dict.bin"),
+        )
 
     def create_optimizer(self):
-        """
-        Setup the optimizer.
-        We provide a reasonable default that works well. If you want to use something else, you can pass a tuple in the
-        Trainer's init through `optimizers`, or subclass and override this method in a subclass.
-        """
         if is_sagemaker_mp_enabled():
             return super().create_optimizer()
 
-        opt_model = self.model
-
         if self.optimizer is None:
-            decay_parameters = get_parameter_names(opt_model, ALL_LAYERNORM_LAYERS)
-            decay_parameters = [name for name in decay_parameters if "bias" not in name]
-            lr_mapper = {}
+            opt_model = self.model
+            named_params = [(name, param) for name, param in opt_model.named_parameters() if param.requires_grad]
+            decay_names = {
+                name for name in get_parameter_names(opt_model, ALL_LAYERNORM_LAYERS) if "bias" not in name
+            }
+            lr_map = {
+                name: lr
+                for name, lr in (
+                    ("vision_model", self.args.vision_lr),
+                    ("connector", self.args.connector_lr),
+                )
+                if lr is not None
+            }
+            param_groups = {(module_name, decay): [] for module_name in (None, *lr_map) for decay in (True, False)}
+            for name, param in named_params:
+                module_name = next((key for key in lr_map if key in name), None)
+                param_groups[(module_name, name in decay_names)].append(param)
 
-            if self.args.vision_lr is not None:
-                lr_mapper["vision_model"] = self.args.vision_lr
-            if self.args.connector_lr is not None:
-                lr_mapper["connector"] = self.args.connector_lr
+            optimizer_grouped_parameters = []
+            for (module_name, decay), params in param_groups.items():
+                if not params:
+                    continue
+                group = {
+                    "params": params,
+                    "weight_decay": self.args.weight_decay if decay else 0.0,
+                }
+                if module_name is not None:
+                    group["lr"] = lr_map[module_name]
+                optimizer_grouped_parameters.append(group)
 
-            if len(lr_mapper) > 0:
-                special_lr_parameters = [name for name, _ in opt_model.named_parameters() if any(module_keyword in name for module_keyword in lr_mapper)]
-                optimizer_grouped_parameters = [
-                    {
-                        "params": [p for n, p in opt_model.named_parameters() if (n in decay_parameters and n not in special_lr_parameters and p.requires_grad)],
-                        "weight_decay": self.args.weight_decay,
-                    },
-                    {
-                        "params": [p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n not in special_lr_parameters and p.requires_grad)],
-                        "weight_decay": 0.0,
-                    },
-                ]
-                for module_keyword, lr in lr_mapper.items():
-                    module_parameters = [name for name, _ in opt_model.named_parameters() if module_keyword in name]
-                    optimizer_grouped_parameters.extend(
-                        [
-                            {
-                                "params": [p for n, p in opt_model.named_parameters() if (n in decay_parameters and n in module_parameters and p.requires_grad)],
-                                "weight_decay": self.args.weight_decay,
-                                "lr": lr,
-                            },
-                            {
-                                "params": [p for n, p in opt_model.named_parameters() if (n not in decay_parameters and n in module_parameters and p.requires_grad)],
-                                "weight_decay": 0.0,
-                                "lr": lr,
-                            },
-                        ]
-                    )
-            else:
-                optimizer_grouped_parameters = [
-                    {
-                        "params": [p for n, p in opt_model.named_parameters() if (n in decay_parameters and p.requires_grad)],
-                        "weight_decay": self.args.weight_decay,
-                    },
-                    {
-                        "params": [p for n, p in opt_model.named_parameters() if (n not in decay_parameters and p.requires_grad)],
-                        "weight_decay": 0.0,
-                    },
-                ]
             optimizer_cls, optimizer_kwargs = Trainer.get_optimizer_cls_and_kwargs(self.args)
-
             self.optimizer = optimizer_cls(optimizer_grouped_parameters, **optimizer_kwargs)
             if optimizer_cls.__name__ == "Adam8bit":
                 import bitsandbytes
@@ -103,58 +81,13 @@ class SmolVLMSFTTrainer(Trainer):
         return self.optimizer
 
     def _save_checkpoint(self, model, trial):
-        # In all cases, including ddp/dp/deepspeed, self.model is always a reference to the model we
-        # want to save except FullyShardedDDP.
-        # assert unwrap_model(model) is self.model, "internal model should be a reference to self.model"
-
-        # Save model checkpoint
-        if self.args.lora_enable:
-            checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
-
-            if self.hp_search_backend is None and trial is None:
-                self.store_flos()
-
-            run_dir = self._get_output_dir(trial=trial)
-            output_dir = os.path.join(run_dir, checkpoint_folder)
-            self.save_model(output_dir, _internal_call=True)
-            self._save_processor_assets(output_dir)
-            non_lora_weights = get_peft_state_non_lora_maybe_zero_3(self.model.named_parameters(), require_grad_only=False)
-            torch.save(non_lora_weights, os.path.join(output_dir, "non_lora_state_dict.bin"))
-
-            if self.args.save_strategy in [SaveStrategy.STEPS, SaveStrategy.EPOCH] and self.state.best_global_step:
-                best_checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.best_global_step}"
-                best_checkpoint_dir = os.path.join(run_dir, best_checkpoint_folder)
-
-                if os.path.exists(best_checkpoint_dir):
-                    self.state.best_model_checkpoint = best_checkpoint_dir
-
-            if not self.args.save_only_model:
-                # Save optimizer and scheduler
-                self._save_optimizer_and_scheduler(output_dir)
-                self._save_scaler(output_dir)
-                # Save RNG state
-                self._save_rng_state(output_dir)
-
-            # Save the Trainer state
-            if self.args.should_save:
-                # Update `ExportableState` callbacks and `TrainerControl` state to where we are currently
-                for cb in [
-                    cb for cb in self.callback_handler.callbacks + [self.control] if isinstance(cb, ExportableState)
-                ]:
-                    cb_name = cb.__class__.__name__
-                    cb_state = cb.state()
-                    if isinstance(self.state.stateful_callbacks[cb_name], list):
-                        self.state.stateful_callbacks[cb_name].append(cb_state)
-                    else:
-                        self.state.stateful_callbacks[cb_name] = cb_state
-                self.state.save_to_json(os.path.join(output_dir, TRAINER_STATE_NAME))
-
-            if self.args.push_to_hub:
-                self._push_from_checkpoint(output_dir)
-
-        else:
-            super(SmolVLMSFTTrainer, self)._save_checkpoint(model, trial)
-            checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
-            run_dir = self._get_output_dir(trial=trial)
-            output_dir = os.path.join(run_dir, checkpoint_folder)
-            self._save_processor_assets(output_dir)
+        super()._save_checkpoint(model, trial)
+        output_dir = os.path.join(
+            self._get_output_dir(trial=trial),
+            f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}",
+        )
+        _save_processing_assets(self, output_dir)
+        self._save_non_lora_weights(
+            output_dir,
+            require_grad_only=getattr(self, "non_lora_require_grad_only", False),
+        )

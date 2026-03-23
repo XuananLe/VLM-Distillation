@@ -12,15 +12,31 @@ ALPHA=0.5
 LOSS_WEIGHTING="gradnorm"
 GRADNORM_ALPHA=1.5
 GRADNORM_LR=0.025
-LAYER_DISTILL_SOURCE="vision"
+
+LAYER_DISTILL_SOURCE="model"
 LAYER_DISTILL_WEIGHT=0.2
-STUDENT_LAYER_INDICES="0,1,3,4,5,6,7,8"
-TEACHER_LAYER_INDICES="1,4,20,20,20,21,21,21"
+LAYER_MATCH_JSON_PATH="artifacts/cka_plots_last_layer/docvqa/qwen/qwen2_vl_2b_vs_smolvlm500m/matrix.json"
+LAYER_MATCH_STRATEGIES="topk_soft"
+LAYER_MATCH_TOPK=3
 DATASET_NAME="docvqa"
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME="${TEACHER_MODEL##*/}"
-OUTPUT_DIR="/output/${DISTILLATION_LOSS}_single_teacher_${TEACHER_NAME}_${STUDENT_NAME}_${DATASET_NAME}"
+OUTPUT_DIR="/output/${DISTILLATION_LOSS}_single_teacher_${TEACHER_NAME}_${STUDENT_NAME}_${DATASET_NAME}_gradnorm_last10layers"
 
+LAYER_MATCH_ARGS=()
+if [[ -n "$LAYER_MATCH_JSON_PATH" && -n "$LAYER_MATCH_STRATEGIES" ]]; then
+    if [[ "$LAYER_MATCH_STRATEGIES" != "topk_soft" ]]; then
+        echo "Unsupported LAYER_MATCH_STRATEGIES: $LAYER_MATCH_STRATEGIES" >&2
+        exit 1
+    fi
+    LAYER_MATCH_ARGS=(
+        --layer_match_json_path "$LAYER_MATCH_JSON_PATH"
+        --layer_match_topk "$LAYER_MATCH_TOPK"
+    )
+else
+    echo "Set both LAYER_MATCH_JSON_PATH and LAYER_MATCH_STRATEGIES for soft layer matching." >&2
+    exit 1
+fi
 
 deepspeed src/train/train_distillation.py \
     --deepspeed scripts/deepspeed/zero2.json \
@@ -40,10 +56,9 @@ deepspeed src/train/train_distillation.py \
     --gradnorm_lr "$GRADNORM_LR" \
     --layer_distill_source "$LAYER_DISTILL_SOURCE" \
     --layer_distill_weight "$LAYER_DISTILL_WEIGHT" \
-    --student_layer_indices "$STUDENT_LAYER_INDICES" \
-    --teacher_layer_indices "$TEACHER_LAYER_INDICES" \
+    "${LAYER_MATCH_ARGS[@]}" \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 20 \
+    --per_device_train_batch_size 10 \
     --gradient_accumulation_steps 1 \
     --learning_rate 1e-5 \
     --vision_lr 2e-6 \

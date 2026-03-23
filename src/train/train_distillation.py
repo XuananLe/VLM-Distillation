@@ -37,6 +37,7 @@ from src.train.train_utils import (
     log_trainable_parameter_summary,
     build_model_from_pretrained_args,
     parse_model_id_list,
+    parse_list_argument,
 )
 
 import pillow_avif
@@ -98,53 +99,42 @@ class DistillationArguments:
 
     layer_distill_source: str = field(
         default="none",
-        metadata={"help": "Optional hidden-state distillation source. Supported: none, vision."},
+        metadata={"help": "Optional hidden-state distillation source. Supported: none, vision, model."},
     )
 
     layer_distill_weight: float = field(
         default=0.0,
         metadata={
-            "help": "Extra weight applied to the vision-layer CKA distillation loss. "
-                    "When --loss_weighting=gradnorm, this becomes the initial vision distillation weight."
+            "help": "Extra weight applied to the layer CKA distillation loss. "
+                    "When --loss_weighting=gradnorm, this becomes the initial layer distillation weight."
         },
+    )
+
+    layer_match_json_path: Optional[str] = field(
+        default=None,
+        metadata={"help": "Optional CKA matrix.json path used to derive top-k soft teacher matches."},
+    )
+
+    layer_match_topk: int = field(
+        default=1,
+        metadata={"help": "Number of teacher layers to soft-match per student layer from the CKA matrix."},
     )
 
     student_layer_indices: Optional[str] = field(
         default=None,
         metadata={
-            "help": "Student vision layer indices as a Python list literal or comma-separated string."
+            "help": "Student layer indices as a Python list literal or comma-separated string."
         },
     )
 
     teacher_layer_indices: Optional[str] = field(
         default=None,
         metadata={
-            "help": "Optional teacher vision layer indices. If omitted, each teacher is auto-mapped by depth."
+            "help": "Teacher layer indices as a Python list literal or comma-separated string. "
+                    "Required when layer distillation is enabled."
         },
     )
 
-
-def parse_layer_index_list(raw_value: Optional[str], arg_name: str) -> Optional[list[int]]:
-    if raw_value is None:
-        return None
-    value = raw_value.strip()
-    if not value:
-        return None
-
-    try:
-        parsed = ast.literal_eval(value)
-    except (ValueError, SyntaxError):
-        parsed = [item.strip() for item in value.split(",") if item.strip()]
-
-    if isinstance(parsed, int):
-        parsed = [parsed]
-    if not isinstance(parsed, (list, tuple)):
-        raise ValueError(f"{arg_name} must be a list literal or comma-separated integers, got: {raw_value!r}")
-
-    try:
-        return [int(item) for item in parsed]
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{arg_name} must contain only integers, got: {raw_value!r}") from exc
 
 def train_distillation():
     """
@@ -170,40 +160,47 @@ def train_distillation():
         distillation_args.teacher_model_ids,
         arg_name="--teacher_model_ids",
     )
-    student_layer_indices = parse_layer_index_list(
+    student_layer_indices = parse_list_argument(
         distillation_args.student_layer_indices,
         arg_name="--student_layer_indices",
+        element_type=int,
     )
-    teacher_layer_indices = parse_layer_index_list(
+    teacher_layer_indices = parse_list_argument(
         distillation_args.teacher_layer_indices,
         arg_name="--teacher_layer_indices",
+        element_type=int,
     )
-    if distillation_args.loss_weighting not in {"fixed", "gradnorm"}:
+    if distillation_args.layer_distill_source not in {"none", "vision", "model"}:
         raise ValueError(
-            f"--loss_weighting must be one of 'fixed' or 'gradnorm', got "
-            f"{distillation_args.loss_weighting!r}."
-        )
-    if distillation_args.gradnorm_lr <= 0.0:
-        raise ValueError("--gradnorm_lr must be > 0.")
-    if distillation_args.gradnorm_alpha < 0.0:
-        raise ValueError("--gradnorm_alpha must be >= 0.")
-    if distillation_args.layer_distill_source not in {"none", "vision"}:
-        raise ValueError(
-            f"--layer_distill_source must be one of 'none' or 'vision', got "
+            f"--layer_distill_source must be one of 'none', 'vision', or 'model', got "
             f"{distillation_args.layer_distill_source!r}."
         )
-    if distillation_args.layer_distill_source == "vision" and distillation_args.layer_distill_weight > 0.0:
-        if not student_layer_indices:
-            raise ValueError(
-                "--student_layer_indices must be provided when vision layer distillation is enabled."
-            )
+    if distillation_args.layer_match_topk < 1:
+        raise ValueError("--layer_match_topk must be >= 1.")
+    if distillation_args.layer_distill_source != "none" and distillation_args.layer_distill_weight > 0.0:
+        if not student_layer_indices and not distillation_args.layer_match_json_path:
+            raise ValueError("--student_layer_indices must be provided when layer distillation is enabled.")
+        if not teacher_layer_indices and not distillation_args.layer_match_json_path:
+            raise ValueError("--teacher_layer_indices must be provided when layer distillation is enabled.")
+        if (
+            student_layer_indices
+            and teacher_layer_indices
+            and len(student_layer_indices) != len(teacher_layer_indices)
+        ):
+            raise ValueError("--student_layer_indices and --teacher_layer_indices must have the same length.")
+
+    gradient_checkpointing_kwargs = dict(training_args.gradient_checkpointing_kwargs or {})
+    if distillation_args.loss_weighting == "gradnorm":
+        gradient_checkpointing_kwargs["use_reentrant"] = False
+    elif "use_reentrant" not in gradient_checkpointing_kwargs:
+        gradient_checkpointing_kwargs["use_reentrant"] = True
 
     if training_args.lora_enable:
-        if training_args.lora_namespan_exclude is not None:
-            training_args.lora_namespan_exclude = ast.literal_eval(training_args.lora_namespan_exclude)
-        else:
-            training_args.lora_namespan_exclude = []
-
+        training_args.lora_namespan_exclude = (
+            ast.literal_eval(training_args.lora_namespan_exclude)
+            if training_args.lora_namespan_exclude is not None
+            else []
+        )
         if not training_args.vision_lora:
             training_args.lora_namespan_exclude += ["vision_model"]
 
@@ -221,8 +218,12 @@ def train_distillation():
     if distillation_args.loss_weighting == "gradnorm":
         rank0_print(f"GradNorm Alpha: {distillation_args.gradnorm_alpha}")
         rank0_print(f"GradNorm LR: {distillation_args.gradnorm_lr}")
+    if training_args.gradient_checkpointing:
+        rank0_print(f"Gradient Checkpointing Kwargs: {gradient_checkpointing_kwargs}")
     rank0_print(f"Layer Distill Source: {distillation_args.layer_distill_source}")
     rank0_print(f"Layer Distill Weight: {distillation_args.layer_distill_weight}")
+    rank0_print(f"Layer Match JSON: {distillation_args.layer_match_json_path}")
+    rank0_print(f"Layer Match Top-k: {distillation_args.layer_match_topk}")
     rank0_print(f"Student Layer Indices: {student_layer_indices}")
     rank0_print(f"Teacher Layer Indices: {teacher_layer_indices}")
     rank0_print("=" * 80)
@@ -280,12 +281,12 @@ def train_distillation():
         student_model = prepare_model_for_kbit_training(
             student_model,
             use_gradient_checkpointing=training_args.gradient_checkpointing,
-            gradient_checkpointing_kwargs={"use_reentrant": True},
+            gradient_checkpointing_kwargs=gradient_checkpointing_kwargs,
         )
 
     if training_args.gradient_checkpointing:
         student_model.enable_input_require_grads()
-        training_args.gradient_checkpointing_kwargs = {"use_reentrant": True}
+        training_args.gradient_checkpointing_kwargs = gradient_checkpointing_kwargs
 
     if training_args.lora_enable:
         lora_namespan_exclude = training_args.lora_namespan_exclude
@@ -429,6 +430,8 @@ def train_distillation():
         gradnorm_lr=distillation_args.gradnorm_lr,
         layer_distill_source=distillation_args.layer_distill_source,
         layer_distill_weight=distillation_args.layer_distill_weight,
+        layer_match_json_path=distillation_args.layer_match_json_path,
+        layer_match_topk=distillation_args.layer_match_topk,
         student_layer_indices=student_layer_indices,
         teacher_layer_indices=teacher_layer_indices,
         args=training_args,

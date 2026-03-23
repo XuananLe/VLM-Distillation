@@ -73,26 +73,42 @@ def build_model_from_pretrained_args(
     return model_kwargs
 
 
-def parse_model_id_list(raw_model_ids: str, *, arg_name: str) -> list[str]:
-    try:
-        parsed_model_ids = ast.literal_eval(raw_model_ids)
-    except (SyntaxError, ValueError):
-        parsed_model_ids = [
-            model_id.strip()
-            for model_id in raw_model_ids.split(",")
-            if model_id.strip()
-        ]
+def parse_list_argument(raw_value: str | None, *, arg_name: str, element_type: type = str) -> list:
+    """Generic parser for list arguments that supports Python literals or comma-separated strings."""
+    if raw_value is None or not raw_value.strip():
+        return []
 
-    if isinstance(parsed_model_ids, str):
-        model_ids = [parsed_model_ids]
-    elif isinstance(parsed_model_ids, (list, tuple)):
-        model_ids = list(parsed_model_ids)
-    else:
+    try:
+        parsed = ast.literal_eval(raw_value.strip())
+    except (SyntaxError, ValueError):
+        parsed = [item.strip() for item in raw_value.split(",") if item.strip()]
+
+    # Normalize to list
+    if isinstance(parsed, (str, int)):
+        parsed = [parsed]
+    elif isinstance(parsed, tuple):
+        parsed = list(parsed)
+    elif not isinstance(parsed, list):
         raise ValueError(
-            f"{arg_name} must be a Python list literal, tuple literal, string, or comma-separated string."
+            f"{arg_name} must be a Python list literal, single value, or comma-separated string."
         )
 
-    model_ids = [model_id.strip() for model_id in model_ids if isinstance(model_id, str) and model_id.strip()]
+    # Convert elements to target type
+    try:
+        if element_type is str:
+            result = [str(item).strip() for item in parsed if str(item).strip()]
+        elif element_type is int:
+            result = [int(item) for item in parsed]
+        else:
+            result = [element_type(item) for item in parsed]
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"{arg_name} must contain only {element_type.__name__} values, got: {raw_value!r}") from exc
+
+    return result
+
+
+def parse_model_id_list(raw_model_ids: str, *, arg_name: str) -> list[str]:
+    model_ids = parse_list_argument(raw_model_ids, arg_name=arg_name, element_type=str)
     if not model_ids:
         raise ValueError(f"At least one model ID must be provided via {arg_name}.")
     return model_ids
