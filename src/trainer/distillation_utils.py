@@ -6,6 +6,13 @@ import torch
 from src.components.forward_utils import unwrap_tensor
 from src.components.vision_forward import infer_vision_group_counts, pool_vision_features
 from src.components.matching import topk_soft_match_student_teacher
+from src.components.forward_utils import (
+    forward_with_kwarg_retry,
+    get_decoder_hidden_states,
+    infer_batch_size,
+    pool_model_hidden_states,
+)
+from src.components.skc import linear_cka_loss
 from src.utils import find_vision_layer_indices, get_specific_layer, resolve_module_path
 
 
@@ -372,3 +379,101 @@ def setup_layer_matching(
         ]
 
     return student_layer_indices, teacher_layer_soft_matches
+
+
+def compute_student_representations(
+    layer_distill_source,
+    student_layer_indices,
+    student_inputs,
+    student_layer_outputs,
+    student_outputs,
+):
+    """Extract and pool student model representations for layer distillation."""
+    if layer_distill_source == "vision":
+        student_batch_size = infer_batch_size(student_inputs)
+        return pool_vision_representations(
+            student_layer_outputs,
+            student_layer_indices,
+            student_batch_size,
+            student_inputs,
+        )
+    else:
+        student_hidden_states = get_decoder_hidden_states(student_outputs)
+        student_attention_mask = student_inputs.get("attention_mask")
+        return {
+            layer_index: pool_model_hidden_states(student_hidden_states[layer_index], student_attention_mask)
+            for layer_index in student_layer_indices
+        }
+
+
+def compute_teacher_forward_and_layer_distillation(
+    teacher_model,
+    teacher_inputs,
+    teacher_layer_soft_matches,
+    layer_distill_source,
+    student_layer_representations,
+    output_hidden_states,
+    suppress_stdout=False,
+):
+    """Forward pass through teacher and compute layer distillation representations and loss."""
+    import io
+    from contextlib import nullcontext, redirect_stdout
+
+    teacher_hook_context = nullcontext(None)
+    teacher_layer_indices = sorted(
+        {
+            teacher_layer_index
+            for match in teacher_layer_soft_matches
+            for teacher_layer_index in match["teacher_layer_indices"]
+        }
+    )
+
+    if layer_distill_source == "vision":
+        teacher_hook_context = capture_layer_outputs(teacher_model, teacher_layer_indices)
+
+    with teacher_hook_context as teacher_layer_outputs:
+        with torch.no_grad():
+            stdout_context = redirect_stdout(io.StringIO()) if suppress_stdout else nullcontext()
+            with stdout_context:
+                teacher_outputs = forward_with_kwarg_retry(
+                    teacher_model,
+                    {**teacher_inputs, "return_dict": True, "output_hidden_states": output_hidden_states},
+                )
+
+    # Compute layer distillation loss
+    layer_loss = None
+    if student_layer_representations is not None:
+        if layer_distill_source == "vision":
+            teacher_batch_size = infer_batch_size(teacher_inputs)
+            teacher_layer_representations = pool_vision_representations(
+                teacher_layer_outputs,
+                teacher_layer_indices,
+                teacher_batch_size,
+                teacher_inputs,
+            )
+        else:
+            teacher_hidden_states = get_decoder_hidden_states(teacher_outputs)
+            teacher_attention_mask = teacher_inputs.get("attention_mask")
+            teacher_layer_representations = {
+                layer_index: pool_model_hidden_states(teacher_hidden_states[layer_index], teacher_attention_mask)
+                for layer_index in teacher_layer_indices
+            }
+
+        soft_match_losses = []
+        for match in teacher_layer_soft_matches:
+            weighted_losses = [
+                weight * linear_cka_loss(
+                    student_layer_representations[match["student_layer_index"]],
+                    teacher_layer_representations[teacher_layer_index],
+                )
+                for teacher_layer_index, weight in zip(
+                    match["teacher_layer_indices"],
+                    match["teacher_layer_weights"],
+                )
+            ]
+            if weighted_losses:
+                soft_match_losses.append(torch.stack(weighted_losses).sum())
+        if soft_match_losses:
+            layer_loss = torch.stack(soft_match_losses).mean()
+
+    return teacher_outputs, layer_loss
