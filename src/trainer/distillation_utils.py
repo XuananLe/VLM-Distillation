@@ -156,7 +156,10 @@ def update_gradnorm_weights(
     gradnorm_alpha: float,
     gradnorm_lr: float,
 ) -> None:
-    if not gradnorm_active:
+    if not gradnorm_active or not aux_losses or not torch.is_grad_enabled():
+        return
+
+    if reference_tensor is None or not reference_tensor.requires_grad:
         return
 
     weight_names = list(aux_losses.keys())

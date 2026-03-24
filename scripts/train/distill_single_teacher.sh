@@ -15,10 +15,11 @@ GRADNORM_LR=0.025
 
 LAYER_DISTILL_SOURCE="model"
 LAYER_DISTILL_WEIGHT=0.2
-LAYER_MATCH_JSON_PATH="artifacts/cka_plots_last_layer/docvqa/qwen/qwen2_vl_2b_vs_smolvlm500m/matrix.json"
+LAYER_MATCH_JSON_PATH="artifacts/cka_plots_last_layer/chartqa/qwen/qwen2_vl_2b_vs_smolvlm500m/matrix.json"
 LAYER_MATCH_STRATEGIES="topk_soft"
 LAYER_MATCH_TOPK=3
-DATASET_NAME="docvqa"
+DATASET_NAME="chartqa"
+EVAL_SPLIT="val"
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME="${TEACHER_MODEL##*/}"
 OUTPUT_DIR="/output/${DISTILLATION_LOSS}_single_teacher_${TEACHER_NAME}_${STUDENT_NAME}_${DATASET_NAME}_gradnorm_last10layers"
@@ -43,6 +44,7 @@ deepspeed src/train/train_distillation.py \
     --student_model_id "$STUDENT_MODEL" \
     --teacher_model_ids "$TEACHER_MODEL_IDS" \
     --data_path /data/${DATASET_NAME}/train_llava.json \
+    --eval_data_path /data/${DATASET_NAME}/${EVAL_SPLIT}_llava.json \
     --image_folder /data/${DATASET_NAME}/images \
     --distillation_loss "$DISTILLATION_LOSS" \
     --bf16 True \
@@ -58,7 +60,7 @@ deepspeed src/train/train_distillation.py \
     --layer_distill_weight "$LAYER_DISTILL_WEIGHT" \
     "${LAYER_MATCH_ARGS[@]}" \
     --num_train_epochs 1 \
-    --per_device_train_batch_size 10 \
+    --per_device_train_batch_size 18 \
     --gradient_accumulation_steps 1 \
     --learning_rate 1e-5 \
     --vision_lr 2e-6 \
@@ -71,11 +73,17 @@ deepspeed src/train/train_distillation.py \
     --tf32 True \
     --gradient_checkpointing True \
     --lazy_preprocess True \
-    --logging_steps 1 \
+    --logging_steps 10 \
     --save_strategy steps \
     --save_steps 100 \
     --save_total_limit 3 \
-    --eval_strategy no \
+    --save_only_model False \
+    --eval_strategy steps \
+    --eval_steps 100 \
+    --per_device_eval_batch_size 20 \
+    --load_best_model_at_end True \
+    --metric_for_best_model eval_loss \
+    --greater_is_better False \
     --dataloader_num_workers 4 \
     --remove_unused_columns False \
     --report_to wandb

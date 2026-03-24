@@ -5,7 +5,6 @@ from contextlib import nullcontext, redirect_stdout
 
 import torch
 from transformers import PreTrainedModel
-from transformers.trainer import PREFIX_CHECKPOINT_DIR
 
 from src.components.forward_utils import (
     forward_with_kwarg_retry,
@@ -65,7 +64,6 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.gradnorm_alpha = gradnorm_alpha
         self.gradnorm_lr = gradnorm_lr
         self.latest_ce_loss = None
-        self.save_on_new_best_ce = False
         self.non_lora_require_grad_only = True
         self.layer_distill_source = layer_distill_source
         self.layer_distill_weight = layer_distill_weight
@@ -75,6 +73,8 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.gradnorm_weights = {}
         self.gradnorm_initial_losses = {}
         self.gradnorm_active = False
+        self.eval_ce_loss_sum = 0.0
+        self.eval_ce_loss_count = 0
 
         self.layer_distillation_enabled = (
             layer_distill_source in {"vision", "model"}
@@ -341,10 +341,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
 
         ce_loss = student_outputs.loss
         self.latest_ce_loss = ce_loss.detach().float().item()
-        self.save_on_new_best_ce = self.latest_ce_loss < (self.state.best_metric or float("inf"))
-        if self.save_on_new_best_ce:
-            self.state.best_metric = self.latest_ce_loss
-            self.state.best_global_step = self.state.global_step
+        if not model.training:
+            batch_size = infer_batch_size(student_inputs)
+            self.eval_ce_loss_sum += ce_loss.detach().float().item() * batch_size
+            self.eval_ce_loss_count += batch_size
         if self.loss_weighting == "gradnorm":
             aux_losses = {}
             if "distillation" in self.gradnorm_weights:
@@ -388,42 +388,38 @@ class DistillationTrainer(SmolVLMSFTTrainer):
 
         return (loss, student_outputs) if return_outputs else loss
 
-    def _maybe_log_save_evaluate(
-        self,
-        tr_loss,
-        grad_norm,
-        model,
-        trial,
-        epoch,
-        ignore_keys_for_eval,
-        start_time,
-        learning_rate=None,
-    ):
-        if self.save_on_new_best_ce:
-            self.control.should_save = True
-        return super()._maybe_log_save_evaluate(
-            tr_loss,
-            grad_norm,
-            model,
-            trial,
-            epoch,
-            ignore_keys_for_eval,
-            start_time,
-            learning_rate=learning_rate,
+    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix: str = "eval"):
+        self.eval_ce_loss_sum = 0.0
+        self.eval_ce_loss_count = 0
+        return super().evaluate(
+            eval_dataset=eval_dataset,
+            ignore_keys=ignore_keys,
+            metric_key_prefix=metric_key_prefix,
         )
 
-    def _save_checkpoint(self, model, trial):
-        super()._save_checkpoint(model, trial)
+    def log(self, logs: dict[str, float], start_time=None) -> None:
+        if self.eval_ce_loss_count > 0:
+            eval_prefixes = [
+                key[:-5]
+                for key in logs
+                if key.startswith("eval") and key.endswith("_loss") and not key.endswith("_ce_loss")
+            ]
+            if eval_prefixes:
+                stats = torch.tensor(
+                    [self.eval_ce_loss_sum, float(self.eval_ce_loss_count)],
+                    device=self.args.device,
+                    dtype=torch.float64,
+                )
+                if torch.distributed.is_available() and torch.distributed.is_initialized():
+                    torch.distributed.all_reduce(stats, op=torch.distributed.ReduceOp.SUM)
+                logs = dict(logs)
+                eval_ce_loss = (stats[0] / stats[1]).item()
+                for prefix in eval_prefixes:
+                    logs[f"{prefix}_ce_loss"] = eval_ce_loss
+                self.eval_ce_loss_sum = 0.0
+                self.eval_ce_loss_count = 0
 
-        if self.save_on_new_best_ce and self.args.should_save:
-            checkpoint_folder = f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}"
-            run_dir = self._get_output_dir(trial=trial)
-            self.state.best_model_checkpoint = os.path.join(run_dir, checkpoint_folder)
-            print(
-                f"New best checkpoint by train ce_loss: {self.state.best_model_checkpoint} "
-                f"(ce_loss={self.state.best_metric:.6f})"
-            )
-        self.save_on_new_best_ce = False
+        super().log(logs, start_time=start_time)
 
     def _load_best_model(self):
         super()._load_best_model()

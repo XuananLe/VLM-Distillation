@@ -93,6 +93,9 @@ class DataArguments:
     data_path: str = field(
         default=None, metadata={"help": "Path to the training data."}
     )
+    eval_data_path: Optional[str] = field(
+        default=None, metadata={"help": "Optional path to the validation data."}
+    )
     lazy_preprocess: bool = False
     image_folder: Optional[str] = field(default=None)
     max_num_frames: int = 10

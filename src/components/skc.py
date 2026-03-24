@@ -87,7 +87,7 @@ def linear_cka_loss(H_A: torch.Tensor, H_B: torch.Tensor) -> torch.Tensor:
 
     H_A = H_A.float() - H_A.float().mean(dim=0, keepdim=True)
     H_B = H_B.float() - H_B.float().mean(dim=0, keepdim=True)
-    return 1.0 - linear_cka_tensor(H_A, H_B)
+    return 1.0 - torch.sqrt(linear_cka_tensor(H_A, H_B))
 
 
 def compute_skc_from_matrices(

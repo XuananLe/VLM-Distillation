@@ -448,9 +448,10 @@ def train_distillation():
         trainer.train()
 
     if trainer.state.best_model_checkpoint is not None:
-        rank0_print("\nLoading best checkpoint based on train ce_loss...")
+        best_metric_name = training_args.metric_for_best_model or "loss"
+        rank0_print(f"\nLoading best checkpoint based on {best_metric_name}...")
         rank0_print(f"Best checkpoint: {trainer.state.best_model_checkpoint}")
-        rank0_print(f"Best train ce_loss: {trainer.state.best_metric:.6f}")
+        rank0_print(f"Best {best_metric_name}: {trainer.state.best_metric:.6f}")
         trainer._load_best_model()
 
     rank0_print("\nSaving trained model...")

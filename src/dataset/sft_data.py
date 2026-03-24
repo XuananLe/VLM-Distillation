@@ -1,6 +1,7 @@
 import copy
 import os
 import re
+from dataclasses import replace
 from typing import Dict, Optional
 import torch
 import transformers
@@ -651,6 +652,14 @@ def make_supervised_data_module(
         data_args=data_args,
         teacher_processors=normalized_teacher_processors,
     )
+    eval_dataset = None
+    if data_args.eval_data_path:
+        eval_dataset = SupervisedDataset(
+            data_path=data_args.eval_data_path,
+            processor=processor,
+            data_args=replace(data_args, data_path=data_args.eval_data_path),
+            teacher_processors=normalized_teacher_processors,
+        )
     teacher_pad = None
     if len(normalized_teacher_processors) == 1:
         if isinstance(normalized_teacher_processors[0], dict):
@@ -673,4 +682,4 @@ def make_supervised_data_module(
         teacher_pad_token_ids=teacher_pad_ids,
     )
 
-    return dict(train_dataset=sft_dataset, eval_dataset=None, data_collator=data_collator)
+    return dict(train_dataset=sft_dataset, eval_dataset=eval_dataset, data_collator=data_collator)
