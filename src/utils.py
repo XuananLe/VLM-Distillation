@@ -162,24 +162,10 @@ def find_vision_layer_indices(model, architecture_type="auto"):
     
     if vision_encoder is None:
         raise ValueError("No vision encoder found in model")
-    
-    # Extract layers based on architecture
-    if architecture_type in ["llava", "clip", "siglip"]:
-        layers = extract_clip_style_layers(vision_encoder)
-    elif architecture_type == "qwen-vl":
-        layers = extract_qwenvl_layers(vision_encoder)
-    elif architecture_type == "internvl":
-        layers = extract_internvl_layers(vision_encoder)
-    else:
-        layers = extract_generic_layers(vision_encoder)
 
-    if not layers and (hasattr(vision_encoder, 'vision_model') or hasattr(vision_encoder, 'encoder')):
-        layers = extract_clip_style_layers(vision_encoder)
-    if not layers and (hasattr(vision_encoder, 'transformer') or hasattr(vision_encoder, 'blocks')):
-        layers = extract_qwenvl_layers(vision_encoder)
-    if not layers and hasattr(vision_encoder, 'encoder'):
-        layers = extract_internvl_layers(vision_encoder)
-    
+    # Extract layers based on architecture
+    layers = extract_layers_by_architecture(vision_encoder, architecture_type)
+
     vision_layers['layer_names'] = [name for name, _ in layers]
     vision_layers['layer_indices'] = list(range(len(layers)))
     vision_layers['total_layers'] = len(layers)
@@ -295,14 +281,14 @@ def extract_internvl_layers(vision_encoder):
 def extract_generic_layers(vision_encoder):
     """Generic layer extraction for unknown architectures"""
     layers = []
-    
+
     # Common patterns
     layer_containers = ['layers', 'blocks', 'encoder', 'transformer']
-    
+
     for container_name in layer_containers:
         if hasattr(vision_encoder, container_name):
             container = getattr(vision_encoder, container_name)
-            
+
             # If it's a ModuleList or Sequential
             if hasattr(container, '__iter__'):
                 for idx, layer in enumerate(container):
@@ -317,7 +303,29 @@ def extract_generic_layers(vision_encoder):
                         layer_name = f"{container_name}.{idx}"
                         layers.append((layer_name, layer))
                     break
-    
+
+    return layers
+
+
+def extract_layers_by_architecture(vision_encoder, architecture_type):
+    """Extract layers from vision encoder based on architecture type with fallbacks."""
+    if architecture_type in ["llava", "clip", "siglip"]:
+        layers = extract_clip_style_layers(vision_encoder)
+    elif architecture_type == "qwen-vl":
+        layers = extract_qwenvl_layers(vision_encoder)
+    elif architecture_type == "internvl":
+        layers = extract_internvl_layers(vision_encoder)
+    else:
+        layers = extract_generic_layers(vision_encoder)
+
+    # Fallback strategies if no layers found
+    if not layers and (hasattr(vision_encoder, 'vision_model') or hasattr(vision_encoder, 'encoder')):
+        layers = extract_clip_style_layers(vision_encoder)
+    if not layers and (hasattr(vision_encoder, 'transformer') or hasattr(vision_encoder, 'blocks')):
+        layers = extract_qwenvl_layers(vision_encoder)
+    if not layers and hasattr(vision_encoder, 'encoder'):
+        layers = extract_internvl_layers(vision_encoder)
+
     return layers
 
 
@@ -333,21 +341,7 @@ def get_specific_layer(model, layer_index):
         raise IndexError(f"Layer index {layer_index} out of range (0-{vision_info['total_layers']-1})")
 
     vision_encoder = resolve_module_path(model, vision_info['encoder_path'])
-    if architecture_type in ["llava", "clip", "siglip"]:
-        layers = extract_clip_style_layers(vision_encoder)
-    elif architecture_type == "qwen-vl":
-        layers = extract_qwenvl_layers(vision_encoder)
-    elif architecture_type == "internvl":
-        layers = extract_internvl_layers(vision_encoder)
-    else:
-        layers = extract_generic_layers(vision_encoder)
-
-    if not layers and (hasattr(vision_encoder, 'vision_model') or hasattr(vision_encoder, 'encoder')):
-        layers = extract_clip_style_layers(vision_encoder)
-    if not layers and (hasattr(vision_encoder, 'transformer') or hasattr(vision_encoder, 'blocks')):
-        layers = extract_qwenvl_layers(vision_encoder)
-    if not layers and hasattr(vision_encoder, 'encoder'):
-        layers = extract_internvl_layers(vision_encoder)
+    layers = extract_layers_by_architecture(vision_encoder, architecture_type)
 
     layer_name, layer = layers[layer_index]
     return layer, layer_name

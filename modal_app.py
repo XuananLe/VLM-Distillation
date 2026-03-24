@@ -148,7 +148,7 @@ app = modal.App(
 )
 
 
-@app.function(gpu="L4", timeout=60 * 60 * 12)
+@app.function(timeout=60 * 60 * 12)
 def exec_cmd(cmd: str) -> None:
     cmd = cmd.strip()
     if not cmd:

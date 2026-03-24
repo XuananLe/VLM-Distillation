@@ -12,11 +12,9 @@ ALPHA=0.5
 LOSS_WEIGHTING="gradnorm"
 GRADNORM_ALPHA=1.5
 GRADNORM_LR=0.025
-
 LAYER_DISTILL_SOURCE="model"
 LAYER_DISTILL_WEIGHT=0.2
 LAYER_MATCH_JSON_PATH="artifacts/cka_plots_last_layer/chartqa/qwen/qwen2_vl_2b_vs_smolvlm500m/matrix.json"
-LAYER_MATCH_STRATEGIES="topk_soft"
 LAYER_MATCH_TOPK=3
 DATASET_NAME="chartqa"
 EVAL_SPLIT="val"
@@ -25,17 +23,13 @@ TEACHER_NAME="${TEACHER_MODEL##*/}"
 OUTPUT_DIR="/output/${DISTILLATION_LOSS}_single_teacher_${TEACHER_NAME}_${STUDENT_NAME}_${DATASET_NAME}_gradnorm_last10layers"
 
 LAYER_MATCH_ARGS=()
-if [[ -n "$LAYER_MATCH_JSON_PATH" && -n "$LAYER_MATCH_STRATEGIES" ]]; then
-    if [[ "$LAYER_MATCH_STRATEGIES" != "topk_soft" ]]; then
-        echo "Unsupported LAYER_MATCH_STRATEGIES: $LAYER_MATCH_STRATEGIES" >&2
-        exit 1
-    fi
+if [[ -n "$LAYER_MATCH_JSON_PATH" ]]; then
     LAYER_MATCH_ARGS=(
         --layer_match_json_path "$LAYER_MATCH_JSON_PATH"
         --layer_match_topk "$LAYER_MATCH_TOPK"
     )
 else
-    echo "Set both LAYER_MATCH_JSON_PATH and LAYER_MATCH_STRATEGIES for soft layer matching." >&2
+    echo "LAYER_MATCH_JSON_PATH must be set for soft layer matching." >&2
     exit 1
 fi
 

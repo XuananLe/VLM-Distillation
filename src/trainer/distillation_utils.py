@@ -1,10 +1,11 @@
 import contextlib
+import re
 
 import torch
 
 from src.components.forward_utils import unwrap_tensor
 from src.components.vision_forward import infer_vision_group_counts, pool_vision_features
-from src.utils import find_vision_layer_indices, get_specific_layer
+from src.utils import find_vision_layer_indices, get_specific_layer, resolve_module_path
 
 
 REQUIRED_TEACHER_INPUTS = ("input_ids", "attention_mask", "pixel_values")
@@ -12,8 +13,16 @@ OPTIONAL_TEACHER_INPUTS = ("pixel_attention_mask", "image_grid_thw", "image_flag
 
 
 def get_base_model(model):
-    """Extract the base model, handling PEFT-wrapped models."""
-    return model.get_base_model() if hasattr(model, "get_base_model") else model
+    """Extract the underlying model, handling wrappers like DeepSpeed and PEFT."""
+    current = model
+    while hasattr(current, "module"):
+        current = current.module
+    while hasattr(current, "get_base_model"):
+        next_model = current.get_base_model()
+        if next_model is current:
+            break
+        current = next_model
+    return current
 
 
 def resolve_layer_indices(total_layers: int, layer_indices: list[int], label: str) -> list[int]:
@@ -144,10 +153,77 @@ def suspend_deepspeed_backward_hooks(model):
             optimizer.reset_for_new_step()
 
 
+def resolve_gradnorm_reference_params(
+    model,
+    *,
+    layer_distill_source: str,
+    student_layer_indices: list[int],
+) -> tuple[list[torch.nn.Parameter], str]:
+    base_model = get_base_model(model)
+
+    if layer_distill_source == "vision" and student_layer_indices:
+        layer_index = max(student_layer_indices)
+        layer, layer_name = get_specific_layer(base_model, layer_index)
+        params = [param for param in layer.parameters() if param.requires_grad]
+        if params:
+            return params, f"vision layer {layer_index} ({layer_name})"
+
+    if layer_distill_source == "model" and student_layer_indices:
+        layer_index = max(student_layer_indices)
+        for path in (
+            "model.text_model.model.layers",
+            "model.text_model.layers",
+            "text_model.model.layers",
+            "text_model.layers",
+            "model.language_model.model.layers",
+            "model.language_model.layers",
+            "language_model.model.layers",
+            "language_model.layers",
+            "model.decoder.layers",
+            "decoder.layers",
+            "model.layers",
+            "layers",
+        ):
+            try:
+                layers = resolve_module_path(base_model, path)
+            except (AttributeError, IndexError, KeyError, TypeError):
+                continue
+            if layer_index >= len(layers):
+                continue
+            params = [param for param in layers[layer_index].parameters() if param.requires_grad]
+            if params:
+                return params, f"model layer {layer_index} ({path})"
+
+        layer_param_map: dict[int, list[torch.nn.Parameter]] = {}
+        for name, param in base_model.named_parameters():
+            if not param.requires_grad or "vision" in name:
+                continue
+            match = re.search(r"\.layers\.(\d+)\.", name)
+            if match:
+                layer_param_map.setdefault(int(match.group(1)), []).append(param)
+        params = layer_param_map.get(layer_index, [])
+        if params:
+            return params, f"model layer {layer_index} (named-parameter fallback)"
+
+    for path in ("model.connector", "connector", "model.text_model", "text_model", "model.vision_model", "vision_model"):
+        try:
+            module = resolve_module_path(base_model, path)
+        except (AttributeError, IndexError, KeyError, TypeError):
+            continue
+        params = [param for param in module.parameters() if param.requires_grad]
+        if params:
+            return params, path
+
+    params = [param for param in base_model.parameters() if param.requires_grad]
+    if not params:
+        return [], "no trainable parameters"
+    return params, "all trainable parameters"
+
+
 def update_gradnorm_weights(
     model,
     aux_losses: dict[str, torch.Tensor],
-    reference_tensor: torch.Tensor,
+    reference_params: list[torch.nn.Parameter],
     gradnorm_weights: dict[str, float],
     gradnorm_initial_losses: dict[str, float],
     *,
@@ -159,7 +235,7 @@ def update_gradnorm_weights(
     if not gradnorm_active or not aux_losses or not torch.is_grad_enabled():
         return
 
-    if reference_tensor is None or not reference_tensor.requires_grad:
+    if not reference_params:
         return
 
     weight_names = list(aux_losses.keys())
@@ -173,17 +249,25 @@ def update_gradnorm_weights(
     with suspend_deepspeed_backward_hooks(model):
         base_grad_norms = []
         for name in weight_names:
-            grad = torch.autograd.grad(
+            grads = torch.autograd.grad(
                 aux_losses[name],
-                reference_tensor,
+                reference_params,
                 retain_graph=True,
                 create_graph=False,
-            )[0]
-            base_grad_norms.append(grad.detach().norm(p=2))
+                allow_unused=True,
+            )
+            grad_sq_norm = sum(
+                grad.detach().float().pow(2).sum()
+                for grad in grads
+                if grad is not None
+            )
+            if not isinstance(grad_sq_norm, torch.Tensor):
+                return
+            base_grad_norms.append(grad_sq_norm.sqrt())
 
         base_grad_norm_tensor = torch.stack(base_grad_norms)
         current_weight_tensor = torch.stack(
-            [reference_tensor.new_tensor(gradnorm_weights[name]) for name in weight_names]
+            [base_grad_norm_tensor.new_tensor(gradnorm_weights[name]) for name in weight_names]
         )
         grad_norm_tensor = current_weight_tensor * base_grad_norm_tensor
         loss_ratio_tensor = torch.stack(
@@ -211,8 +295,8 @@ def update_gradnorm_weights(
 
     weight_tensor = torch.tensor(
         [gradnorm_weights[name] for name in weight_names],
-        device=reference_tensor.device,
-        dtype=reference_tensor.dtype,
+        device=reference_params[0].device,
+        dtype=torch.float32,
     )
     if torch.distributed.is_available() and torch.distributed.is_initialized():
         torch.distributed.all_reduce(weight_tensor, op=torch.distributed.ReduceOp.SUM)

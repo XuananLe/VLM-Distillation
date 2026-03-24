@@ -177,6 +177,7 @@ You can launch the evaluation by setting either --data and --model or --config.
     parser.add_argument('--config', type=str, help='Path to the Config Json File')
     # Work Dir
     parser.add_argument('--work-dir', type=str, default='./outputs', help='select the output directory')
+    parser.add_argument('--subset-size', type=int, default=None, help='optionally evaluate only the first N samples')
     # Infer + Eval or Infer Only
     parser.add_argument('--mode', type=str, default='all', choices=['all', 'infer', 'eval'])
     # API Kwargs, Apply to API VLMs and Judge API LLMs
@@ -200,6 +201,19 @@ You can launch the evaluation by setting either --data and --model or --config.
 
     args = parser.parse_args()
     return args
+
+
+def apply_dataset_subset(dataset, subset_size):
+    if subset_size is None:
+        return dataset
+    if subset_size <= 0:
+        raise ValueError('--subset-size must be > 0 when set')
+    if not hasattr(dataset, 'data'):
+        raise ValueError(f'--subset-size is not supported for dataset class {type(dataset).__name__}')
+    dataset.data = dataset.data.iloc[: min(subset_size, len(dataset.data))].reset_index(drop=True)
+    if hasattr(dataset, 'videos') and hasattr(dataset, 'pack') and dataset.pack:
+        dataset.videos = list(set(dataset.data['video']))
+    return dataset
 
 
 def main():
@@ -285,6 +299,7 @@ def main():
                     if dataset is None:
                         logger.error(f'Dataset {dataset_name} is not valid, will be skipped. ')
                         continue
+                    dataset = apply_dataset_subset(dataset, args.subset_size)
                 else:
                     dataset_kwargs = {}
                     if dataset_name in ['MMLongBench_DOC', 'DUDE', 'DUDE_MINI', 'SLIDEVQA', 'SLIDEVQA_MINI']:
@@ -300,6 +315,7 @@ def main():
                     if dataset is None:
                         logger.error(f'Dataset {dataset_name} is not valid, will be skipped. ')
                         continue
+                    dataset = apply_dataset_subset(dataset, args.subset_size)
 
                 # Handling Multi-Turn Dataset
                 result_file = osp.join(pred_root, result_file_base)

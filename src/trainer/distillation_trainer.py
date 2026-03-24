@@ -20,6 +20,7 @@ from src.trainer.distillation_utils import (
     capture_layer_outputs,
     pool_vision_representations,
     prepare_vision_layer_distillation,
+    resolve_gradnorm_reference_params,
     update_gradnorm_weights,
 )
 
@@ -63,7 +64,6 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.loss_weighting = loss_weighting
         self.gradnorm_alpha = gradnorm_alpha
         self.gradnorm_lr = gradnorm_lr
-        self.latest_ce_loss = None
         self.non_lora_require_grad_only = True
         self.layer_distill_source = layer_distill_source
         self.layer_distill_weight = layer_distill_weight
@@ -73,6 +73,8 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.gradnorm_weights = {}
         self.gradnorm_initial_losses = {}
         self.gradnorm_active = False
+        self.gradnorm_reference_params = None
+        self.gradnorm_reference_desc = None
         self.eval_ce_loss_sum = 0.0
         self.eval_ce_loss_count = 0
 
@@ -238,7 +240,6 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         student_logits = student_outputs.logits
 
         layer_distillation_losses = []
-        gradnorm_reference_tensor = None
         if self.layer_distillation_enabled:
             if self.layer_distill_source == "vision":
                 student_batch_size = infer_batch_size(student_inputs)
@@ -248,7 +249,6 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                     student_batch_size,
                     student_inputs,
                 )
-                gradnorm_reference_tensor = student_layer_outputs[self.student_layer_indices[-1]]
             else:
                 student_hidden_states = get_decoder_hidden_states(student_outputs)
                 student_attention_mask = student_inputs.get("attention_mask")
@@ -256,9 +256,6 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                     layer_index: pool_model_hidden_states(student_hidden_states[layer_index], student_attention_mask)
                     for layer_index in self.student_layer_indices
                 }
-                gradnorm_reference_tensor = student_hidden_states[self.student_layer_indices[-1]]
-        else:
-            gradnorm_reference_tensor = None
 
         teacher_losses = []
         for teacher_index, (teacher_model, (teacher_inputs, teacher_labels)) in enumerate(
@@ -340,7 +337,6 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         )
 
         ce_loss = student_outputs.loss
-        self.latest_ce_loss = ce_loss.detach().float().item()
         if not model.training:
             batch_size = infer_batch_size(student_inputs)
             self.eval_ce_loss_sum += ce_loss.detach().float().item() * batch_size
@@ -352,10 +348,21 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             if self.layer_distill_source in self.gradnorm_weights:
                 aux_losses[self.layer_distill_source] = layer_distillation_loss
 
+            if model.training and self.gradnorm_active and self.gradnorm_reference_params is None:
+                (
+                    self.gradnorm_reference_params,
+                    self.gradnorm_reference_desc,
+                ) = resolve_gradnorm_reference_params(
+                    model,
+                    layer_distill_source=self.layer_distill_source,
+                    student_layer_indices=self.student_layer_indices,
+                )
+                print(f"  - GradNorm reference params: {self.gradnorm_reference_desc}")
+
             update_gradnorm_weights(
                 model,
                 aux_losses,
-                gradnorm_reference_tensor,
+                self.gradnorm_reference_params,
                 self.gradnorm_weights,
                 self.gradnorm_initial_losses,
                 gradnorm_active=self.gradnorm_active,

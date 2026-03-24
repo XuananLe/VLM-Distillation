@@ -93,8 +93,14 @@ class DataArguments:
     data_path: str = field(
         default=None, metadata={"help": "Path to the training data."}
     )
+    train_subset_size: Optional[int] = field(
+        default=None, metadata={"help": "Optional number of training examples to use from the start of the dataset."}
+    )
     eval_data_path: Optional[str] = field(
         default=None, metadata={"help": "Optional path to the validation data."}
+    )
+    eval_subset_size: Optional[int] = field(
+        default=None, metadata={"help": "Optional number of validation examples to use from the start of the dataset."}
     )
     lazy_preprocess: bool = False
     image_folder: Optional[str] = field(default=None)

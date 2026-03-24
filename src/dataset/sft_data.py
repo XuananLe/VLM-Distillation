@@ -6,7 +6,7 @@ from typing import Dict, Optional
 import torch
 import transformers
 import ujson as json
-from torch.utils.data import Dataset
+from torch.utils.data import Dataset, Subset
 from PIL import Image
 
 from src.params import DataArguments
@@ -652,6 +652,13 @@ def make_supervised_data_module(
         data_args=data_args,
         teacher_processors=normalized_teacher_processors,
     )
+    if data_args.train_subset_size is not None:
+        if data_args.train_subset_size <= 0:
+            raise ValueError("--train_subset_size must be > 0 when set.")
+        sft_dataset = Subset(
+            sft_dataset,
+            range(min(data_args.train_subset_size, len(sft_dataset))),
+        )
     eval_dataset = None
     if data_args.eval_data_path:
         eval_dataset = SupervisedDataset(
@@ -660,6 +667,13 @@ def make_supervised_data_module(
             data_args=replace(data_args, data_path=data_args.eval_data_path),
             teacher_processors=normalized_teacher_processors,
         )
+        if data_args.eval_subset_size is not None:
+            if data_args.eval_subset_size <= 0:
+                raise ValueError("--eval_subset_size must be > 0 when set.")
+            eval_dataset = Subset(
+                eval_dataset,
+                range(min(data_args.eval_subset_size, len(eval_dataset))),
+            )
     teacher_pad = None
     if len(normalized_teacher_processors) == 1:
         if isinstance(normalized_teacher_processors[0], dict):

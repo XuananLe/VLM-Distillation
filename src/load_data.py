@@ -83,6 +83,18 @@ def _pick_first_answer(answer_value: Any) -> str | None:
     return next((text for text in (pick_first_text(value) for value in values) if text), None)
 
 
+def _chartqa_split_label(sample: dict[str, Any]) -> str | None:
+    raw_value = sample.get("human_or_machine")
+    if raw_value is None:
+        return None
+    normalized = str(raw_value).strip().lower()
+    if normalized in {"0", "human"}:
+        return "human"
+    if normalized in {"1", "machine", "augmented"}:
+        return "augmented"
+    return normalized
+
+
 def convert_dataset_to_llava(
     dataset_name: str,
     split: str,
@@ -146,16 +158,19 @@ def convert_dataset_to_llava(
                 stats["skipped_image_error"] += 1
                 continue
 
-        llava_rows.append(
-            {
-                "id": str(sample_id if sample_id is not None else row_idx),
-                "image": image_filename,
-                "conversations": [
-                    {"from": "human", "value": f"<image>\n{question}"},
-                    {"from": "gpt", "value": answer},
-                ],
-            }
-        )
+        llava_row = {
+            "id": str(sample_id if sample_id is not None else row_idx),
+            "image": image_filename,
+            "conversations": [
+                {"from": "human", "value": f"<image>\n{question}"},
+                {"from": "gpt", "value": answer},
+            ],
+        }
+        if dataset_name == "chartqa":
+            chartqa_split = _chartqa_split_label(sample)
+            if chartqa_split is not None:
+                llava_row["chartqa_split"] = chartqa_split
+        llava_rows.append(llava_row)
 
     with output_json.open("w", encoding="utf-8") as f:
         json.dump(llava_rows, f, ensure_ascii=False, indent=2)
