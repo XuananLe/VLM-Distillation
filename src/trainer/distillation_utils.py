@@ -5,6 +5,7 @@ import torch
 
 from src.components.forward_utils import unwrap_tensor
 from src.components.vision_forward import infer_vision_group_counts, pool_vision_features
+from src.components.matching import topk_soft_match_student_teacher
 from src.utils import find_vision_layer_indices, get_specific_layer, resolve_module_path
 
 
@@ -303,3 +304,71 @@ def update_gradnorm_weights(
         weight_tensor /= torch.distributed.get_world_size()
     for name, value in zip(weight_names, weight_tensor.tolist()):
         gradnorm_weights[name] = float(max(value, gradnorm_eps))
+
+
+def setup_layer_matching(
+    model,
+    teacher_models,
+    layer_match_json_path,
+    layer_match_topk,
+    layer_distill_source,
+    student_layer_indices,
+    teacher_layer_indices,
+):
+    """
+    Setup layer matching configuration for distillation.
+    Returns: (student_layer_indices, teacher_layer_soft_matches)
+    """
+    teacher_layer_soft_matches = []
+
+    if layer_match_json_path:
+        if len(teacher_models) != 1:
+            raise ValueError("layer_match_json_path currently supports only single-teacher distillation.")
+        matches, summary = topk_soft_match_student_teacher(
+            layer_match_json_path,
+            student_key="model_b",
+            teacher_key="model_a",
+            topk=layer_match_topk,
+        )
+        student_layer_indices = [match["student_layer_index"] for match in matches]
+        teacher_layer_soft_matches = [matches]
+
+        print(f"  - Layer match JSON: {layer_match_json_path}")
+        print(f"  - Layer match top-k: {summary['topk']}")
+
+    elif layer_distill_source == "vision":
+        (
+            student_layer_indices,
+            teacher_layer_pairs,
+        ) = prepare_vision_layer_distillation(
+            model,
+            teacher_models,
+            student_layer_indices,
+            teacher_layer_indices,
+        )
+        teacher_layer_soft_matches = [
+            [
+                {
+                    "student_layer_index": student_layer_index,
+                    "teacher_layer_indices": [teacher_layer_index],
+                    "teacher_layer_weights": [1.0],
+                }
+                for student_layer_index, teacher_layer_index in layer_pairs
+            ]
+            for layer_pairs in teacher_layer_pairs
+        ]
+    else:
+        student_layer_indices = list(student_layer_indices)
+        teacher_layer_soft_matches = [
+            [
+                {
+                    "student_layer_index": student_layer_index,
+                    "teacher_layer_indices": [teacher_layer_index],
+                    "teacher_layer_weights": [1.0],
+                }
+                for student_layer_index, teacher_layer_index in zip(student_layer_indices, teacher_layer_indices)
+            ]
+            for _ in teacher_models
+        ]
+
+    return student_layer_indices, teacher_layer_soft_matches

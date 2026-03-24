@@ -4,6 +4,8 @@ import warnings
 import subprocess
 from functools import partial
 
+import pandas as pd
+
 warnings.filterwarnings("ignore")
 
 # GET the number of GPUs on the node without importing libs like torch
@@ -210,7 +212,23 @@ def apply_dataset_subset(dataset, subset_size):
         raise ValueError('--subset-size must be > 0 when set')
     if not hasattr(dataset, 'data'):
         raise ValueError(f'--subset-size is not supported for dataset class {type(dataset).__name__}')
-    dataset.data = dataset.data.iloc[: min(subset_size, len(dataset.data))].reset_index(drop=True)
+    data = dataset.data
+    if getattr(dataset, 'dataset_name', None) == 'ChartQA_TEST' and 'split' in data.columns:
+        groups = list(dict.fromkeys(data['split'].tolist()))
+        if groups:
+            base = subset_size // len(groups)
+            remainder = subset_size % len(groups)
+            pieces = []
+            for idx, group in enumerate(groups):
+                take = base + int(idx < remainder)
+                if take > 0:
+                    pieces.append(data[data['split'] == group].iloc[:take])
+            data = pd.concat(pieces, ignore_index=True) if pieces else data.iloc[:0]
+        else:
+            data = data.iloc[:0]
+    else:
+        data = data.iloc[: min(subset_size, len(data))]
+    dataset.data = data.reset_index(drop=True)
     if hasattr(dataset, 'videos') and hasattr(dataset, 'pack') and dataset.pack:
         dataset.videos = list(set(dataset.data['video']))
     return dataset
