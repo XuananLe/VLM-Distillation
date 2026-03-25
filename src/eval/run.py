@@ -179,7 +179,7 @@ You can launch the evaluation by setting either --data and --model or --config.
     parser.add_argument('--config', type=str, help='Path to the Config Json File')
     # Work Dir
     parser.add_argument('--work-dir', type=str, default='./outputs', help='select the output directory')
-    parser.add_argument('--subset-size', type=int, default=None, help='optionally evaluate only the first N samples')
+    parser.add_argument('--subset-size', type=int, default=None, help='optionally evaluate only a random N-sample subset')
     # Infer + Eval or Infer Only
     parser.add_argument('--mode', type=str, default='all', choices=['all', 'infer', 'eval'])
     # API Kwargs, Apply to API VLMs and Judge API LLMs
@@ -218,16 +218,26 @@ def apply_dataset_subset(dataset, subset_size):
         if groups:
             base = subset_size // len(groups)
             remainder = subset_size % len(groups)
-            pieces = []
+            sampled_indices = []
             for idx, group in enumerate(groups):
                 take = base + int(idx < remainder)
                 if take > 0:
-                    pieces.append(data[data['split'] == group].iloc[:take])
-            data = pd.concat(pieces, ignore_index=True) if pieces else data.iloc[:0]
+                    group_data = data[data['split'] == group]
+                    take = min(take, len(group_data))
+                    sampled_indices.extend(
+                        group_data.sample(n=take, random_state=42 + idx).index.tolist()
+                    )
+            if len(sampled_indices) < min(subset_size, len(data)):
+                remaining = data.drop(index=sampled_indices)
+                extra_take = min(subset_size, len(data)) - len(sampled_indices)
+                sampled_indices.extend(
+                    remaining.sample(n=extra_take, random_state=42 + len(groups)).index.tolist()
+                )
+            data = data.loc[sampled_indices]
         else:
             data = data.iloc[:0]
     else:
-        data = data.iloc[: min(subset_size, len(data))]
+        data = data.sample(n=min(subset_size, len(data)), random_state=42)
     dataset.data = data.reset_index(drop=True)
     if hasattr(dataset, 'videos') and hasattr(dataset, 'pack') and dataset.pack:
         dataset.videos = list(set(dataset.data['video']))

@@ -120,17 +120,17 @@ base_image = (
     )
     .uv_pip_install("xformers==0.0.32.post2")
     .uv_pip_install("wheel", "packaging", "psutil", "ninja", "setuptools", "deepspeed")
-    .uv_pip_install(
-        "flash-attn==2.8.3",
-        extra_options="--no-build-isolation",
-    )
+    # .uv_pip_install(
+    #     "flash-attn==2.8.3",
+    #     extra_options="--no-build-isolation",
+    # )
     .env(
         {
             "HF_HUB_ENABLE_HF_TRANSFER": "1",
             "TOKENIZERS_PARALLELISM": "false",
             "WANDB_PROJECT": WANDB_PROJECT,
             "ACCELERATE_LOG_LEVEL": "error",
-            "XFORMERS_IGNORE_FLASH_VERSION_CHECK": "1",
+            # "XFORMERS_IGNORE_FLASH_VERSION_CHECK": "1",
             "MAX_JOBS": "1",
         }
     )
@@ -148,7 +148,7 @@ app = modal.App(
 )
 
 
-@app.function(gpu = "L4", timeout=60 * 60 * 12)
+@app.function(gpu = "T4", timeout=60 * 60 * 12)
 def exec_cmd(cmd: str) -> None:
     cmd = cmd.strip()
     if not cmd:

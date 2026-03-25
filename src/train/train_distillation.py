@@ -16,6 +16,7 @@ from transformers import (
     AutoProcessor,
     AutoTokenizer,
     CLIPImageProcessor,
+    EarlyStoppingCallback,
     Gemma3ForConditionalGeneration,
     HfArgumentParser,
     AutoModelForVision2Seq,
@@ -224,8 +225,6 @@ def train_distillation():
     rank0_print(f"Layer Distill Weight: {distillation_args.layer_distill_weight}")
     rank0_print(f"Layer Match JSON: {distillation_args.layer_match_json_path}")
     rank0_print(f"Layer Match Top-k: {distillation_args.layer_match_topk}")
-    rank0_print(f"Student Layer Indices: {student_layer_indices}")
-    rank0_print(f"Teacher Layer Indices: {teacher_layer_indices}")
     rank0_print("=" * 80)
 
     attn_impl = "flash_attention_2" if not training_args.disable_flash_attn2 else "eager"
@@ -419,6 +418,30 @@ def train_distillation():
     )
 
     rank0_print("\nInitializing distillation trainer...")
+    trainer_callbacks = []
+    if training_args.early_stopping_patience is not None:
+        if data_module["eval_dataset"] is None:
+            raise ValueError("Early stopping requires --eval_data_path.")
+        if training_args.eval_strategy == "no":
+            raise ValueError("Early stopping requires --eval_strategy to run validation.")
+        if training_args.metric_for_best_model is None:
+            training_args.metric_for_best_model = "eval_loss"
+            training_args.greater_is_better = False
+        if not training_args.load_best_model_at_end:
+            training_args.load_best_model_at_end = True
+        trainer_callbacks.append(
+            EarlyStoppingCallback(
+                early_stopping_patience=training_args.early_stopping_patience,
+                early_stopping_threshold=training_args.early_stopping_threshold,
+            )
+        )
+        rank0_print(
+            "Early stopping enabled: "
+            f"metric={training_args.metric_for_best_model}, "
+            f"patience={training_args.early_stopping_patience}, "
+            f"threshold={training_args.early_stopping_threshold}"
+        )
+
     trainer = DistillationTrainer(
         model=student_model,
         teacher_model=teacher_models,
@@ -435,6 +458,7 @@ def train_distillation():
         student_layer_indices=student_layer_indices,
         teacher_layer_indices=teacher_layer_indices,
         args=training_args,
+        callbacks=trainer_callbacks,
         **data_module,
     )
 

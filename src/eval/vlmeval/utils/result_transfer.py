@@ -32,7 +32,7 @@ def MMTBench_result_transfer(eval_file, dataset='default', **judge_kwargs):
     logger = get_logger('Evaluation')
     nproc = judge_kwargs.pop('nproc', 4)
 
-    rd.seed(2680)
+    rd.seed(42)
     suffix = eval_file.split('.')[-1]
     model = judge_kwargs['model']
     assert model in ['chatgpt-0125', 'exact_matching', 'gpt-4-0125']

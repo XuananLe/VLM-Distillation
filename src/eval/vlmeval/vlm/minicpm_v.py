@@ -262,10 +262,10 @@ class MiniCPM_V_2_6(BaseModel):
     INTERLEAVE = True
 
     def __init__(self, model_path='openbmb/MiniCPM-V-2_6', **kwargs):
-        random.seed(0)
-        np.random.seed(0)
-        torch.manual_seed(0)
-        torch.cuda.manual_seed_all(0)
+        random.seed(42)
+        np.random.seed(42)
+        torch.manual_seed(42)
+        torch.cuda.manual_seed_all(42)
         self.use_lmdeploy = kwargs.get('use_lmdeploy', False)
         assert model_path is not None
         self.model_path = model_path
@@ -541,10 +541,10 @@ class MiniCPM_o_2_6(BaseModel):
     INTERLEAVE = True
 
     def __init__(self, model_path='openbmb/MiniCPM-o-2_6', **kwargs):
-        random.seed(0)
-        np.random.seed(0)
-        torch.manual_seed(0)
-        torch.cuda.manual_seed_all(0)
+        random.seed(42)
+        np.random.seed(42)
+        torch.manual_seed(42)
+        torch.cuda.manual_seed_all(42)
 
         assert model_path is not None
         self.model_path = model_path
@@ -797,10 +797,10 @@ class MiniCPM_V_4(BaseModel):
     INTERLEAVE = True
 
     def __init__(self, model_path='openbmb/MiniCPM-V-4', **kwargs):
-        random.seed(0)
-        np.random.seed(0)
-        torch.manual_seed(0)
-        torch.cuda.manual_seed_all(0)
+        random.seed(42)
+        np.random.seed(42)
+        torch.manual_seed(42)
+        torch.cuda.manual_seed_all(42)
         assert model_path is not None
         self.model_path = model_path
         print(f'load from path {self.model_path}')

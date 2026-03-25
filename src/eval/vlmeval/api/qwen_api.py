@@ -13,7 +13,7 @@ class QwenAPI(BaseAPI):
                  model: str = 'qwen-max-1201',
                  retry: int = 5,
                  verbose: bool = True,
-                 seed: int = 2680,
+                 seed: int = 42,
                  temperature: float = 0.0,
                  system_prompt: str = None,
                  key: str = None,

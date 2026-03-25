@@ -14,15 +14,17 @@ GRADNORM_ALPHA=1.5
 GRADNORM_LR=0.025
 LAYER_DISTILL_SOURCE="model"
 LAYER_DISTILL_WEIGHT=0.2
-LAYER_MATCH_JSON_PATH="artifacts/cka_plots_last_layer/docvqa/qwen/qwen2_vl_2b_vs_smolvlm500m/matrix.json"
+LAYER_MATCH_JSON_PATH="artifacts/cka_plots_last_layer/chartqa/qwen/qwen2_vl_2b_vs_smolvlm500m/matrix.json"
 LAYER_MATCH_TOPK=3
-DATASET_NAME="docvqa"
+DATASET_NAME="chartqa"
 EVAL_SPLIT="val"
-TRAIN_SUBSET_SIZE="7892"
-EVAL_SUBSET_SIZE="1069"
+TRAIN_SUBSET_SIZE=""
+EVAL_SUBSET_SIZE=""
+EARLY_STOPPING_PATIENCE="3"
+EARLY_STOPPING_THRESHOLD="0.002"
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME="${TEACHER_MODEL##*/}"
-OUTPUT_DIR="output/${DISTILLATION_LOSS}_single_teacher_${TEACHER_NAME}_${STUDENT_NAME}_${DATASET_NAME}_gradnorm_last10layers"
+OUTPUT_DIR="/output/${DISTILLATION_LOSS}_single_teacher_${TEACHER_NAME}_${STUDENT_NAME}_${DATASET_NAME}_gradnorm_last10layers_sample"
 
 LAYER_MATCH_ARGS=()
 if [[ -n "$LAYER_MATCH_JSON_PATH" ]]; then
@@ -41,6 +43,14 @@ if [[ -n "$TRAIN_SUBSET_SIZE" ]]; then
 fi
 if [[ -n "$EVAL_SUBSET_SIZE" ]]; then
     SUBSET_ARGS+=(--eval_subset_size "$EVAL_SUBSET_SIZE")
+fi
+
+EARLY_STOPPING_ARGS=()
+if [[ -n "$EARLY_STOPPING_PATIENCE" ]]; then
+    EARLY_STOPPING_ARGS+=(
+        --early_stopping_patience "$EARLY_STOPPING_PATIENCE"
+        --early_stopping_threshold "$EARLY_STOPPING_THRESHOLD"
+    )
 fi
 
 deepspeed src/train/train_distillation.py \
@@ -64,7 +74,8 @@ deepspeed src/train/train_distillation.py \
     --layer_distill_weight "$LAYER_DISTILL_WEIGHT" \
     "${LAYER_MATCH_ARGS[@]}" \
     "${SUBSET_ARGS[@]}" \
-    --num_train_epochs 2 \
+    "${EARLY_STOPPING_ARGS[@]}" \
+    --num_train_epochs 1.5 \
     --per_device_train_batch_size 18 \
     --gradient_accumulation_steps 1 \
     --learning_rate 1e-5 \

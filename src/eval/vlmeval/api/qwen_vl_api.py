@@ -32,7 +32,7 @@ class Qwen2VLAPI(Qwen2VLPromptMixin, BaseAPI):
         temperature=0.01,
         repetition_penalty=1.0,
         presence_penalty=0.0,
-        seed=3407,
+        seed=42,
         use_custom_prompt: bool = True,
         **kwargs,
     ):

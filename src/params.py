@@ -26,6 +26,8 @@ class ModelArguments:
 class TrainingArguments(HFTrainingArguments):
     cache_dir: Optional[str] = field(default=None)
     optim: str = field(default="adamw_torch")
+    seed: int = field(default=42)
+    data_seed: int = field(default=42)
     adam_beta1: float = field(default=0.9)
     adam_beta2: float = field(default=0.98)
     adam_epsilon: float = field(default=1e-7)
@@ -67,6 +69,14 @@ class TrainingArguments(HFTrainingArguments):
     lora_bias: str = "none"
     vision_lr: Optional[float] = None
     connector_lr: Optional[float] = None
+    early_stopping_patience: Optional[int] = field(
+        default=None,
+        metadata={"help": "Stop training when the validation metric fails to improve for this many evaluation calls."},
+    )
+    early_stopping_threshold: float = field(
+        default=0.0,
+        metadata={"help": "Minimum absolute improvement required to reset early stopping patience."},
+    )
     lora_namespan_exclude: str = field(default=None, metadata={"help": "List of namespan to exclude for LoRA"})
     num_lora_modules: int = -1
 

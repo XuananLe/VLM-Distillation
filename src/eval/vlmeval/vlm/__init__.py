@@ -1,7 +1,7 @@
 import torch
 
 torch.set_grad_enabled(False)
-torch.manual_seed(1234)
+torch.manual_seed(42)
 from .aria import Aria
 from .base import BaseModel
 from .hawk_vl import HawkVL

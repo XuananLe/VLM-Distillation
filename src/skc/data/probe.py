@@ -96,6 +96,117 @@ class ProbeDataset(Dataset):
 
         return None
 
+    def attach_answer_token_mask(self, batch, prompt_length: int):
+        input_ids = batch["input_ids"]
+        attention_mask = batch.get("attention_mask")
+        full_length = int(input_ids.shape[1])
+        start = max(0, min(int(prompt_length), full_length))
+
+        answer_token_mask = torch.zeros_like(input_ids, dtype=torch.long)
+        answer_token_mask[:, start:] = 1
+        if attention_mask is not None:
+            answer_token_mask = answer_token_mask * attention_mask.to(torch.long)
+
+        if int(answer_token_mask.sum().item()) == 0:
+            if attention_mask is not None:
+                last_positions = attention_mask.to(torch.long).sum(dim=1).clamp_min(1) - 1
+            else:
+                last_positions = torch.full(
+                    (input_ids.shape[0],),
+                    full_length - 1,
+                    dtype=torch.long,
+                    device=input_ids.device,
+                )
+            answer_token_mask.scatter_(1, last_positions.unsqueeze(1), 1)
+
+        labels = torch.full_like(input_ids, -100)
+        labels[answer_token_mask.bool()] = input_ids[answer_token_mask.bool()]
+        batch["labels"] = labels
+        batch["answer_token_mask"] = answer_token_mask
+        return batch
+
+    def encode_answer_supervision(self, image, question, answer):
+        if not answer or not hasattr(self.processor, "apply_chat_template"):
+            return None
+
+        prompt_inline = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image", "image": image},
+                    {"type": "text", "text": question},
+                ],
+            }
+        ]
+        full_inline = prompt_inline + [
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": answer}],
+            }
+        ]
+
+        try:
+            prompt_encoded = self.processor.apply_chat_template(
+                prompt_inline,
+                tokenize=True,
+                add_generation_prompt=True,
+                return_dict=True,
+                return_tensors="pt",
+            )
+            full_encoded = self.processor.apply_chat_template(
+                full_inline,
+                tokenize=True,
+                add_generation_prompt=False,
+                return_dict=True,
+                return_tensors="pt",
+            )
+            prompt_input_ids = self.batch_get(prompt_encoded, "input_ids")
+            full_input_ids = self.batch_get(full_encoded, "input_ids")
+            if prompt_input_ids is not None and full_input_ids is not None:
+                batch = self.build_model_batch(full_encoded)
+                return self.attach_answer_token_mask(batch, int(prompt_input_ids.shape[1]))
+        except Exception:
+            pass
+
+        prompt_conversation = [
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": question},
+                ],
+            }
+        ]
+        full_conversation = prompt_conversation + [
+            {
+                "role": "assistant",
+                "content": [{"type": "text", "text": answer}],
+            }
+        ]
+
+        try:
+            prompt_text = self.processor.apply_chat_template(
+                prompt_conversation,
+                tokenize=False,
+                add_generation_prompt=True,
+            )
+            full_text = self.processor.apply_chat_template(
+                full_conversation,
+                tokenize=False,
+                add_generation_prompt=False,
+            )
+            prompt_encoded = self.processor(images=image, text=prompt_text, return_tensors="pt")
+            full_encoded = self.processor(images=image, text=full_text, return_tensors="pt")
+            prompt_input_ids = self.batch_get(prompt_encoded, "input_ids")
+            full_input_ids = self.batch_get(full_encoded, "input_ids")
+            if prompt_input_ids is not None and full_input_ids is not None:
+                batch = self.build_model_batch(full_encoded)
+                return self.attach_answer_token_mask(batch, int(prompt_input_ids.shape[1]))
+        except Exception:
+            pass
+
+        return None
+
     @staticmethod
     def build_text_batch(model_inputs):
         return {
@@ -237,6 +348,12 @@ class ProbeDataset(Dataset):
         return batch
 
     def encode_sample(self, index, image, question):
+        answer = self.probe_samples[index].get("answer")
+        if answer is not None:
+            answer_batch = self.encode_answer_supervision(image, question, answer)
+            if answer_batch is not None:
+                return answer_batch
+
         if self.family == "deepseek_vl2":
             return self.encode_deepseek_vl2(image, question)
         if self.family == "qwen_vl":

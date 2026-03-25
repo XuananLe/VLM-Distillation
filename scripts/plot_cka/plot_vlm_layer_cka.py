@@ -73,6 +73,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="Use full-model hidden states or vision-tower layers.",
     )
     parser.add_argument(
+        "--token-scope",
+        choices=("pooled", "answer"),
+        default="pooled",
+        help="For model layers, pool all visible tokens or only answer tokens.",
+    )
+    parser.add_argument(
         "--output-dir",
         default="/output/cka_plots/qwen2vl2b_vs_smolvlm256m_textvqa",
         help="Directory for heatmap/image/json outputs.",
@@ -97,12 +103,26 @@ def preview_answer(row: dict, answer_field: str | None):
     return str(answer_value)
 
 
+def pick_first_answer_text(row: dict, answer_field: str | None):
+    if not answer_field:
+        return None
+    answer_value = row.get(answer_field)
+    if isinstance(answer_value, (list, tuple)):
+        for item in answer_value:
+            text = pick_first_text(item)
+            if text:
+                return text
+        return None
+    return pick_first_text(answer_value)
+
+
 def pick_probe_samples(
     dataset_name: str,
     split: str,
     config: str | None,
     sample_index: int,
     n_samples: int,
+    token_scope: str,
 ):
     if n_samples < 1:
         raise ValueError("--n-samples must be at least 1.")
@@ -128,7 +148,13 @@ def pick_probe_samples(
             valid_index += 1
             continue
 
-        probe_samples.append({"question": question, "image": image})
+        probe_sample = {"question": question, "image": image}
+        if token_scope == "answer":
+            answer_text = pick_first_answer_text(row, schema["answer_field"])
+            if not answer_text:
+                continue
+            probe_sample["answer"] = answer_text
+        probe_samples.append(probe_sample)
         row_indices.append(row_index)
         if len(question_preview) < 3:
             question_preview.append(question)
@@ -222,7 +248,11 @@ def get_decoder_hidden_states(outputs):
     return list(hidden_states[1:])
 
 
-def pool_model_hidden_states(hidden_states: torch.Tensor, attention_mask) -> torch.Tensor:
+def pool_model_hidden_states(
+    hidden_states: torch.Tensor,
+    attention_mask,
+    token_mask=None,
+) -> torch.Tensor:
     tensor = hidden_states.detach().float().cpu()
 
     if tensor.ndim == 1:
@@ -232,6 +262,10 @@ def pool_model_hidden_states(hidden_states: torch.Tensor, attention_mask) -> tor
         return tensor.mean(dim=0, keepdim=True)
 
     if tensor.ndim == 3:
+        if token_mask is not None and token_mask.ndim == 2 and token_mask.shape == tensor.shape[:2]:
+            mask = token_mask.detach().float().cpu().unsqueeze(-1)
+            denom = mask.sum(dim=1).clamp_min(1.0)
+            return (tensor * mask).sum(dim=1) / denom
         if attention_mask is not None and attention_mask.ndim == 2 and attention_mask.shape == tensor.shape[:2]:
             mask = attention_mask.detach().float().cpu().unsqueeze(-1)
             denom = mask.sum(dim=1).clamp_min(1.0)
@@ -314,7 +348,13 @@ def collect_layer_representations(model, loader, layer_indices: list[int], model
     return layer_records
 
 
-def collect_model_layer_representations(model, loader, last_n_layers: int, model_name: str):
+def collect_model_layer_representations(
+    model,
+    loader,
+    last_n_layers: int,
+    model_name: str,
+    token_scope: str,
+):
     representations = None
     layer_metadata = {}
     selected_indices = None
@@ -324,6 +364,7 @@ def collect_model_layer_representations(model, loader, last_n_layers: int, model
     for batch_index, batch in enumerate(loader, start=1):
         inputs = prepare_forward_inputs(model, batch)
         attention_mask = inputs.get("attention_mask")
+        answer_token_mask = batch.get("answer_token_mask") if token_scope == "answer" else None
         inputs["output_hidden_states"] = True
         inputs["return_dict"] = True
         inputs["use_cache"] = False
@@ -343,7 +384,11 @@ def collect_model_layer_representations(model, loader, last_n_layers: int, model
             )
 
         for layer_index in selected_indices:
-            pooled = pool_model_hidden_states(hidden_states[layer_index], attention_mask)
+            pooled = pool_model_hidden_states(
+                hidden_states[layer_index],
+                attention_mask,
+                token_mask=answer_token_mask,
+            )
             representations[layer_index].append(pooled)
             layer_metadata[layer_index] = {
                 "layer_name": f"hidden_states.{layer_index}",
@@ -383,6 +428,7 @@ def extract_model_layers(
     probe_samples,
     last_n_layers: int,
     layer_source: str,
+    token_scope: str,
 ):
     model = processor = loader = None
     try:
@@ -396,6 +442,8 @@ def extract_model_layers(
         }
 
         if layer_source == "vision":
+            if token_scope != "pooled":
+                raise ValueError("--token-scope answer is only supported with --layer-source model.")
             vision_info, layer_indices = select_final_layer_indices(model, last_n_layers)
             print(
                 f"Collecting {len(probe_samples)} pooled representations from "
@@ -410,8 +458,9 @@ def extract_model_layers(
                 }
             )
         else:
+            scope_label = "answer-token" if token_scope == "answer" else "pooled"
             print(
-                f"Collecting {len(probe_samples)} pooled representations from "
+                f"Collecting {len(probe_samples)} {scope_label} representations from "
                 f"{short_model_name(model_name)} across the last {last_n_layers} full-model layers"
             )
             layer_records, total_layers = collect_model_layer_representations(
@@ -419,6 +468,7 @@ def extract_model_layers(
                 loader,
                 last_n_layers,
                 model_name,
+                token_scope,
             )
             metadata.update(
                 {
@@ -533,6 +583,8 @@ def save_heatmap(
 
 def main(argv=None):
     args = build_parser().parse_args(argv)
+    if args.layer_source == "vision" and args.token_scope != "pooled":
+        raise ValueError("--token-scope answer is only supported with --layer-source model.")
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -543,6 +595,7 @@ def main(argv=None):
         config=args.config,
         sample_index=args.sample_index,
         n_samples=args.n_samples,
+        token_scope=args.token_scope,
     )
 
     sample_image_path = output_dir / "sample_image.png"
@@ -552,6 +605,7 @@ def main(argv=None):
     print(f"Model B      : {args.model_b}")
     print(f"Dataset      : {sample_metadata['dataset']} (split={args.split})")
     print(f"Layer source : {args.layer_source}")
+    print(f"Token scope  : {args.token_scope}")
     print(
         f"Samples      : {sample_metadata['num_samples']}  |  "
         f"offset={sample_metadata['sample_offset']}"
@@ -574,6 +628,7 @@ def main(argv=None):
         probe_samples=probe_samples,
         last_n_layers=args.last_n_layers,
         layer_source=args.layer_source,
+        token_scope=args.token_scope,
     )
     records_b, metadata_b = extract_model_layers(
         model_name=args.model_b,
@@ -581,6 +636,7 @@ def main(argv=None):
         probe_samples=probe_samples,
         last_n_layers=args.last_n_layers,
         layer_source=args.layer_source,
+        token_scope=args.token_scope,
     )
 
     cka_matrix = build_cka_matrix(records_a, records_b)
@@ -604,6 +660,7 @@ def main(argv=None):
         "dtype": str(dtype).replace("torch.", ""),
         "n_samples": args.n_samples,
         "layer_source": args.layer_source,
+        "token_scope": args.token_scope,
         "model_a": metadata_a,
         "model_b": metadata_b,
         "cka_matrix": cka_matrix.tolist(),
