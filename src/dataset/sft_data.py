@@ -1,13 +1,12 @@
 import copy
 import os
-import random
 import re
 from dataclasses import replace
 from typing import Dict, Optional
 import torch
 import transformers
 import ujson as json
-from torch.utils.data import Dataset, Subset
+from torch.utils.data import Dataset
 from PIL import Image
 
 from src.params import DataArguments
@@ -505,49 +504,6 @@ def llava_to_openai(conversations, is_video=False, num_frames=None):
 
     return transformed_data
 
-
-def subset_dataset(dataset, subset_size: Optional[int], data_path: Optional[str]):
-    if subset_size is None:
-        return dataset
-    if subset_size <= 0:
-        raise ValueError("--train_subset_size and --eval_subset_size must be > 0 when set.")
-
-    subset_size = min(subset_size, len(dataset))
-    dataset_name = str(data_path).lower()
-    rng = random.Random(42)
-    if "chartqa" in dataset_name and hasattr(dataset, "list_data_dict"):
-        split_key = None
-        for candidate in ("chartqa_split", "split"):
-            if dataset.list_data_dict and all(candidate in row for row in dataset.list_data_dict):
-                split_key = candidate
-                break
-        if split_key is not None:
-            grouped_indices = {}
-            for idx, row in enumerate(dataset.list_data_dict):
-                grouped_indices.setdefault(str(row[split_key]), []).append(idx)
-            group_names = sorted(grouped_indices)
-            base = subset_size // len(group_names)
-            remainder = subset_size % len(group_names)
-            selected = []
-            leftovers = []
-            for idx, group_name in enumerate(group_names):
-                group = grouped_indices[group_name]
-                rng.shuffle(group)
-                take = min(base + int(idx < remainder), len(group))
-                selected.extend(group[:take])
-                leftovers.extend(group[take:])
-            if len(selected) < subset_size:
-                rng.shuffle(leftovers)
-                selected.extend(leftovers[: subset_size - len(selected)])
-            indices = sorted(selected)
-        else:
-            indices = sorted(rng.sample(range(len(dataset)), subset_size))
-    elif any(name in dataset_name for name in ("docvqa", "textvqa")):
-        indices = sorted(rng.sample(range(len(dataset)), subset_size))
-    else:
-        indices = range(subset_size)
-    return Subset(dataset, indices)
-
 def make_supervised_data_module(
     processor,
     data_args,
@@ -564,11 +520,6 @@ def make_supervised_data_module(
         data_args=data_args,
         teacher_processors=normalized_teacher_processors,
     )
-    sft_dataset = subset_dataset(
-        sft_dataset,
-        data_args.train_subset_size,
-        data_args.data_path,
-    )
     eval_dataset = None
     if data_args.eval_data_path:
         eval_dataset = SupervisedDataset(
@@ -576,11 +527,6 @@ def make_supervised_data_module(
             processor=processor,
             data_args=replace(data_args, data_path=data_args.eval_data_path),
             teacher_processors=normalized_teacher_processors,
-        )
-        eval_dataset = subset_dataset(
-            eval_dataset,
-            data_args.eval_subset_size,
-            data_args.eval_data_path,
         )
     teacher_pad = None
     if len(normalized_teacher_processors) == 1:

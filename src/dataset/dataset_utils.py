@@ -1,7 +1,4 @@
 """Helper utilities for data processing and formatting."""
-import random
-from typing import Optional
-from torch.utils.data import Subset
 
 from src.constants import LLAVA_IMAGE_TOKEN, LLAVA_VIDEO_TOKEN
 
@@ -45,59 +42,3 @@ def llava_to_openai(conversations, is_video=False, num_frames=None):
         transformed_data.append(transformed_entry)
 
     return transformed_data
-
-
-def subset_dataset(dataset, subset_size: Optional[int], data_path: Optional[str]):
-    """Create a subset of the dataset with optional stratification."""
-    if subset_size is None:
-        return dataset
-    if subset_size <= 0:
-        raise ValueError("--train_subset_size and --eval_subset_size must be > 0 when set.")
-
-    subset_size = min(subset_size, len(dataset))
-    dataset_name = str(data_path).lower()
-    rng = random.Random(42)
-
-    # Special handling for ChartQA dataset with stratification
-    if "chartqa" in dataset_name and hasattr(dataset, "list_data_dict"):
-        split_key = None
-        for candidate in ("chartqa_split", "split"):
-            if dataset.list_data_dict and all(candidate in row for row in dataset.list_data_dict):
-                split_key = candidate
-                break
-
-        if split_key is not None:
-            # Stratified sampling by split
-            grouped_indices = {}
-            for idx, row in enumerate(dataset.list_data_dict):
-                grouped_indices.setdefault(str(row[split_key]), []).append(idx)
-
-            group_names = sorted(grouped_indices)
-            base = subset_size // len(group_names)
-            remainder = subset_size % len(group_names)
-
-            selected = []
-            leftovers = []
-            for idx, group_name in enumerate(group_names):
-                group = grouped_indices[group_name]
-                rng.shuffle(group)
-                take = min(base + int(idx < remainder), len(group))
-                selected.extend(group[:take])
-                leftovers.extend(group[take:])
-
-            if len(selected) < subset_size:
-                rng.shuffle(leftovers)
-                selected.extend(leftovers[: subset_size - len(selected)])
-
-            indices = sorted(selected)
-        else:
-            indices = sorted(rng.sample(range(len(dataset)), subset_size))
-
-    # Random sampling for other datasets
-    elif any(name in dataset_name for name in ("docvqa", "textvqa")):
-        indices = sorted(rng.sample(range(len(dataset)), subset_size))
-    else:
-        # Sequential indices for unknown datasets
-        indices = range(subset_size)
-
-    return Subset(dataset, indices)

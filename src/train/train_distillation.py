@@ -77,8 +77,8 @@ class DistillationArguments:
         metadata={
             "help": "Loss weighting strategy. Supported: fixed, gradnorm. "
                     "Fixed averages all active tasks uniformly. "
-                    "GradNorm applies the Chen et al. (2018) update across all active losses "
-                    "(CE, logits distillation, and optional layer distillation)."
+                    "GradNorm keeps CE fixed at weight 1.0 and applies the Chen et al. (2018) "
+                    "update across the non-CE losses (logits distillation and optional layer distillation)."
         },
     )
 

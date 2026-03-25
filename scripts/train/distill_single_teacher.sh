@@ -15,8 +15,6 @@ LAYER_DISTILL_SOURCE="vision"
 LAYER_MATCH_TOPK=3
 DATASET_NAME="textvqa"
 EVAL_SPLIT="validation"
-TRAIN_SUBSET_SIZE="34602"
-EVAL_SUBSET_SIZE="5000"
 EARLY_STOPPING_PATIENCE="5"
 EARLY_STOPPING_THRESHOLD="0.1"
 STUDENT_NAME="${STUDENT_MODEL##*/}"
@@ -54,14 +52,6 @@ else
     exit 1
 fi
 
-SUBSET_ARGS=()
-if [[ -n "$TRAIN_SUBSET_SIZE" ]]; then
-    SUBSET_ARGS+=(--train_subset_size "$TRAIN_SUBSET_SIZE")
-fi
-if [[ -n "$EVAL_SUBSET_SIZE" ]]; then
-    SUBSET_ARGS+=(--eval_subset_size "$EVAL_SUBSET_SIZE")
-fi
-
 EARLY_STOPPING_ARGS=()
 if [[ -n "$EARLY_STOPPING_PATIENCE" ]]; then
     EARLY_STOPPING_ARGS+=(
@@ -88,7 +78,6 @@ deepspeed src/train/train_distillation.py \
     --gradnorm_lr "$GRADNORM_LR" \
     --layer_distill_source "$LAYER_DISTILL_SOURCE" \
     "${LAYER_MATCH_ARGS[@]}" \
-    "${SUBSET_ARGS[@]}" \
     "${EARLY_STOPPING_ARGS[@]}" \
     --num_train_epochs 1 \
     --per_device_train_batch_size 16 \
