@@ -1,27 +1,25 @@
-import io
 import os
 import inspect
-from contextlib import nullcontext, redirect_stdout
+from contextlib import nullcontext
 
 import torch
 from transformers import PreTrainedModel
 
+from src.components.gradnorm import initialize_gradnorm_weights, update_gradnorm_weights
 from src.components.forward_utils import (
     forward_with_kwarg_retry,
-    get_decoder_hidden_states,
     infer_batch_size,
-    pool_model_hidden_states,
 )
-from src.components.skc import linear_cka_loss
 from src.trainer.sft_trainer import SmolVLMSFTTrainer
 from src.trainer.distillation_utils import (
     build_teacher_batches,
     capture_layer_outputs,
     compute_student_representations,
     compute_teacher_forward_and_layer_distillation,
+    is_layer_distillation_enabled,
+    release_eval_memory,
     resolve_gradnorm_reference_params,
     setup_layer_matching,
-    update_gradnorm_weights,
 )
 
 
@@ -78,10 +76,12 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.eval_ce_loss_sum = 0.0
         self.eval_ce_loss_count = 0
 
-        self.layer_distillation_enabled = (
-            layer_distill_source in {"vision", "model"}
-            and layer_distill_weight > 0.0
-            and (bool(student_layer_indices) or bool(layer_match_json_path))
+        self.layer_distillation_enabled = is_layer_distillation_enabled(
+            loss_weighting=loss_weighting,
+            layer_distill_source=layer_distill_source,
+            layer_distill_weight=layer_distill_weight,
+            student_layer_indices=student_layer_indices,
+            layer_match_json_path=layer_match_json_path,
         )
         if self.layer_distillation_enabled and teacher_layer_indices is None and not self.layer_match_json_path:
             raise ValueError("--teacher_layer_indices must be provided when layer distillation is enabled.")
@@ -108,7 +108,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             )
             print("  - Layer distillation: enabled")
             print(f"  - Layer distill source: {self.layer_distill_source}")
-            print(f"  - Layer distill weight: {self.layer_distill_weight}")
+            if self.loss_weighting == "gradnorm":
+                print("  - Layer distill weight: ignored under GradNorm")
+            else:
+                print(f"  - Layer distill weight: {self.layer_distill_weight}")
             print(f"  - Student {self.layer_distill_source} layers: {self.student_layer_indices}")
             for teacher_index, soft_matches in enumerate(self.teacher_layer_soft_matches):
                 if self.layer_match_json_path:
@@ -131,19 +134,23 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         else:
             print("  - Layer distillation: disabled")
         if self.loss_weighting == "gradnorm":
-            if self.alpha > 0.0:
-                self.gradnorm_weights["distillation"] = float(self.alpha)
+            active_gradnorm_tasks = ["ce", "distillation"]
             if self.layer_distillation_enabled:
-                self.gradnorm_weights[self.layer_distill_source] = float(self.layer_distill_weight)
+                active_gradnorm_tasks.append("layer_distill")
+            self.gradnorm_weights = initialize_gradnorm_weights(
+                active_gradnorm_tasks,
+                gradnorm_eps=self.gradnorm_eps,
+            )
             self.gradnorm_active = len(self.gradnorm_weights) > 1
             print("  - GradNorm: enabled")
             print(f"  - GradNorm alpha: {self.gradnorm_alpha}")
             print(f"  - GradNorm lr: {self.gradnorm_lr}")
-            print(f"  - Initial auxiliary weights: {self.gradnorm_weights}")
+            print("  - Alpha usage: ignored under GradNorm; all active tasks start equally weighted")
+            print(f"  - Initial task weights: {self.gradnorm_weights}")
             if self.gradnorm_active:
-                print("  - GradNorm mode: adaptive auxiliary weighting with fixed CE weight = 1.0")
+                print("  - GradNorm mode: paper formulation over all active losses")
             else:
-                print("  - GradNorm mode: inactive (<2 auxiliary losses); using fixed CE=1.0 + auxiliary weights")
+                print("  - GradNorm mode: inactive (<2 active losses); using fixed normalized task weights")
         else:
             print("  - GradNorm: disabled")
 
@@ -264,12 +271,21 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             batch_size = infer_batch_size(student_inputs)
             self.eval_ce_loss_sum += ce_loss.detach().float().item() * batch_size
             self.eval_ce_loss_count += batch_size
+
+        all_task_losses = {
+            "ce": ce_loss,
+            "distillation": distillation_loss,
+        }
+        if self.layer_distillation_enabled:
+            all_task_losses["layer_distill"] = layer_distillation_loss
+
+        logged_gradnorm_weights = None
         if self.loss_weighting == "gradnorm":
-            aux_losses = {}
-            if "distillation" in self.gradnorm_weights:
-                aux_losses["distillation"] = distillation_loss
-            if self.layer_distill_source in self.gradnorm_weights:
-                aux_losses[self.layer_distill_source] = layer_distillation_loss
+            gradnorm_task_losses = {
+                name: all_task_losses[name]
+                for name in self.gradnorm_weights
+                if name in all_task_losses
+            }
 
             if model.training and self.gradnorm_active and self.gradnorm_reference_params is None:
                 (
@@ -282,21 +298,26 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 )
                 print(f"  - GradNorm reference params: {self.gradnorm_reference_desc}")
 
-            update_gradnorm_weights(
-                model,
-                aux_losses,
-                self.gradnorm_reference_params,
-                self.gradnorm_weights,
-                self.gradnorm_initial_losses,
-                gradnorm_active=self.gradnorm_active,
-                gradnorm_eps=self.gradnorm_eps,
-                gradnorm_alpha=self.gradnorm_alpha,
-                gradnorm_lr=self.gradnorm_lr,
-            )
+            logged_gradnorm_weights = {
+                name: float(self.gradnorm_weights[name])
+                for name in gradnorm_task_losses
+            }
+            loss = ce_loss.new_zeros(())
+            for name, task_loss in gradnorm_task_losses.items():
+                loss = loss + task_loss.new_tensor(logged_gradnorm_weights[name]) * task_loss
 
-            loss = ce_loss
-            for name, aux_loss in aux_losses.items():
-                loss = loss + aux_loss.new_tensor(self.gradnorm_weights[name]) * aux_loss
+            if model.training:
+                update_gradnorm_weights(
+                    model,
+                    gradnorm_task_losses,
+                    self.gradnorm_reference_params,
+                    self.gradnorm_weights,
+                    self.gradnorm_initial_losses,
+                    gradnorm_active=self.gradnorm_active,
+                    gradnorm_eps=self.gradnorm_eps,
+                    gradnorm_alpha=self.gradnorm_alpha,
+                    gradnorm_lr=self.gradnorm_lr,
+                )
         else:
             loss = (
                 self.alpha * distillation_loss
@@ -312,20 +333,54 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             if self.layer_distillation_enabled:
                 metrics[f"{self.layer_distill_source}_layer_distill_loss"] = layer_distillation_loss.item()
             if self.loss_weighting == "gradnorm":
-                for name, value in self.gradnorm_weights.items():
+                for name, value in (logged_gradnorm_weights or self.gradnorm_weights).items():
                     metrics[f"gradnorm_w_{name}"] = value
             self.log(metrics)
 
         return (loss, student_outputs) if return_outputs else loss
 
+    def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
+        if prediction_loss_only:
+            has_labels = False if len(self.label_names) == 0 else all(
+                inputs.get(k) is not None for k in self.label_names
+            )
+            return_loss = inputs.get("return_loss")
+            if return_loss is None:
+                return_loss = self.can_return_loss
+            loss_without_labels = len(self.label_names) == 0 and return_loss
+
+            if has_labels or loss_without_labels:
+                prepared_inputs = self._prepare_inputs(inputs)
+                with torch.no_grad():
+                    with self.compute_loss_context_manager():
+                        num_items_in_batch = self._get_num_items_in_batch([prepared_inputs], self.args.device)
+                        loss = self.compute_loss(
+                            model,
+                            prepared_inputs,
+                            return_outputs=False,
+                            num_items_in_batch=num_items_in_batch,
+                        )
+                    loss = loss.detach().mean()
+                return (loss, None, None)
+
+        return super().prediction_step(
+            model,
+            inputs,
+            prediction_loss_only=prediction_loss_only,
+            ignore_keys=ignore_keys,
+        )
+
     def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix: str = "eval"):
         self.eval_ce_loss_sum = 0.0
         self.eval_ce_loss_count = 0
-        return super().evaluate(
-            eval_dataset=eval_dataset,
-            ignore_keys=ignore_keys,
-            metric_key_prefix=metric_key_prefix,
-        )
+        try:
+            return super().evaluate(
+                eval_dataset=eval_dataset,
+                ignore_keys=ignore_keys,
+                metric_key_prefix=metric_key_prefix,
+            )
+        finally:
+            release_eval_memory()
 
     def log(self, logs: dict[str, float], start_time=None) -> None:
         if self.eval_ce_loss_count > 0:

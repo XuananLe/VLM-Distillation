@@ -1,4 +1,5 @@
 import contextlib
+import gc
 import re
 
 import torch
@@ -18,6 +19,35 @@ from src.utils import find_vision_layer_indices, get_specific_layer, resolve_mod
 
 REQUIRED_TEACHER_INPUTS = ("input_ids", "attention_mask", "pixel_values")
 OPTIONAL_TEACHER_INPUTS = ("pixel_attention_mask", "image_grid_thw", "image_flags")
+
+
+def release_eval_memory() -> None:
+    gc.collect()
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        if hasattr(torch.cuda, "ipc_collect"):
+            torch.cuda.ipc_collect()
+
+
+def is_layer_distillation_enabled(
+    *,
+    loss_weighting: str,
+    layer_distill_source: str,
+    layer_distill_weight: float,
+    student_layer_indices: list[int] | None,
+    layer_match_json_path: str | None,
+) -> bool:
+    if layer_distill_source not in {"vision", "model"}:
+        return False
+
+    has_layer_matching = bool(student_layer_indices) or bool(layer_match_json_path)
+    if not has_layer_matching:
+        return False
+
+    if loss_weighting == "gradnorm":
+        return True
+
+    return layer_distill_weight > 0.0
 
 
 def get_base_model(model):
@@ -139,28 +169,6 @@ def build_teacher_batches(inputs, student_inputs, num_teachers: int):
     return batches
 
 
-@contextlib.contextmanager
-def suspend_deepspeed_backward_hooks(model):
-    optimizer = getattr(model, "optimizer", None)
-    if optimizer is None or not hasattr(optimizer, "_grad_acc_post_hooks"):
-        yield
-        return
-
-    saved_hooks = list(optimizer._grad_acc_post_hooks)
-    saved_enable_backward_allreduce = getattr(model, "enable_backward_allreduce", None)
-    optimizer.unregister_grad_acc_post_hooks()
-    if saved_enable_backward_allreduce is not None:
-        model.enable_backward_allreduce = False
-    try:
-        yield
-    finally:
-        optimizer._grad_acc_post_hooks = saved_hooks
-        if saved_enable_backward_allreduce is not None:
-            model.enable_backward_allreduce = saved_enable_backward_allreduce
-        if hasattr(optimizer, "reset_for_new_step"):
-            optimizer.reset_for_new_step()
-
-
 def resolve_gradnorm_reference_params(
     model,
     *,
@@ -226,91 +234,6 @@ def resolve_gradnorm_reference_params(
     if not params:
         return [], "no trainable parameters"
     return params, "all trainable parameters"
-
-
-def update_gradnorm_weights(
-    model,
-    aux_losses: dict[str, torch.Tensor],
-    reference_params: list[torch.nn.Parameter],
-    gradnorm_weights: dict[str, float],
-    gradnorm_initial_losses: dict[str, float],
-    *,
-    gradnorm_active: bool,
-    gradnorm_eps: float,
-    gradnorm_alpha: float,
-    gradnorm_lr: float,
-) -> None:
-    if not gradnorm_active or not aux_losses or not torch.is_grad_enabled():
-        return
-
-    if not reference_params:
-        return
-
-    weight_names = list(aux_losses.keys())
-
-    current_losses = {}
-    for name in weight_names:
-        current_loss = aux_losses[name].detach().float().clamp_min(gradnorm_eps)
-        current_losses[name] = current_loss
-        gradnorm_initial_losses.setdefault(name, current_loss.item())
-
-    with suspend_deepspeed_backward_hooks(model):
-        base_grad_norms = []
-        for name in weight_names:
-            grads = torch.autograd.grad(
-                aux_losses[name],
-                reference_params,
-                retain_graph=True,
-                create_graph=False,
-                allow_unused=True,
-            )
-            grad_sq_norm = sum(
-                grad.detach().float().pow(2).sum()
-                for grad in grads
-                if grad is not None
-            )
-            if not isinstance(grad_sq_norm, torch.Tensor):
-                return
-            base_grad_norms.append(grad_sq_norm.sqrt())
-
-        base_grad_norm_tensor = torch.stack(base_grad_norms)
-        current_weight_tensor = torch.stack(
-            [base_grad_norm_tensor.new_tensor(gradnorm_weights[name]) for name in weight_names]
-        )
-        grad_norm_tensor = current_weight_tensor * base_grad_norm_tensor
-        loss_ratio_tensor = torch.stack(
-            [
-                current_losses[name]
-                / current_losses[name].new_tensor(gradnorm_initial_losses[name]).clamp_min(gradnorm_eps)
-                for name in weight_names
-            ]
-        )
-        inverse_train_rate = loss_ratio_tensor / loss_ratio_tensor.mean().clamp_min(gradnorm_eps)
-        grad_norm_target = grad_norm_tensor.detach().mean() * inverse_train_rate.pow(gradnorm_alpha)
-        weight_grads = torch.sign(grad_norm_tensor - grad_norm_target.detach()) * base_grad_norm_tensor
-
-    with torch.no_grad():
-        for name, grad in zip(weight_names, weight_grads):
-            gradnorm_weights[name] = max(
-                gradnorm_weights[name] - gradnorm_lr * grad.item(),
-                gradnorm_eps,
-            )
-
-        weight_sum = sum(gradnorm_weights[name] for name in weight_names)
-        renorm = len(weight_names) / weight_sum
-        for name in weight_names:
-            gradnorm_weights[name] *= renorm
-
-    weight_tensor = torch.tensor(
-        [gradnorm_weights[name] for name in weight_names],
-        device=reference_params[0].device,
-        dtype=torch.float32,
-    )
-    if torch.distributed.is_available() and torch.distributed.is_initialized():
-        torch.distributed.all_reduce(weight_tensor, op=torch.distributed.ReduceOp.SUM)
-        weight_tensor /= torch.distributed.get_world_size()
-    for name, value in zip(weight_names, weight_tensor.tolist()):
-        gradnorm_weights[name] = float(max(value, gradnorm_eps))
 
 
 def setup_layer_matching(

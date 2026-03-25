@@ -8,12 +8,10 @@ TEACHER_MODEL_IDS="[\"${TEACHER_MODEL}\"]"
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 DISTILLATION_LOSS="uld_loss"
 TEMPERATURE=1.0
-ALPHA=0.5
 LOSS_WEIGHTING="gradnorm"
 GRADNORM_ALPHA=1.5
 GRADNORM_LR=0.025
 LAYER_DISTILL_SOURCE="model"
-LAYER_DISTILL_WEIGHT=0.2
 LAYER_MATCH_JSON_PATH="artifacts/cka_plots_last_layer/chartqa/qwen/qwen2_vl_2b_vs_smolvlm500m/matrix.json"
 LAYER_MATCH_TOPK=3
 DATASET_NAME="chartqa"
@@ -66,12 +64,10 @@ deepspeed src/train/train_distillation.py \
     --disable_flash_attn2 False \
     --output_dir "$OUTPUT_DIR" \
     --temperature "$TEMPERATURE" \
-    --alpha "$ALPHA" \
     --loss_weighting "$LOSS_WEIGHTING" \
     --gradnorm_alpha "$GRADNORM_ALPHA" \
     --gradnorm_lr "$GRADNORM_LR" \
     --layer_distill_source "$LAYER_DISTILL_SOURCE" \
-    --layer_distill_weight "$LAYER_DISTILL_WEIGHT" \
     "${LAYER_MATCH_ARGS[@]}" \
     "${SUBSET_ARGS[@]}" \
     "${EARLY_STOPPING_ARGS[@]}" \
