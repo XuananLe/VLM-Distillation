@@ -141,3 +141,6 @@ def update_gradnorm_weights(
         for name, value in zip(weight_names, updated_weight_tensor.tolist()):
             gradnorm_weights[name] = float(value)
         normalize_gradnorm_weights(gradnorm_weights, gradnorm_eps=gradnorm_eps)
+
+    # Clean up intermediate tensors to prevent GPU memory leaks
+    del base_grad_norms, base_grad_norm_tensor, grad_norm_tensor, weight_grads, current_weight_tensor

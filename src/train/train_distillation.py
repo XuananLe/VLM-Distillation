@@ -72,19 +72,11 @@ class DistillationArguments:
         metadata={"help": "Temperature for distillation (higher = softer probabilities)"}
     )
 
-    alpha: float = field(
-        default=0.5,
-        metadata={
-            "help": "Weight for distillation loss vs cross-entropy loss. "
-                   "alpha=1.0 means only distillation, alpha=0.0 means only CE. "
-                   "Ignored when --loss_weighting=gradnorm, where all active tasks start equally weighted."
-        }
-    )
-
     loss_weighting: str = field(
         default="fixed",
         metadata={
             "help": "Loss weighting strategy. Supported: fixed, gradnorm. "
+                    "Fixed averages all active tasks uniformly. "
                     "GradNorm applies the Chen et al. (2018) update across all active losses "
                     "(CE, logits distillation, and optional layer distillation)."
         },
@@ -103,14 +95,6 @@ class DistillationArguments:
     layer_distill_source: str = field(
         default="none",
         metadata={"help": "Optional hidden-state distillation source. Supported: none, vision, model."},
-    )
-
-    layer_distill_weight: float = field(
-        default=0.0,
-        metadata={
-            "help": "Extra weight applied to the layer CKA distillation loss in fixed-weight mode. "
-                    "Ignored when --loss_weighting=gradnorm."
-        },
     )
 
     layer_match_json_path: Optional[str] = field(
@@ -183,20 +167,14 @@ def train_distillation():
             f"--loss_weighting must be one of 'fixed' or 'gradnorm', got "
             f"{distillation_args.loss_weighting!r}."
         )
-    if distillation_args.loss_weighting == "fixed" and not 0.0 <= distillation_args.alpha <= 1.0:
-        raise ValueError("--alpha must be in [0, 1].")
     if distillation_args.gradnorm_alpha < 0.0:
         raise ValueError("--gradnorm_alpha must be >= 0.")
     if distillation_args.gradnorm_lr < 0.0:
         raise ValueError("--gradnorm_lr must be >= 0.")
-    if distillation_args.layer_distill_weight < 0.0:
-        raise ValueError("--layer_distill_weight must be >= 0.")
     if distillation_args.layer_match_topk < 1:
         raise ValueError("--layer_match_topk must be >= 1.")
     layer_distillation_enabled = is_layer_distillation_enabled(
-        loss_weighting=distillation_args.loss_weighting,
         layer_distill_source=distillation_args.layer_distill_source,
-        layer_distill_weight=distillation_args.layer_distill_weight,
         student_layer_indices=student_layer_indices,
         layer_match_json_path=distillation_args.layer_match_json_path,
     )
@@ -238,19 +216,11 @@ def train_distillation():
     rank0_print(f"Temperature: {distillation_args.temperature}")
     rank0_print(f"Loss Weighting: {distillation_args.loss_weighting}")
     if distillation_args.loss_weighting == "gradnorm":
-        rank0_print("Alpha: ignored under GradNorm")
-    else:
-        rank0_print(f"Alpha: {distillation_args.alpha}")
-    if distillation_args.loss_weighting == "gradnorm":
         rank0_print(f"GradNorm Alpha: {distillation_args.gradnorm_alpha}")
         rank0_print(f"GradNorm LR: {distillation_args.gradnorm_lr}")
     if training_args.gradient_checkpointing:
         rank0_print(f"Gradient Checkpointing Kwargs: {gradient_checkpointing_kwargs}")
     rank0_print(f"Layer Distill Source: {distillation_args.layer_distill_source}")
-    if distillation_args.loss_weighting == "gradnorm":
-        rank0_print("Layer Distill Weight: ignored under GradNorm")
-    else:
-        rank0_print(f"Layer Distill Weight: {distillation_args.layer_distill_weight}")
     rank0_print(f"Layer Match JSON: {distillation_args.layer_match_json_path}")
     rank0_print(f"Layer Match Top-k: {distillation_args.layer_match_topk}")
     rank0_print("=" * 80)
@@ -475,12 +445,10 @@ def train_distillation():
         teacher_model=teacher_models,
         loss_function=distillation_args.distillation_loss,
         temperature=distillation_args.temperature,
-        alpha=distillation_args.alpha,
         loss_weighting=distillation_args.loss_weighting,
         gradnorm_alpha=distillation_args.gradnorm_alpha,
         gradnorm_lr=distillation_args.gradnorm_lr,
         layer_distill_source=distillation_args.layer_distill_source,
-        layer_distill_weight=distillation_args.layer_distill_weight,
         layer_match_json_path=distillation_args.layer_match_json_path,
         layer_match_topk=distillation_args.layer_match_topk,
         student_layer_indices=student_layer_indices,

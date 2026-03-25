@@ -4,7 +4,8 @@ from abc import abstractproperty
 from .base import BaseModel
 from ..smp import *
 from ..dataset import DATASET_TYPE
-from transformers import AutoTokenizer, BitsAndBytesConfig
+from transformers import AutoTokenizer
+from src.utils import create_quantization_config
 
 
 class TransCoreM(BaseModel):
@@ -21,12 +22,7 @@ class TransCoreM(BaseModel):
             kwargs['load_in_8bit'] = True
         elif load_4bit:
             kwargs['load_in_4bit'] = True
-            kwargs['quantization_config'] = BitsAndBytesConfig(
-                load_in_4bit=True,
-                bnb_4bit_compute_dtype=torch.float16,
-                bnb_4bit_use_double_quant=True,
-                bnb_4bit_quant_type='nf4'
-            )
+            kwargs['quantization_config'] = create_quantization_config()
         else:
             kwargs['torch_dtype'] = torch.float16
 

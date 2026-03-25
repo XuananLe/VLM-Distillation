@@ -31,9 +31,7 @@ def release_eval_memory() -> None:
 
 def is_layer_distillation_enabled(
     *,
-    loss_weighting: str,
     layer_distill_source: str,
-    layer_distill_weight: float,
     student_layer_indices: list[int] | None,
     layer_match_json_path: str | None,
 ) -> bool:
@@ -44,10 +42,7 @@ def is_layer_distillation_enabled(
     if not has_layer_matching:
         return False
 
-    if loss_weighting == "gradnorm":
-        return True
-
-    return layer_distill_weight > 0.0
+    return True
 
 
 def get_base_model(model):

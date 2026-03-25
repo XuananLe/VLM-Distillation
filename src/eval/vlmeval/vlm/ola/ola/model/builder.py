@@ -2,10 +2,23 @@ import os
 import warnings
 import shutil
 
-from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig, BitsAndBytesConfig
+from transformers import AutoTokenizer, AutoModelForCausalLM, AutoConfig
 import torch
 from ...ola.model import *
 from ...ola.model.speech_encoder.builder import build_speech_encoder
+
+try:
+    from src.utils import create_quantization_config
+except ImportError:
+    # Fallback if import fails due to path issues
+    from transformers import BitsAndBytesConfig
+    def create_quantization_config():
+        return BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_compute_dtype=torch.float16,
+            bnb_4bit_use_double_quant=True,
+            bnb_4bit_quant_type='nf4'
+        )
 
 def load_pretrained_model(model_path, model_base, is_lora=False, s2s=False, load_8bit=False, load_4bit=False, device="cuda", use_flash_attn=False, **kwargs):
     if load_8bit:

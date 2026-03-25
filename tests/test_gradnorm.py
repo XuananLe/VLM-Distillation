@@ -116,25 +116,21 @@ class GradNormTests(unittest.TestCase):
         self.assertIsNone(labels)
         self.assertFalse(called["return_outputs"])
 
-    def test_layer_distillation_enabled_under_gradnorm_without_positive_weight(self):
+    def test_layer_distillation_enabled_with_match_json(self):
         self.assertTrue(
             is_layer_distillation_enabled(
-                loss_weighting="gradnorm",
                 layer_distill_source="model",
-                layer_distill_weight=0.0,
                 student_layer_indices=None,
                 layer_match_json_path="artifacts/matrix.json",
             )
         )
 
-    def test_layer_distillation_stays_disabled_in_fixed_mode_without_weight(self):
+    def test_layer_distillation_disabled_without_matching_config(self):
         self.assertFalse(
             is_layer_distillation_enabled(
-                loss_weighting="fixed",
                 layer_distill_source="model",
-                layer_distill_weight=0.0,
                 student_layer_indices=None,
-                layer_match_json_path="artifacts/matrix.json",
+                layer_match_json_path=None,
             )
         )
 

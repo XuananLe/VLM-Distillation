@@ -11,6 +11,28 @@ def disable_torch_init():
     setattr(torch.nn.Linear, "reset_parameters", lambda self: None)
     setattr(torch.nn.LayerNorm, "reset_parameters", lambda self: None)
 
+
+def create_quantization_config(load_4bit=True, compute_dtype=torch.float16,
+                             use_double_quant=True, quant_type='nf4'):
+    """
+    Create a standard BitsAndBytesConfig for 4-bit quantization.
+
+    Args:
+        load_4bit: Whether to load in 4-bit
+        compute_dtype: Data type for computation
+        use_double_quant: Whether to use double quantization
+        quant_type: Quantization type (nf4, fp4)
+
+    Returns:
+        BitsAndBytesConfig: Configured quantization config
+    """
+    return BitsAndBytesConfig(
+        load_in_4bit=load_4bit,
+        bnb_4bit_compute_dtype=compute_dtype,
+        bnb_4bit_use_double_quant=use_double_quant,
+        bnb_4bit_quant_type=quant_type
+    )
+
 # This code is borrowed from LLaVA
 def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, load_4bit=False, 
                           device_map="auto", device="cuda", use_flash_attn=False, **kwargs):
@@ -22,12 +44,7 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
     if load_8bit:
         kwargs['load_in_8bit'] = True
     elif load_4bit:
-        kwargs['quantization_config'] = BitsAndBytesConfig(
-            load_in_4bit=True,
-            bnb_4bit_compute_dtype=torch.float16,
-            bnb_4bit_use_double_quant=True,
-            bnb_4bit_quant_type='nf4'
-        )
+        kwargs['quantization_config'] = create_quantization_config()
     else:
         kwargs['torch_dtype'] = torch.float16
 

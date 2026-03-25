@@ -9,10 +9,6 @@ TEACHER_MODEL_IDS="[\"${TEACHER_MODEL_1}\", \"${TEACHER_MODEL_2}\"]"
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 DISTILLATION_LOSS="uld_loss"
 TEMPERATURE=1.0
-ALPHA=0.5
-LAYER_DISTILL_SOURCE="vision"
-LAYER_DISTILL_WEIGHT=0.1
-STUDENT_LAYER_INDICES="1,2,3,4"
 NUM_TEACHERS=2
 DATASET_NAME="chartqa"
 PER_DEVICE_TRAIN_BATCH_SIZE=20
@@ -34,10 +30,6 @@ deepspeed src/train/train_distillation.py \
     --disable_flash_attn2 False \
     --output_dir "$OUTPUT_DIR" \
     --temperature "$TEMPERATURE" \
-    --alpha "$ALPHA" \
-    --layer_distill_source "$LAYER_DISTILL_SOURCE" \
-    --layer_distill_weight "$LAYER_DISTILL_WEIGHT" \
-    --student_layer_indices "$STUDENT_LAYER_INDICES" \
     --num_train_epochs 1 \
     --per_device_train_batch_size "$PER_DEVICE_TRAIN_BATCH_SIZE" \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \

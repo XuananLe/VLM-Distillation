@@ -431,7 +431,7 @@ class table_evalutor():
         self.gt_samples,self.table_samples=self.load_data(eval_file,tsv_path,pred_key,gt_key)
 
     def load_data(self,eval_file,gt_file,pred_key,gt_key):
-        from .data_preprocess import clean_string, normalized_formula, textblock2unicode, normalized_table
+        from .utils import clean_string, normalized_formula, textblock2unicode, normalized_table
         samples=[]
         preds=[]
         predictions=load(eval_file)['prediction'].tolist()

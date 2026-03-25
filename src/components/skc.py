@@ -134,22 +134,45 @@ def skc_score(
             0.0 = orthogonal sample geometry
     """
     del kwargs
-    reps_a, reps_b = [], []
 
+    # Pre-allocate tensors for memory efficiency
+    # Extract first batch to determine feature dimension
+    first_batch_a = next(iter(dataloader_a))
+    first_batch_b = next(iter(dataloader_b))
+    first_reps_a = extract_sample_representations(model_a, first_batch_a, layer_index).float().cpu()
+    first_reps_b = extract_sample_representations(model_b, first_batch_b, layer_index).float().cpu()
+
+    feature_dim = first_reps_a.size(1)
+    total_samples = len(dataloader_a.dataset) if hasattr(dataloader_a, 'dataset') else len(dataloader_a) * first_reps_a.size(0)
+
+    # Pre-allocate tensors on CPU
+    H_A = torch.empty(total_samples, feature_dim, dtype=torch.float32)
+    H_B = torch.empty(total_samples, feature_dim, dtype=torch.float32)
+
+    # Store first batch
+    batch_size_first = first_reps_a.size(0)
+    H_A[:batch_size_first] = first_reps_a
+    H_B[:batch_size_first] = first_reps_b
+    start_idx = batch_size_first
+
+    # Process remaining batches
     for batch_a, batch_b in tqdm(
         zip(dataloader_a, dataloader_b),
-        total=len(dataloader_a),
+        total=len(dataloader_a) - 1,
         desc="Extracting representations",
+        initial=1,
     ):
-        reps_a.append(
-            extract_sample_representations(model_a, batch_a, layer_index).float().cpu()
-        )
-        reps_b.append(
-            extract_sample_representations(model_b, batch_b, layer_index).float().cpu()
-        )
+        reps_a = extract_sample_representations(model_a, batch_a, layer_index).float().cpu()
+        reps_b = extract_sample_representations(model_b, batch_b, layer_index).float().cpu()
 
-    H_A = torch.cat(reps_a, dim=0)
-    H_B = torch.cat(reps_b, dim=0)
+        batch_size = reps_a.size(0)
+        H_A[start_idx:start_idx + batch_size] = reps_a
+        H_B[start_idx:start_idx + batch_size] = reps_b
+        start_idx += batch_size
+
+    # Trim to actual size in case total_samples was estimated
+    H_A = H_A[:start_idx]
+    H_B = H_B[:start_idx]
 
     skc, cka, _, _, _, _ = compute_skc_from_matrices(H_A, H_B)
 

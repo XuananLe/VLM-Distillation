@@ -29,12 +29,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         teacher_model: PreTrainedModel = None,
         loss_function: str = "forward_kl",
         temperature: float = 2.0,
-        alpha: float = 0.5,
         loss_weighting: str = "fixed",
         gradnorm_alpha: float = 1.5,
         gradnorm_lr: float = 0.025,
         layer_distill_source: str = "none",
-        layer_distill_weight: float = 0.0,
         layer_match_json_path: str | None = None,
         layer_match_topk: int = 1,
         student_layer_indices: list[int] | None = None,
@@ -58,13 +56,11 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         for model in self.teacher_models:
             model.eval()
         self.temperature = temperature
-        self.alpha = alpha
         self.loss_weighting = loss_weighting
         self.gradnorm_alpha = gradnorm_alpha
         self.gradnorm_lr = gradnorm_lr
         self.non_lora_require_grad_only = True
         self.layer_distill_source = layer_distill_source
-        self.layer_distill_weight = layer_distill_weight
         self.layer_match_json_path = layer_match_json_path
         self.layer_match_topk = layer_match_topk
         self.gradnorm_eps = 1e-8
@@ -77,9 +73,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.eval_ce_loss_count = 0
 
         self.layer_distillation_enabled = is_layer_distillation_enabled(
-            loss_weighting=loss_weighting,
             layer_distill_source=layer_distill_source,
-            layer_distill_weight=layer_distill_weight,
             student_layer_indices=student_layer_indices,
             layer_match_json_path=layer_match_json_path,
         )
@@ -94,7 +88,6 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         print(f"  - Teachers: {len(self.teacher_models)}")
         print(f"  - Loss function: {loss_function}")
         print(f"  - Temperature: {temperature}")
-        print(f"  - Alpha: {alpha}")
         print(f"  - Loss weighting: {loss_weighting}")
         if self.layer_distillation_enabled:
             self.student_layer_indices, self.teacher_layer_soft_matches = setup_layer_matching(
@@ -108,10 +101,6 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             )
             print("  - Layer distillation: enabled")
             print(f"  - Layer distill source: {self.layer_distill_source}")
-            if self.loss_weighting == "gradnorm":
-                print("  - Layer distill weight: ignored under GradNorm")
-            else:
-                print(f"  - Layer distill weight: {self.layer_distill_weight}")
             print(f"  - Student {self.layer_distill_source} layers: {self.student_layer_indices}")
             for teacher_index, soft_matches in enumerate(self.teacher_layer_soft_matches):
                 if self.layer_match_json_path:
@@ -145,7 +134,6 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             print("  - GradNorm: enabled")
             print(f"  - GradNorm alpha: {self.gradnorm_alpha}")
             print(f"  - GradNorm lr: {self.gradnorm_lr}")
-            print("  - Alpha usage: ignored under GradNorm; all active tasks start equally weighted")
             print(f"  - Initial task weights: {self.gradnorm_weights}")
             if self.gradnorm_active:
                 print("  - GradNorm mode: paper formulation over all active losses")
@@ -255,9 +243,9 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 teacher_logits=teacher_outputs.logits.detach(),
                 teacher_labels=teacher_labels,
             )
-            teacher_losses.append(teacher_loss)
+            teacher_losses.append(teacher_loss.detach())
             if layer_loss is not None:
-                layer_distillation_losses.append(layer_loss)
+                layer_distillation_losses.append(layer_loss.detach())
 
         distillation_loss = torch.stack(teacher_losses).mean()
         layer_distillation_loss = (
@@ -319,11 +307,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                     gradnorm_lr=self.gradnorm_lr,
                 )
         else:
-            loss = (
-                self.alpha * distillation_loss
-                + (1 - self.alpha) * ce_loss
-                + self.layer_distill_weight * layer_distillation_loss
-            )
+            fixed_task_losses = [ce_loss, distillation_loss]
+            if self.layer_distillation_enabled:
+                fixed_task_losses.append(layer_distillation_loss)
+            loss = torch.stack(fixed_task_losses).mean()
 
         if self.state.global_step % self.args.logging_steps == 0:
             metrics = {
