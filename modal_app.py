@@ -120,17 +120,17 @@ base_image = (
     )
     .uv_pip_install("xformers==0.0.32.post2")
     .uv_pip_install("wheel", "packaging", "psutil", "ninja", "setuptools", "deepspeed")
-    # .uv_pip_install(
-    #     "flash-attn==2.8.3",
-    #     extra_options="--no-build-isolation",
-    # )
+    .uv_pip_install(
+        "flash-attn==2.8.3",
+        extra_options="--no-build-isolation",
+    )
     .env(
         {
             "HF_HUB_ENABLE_HF_TRANSFER": "1",
             "TOKENIZERS_PARALLELISM": "false",
             "WANDB_PROJECT": WANDB_PROJECT,
             "ACCELERATE_LOG_LEVEL": "error",
-            # "XFORMERS_IGNORE_FLASH_VERSION_CHECK": "1",
+            "XFORMERS_IGNORE_FLASH_VERSION_CHECK": "1",
             "MAX_JOBS": "1",
         }
     )
@@ -148,21 +148,26 @@ app = modal.App(
 )
 
 
-@app.function(gpu = "T4", timeout=60 * 60 * 12)
+@app.function(gpu = "A100-80GB", timeout=60 * 60 * 12)
 def exec_cmd(cmd: str) -> None:
     cmd = cmd.strip()
     if not cmd:
         raise ValueError("cmd must be non-empty")
 
     env = os.environ.copy()
-    print(f"WANDB_API_KEY: {env.get('WANDB_API_KEY', 'not set')}")
+    print(f"WANDB_API_KEY set: {'WANDB_API_KEY' in env}")
     env.setdefault("PYTHONUNBUFFERED", "1")
     env.setdefault("WANDB_MODE", "online")
     env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
-    env.setdefault("PYTHONPATH", f"{ROOT_DIR}:{ROOT_DIR / 'src'}")
     env.setdefault("HF_DATASETS_CACHE", str(DATASET_DIR / ".hf_cache" / "datasets"))
     env.setdefault("HF_HUB_CACHE", str(MODEL_DIR / ".hf_cache" / "hub"))
     env.setdefault("HF_HOME", str(MODEL_DIR / ".hf_cache"))
+
+    pythonpath_entries = [str(ROOT_DIR), str(ROOT_DIR / "src")]
+    existing_pythonpath = env.get("PYTHONPATH")
+    if existing_pythonpath:
+        pythonpath_entries.extend(path for path in existing_pythonpath.split(os.pathsep) if path)
+    env["PYTHONPATH"] = os.pathsep.join(dict.fromkeys(pythonpath_entries))
 
     os.makedirs(env["HF_DATASETS_CACHE"], exist_ok=True)
     os.makedirs(env["HF_HUB_CACHE"], exist_ok=True)
@@ -201,8 +206,8 @@ def exec_cmd(cmd: str) -> None:
 
 @app.local_entrypoint()
 def run():
-    cmd = {
+    cmd = { 
         "train": f"cd {ROOT_DIR} && bash scripts/train/distill_single_teacher.sh",
-        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data ChartQA_TEST --model SmolVLM-500M-ChartQA-Gradnorm-Last10Layers --work-dir /output/vlmeval --subset-size 1000",
+        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data TextVQA_VAL --model SmolVLM-500M --work-dir /output/vlmeval/SmolVLM-500M-Normal --subset-size 1146",
     }
     exec_cmd.remote(cmd['eval'])

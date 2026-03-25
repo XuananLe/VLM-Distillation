@@ -61,6 +61,14 @@ def build_parser() -> argparse.ArgumentParser:
         help="Number of valid image-question samples to include in the CKA computation.",
     )
     parser.add_argument(
+        "--question-ids",
+        default=None,
+        help=(
+            "Optional comma-separated list of question IDs to use instead of --sample-index/--n-samples. "
+            "Matches the dataset ID field when present, otherwise falls back to the 0-based valid-example index."
+        ),
+    )
+    parser.add_argument(
         "--last-n-layers",
         type=int,
         default=10,
@@ -116,6 +124,23 @@ def pick_first_answer_text(row: dict, answer_field: str | None):
     return pick_first_text(answer_value)
 
 
+def parse_question_ids(raw_value: str | None) -> list[str] | None:
+    if raw_value is None:
+        return None
+
+    raw_value = raw_value.strip()
+    if not raw_value:
+        return None
+
+    if raw_value.startswith("["):
+        parsed = json.loads(raw_value)
+        if not isinstance(parsed, list):
+            raise ValueError("--question-ids JSON input must decode to a list.")
+        return [str(item).strip() for item in parsed if str(item).strip()]
+
+    return [item.strip() for item in raw_value.split(",") if item.strip()]
+
+
 def pick_probe_samples(
     dataset_name: str,
     split: str,
@@ -123,9 +148,12 @@ def pick_probe_samples(
     sample_index: int,
     n_samples: int,
     token_scope: str,
+    question_ids: list[str] | None = None,
 ):
-    if n_samples < 1:
+    if question_ids is None and n_samples < 1:
         raise ValueError("--n-samples must be at least 1.")
+    if question_ids is not None and len(question_ids) == 0:
+        raise ValueError("--question-ids must contain at least one ID when set.")
 
     dataset, schema, loaded_from = load_probe_dataset(dataset_name, split, config)
     valid_index = 0
@@ -133,6 +161,12 @@ def pick_probe_samples(
     row_indices = []
     question_preview = []
     answer_preview = []
+    sample_id_preview = []
+    selected_actual_ids = []
+    requested_question_ids = question_ids or []
+    requested_question_id_set = set(requested_question_ids)
+    selected_by_question_id = {}
+    id_field = schema.get("id_field")
 
     for row_index, row in enumerate(dataset):
         question = pick_first_text(row.get(schema["question_field"])) if schema["question_field"] else None
@@ -144,7 +178,27 @@ def pick_probe_samples(
         except Exception:
             continue
 
-        if valid_index < sample_index:
+        dataset_question_id = row.get(id_field) if id_field else None
+        candidate_question_ids = []
+        if dataset_question_id is not None:
+            candidate_question_ids.append(str(dataset_question_id))
+        candidate_question_ids.append(str(valid_index))
+
+        if requested_question_ids:
+            matched_question_id = next(
+                (
+                    candidate_question_id
+                    for candidate_question_id in candidate_question_ids
+                    if candidate_question_id in requested_question_id_set
+                    and candidate_question_id not in selected_by_question_id
+                ),
+                None,
+            )
+            if matched_question_id is None:
+                valid_index += 1
+                continue
+
+        if not requested_question_ids and valid_index < sample_index:
             valid_index += 1
             continue
 
@@ -152,8 +206,23 @@ def pick_probe_samples(
         if token_scope == "answer":
             answer_text = pick_first_answer_text(row, schema["answer_field"])
             if not answer_text:
+                valid_index += 1
                 continue
             probe_sample["answer"] = answer_text
+
+        if requested_question_ids:
+            selected_by_question_id[matched_question_id] = {
+                "probe_sample": probe_sample,
+                "row_index": row_index,
+                "question": question,
+                "answer_preview": preview_answer(row, schema["answer_field"]),
+                "actual_id": str(dataset_question_id) if dataset_question_id is not None else str(valid_index),
+            }
+            valid_index += 1
+            if len(selected_by_question_id) >= len(requested_question_ids):
+                break
+            continue
+
         probe_samples.append(probe_sample)
         row_indices.append(row_index)
         if len(question_preview) < 3:
@@ -161,10 +230,40 @@ def pick_probe_samples(
         answer_item = preview_answer(row, schema["answer_field"])
         if answer_item is not None and len(answer_preview) < 3:
             answer_preview.append(answer_item)
+        if len(sample_id_preview) < 10:
+            sample_id_preview.append(
+                str(dataset_question_id) if dataset_question_id is not None else str(valid_index)
+            )
+        selected_actual_ids.append(
+            str(dataset_question_id) if dataset_question_id is not None else str(valid_index)
+        )
 
         valid_index += 1
         if len(probe_samples) >= n_samples:
             break
+
+    if requested_question_ids:
+        missing_question_ids = [
+            question_id for question_id in requested_question_ids if question_id not in selected_by_question_id
+        ]
+        if missing_question_ids:
+            raise KeyError(
+                "Could not find all requested question IDs in the valid probe pool. "
+                f"Missing: {missing_question_ids[:20]}"
+            )
+
+        ordered_records = [selected_by_question_id[question_id] for question_id in requested_question_ids]
+        probe_samples = [record["probe_sample"] for record in ordered_records]
+        row_indices = [record["row_index"] for record in ordered_records]
+        question_preview = [record["question"] for record in ordered_records[:3]]
+        answer_preview = [
+            record["answer_preview"]
+            for record in ordered_records
+            if record["answer_preview"] is not None
+        ][:3]
+        sample_id_preview = [record["actual_id"] for record in ordered_records[:10]]
+        selected_actual_ids = [record["actual_id"] for record in ordered_records]
+        n_samples = len(probe_samples)
 
     if len(probe_samples) < n_samples:
         raise IndexError(
@@ -177,14 +276,15 @@ def pick_probe_samples(
         "split": split,
         "config": config,
         "schema": schema,
-        "sample_offset": sample_index,
+        "sample_offset": None if requested_question_ids else sample_index,
         "num_samples": len(probe_samples),
         "first_row_index": row_indices[0],
         "last_row_index": row_indices[-1],
         "question_preview": question_preview,
         "first_question": question_preview[0] if question_preview else None,
         "answer_preview": answer_preview,
-        "sample_id_preview": None,
+        "sample_id_preview": sample_id_preview,
+        "selected_question_ids": requested_question_ids or selected_actual_ids,
         "image_name_preview": None,
         "image_size": list(probe_samples[0]["image"].size),
     }
@@ -527,6 +627,13 @@ def save_heatmap(
     labels_b = [str(record["layer_index"]) for record in records_b]
     question_preview = " | ".join(sample_metadata["question_preview"])
     wrapped_question_preview = textwrap.fill(f"Preview: {question_preview}", width=80)
+    sample_id_preview = sample_metadata.get("sample_id_preview") or []
+    sample_id_text = ", ".join(sample_id_preview[:10])
+    wrapped_sample_id_preview = (
+        textwrap.fill(f"Question IDs: {sample_id_text}", width=80)
+        if sample_id_text
+        else None
+    )
 
     fig_width = max(9.0, 5.5 + len(labels_b) * 0.4)
     fig_height = max(8.0, 4.8 + len(labels_a) * 0.35)
@@ -559,6 +666,8 @@ def save_heatmap(
         f"samples={sample_metadata['num_samples']} | offset={sample_metadata['sample_offset']}\n"
         f"{wrapped_question_preview}"
     )
+    if wrapped_sample_id_preview:
+        title = f"{title}\n{wrapped_sample_id_preview}"
     ax.set_title(title, fontsize=11)
 
     annotation_fontsize = max(6, min(10, int(14 - 0.35 * max(matrix.shape))))
@@ -585,6 +694,7 @@ def main(argv=None):
     args = build_parser().parse_args(argv)
     if args.layer_source == "vision" and args.token_scope != "pooled":
         raise ValueError("--token-scope answer is only supported with --layer-source model.")
+    question_ids = parse_question_ids(args.question_ids)
     output_dir = Path(args.output_dir).resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
 
@@ -596,6 +706,7 @@ def main(argv=None):
         sample_index=args.sample_index,
         n_samples=args.n_samples,
         token_scope=args.token_scope,
+        question_ids=question_ids,
     )
 
     sample_image_path = output_dir / "sample_image.png"
@@ -618,6 +729,8 @@ def main(argv=None):
     print(f"Output dir   : {output_dir}")
     print()
     print(f"Q preview    : {sample_metadata['question_preview']}")
+    if sample_metadata["sample_id_preview"]:
+        print(f"QID preview  : {sample_metadata['sample_id_preview']}")
     if sample_metadata["answer_preview"]:
         print(f"Ans preview  : {sample_metadata['answer_preview']}")
     print()

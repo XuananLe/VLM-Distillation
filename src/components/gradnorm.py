@@ -86,7 +86,10 @@ def update_gradnorm_weights(
     if not reference_params:
         return
 
-    weight_names = list(task_losses.keys())
+    weight_names = [name for name, loss in task_losses.items() if loss.requires_grad]
+    if len(weight_names) < 2:
+        return
+
     current_losses = {}
     for name in weight_names:
         current_loss = task_losses[name].detach().float().clamp_min(gradnorm_eps)

@@ -14,6 +14,7 @@ from src.trainer.sft_trainer import SmolVLMSFTTrainer
 from src.trainer.distillation_utils import (
     build_teacher_batches,
     capture_layer_outputs,
+    capture_model_layer_outputs,
     compute_student_representations,
     compute_teacher_forward_and_layer_distillation,
     is_layer_distillation_enabled,
@@ -71,6 +72,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.gradnorm_reference_desc = None
         self.eval_ce_loss_sum = 0.0
         self.eval_ce_loss_count = 0
+        self.fixed_ce_weight = 1.0
 
         self.layer_distillation_enabled = is_layer_distillation_enabled(
             layer_distill_source=layer_distill_source,
@@ -123,7 +125,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         else:
             print("  - Layer distillation: disabled")
         if self.loss_weighting == "gradnorm":
-            active_gradnorm_tasks = ["ce", "distillation"]
+            active_gradnorm_tasks = ["distillation"]
             if self.layer_distillation_enabled:
                 active_gradnorm_tasks.append("layer_distill")
             self.gradnorm_weights = initialize_gradnorm_weights(
@@ -132,13 +134,14 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             )
             self.gradnorm_active = len(self.gradnorm_weights) > 1
             print("  - GradNorm: enabled")
+            print(f"  - Fixed CE weight: {self.fixed_ce_weight}")
             print(f"  - GradNorm alpha: {self.gradnorm_alpha}")
             print(f"  - GradNorm lr: {self.gradnorm_lr}")
-            print(f"  - Initial task weights: {self.gradnorm_weights}")
+            print(f"  - Initial adaptive task weights: {self.gradnorm_weights}")
             if self.gradnorm_active:
-                print("  - GradNorm mode: paper formulation over all active losses")
+                print("  - GradNorm mode: paper formulation over non-CE losses")
             else:
-                print("  - GradNorm mode: inactive (<2 active losses); using fixed normalized task weights")
+                print("  - GradNorm mode: inactive (<2 adaptive losses); using fixed adaptive task weights")
         else:
             print("  - GradNorm: disabled")
 
@@ -196,12 +199,13 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         )
 
         # Student forward pass
-        output_hidden_states = self.layer_distillation_enabled and self.layer_distill_source == "model"
-        student_hook_context = (
-            capture_layer_outputs(model, self.student_layer_indices)
-            if self.layer_distillation_enabled and self.layer_distill_source == "vision"
-            else nullcontext(None)
-        )
+        output_hidden_states = False
+        if self.layer_distillation_enabled and self.layer_distill_source == "vision":
+            student_hook_context = capture_layer_outputs(model, self.student_layer_indices)
+        elif self.layer_distillation_enabled and self.layer_distill_source == "model":
+            student_hook_context = capture_model_layer_outputs(model, self.student_layer_indices)
+        else:
+            student_hook_context = nullcontext(None)
         with student_hook_context as student_layer_outputs:
             student_outputs = forward_with_kwarg_retry(
                 model,
@@ -243,9 +247,9 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 teacher_logits=teacher_outputs.logits.detach(),
                 teacher_labels=teacher_labels,
             )
-            teacher_losses.append(teacher_loss.detach())
+            teacher_losses.append(teacher_loss)
             if layer_loss is not None:
-                layer_distillation_losses.append(layer_loss.detach())
+                layer_distillation_losses.append(layer_loss)
 
         distillation_loss = torch.stack(teacher_losses).mean()
         layer_distillation_loss = (
@@ -290,7 +294,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 name: float(self.gradnorm_weights[name])
                 for name in gradnorm_task_losses
             }
-            loss = ce_loss.new_zeros(())
+            loss = ce_loss * self.fixed_ce_weight
             for name, task_loss in gradnorm_task_losses.items():
                 loss = loss + task_loss.new_tensor(logged_gradnorm_weights[name]) * task_loss
 
@@ -320,6 +324,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             if self.layer_distillation_enabled:
                 metrics[f"{self.layer_distill_source}_layer_distill_loss"] = layer_distillation_loss.item()
             if self.loss_weighting == "gradnorm":
+                metrics["gradnorm_w_ce"] = self.fixed_ce_weight
                 for name, value in (logged_gradnorm_weights or self.gradnorm_weights).items():
                     metrics[f"gradnorm_w_{name}"] = value
             self.log(metrics)

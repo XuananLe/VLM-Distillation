@@ -19,6 +19,20 @@ from src.utils import find_vision_layer_indices, get_specific_layer, resolve_mod
 
 REQUIRED_TEACHER_INPUTS = ("input_ids", "attention_mask", "pixel_values")
 OPTIONAL_TEACHER_INPUTS = ("pixel_attention_mask", "image_grid_thw", "image_flags")
+MODEL_LAYER_PATHS = (
+    "model.text_model.model.layers",
+    "model.text_model.layers",
+    "text_model.model.layers",
+    "text_model.layers",
+    "model.language_model.model.layers",
+    "model.language_model.layers",
+    "language_model.model.layers",
+    "language_model.layers",
+    "model.decoder.layers",
+    "decoder.layers",
+    "model.layers",
+    "layers",
+)
 
 
 def release_eval_memory() -> None:
@@ -96,6 +110,17 @@ def prepare_vision_layer_distillation(
 
     return resolved_student_layer_indices, teacher_layer_pairs
 
+
+def resolve_model_layers(model):
+    base_model = get_base_model(model)
+    for path in MODEL_LAYER_PATHS:
+        try:
+            layers = resolve_module_path(base_model, path)
+        except (AttributeError, IndexError, KeyError, TypeError):
+            continue
+        return layers, path
+    raise ValueError("No decoder layer stack found for model-layer distillation.")
+
 @contextlib.contextmanager
 def capture_layer_outputs(model, layer_indices: list[int]):
     raw_outputs = {}
@@ -116,6 +141,32 @@ def capture_layer_outputs(model, layer_indices: list[int]):
         yield raw_outputs
 
 
+@contextlib.contextmanager
+def capture_model_layer_outputs(model, layer_indices: list[int]):
+    raw_outputs = {}
+    layers, _ = resolve_model_layers(model)
+    total_layers = len(layers)
+
+    with contextlib.ExitStack() as stack:
+        for layer_index in layer_indices:
+            normalized = total_layers + layer_index if layer_index < 0 else layer_index
+            if normalized < 0 or normalized >= total_layers:
+                raise IndexError(
+                    f"Model layer index {layer_index} resolved to {normalized}, "
+                    f"but valid range is 0-{total_layers - 1}."
+                )
+
+            def make_hook(index: int):
+                def hook(module, hook_inputs, output):
+                    del module, hook_inputs
+                    raw_outputs[index] = unwrap_tensor(output)
+                return hook
+
+            handle = layers[normalized].register_forward_hook(make_hook(layer_index))
+            stack.callback(handle.remove)
+        yield raw_outputs
+
+
 def pool_vision_representations(
     raw_outputs: dict[int, torch.Tensor],
     layer_indices: list[int],
@@ -129,6 +180,17 @@ def pool_vision_representations(
             batch_size,
             group_counts=group_counts,
         )
+        for layer_index in layer_indices
+    }
+
+
+def pool_model_representations(
+    raw_outputs: dict[int, torch.Tensor],
+    layer_indices: list[int],
+    attention_mask,
+) -> dict[int, torch.Tensor]:
+    return {
+        layer_index: pool_model_hidden_states(raw_outputs[layer_index], attention_mask)
         for layer_index in layer_indices
     }
 
@@ -181,20 +243,7 @@ def resolve_gradnorm_reference_params(
 
     if layer_distill_source == "model" and student_layer_indices:
         layer_index = max(student_layer_indices)
-        for path in (
-            "model.text_model.model.layers",
-            "model.text_model.layers",
-            "text_model.model.layers",
-            "text_model.layers",
-            "model.language_model.model.layers",
-            "model.language_model.layers",
-            "language_model.model.layers",
-            "language_model.layers",
-            "model.decoder.layers",
-            "decoder.layers",
-            "model.layers",
-            "layers",
-        ):
+        for path in MODEL_LAYER_PATHS:
             try:
                 layers = resolve_module_path(base_model, path)
             except (AttributeError, IndexError, KeyError, TypeError):
@@ -315,6 +364,12 @@ def compute_student_representations(
             student_batch_size,
             student_inputs,
         )
+    if student_layer_outputs is not None:
+        return pool_model_representations(
+            student_layer_outputs,
+            student_layer_indices,
+            student_inputs.get("attention_mask"),
+        )
     else:
         student_hidden_states = get_decoder_hidden_states(student_outputs)
         student_attention_mask = student_inputs.get("attention_mask")
@@ -348,6 +403,8 @@ def compute_teacher_forward_and_layer_distillation(
 
     if layer_distill_source == "vision":
         teacher_hook_context = capture_layer_outputs(teacher_model, teacher_layer_indices)
+    elif layer_distill_source == "model":
+        teacher_hook_context = capture_model_layer_outputs(teacher_model, teacher_layer_indices)
 
     with teacher_hook_context as teacher_layer_outputs:
         with torch.no_grad():
@@ -368,6 +425,12 @@ def compute_teacher_forward_and_layer_distillation(
                 teacher_layer_indices,
                 teacher_batch_size,
                 teacher_inputs,
+            )
+        elif teacher_layer_outputs is not None:
+            teacher_layer_representations = pool_model_representations(
+                teacher_layer_outputs,
+                teacher_layer_indices,
+                teacher_inputs.get("attention_mask"),
             )
         else:
             teacher_hidden_states = get_decoder_hidden_states(teacher_outputs)
