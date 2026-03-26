@@ -167,33 +167,6 @@ def unfreeze_topk_layers(model, k_llm: int = 0, k_vis: int = 0):
                 parameter.requires_grad = True
 
 
-def resolve_attr_path(obj, path: str):
-    current = obj
-    for part in path.split("."):
-        current = getattr(current, part)
-    return current
-
-
-def infer_hidden_size(model) -> int:
-    candidate_paths = (
-        "config.text_config.hidden_size",
-        "config.hidden_size",
-        "model.text_model.config.hidden_size",
-        "model.config.text_config.hidden_size",
-        "model.config.hidden_size",
-        "language_model.config.hidden_size",
-        "lm_head.in_features",
-    )
-    for path in candidate_paths:
-        try:
-            value = resolve_attr_path(model, path)
-        except AttributeError:
-            continue
-        if isinstance(value, int):
-            return value
-    raise ValueError(f"Could not infer hidden size for model type {type(model).__name__}")
-
-
 def log_trainable_parameter_summary(model, header: str):
     rank0_print(header)
     if hasattr(model, "print_trainable_parameters"):

@@ -37,91 +37,21 @@ base_image = (
         copy=True,
         ignore=modal.FilePatternMatcher.from_file(".gitignore"),
     )
-    .uv_pip_install(
-        "accelerate",
-        "anls>=0.0.2",
-        "apted>=1.0.3",
-        "bert_score",
-        "cairosvg",
-        "colormath>=3.0.0",
-        "datasets",
-        "distance>=0.1.3",
-        "Pillow",
-        "tqdm",
-        "pillow-avif-plugin",
-        "attrdict",
-        "timm",
-        "ujson",
-        "decord",
-        "hf-transfer",
-        "google-genai",
-        "gradio",
-        "huggingface_hub",
-        "wandb",
-        "jieba>=0.42.1",
-        "json_repair",
-        "levenshtein>=0.27.1",
-        "lpips",
-        "math-verify",
-        "nltk",
-        "numpy",
-        "sentencepiece",
-        "scipy",
-        "matplotlib",
-        "backoff",
-        "openai",
-        "openai-clip",
-        "pdf2image>=1.17.0",
-        "polygon3>=3.0.9.1",
-        "protobuf",
-        "qwen_vl_utils",
-        "requests",
-        "rich",
-        "scikit-image",
-        "scikit-learn",
-        "sentence_transformers",
-        "tiktoken",
-        "einops",
-        "transformers>=4.57.0,<5",
-        "trl==0.17.0",
-        "peft==0.15.2",
-        "sty",
-        "portalocker",
-        "validators",
-        "python-dotenv",
-        "tabulate",
-        "timeout-decorator",
-        "imageio",
-        "openpyxl",
-        "xlsxwriter",
-        "jsonlines",
-        "termcolor",
-        "unidecode",
-        "opencv-python-headless",
-        "natsort",
-        "sacrebleu",
-        "ipdb",
-        "rapidfuzz",
-        "editdistance",
-        "word2number",
-        "omegaconf>=2.4.0.dev4",
-        "antlr4-python3-runtime==4.11.1",
-        "pylatexenc",
-        "torchmetrics",
-        "typing_extensions",
-        "zss>=1.2.0",
+    .pip_install(
+        "wheel==0.46.3",
+        "setuptools==69.0.3",
+        "packaging==26.0",
+        "ninja==1.13.0",
+        "psutil==7.2.2",
     )
-    .uv_pip_install("num2words")
-    .uv_pip_install(
-        "torch==2.8.0",
-        "torchvision==0.23.0",
-        "torchaudio==2.8.0",
-        extra_options="--torch-backend=cu126",
+    .pip_install(
+        "torch==2.8.0+cu126",
+        "torchvision==0.23.0+cu126",
+        "torchaudio==2.8.0+cu126",
+        extra_index_url="https://download.pytorch.org/whl/cu126",
     )
-    .uv_pip_install("xformers==0.0.32.post2")
-    .uv_pip_install("wheel", "packaging", "psutil", "ninja", "setuptools", "deepspeed")
-    .uv_pip_install(
-        "flash-attn==2.8.3",
+    .pip_install_from_requirements(
+        "requirements.txt",
         extra_options="--no-build-isolation",
     )
     .env(
@@ -148,7 +78,7 @@ app = modal.App(
 )
 
 
-@app.function(gpu = "A100-80GB", timeout=60 * 60 * 12)
+@app.function(gpu = "L40S", timeout=60 * 60 * 12)
 def exec_cmd(cmd: str) -> None:
     cmd = cmd.strip()
     if not cmd:
@@ -208,6 +138,6 @@ def exec_cmd(cmd: str) -> None:
 def run():
     cmd = { 
         "train": f"cd {ROOT_DIR} && bash scripts/train/distill_single_teacher.sh",
-        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data TextVQA_VAL --model SmolVLM-500M --work-dir /output/vlmeval/SmolVLM-500M-Normal --subset-size 1146",
+        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data DocVQA_VAL --model SmolVLM-500M --work-dir /output/vlmeval/SmolVLM-500M-Sample-Normal --subset-size 1037",
     }
     exec_cmd.remote(cmd['eval'])

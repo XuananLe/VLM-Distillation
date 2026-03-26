@@ -9,7 +9,6 @@ if str(ROOT_DIR) not in sys.path:
 
 import torch
 from dataclasses import dataclass, field
-from typing import Optional
 from peft import LoraConfig, get_peft_model
 from transformers import (
     AutoModel,
@@ -22,7 +21,6 @@ from transformers import (
     AutoModelForVision2Seq,
 )
 from src.trainer.distillation_trainer import DistillationTrainer
-from src.trainer.distillation_utils import is_layer_distillation_enabled
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, TrainingArguments
 from src.train.train_utils import (
@@ -39,7 +37,6 @@ from src.train.train_utils import (
     log_trainable_parameter_summary,
     build_model_from_pretrained_args,
     parse_model_id_list,
-    parse_list_argument,
 )
 
 import pillow_avif
@@ -47,6 +44,7 @@ from PIL import Image, ImageFile
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
+
 
 @dataclass
 class DistillationArguments:
@@ -61,10 +59,10 @@ class DistillationArguments:
     )
 
     distillation_loss: str = field(
-        default="forward_kl",
+        default="uld_loss",
         metadata={
-            "help": "Type of distillation loss to use. Options: forward_kl, reverse_kl, jensen_shannon_divergence, uld_loss"
-        }
+            "help": "KD loss to use. Supported by src/components/loss.py, e.g. uld_loss, forward_kl, reverse_kl, jensen_shannon_divergence."
+        },
     )
 
     temperature: float = field(
@@ -72,65 +70,16 @@ class DistillationArguments:
         metadata={"help": "Temperature for distillation (higher = softer probabilities)"}
     )
 
-    loss_weighting: str = field(
-        default="fixed",
-        metadata={
-            "help": "Loss weighting strategy. Supported: fixed, gradnorm. "
-                    "Fixed averages all active tasks uniformly. "
-                    "GradNorm keeps CE fixed at weight 1.0 and applies the Chen et al. (2018) "
-                    "update across the non-CE losses (logits distillation and optional layer distillation)."
-        },
+    kd_loss_alpha: float = field(
+        default=1.0,
+        metadata={"help": "Weight for the distillation term in `ce_loss + alpha * kd_loss`."},
     )
-
-    gradnorm_alpha: float = field(
-        default=1.5,
-        metadata={"help": "GradNorm asymmetry exponent from the original paper."},
-    )
-
-    gradnorm_lr: float = field(
-        default=0.025,
-        metadata={"help": "Manual update step size for GradNorm task weights."},
-    )
-
-    layer_distill_source: str = field(
-        default="none",
-        metadata={"help": "Optional hidden-state distillation source. Supported: none, vision, model."},
-    )
-
-    layer_match_json_path: Optional[str] = field(
-        default=None,
-        metadata={"help": "Optional CKA matrix.json path used to derive top-k soft teacher matches."},
-    )
-
-    layer_match_topk: int = field(
-        default=1,
-        metadata={"help": "Number of teacher layers to soft-match per student layer from the CKA matrix."},
-    )
-
-    student_layer_indices: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "Student layer indices as a Python list literal or comma-separated string."
-        },
-    )
-
-    teacher_layer_indices: Optional[str] = field(
-        default=None,
-        metadata={
-            "help": "Teacher layer indices as a Python list literal or comma-separated string. "
-                    "Required when layer distillation is enabled."
-        },
-    )
-
 
 def train_distillation():
     """
     Main training function for VLM distillation.
 
-    This script supports:
-    - Knowledge distillation from a larger teacher model to a smaller student model
-    - Multiple distillation loss functions (forward KL, reverse KL, Jensen-Shannon)
-    - Mixed precision training (fp16/bf16)
+    This script supports CE + ULD distillation from one or more frozen teachers.
     """
     global local_rank
 
@@ -147,53 +96,10 @@ def train_distillation():
         distillation_args.teacher_model_ids,
         arg_name="--teacher_model_ids",
     )
-    student_layer_indices = parse_list_argument(
-        distillation_args.student_layer_indices,
-        arg_name="--student_layer_indices",
-        element_type=int,
-    )
-    teacher_layer_indices = parse_list_argument(
-        distillation_args.teacher_layer_indices,
-        arg_name="--teacher_layer_indices",
-        element_type=int,
-    )
-    if distillation_args.layer_distill_source not in {"none", "vision", "model"}:
-        raise ValueError(
-            f"--layer_distill_source must be one of 'none', 'vision', or 'model', got "
-            f"{distillation_args.layer_distill_source!r}."
-        )
-    if distillation_args.loss_weighting not in {"fixed", "gradnorm"}:
-        raise ValueError(
-            f"--loss_weighting must be one of 'fixed' or 'gradnorm', got "
-            f"{distillation_args.loss_weighting!r}."
-        )
-    if distillation_args.gradnorm_alpha < 0.0:
-        raise ValueError("--gradnorm_alpha must be >= 0.")
-    if distillation_args.gradnorm_lr < 0.0:
-        raise ValueError("--gradnorm_lr must be >= 0.")
-    if distillation_args.layer_match_topk < 1:
-        raise ValueError("--layer_match_topk must be >= 1.")
-    layer_distillation_enabled = is_layer_distillation_enabled(
-        layer_distill_source=distillation_args.layer_distill_source,
-        student_layer_indices=student_layer_indices,
-        layer_match_json_path=distillation_args.layer_match_json_path,
-    )
-    if layer_distillation_enabled:
-        if not student_layer_indices and not distillation_args.layer_match_json_path:
-            raise ValueError("--student_layer_indices must be provided when layer distillation is enabled.")
-        if not teacher_layer_indices and not distillation_args.layer_match_json_path:
-            raise ValueError("--teacher_layer_indices must be provided when layer distillation is enabled.")
-        if (
-            student_layer_indices
-            and teacher_layer_indices
-            and len(student_layer_indices) != len(teacher_layer_indices)
-        ):
-            raise ValueError("--student_layer_indices and --teacher_layer_indices must have the same length.")
-
+    if distillation_args.kd_loss_alpha < 0.0:
+        raise ValueError("--kd_loss_alpha must be >= 0.")
     gradient_checkpointing_kwargs = dict(training_args.gradient_checkpointing_kwargs or {})
-    if distillation_args.loss_weighting == "gradnorm":
-        gradient_checkpointing_kwargs["use_reentrant"] = False
-    elif "use_reentrant" not in gradient_checkpointing_kwargs:
+    if "use_reentrant" not in gradient_checkpointing_kwargs:
         gradient_checkpointing_kwargs["use_reentrant"] = True
 
     if training_args.lora_enable:
@@ -210,19 +116,13 @@ def train_distillation():
     rank0_print("=" * 80)
     rank0_print(f"Student Model: {distillation_args.student_model_id}")
     rank0_print(f"Teacher Model(s): {teacher_ids}")
-    if len(teacher_ids) > 1:
-        rank0_print(f"Teacher Weighting: uniform ({1 / len(teacher_ids):.3f} each)")
-    rank0_print(f"Distillation Loss: {distillation_args.distillation_loss}")
+    rank0_print("Teacher Weighting: uniform mean")
+    rank0_print("Objective: CE + alpha * KD")
+    rank0_print(f"KD Function: {distillation_args.distillation_loss}")
+    rank0_print(f"KD Loss Alpha: {distillation_args.kd_loss_alpha}")
     rank0_print(f"Temperature: {distillation_args.temperature}")
-    rank0_print(f"Loss Weighting: {distillation_args.loss_weighting}")
-    if distillation_args.loss_weighting == "gradnorm":
-        rank0_print(f"GradNorm Alpha: {distillation_args.gradnorm_alpha}")
-        rank0_print(f"GradNorm LR: {distillation_args.gradnorm_lr}")
     if training_args.gradient_checkpointing:
         rank0_print(f"Gradient Checkpointing Kwargs: {gradient_checkpointing_kwargs}")
-    rank0_print(f"Layer Distill Source: {distillation_args.layer_distill_source}")
-    rank0_print(f"Layer Match JSON: {distillation_args.layer_match_json_path}")
-    rank0_print(f"Layer Match Top-k: {distillation_args.layer_match_topk}")
     rank0_print("=" * 80)
 
     attn_impl = "flash_attention_2" if not training_args.disable_flash_attn2 else "eager"
@@ -445,14 +345,7 @@ def train_distillation():
         teacher_model=teacher_models,
         loss_function=distillation_args.distillation_loss,
         temperature=distillation_args.temperature,
-        loss_weighting=distillation_args.loss_weighting,
-        gradnorm_alpha=distillation_args.gradnorm_alpha,
-        gradnorm_lr=distillation_args.gradnorm_lr,
-        layer_distill_source=distillation_args.layer_distill_source,
-        layer_match_json_path=distillation_args.layer_match_json_path,
-        layer_match_topk=distillation_args.layer_match_topk,
-        student_layer_indices=student_layer_indices,
-        teacher_layer_indices=teacher_layer_indices,
+        kd_loss_alpha=distillation_args.kd_loss_alpha,
         args=training_args,
         callbacks=trainer_callbacks,
         **data_module,

@@ -8,49 +8,14 @@ TEACHER_MODEL_IDS="[\"${TEACHER_MODEL}\"]"
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 DISTILLATION_LOSS="uld_loss"
 TEMPERATURE=1.0
-LOSS_WEIGHTING="gradnorm"
-GRADNORM_ALPHA=1.5
-GRADNORM_LR=0.025
-LAYER_DISTILL_SOURCE="vision"
-LAYER_MATCH_TOPK=3
+KD_LOSS_ALPHA=1.0
 DATASET_NAME="textvqa"
 EVAL_SPLIT="validation"
 EARLY_STOPPING_PATIENCE="5"
 EARLY_STOPPING_THRESHOLD="0.1"
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME="${TEACHER_MODEL##*/}"
-
-case "$LAYER_DISTILL_SOURCE" in
-    vision)
-        LAYER_MATCH_JSON_PATH="artifacts/cka_plots_vison_layer/${DATASET_NAME}/qwen/qwen2_vl_2b_vs_smolvlm500m/final_layers_cka_matrix.json"
-        LAYER_SOURCE_TAG="vision"
-        ;;
-    model)
-        LAYER_MATCH_JSON_PATH="artifacts/cka_plots_last_layer/${DATASET_NAME}/qwen/qwen2_vl_2b_vs_smolvlm500m/matrix.json"
-        LAYER_SOURCE_TAG="model"
-        ;;
-    *)
-        echo "Unsupported LAYER_DISTILL_SOURCE: ${LAYER_DISTILL_SOURCE}. Expected 'vision' or 'model'." >&2
-        exit 1
-        ;;
-esac
-
-OUTPUT_DIR="/output/${DISTILLATION_LOSS}_single_teacher_${TEACHER_NAME}_${STUDENT_NAME}_${DATASET_NAME}_gradnorm_${LAYER_SOURCE_TAG}_layers"
-
-LAYER_MATCH_ARGS=()
-if [[ -n "$LAYER_MATCH_JSON_PATH" ]]; then
-    if [[ ! -f "$LAYER_MATCH_JSON_PATH" ]]; then
-        echo "Layer match JSON not found: ${LAYER_MATCH_JSON_PATH}" >&2
-        exit 1
-    fi
-    LAYER_MATCH_ARGS=(
-        --layer_match_json_path "$LAYER_MATCH_JSON_PATH"
-        --layer_match_topk "$LAYER_MATCH_TOPK"
-    )
-else
-    echo "LAYER_MATCH_JSON_PATH must be set for soft layer matching." >&2
-    exit 1
-fi
+OUTPUT_DIR="/output/${DISTILLATION_LOSS}_single_teacher_${TEACHER_NAME}_${STUDENT_NAME}_${DATASET_NAME}"
 
 EARLY_STOPPING_ARGS=()
 if [[ -n "$EARLY_STOPPING_PATIENCE" ]]; then
@@ -73,11 +38,7 @@ deepspeed src/train/train_distillation.py \
     --disable_flash_attn2 False \
     --output_dir "$OUTPUT_DIR" \
     --temperature "$TEMPERATURE" \
-    --loss_weighting "$LOSS_WEIGHTING" \
-    --gradnorm_alpha "$GRADNORM_ALPHA" \
-    --gradnorm_lr "$GRADNORM_LR" \
-    --layer_distill_source "$LAYER_DISTILL_SOURCE" \
-    "${LAYER_MATCH_ARGS[@]}" \
+    --kd_loss_alpha "$KD_LOSS_ALPHA" \
     "${EARLY_STOPPING_ARGS[@]}" \
     --num_train_epochs 1 \
     --per_device_train_batch_size 16 \
