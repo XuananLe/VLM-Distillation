@@ -11,12 +11,15 @@ from PIL import Image
 
 from src.params import DataArguments
 from src.constants import *
+from .conversation_encoders import (
+    encode_student_data,
+    encode_teacher_data,
+)
 from .data_utils import pad_sequence, encode_video
-from .data_collator import DataCollatorForSupervisedDataset, pad_pixel_values, pad_pixel_attention_masks
+from .data_collator import DataCollatorForSupervisedDataset
 
-EOS_TOKEN = "<end_of_utterance>"
-_DUMMY_PIXEL_VALUES = (1, 13, 3, 384, 384)
-_DUMMY_PIXEL_MASK = (1, 13, 384, 384)
+DUMMY_PIXEL_VALUES = (1, 13, 3, 384, 384)
+DUMMY_PIXEL_MASK = (1, 13, 384, 384)
 
 
 class SupervisedDataset(Dataset):
@@ -29,7 +32,6 @@ class SupervisedDataset(Dataset):
         data_args: DataArguments,
         padding=True,
         teacher_processors: Optional[list[transformers.ProcessorMixin]] = None,
-        teacher_processor: Optional[transformers.ProcessorMixin] = None,
     ):
         super(SupervisedDataset, self).__init__()
         if isinstance(data_path, str):
@@ -39,8 +41,6 @@ class SupervisedDataset(Dataset):
 
         self.processor = processor
         self.teacher_processors = list(teacher_processors or [])
-        if teacher_processor is not None:
-            self.teacher_processors.append(teacher_processor)
         self.list_data_dict = list_data_dict
         self.data_args = data_args
         self.padding = padding
@@ -52,260 +52,8 @@ class SupervisedDataset(Dataset):
     @staticmethod
     def _dummy_pixel_tensors():
         return (
-            torch.zeros(_DUMMY_PIXEL_VALUES),
-            torch.zeros(_DUMMY_PIXEL_MASK),
-        )
-
-    def _encode_conversation(
-        self,
-        sources,
-        images,
-        processor: transformers.ProcessorMixin,
-    ) -> Dict[str, torch.Tensor]:
-        """Encode a conversation with the given processor.
-
-        Returns input_ids, labels, attention_mask, pixel_values,
-        pixel_attention_mask.  pixel_values / pixel_attention_mask are None
-        when there are no images in the sample (caller sets dummy tensors).
-        """
-        all_input_ids = [torch.tensor([1])]   # bos token id
-        all_labels    = [torch.tensor([-100])] # mask bos token
-
-        pixel_values          = None
-        pixel_attention_mask  = None
-
-        for idx, j in enumerate(range(0, len(sources), 2)):
-            user_input   = sources[j]
-            gpt_response = sources[j + 1]
-            is_last_turn = (idx == (len(sources) // 2 - 1))
-
-            if user_input['content'].startswith(LLAVA_IMAGE_TOKEN):
-                user_prompt = f"User:{user_input['content']}{EOS_TOKEN}\nAssistant: "
-            else:
-                user_prompt = f"User: {user_input['content']}{EOS_TOKEN}\nAssistant: "
-
-            gpt_prompt = (
-                f"{gpt_response['content']}{EOS_TOKEN}"
-                if is_last_turn
-                else f"{gpt_response['content']}{EOS_TOKEN}\n"
-            )
-
-            if LLAVA_IMAGE_TOKEN in user_prompt:
-                enc = processor(text=user_prompt, images=images, return_tensors='pt')
-                prompt_input_ids     = enc['input_ids']
-                pixel_values         = enc.get('pixel_values', None)
-                pixel_attention_mask = enc.get('pixel_attention_mask', None)
-            else:
-                prompt_input_ids = processor.tokenizer(
-                    user_prompt, add_special_tokens=False, return_tensors='pt'
-                )['input_ids']
-
-            response_input_ids = processor.tokenizer(
-                gpt_prompt, add_special_tokens=False, return_tensors='pt'
-            )['input_ids']
-
-            input_ids = torch.cat([prompt_input_ids, response_input_ids], dim=1).squeeze(0)
-            labels = torch.cat(
-                [
-                    torch.tensor([IGNORE_INDEX] * len(prompt_input_ids[0])),
-                    response_input_ids.squeeze(0),
-                ],
-                dim=0,
-            )
-
-            all_input_ids.append(input_ids)
-            all_labels.append(labels)
-
-        input_ids      = torch.cat(all_input_ids, dim=0).to(torch.long)
-        labels         = torch.cat(all_labels,    dim=0).to(torch.long)
-        attention_mask = torch.ones_like(input_ids)
-
-        return dict(
-            input_ids=input_ids,
-            labels=labels,
-            attention_mask=attention_mask,
-            pixel_values=pixel_values,
-            pixel_attention_mask=pixel_attention_mask,
-        )
-
-    def qwen_encode_conversation(
-        self,
-        sources,
-        images,
-        processor: transformers.ProcessorMixin,
-    ) -> Dict[str, torch.Tensor]:
-        """Encode a conversation with a Qwen2.5-VL / Qwen3-VL processor.
-
-        Uses ``apply_chat_template`` for correct image-token injection and
-        returns ``image_grid_thw`` instead of ``pixel_attention_mask``.
-        """
-        all_input_ids = []
-        all_labels    = []
-
-        pixel_values   = None
-        image_grid_thw = None
-        image_idx      = 0
-
-        for idx, j in enumerate(range(0, len(sources), 2)):
-            user_input   = sources[j]
-            gpt_response = sources[j + 1]
-            is_last_turn = (idx == (len(sources) // 2 - 1))
-
-            user_text = user_input['content']
-            has_image = LLAVA_IMAGE_TOKEN in user_text and images is not None
-            n_images  = user_text.count(LLAVA_IMAGE_TOKEN)
-            clean_text = user_text.replace(LLAVA_IMAGE_TOKEN, "").strip()
-
-            # Build Qwen content list for this user turn
-            if has_image:
-                turn_images  = images[image_idx: image_idx + n_images]
-                image_idx   += n_images
-                user_content = [{"type": "image"}] * n_images + [{"type": "text", "text": clean_text}]
-            else:
-                turn_images  = None
-                user_content = clean_text
-
-            # Encode prompt (everything up to and including <|im_start|>assistant\n)
-            prompt_text = processor.apply_chat_template(
-                [{"role": "user", "content": user_content}],
-                tokenize=False,
-                add_generation_prompt=True,
-            )
-            if has_image:
-                enc             = processor(text=[prompt_text], images=turn_images, return_tensors="pt")
-                prompt_ids      = enc["input_ids"]
-                pixel_values    = enc.get("pixel_values", None)
-                image_grid_thw  = enc.get("image_grid_thw", None)
-            else:
-                prompt_ids = processor.tokenizer(
-                    prompt_text, add_special_tokens=False, return_tensors="pt"
-                )["input_ids"]
-
-            # Encode response — append <|im_end|> so the model learns to stop
-            suffix = "" if is_last_turn else "\n"
-            response_text = gpt_response['content'] + "<|im_end|>" + suffix
-            response_ids  = processor.tokenizer(
-                response_text, add_special_tokens=False, return_tensors="pt"
-            )["input_ids"]
-
-            input_ids = torch.cat([prompt_ids, response_ids], dim=1).squeeze(0)
-            labels    = torch.cat(
-                [
-                    torch.tensor([IGNORE_INDEX] * len(prompt_ids[0])),
-                    response_ids.squeeze(0),
-                ],
-                dim=0,
-            )
-            all_input_ids.append(input_ids)
-            all_labels.append(labels)
-
-        input_ids      = torch.cat(all_input_ids, dim=0).to(torch.long)
-        labels         = torch.cat(all_labels,    dim=0).to(torch.long)
-        attention_mask = torch.ones_like(input_ids)
-
-        return dict(
-            input_ids=input_ids,
-            labels=labels,
-            attention_mask=attention_mask,
-            pixel_values=pixel_values,
-            pixel_attention_mask=None,   # Qwen uses image_grid_thw instead
-            image_grid_thw=image_grid_thw,
-        )
-
-    def gemma3_encode_conversation(
-        self,
-        sources,
-        images,
-        processor: transformers.ProcessorMixin,
-    ) -> Dict[str, torch.Tensor]:
-        """Encode a conversation with a Gemma 3 processor.
-
-        Gemma 3 requires multimodal prompts to be built through
-        ``apply_chat_template`` so image placeholders are injected before the
-        processor receives image tensors.
-        """
-        all_input_ids = []
-        all_labels = []
-
-        pixel_values = None
-        image_idx = 0
-
-        for j in range(0, len(sources), 2):
-            user_input = sources[j]
-            gpt_response = sources[j + 1]
-
-            user_text = user_input["content"]
-            has_image = LLAVA_IMAGE_TOKEN in user_text and images is not None
-            n_images = user_text.count(LLAVA_IMAGE_TOKEN)
-            clean_text = user_text.replace(LLAVA_IMAGE_TOKEN, "").strip()
-
-            user_content = []
-            if has_image:
-                turn_images = images[image_idx: image_idx + n_images]
-                image_idx += n_images
-                user_content.extend({"type": "image", "image": image} for image in turn_images)
-            else:
-                turn_images = None
-
-            if clean_text:
-                user_content.append({"type": "text", "text": clean_text})
-            if not user_content:
-                user_content = [{"type": "text", "text": ""}]
-
-            prompt_messages = [{"role": "user", "content": user_content}]
-            full_messages = [
-                {"role": "user", "content": user_content},
-                {"role": "assistant", "content": [{"type": "text", "text": gpt_response["content"]}]},
-            ]
-
-            prompt_enc = processor.apply_chat_template(
-                prompt_messages,
-                tokenize=True,
-                return_dict=True,
-                return_tensors="pt",
-                add_generation_prompt=True,
-            )
-            full_enc = processor.apply_chat_template(
-                full_messages,
-                tokenize=True,
-                return_dict=True,
-                return_tensors="pt",
-                add_generation_prompt=False,
-            )
-
-            prompt_ids = prompt_enc["input_ids"]
-            full_ids = full_enc["input_ids"]
-            if prompt_ids.size(1) > full_ids.size(1):
-                raise ValueError(
-                    "Gemma 3 prompt encoding is longer than full conversation encoding."
-                )
-
-            response_ids = full_ids[:, prompt_ids.size(1):]
-            input_ids = full_ids.squeeze(0)
-            labels = torch.cat(
-                [
-                    torch.full((prompt_ids.size(1),), IGNORE_INDEX, dtype=torch.long),
-                    response_ids.squeeze(0).to(torch.long),
-                ],
-                dim=0,
-            )
-
-            all_input_ids.append(input_ids.to(torch.long))
-            all_labels.append(labels)
-
-            if has_image:
-                pixel_values = full_enc.get("pixel_values", prompt_enc.get("pixel_values"))
-
-        input_ids = torch.cat(all_input_ids, dim=0).to(torch.long)
-        labels = torch.cat(all_labels, dim=0).to(torch.long)
-        attention_mask = torch.ones_like(input_ids)
-
-        return dict(
-            input_ids=input_ids,
-            labels=labels,
-            attention_mask=attention_mask,
-            pixel_values=pixel_values,
-            pixel_attention_mask=None,
+            torch.zeros(DUMMY_PIXEL_VALUES),
+            torch.zeros(DUMMY_PIXEL_MASK),
         )
 
     def _encode_teacher_data(
@@ -314,99 +62,12 @@ class SupervisedDataset(Dataset):
         images,
         teacher_processor,
     ) -> Dict[str, torch.Tensor]:
-        if isinstance(teacher_processor, dict):
-            tokenizer = teacher_processor["tokenizer"]
-            image_processor = teacher_processor["image_processor"]
-            num_image_token = teacher_processor.get("num_image_token", 256)
-            img_start_token = teacher_processor.get("img_start_token", "<img>")
-            img_end_token = teacher_processor.get("img_end_token", "</img>")
-            img_context_token = teacher_processor.get("img_context_token", "<IMG_CONTEXT>")
-
-            all_input_ids = [torch.tensor([tokenizer.bos_token_id or 1])]
-            all_labels = [torch.tensor([IGNORE_INDEX])]
-            pixel_values = None
-            image_flags = None
-
-            for idx, j in enumerate(range(0, len(sources), 2)):
-                user_input = sources[j]
-                gpt_response = sources[j + 1]
-                is_last_turn = (idx == (len(sources) // 2 - 1))
-
-                if user_input["content"].startswith(LLAVA_IMAGE_TOKEN):
-                    user_prompt = f"User:{user_input['content']}{EOS_TOKEN}\nAssistant: "
-                else:
-                    user_prompt = f"User: {user_input['content']}{EOS_TOKEN}\nAssistant: "
-
-                gpt_prompt = (
-                    f"{gpt_response['content']}{EOS_TOKEN}"
-                    if is_last_turn
-                    else f"{gpt_response['content']}{EOS_TOKEN}\n"
-                )
-
-                if LLAVA_IMAGE_TOKEN in user_prompt and images is not None:
-                    pixel_values = image_processor(images=images, return_tensors="pt").pixel_values
-                    if pixel_values.dim() == 3:
-                        pixel_values = pixel_values.unsqueeze(0)
-                    num_patches = pixel_values.shape[0]
-                    image_tokens = (
-                        img_start_token
-                        + img_context_token * (num_image_token * num_patches)
-                        + img_end_token
-                    )
-                    user_prompt = user_prompt.replace(LLAVA_IMAGE_TOKEN, image_tokens)
-                    image_flags = torch.ones((num_patches, 1), dtype=torch.long)
-
-                prompt_input_ids = tokenizer(
-                    user_prompt, add_special_tokens=False, return_tensors="pt"
-                )["input_ids"]
-                response_input_ids = tokenizer(
-                    gpt_prompt, add_special_tokens=False, return_tensors="pt"
-                )["input_ids"]
-
-                input_ids = torch.cat([prompt_input_ids, response_input_ids], dim=1).squeeze(0)
-                labels = torch.cat(
-                    [
-                        torch.tensor([IGNORE_INDEX] * len(prompt_input_ids[0])),
-                        response_input_ids.squeeze(0),
-                    ],
-                    dim=0,
-                )
-                all_input_ids.append(input_ids)
-                all_labels.append(labels)
-
-            teacher_data = dict(
-                input_ids=torch.cat(all_input_ids, dim=0).to(torch.long),
-                labels=torch.cat(all_labels, dim=0).to(torch.long),
-                attention_mask=None,
-                pixel_values=pixel_values,
-                pixel_attention_mask=None,
-                image_flags=image_flags,
-            )
-        elif "Gemma3" in type(teacher_processor).__name__:
-            teacher_data = self.gemma3_encode_conversation(sources, images, teacher_processor)
-        elif "Qwen" in type(teacher_processor).__name__:
-            teacher_data = self.qwen_encode_conversation(sources, images, teacher_processor)
-        else:
-            teacher_data = self._encode_conversation(sources, images, teacher_processor)
-
-        if teacher_data["attention_mask"] is None:
-            teacher_data["attention_mask"] = torch.ones_like(teacher_data["input_ids"])
-
-        if teacher_data["pixel_values"] is None and isinstance(teacher_processor, dict):
-            teacher_data["pixel_values"] = torch.zeros((1, 3, 448, 448))
-            teacher_data["image_flags"] = torch.zeros((1, 1), dtype=torch.long)
-        elif teacher_data["pixel_values"] is None and "Qwen" not in type(teacher_processor).__name__:
-            pixel_values, pixel_attention_mask = self._dummy_pixel_tensors()
-            teacher_data["pixel_values"] = pixel_values
-            teacher_data["pixel_attention_mask"] = pixel_attention_mask
-
-        return teacher_data
-
-    @staticmethod
-    def _teacher_prefix(index: int, count: int) -> str:
-        if count == 1:
-            return "teacher"
-        return f"teacher_{index}"
+        return encode_teacher_data(
+            sources,
+            images,
+            teacher_processor,
+            self._dummy_pixel_tensors,
+        )
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         sources = self.list_data_dict[i]
@@ -439,7 +100,7 @@ class SupervisedDataset(Dataset):
             llava_to_openai(sources['conversations'], is_video=is_video, num_frames=num_frames)
         )
 
-        data_dict = self._encode_conversation(sources, images, self.processor)
+        data_dict = encode_student_data(sources, images, self.processor)
         if data_dict["pixel_values"] is None:
             pixel_values, pixel_attention_mask = self._dummy_pixel_tensors()
             data_dict["pixel_values"] = pixel_values
@@ -451,7 +112,7 @@ class SupervisedDataset(Dataset):
         teacher_count = len(self.teacher_processors)
         for teacher_index, teacher_processor in enumerate(self.teacher_processors):
             teacher_data = self._encode_teacher_data(sources, images, teacher_processor)
-            prefix = self._teacher_prefix(teacher_index, teacher_count)
+            prefix = "teacher" if teacher_count == 1 else f"teacher_{teacher_index}"
 
             data_dict[f"{prefix}_input_ids"] = teacher_data["input_ids"]
             data_dict[f"{prefix}_labels"] = teacher_data["labels"]
@@ -508,12 +169,9 @@ def make_supervised_data_module(
     processor,
     data_args,
     teacher_processors: Optional[list[transformers.ProcessorMixin]] = None,
-    teacher_processor: Optional[transformers.ProcessorMixin] = None,
 ):
     """Make dataset and collator for supervised fine-tuning."""
     normalized_teacher_processors = list(teacher_processors or [])
-    if teacher_processor is not None:
-        normalized_teacher_processors.append(teacher_processor)
     sft_dataset = SupervisedDataset(
         data_path=data_args.data_path,
         processor=processor,

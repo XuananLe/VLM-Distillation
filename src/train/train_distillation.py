@@ -14,7 +14,6 @@ from transformers import (
     AutoModel,
     AutoProcessor,
     AutoTokenizer,
-    CLIPImageProcessor,
     EarlyStoppingCallback,
     Gemma3ForConditionalGeneration,
     HfArgumentParser,
@@ -116,7 +115,11 @@ def train_distillation():
     rank0_print("=" * 80)
     rank0_print(f"Student Model: {distillation_args.student_model_id}")
     rank0_print(f"Teacher Model(s): {teacher_ids}")
-    rank0_print("Teacher Weighting: uniform mean")
+    rank0_print(
+        "Teacher Weighting: learned gate"
+        if len(teacher_ids) > 1
+        else "Teacher Weighting: uniform mean"
+    )
     rank0_print("Objective: CE + alpha * KD")
     rank0_print(f"KD Function: {distillation_args.distillation_loss}")
     rank0_print(f"KD Loss Alpha: {distillation_args.kd_loss_alpha}")
@@ -282,13 +285,19 @@ def train_distillation():
             img_context_token_id = teacher_tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
             if hasattr(teacher_model, "img_context_token_id"):
                 teacher_model.img_context_token_id = img_context_token_id
+            vision_config = getattr(teacher_model.config, "vision_config", None)
             teacher_processors.append(
                 {
+                    "model_id": teacher_id,
                     "tokenizer": teacher_tokenizer,
-                    "image_processor": CLIPImageProcessor.from_pretrained(
-                        teacher_id,
-                        cache_dir=training_args.cache_dir,
+                    "image_size": getattr(teacher_model.config, "force_image_size", None)
+                    or getattr(vision_config, "image_size", 448),
+                    "normalize_type": (
+                        "siglip"
+                        if getattr(vision_config, "model_type", None) == "siglip_vision_model"
+                        else "imagenet"
                     ),
+                    "max_num_tiles": 6,
                     "num_image_token": getattr(teacher_model, "num_image_token", 256),
                     "img_start_token": "<img>",
                     "img_end_token": "</img>",

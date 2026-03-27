@@ -7,6 +7,7 @@ from src.components.forward_utils import (
     forward_with_kwarg_retry,
     infer_batch_size,
 )
+from src.components.teacher_gate import Gate
 from src.trainer.sft_trainer import SmolVLMSFTTrainer
 from src.trainer.distillation_utils import (
     build_teacher_batches,
@@ -37,12 +38,21 @@ class DistillationTrainer(SmolVLMSFTTrainer):
 
         if teacher_model is None:
             raise ValueError("teacher_model must be provided for distillation.")
-        if isinstance(teacher_model, (list, tuple)):
-            self.teacher_models = list(teacher_model)
-        else:
-            self.teacher_models = [teacher_model]
+        self.teacher_models = (
+            list(teacher_model)
+            if isinstance(teacher_model, (list, tuple))
+            else [teacher_model]
+        )
         for model in self.teacher_models:
             model.eval()
+            for param in model.parameters():
+                param.requires_grad = False
+
+        self.teacher_gate = None
+        if len(self.teacher_models) > 1:
+            self.teacher_gate = Gate(self.model, len(self.teacher_models))
+            self.model.teacher_gate = self.teacher_gate
+
         self.temperature = temperature
         self.kd_loss_alpha = kd_loss_alpha
         self.non_lora_require_grad_only = True
@@ -51,7 +61,11 @@ class DistillationTrainer(SmolVLMSFTTrainer):
 
         print(f"Distillation Trainer initialized:")
         print(f"  - Teachers: {len(self.teacher_models)}")
-        print("  - Teacher weighting: uniform mean")
+        print(
+            "  - Teacher weighting: learned gate"
+            if len(self.teacher_models) > 1
+            else "  - Teacher weighting: uniform mean"
+        )
         print(f"  - Loss function: {loss_function}")
         print(f"  - Temperature: {temperature}")
         print(f"  - KD alpha: {kd_loss_alpha}")
@@ -98,9 +112,33 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             else:
                 sample_losses.append(student_logits.new_zeros(()))
         if not sample_losses:
-            return student_logits.new_zeros(())
-        sample_loss_tensor = torch.stack(sample_losses)
-        return sample_loss_tensor.mean()
+            return student_logits.new_zeros((student_logits.size(0),))
+        return torch.stack(sample_losses)
+
+    def _compute_teacher_loss_matrix(
+        self,
+        *,
+        student_logits: torch.Tensor,
+        student_labels: torch.Tensor,
+        teacher_batches,
+    ) -> torch.Tensor:
+        return torch.stack(
+            [
+                self._compute_single_teacher_loss(
+                    student_logits=student_logits,
+                    student_labels=student_labels,
+                    teacher_logits=compute_teacher_forward(
+                        teacher_model,
+                        self._prepare_input(teacher_inputs),
+                        output_hidden_states=False,
+                        suppress_stdout=getattr(teacher_model, "_suppress_forward_stdout", False),
+                    ).logits.detach(),
+                    teacher_labels=self._prepare_input(teacher_labels),
+                )
+                for teacher_model, (teacher_inputs, teacher_labels) in zip(self.teacher_models, teacher_batches)
+            ],
+            dim=-1,
+        )
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         target_device = inputs["input_ids"].device
@@ -116,34 +154,29 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             len(self.teacher_models),
         )
 
-        output_hidden_states = False
+        if self.teacher_gate is not None:
+            self.teacher_gate.reset()
         student_outputs = forward_with_kwarg_retry(
             model,
-            {**student_inputs, "return_dict": True, "output_hidden_states": output_hidden_states},
+            {**student_inputs, "return_dict": True, "output_hidden_states": False},
         )
         student_logits = student_outputs.logits
-
-        teacher_losses = []
-        for teacher_model, (teacher_inputs, teacher_labels) in zip(self.teacher_models, teacher_batches):
-            teacher_inputs = self._prepare_input(teacher_inputs)
-            teacher_labels = self._prepare_input(teacher_labels)
-            teacher_outputs = compute_teacher_forward(
-                teacher_model,
-                teacher_inputs,
-                output_hidden_states=output_hidden_states,
-                suppress_stdout=getattr(teacher_model, "_suppress_forward_stdout", False),
+        teacher_gate_weights = (
+            self.teacher_gate(
+                labels=student_inputs["labels"],
+                attention_mask=student_inputs.get("attention_mask"),
             )
-
-            # Compute distillation loss
-            teacher_loss_result = self._compute_single_teacher_loss(
-                student_logits=student_logits,
-                student_labels=student_inputs["labels"],
-                teacher_logits=teacher_outputs.logits.detach(),
-                teacher_labels=teacher_labels,
-            )
-            teacher_losses.append(teacher_loss_result)
-
-        distillation_loss = torch.stack(teacher_losses).mean()
+            if self.teacher_gate is not None
+            else None
+        )
+        teacher_loss_matrix = self._compute_teacher_loss_matrix(
+            student_logits=student_logits,
+            student_labels=student_inputs["labels"],
+            teacher_batches=teacher_batches,
+        )
+        distillation_loss = teacher_loss_matrix.mean()
+        if teacher_gate_weights is not None:
+            distillation_loss = (teacher_loss_matrix * teacher_gate_weights).sum(dim=-1).mean()
 
         ce_loss = student_outputs.loss
         if not model.training:
@@ -159,6 +192,13 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 "distillation_loss": distillation_loss.item(),
                 "ce_loss": ce_loss.item(),
             }
+            if teacher_gate_weights is not None:
+                metrics.update(
+                    {
+                        f"teacher_gate_w_{teacher_index}": weight.item()
+                        for teacher_index, weight in enumerate(teacher_gate_weights.detach().mean(dim=0))
+                    }
+                )
             self.log(metrics)
 
         return (loss, student_outputs) if return_outputs else loss
