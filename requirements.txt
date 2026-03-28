@@ -205,7 +205,7 @@ timeout-decorator==0.5.0
 timm==1.0.26
 tinycss2==1.5.1
 tokenizers==0.22.2
-tomlkit==0.13.3
+tomlkit==0.13.3 
 torch==2.8.0+cu126
 torchaudio==2.8.0+cu126
 torchmetrics==1.9.0

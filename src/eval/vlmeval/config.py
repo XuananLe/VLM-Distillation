@@ -1329,10 +1329,7 @@ idefics_series = {
 
 smolvlm_series = {
     "SmolVLM-256M": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-256M-Instruct"),
-    "SmolVLM-500M": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-500M-Instruct"),
-    "SmolVLM-500M-TextVQA-Sample": partial(SmolVLM, model_path="/output/uld_loss_single_teacher_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_textvqa_gradnorm_last10layers_sample"),
-    "SmolVLM-500M-ChartQA-Gemma": partial(SmolVLM, model_path="/output/uld_loss_single_teacher_gemma-3-4b-it_SmolVLM-500M-Instruct_chartqa"),
-    "SmolVLM-500M-ChartQA-Gradnorm-Last10Layers": partial(SmolVLM, model_path="/output/uld_loss_single_teacher_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_chartqa_gradnorm_last10layers"),
+    "SmolVLM-500M-Routing": partial(SmolVLM, model_path="/output/checkpoint-700"),
     "SmolVLM": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-Instruct"),
     "SmolVLM-DPO": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-Instruct-DPO"),
     "SmolVLM-Synthetic": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-Synthetic"),

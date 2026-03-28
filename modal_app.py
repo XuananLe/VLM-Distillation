@@ -37,14 +37,14 @@ base_image = (
         copy=True,
         ignore=modal.FilePatternMatcher.from_file(".gitignore"),
     )
-    .pip_install(
+    .uv_pip_install(
         "wheel==0.46.3",
         "setuptools==69.0.3",
         "packaging==26.0",
         "ninja==1.13.0",
         "psutil==7.2.2",
     )
-    .pip_install(
+    .uv_pip_install(
         "torch==2.8.0+cu126",
         "torchvision==0.23.0+cu126",
         "torchaudio==2.8.0+cu126",
@@ -138,6 +138,6 @@ def exec_cmd(cmd: str) -> None:
 def run():
     cmd = { 
         "train": f"cd {ROOT_DIR} && bash scripts/train/distill_single_teacher.sh",
-        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data DocVQA_VAL --model SmolVLM-500M --work-dir /output/vlmeval/SmolVLM-500M-Sample-Normal --subset-size 1037",
+        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data ChartQA_TEST --model SmolVLM-500M-Routing --work-dir /output/vlmeval/SmolVLM-500M-Routing",
     }
     exec_cmd.remote(cmd['eval'])

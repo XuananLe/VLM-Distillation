@@ -9,15 +9,17 @@ SUPPORTED_SMOLVLM_HIDDEN_SIZES = {
 
 
 class Gate(nn.Module):
-    def __init__(self, model: nn.Module, num_teachers: int):
+    def __init__(self, model: nn.Module, num_teachers: int, bias_update_rate: float = 0.0):
         super().__init__()
         hidden_size, hook_module = self.resolve_gate_source(model)
         self.normalizer = nn.LayerNorm(hidden_size)
-        self.router = nn.Linear(hidden_size, num_teachers)
-        nn.init.zeros_(self.router.weight)
-        nn.init.zeros_(self.router.bias)
+        self.router = nn.Linear(hidden_size, out_features=num_teachers)
+        nn.init.xavier_uniform_(self.router.weight)
+        nn.init.xavier_uniform_(self.router.bias)
 
+        self.bias_update_rate = bias_update_rate
         self.hidden_state = None
+        self.register_buffer("expert_bias", torch.zeros(num_teachers))
         self.hook_handle = hook_module.register_forward_pre_hook(self.capture_hidden_state)
 
 
@@ -101,11 +103,34 @@ class Gate(nn.Module):
         self.hidden_state = None
         return pooled_features
 
-    def forward(
+    def compute_router_logits(
         self,
         *,
         labels: torch.Tensor,
         attention_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         pooled_features = self.pool_features(labels=labels, attention_mask=attention_mask)
-        return torch.softmax(self.router(self.normalizer(pooled_features)), dim=-1)
+        return self.router(self.normalizer(pooled_features))
+
+    def apply_expert_bias(self, router_logits: torch.Tensor) -> torch.Tensor:
+        return router_logits + self.expert_bias.to(device=router_logits.device, dtype=router_logits.dtype)
+
+    @torch.no_grad()
+    def update_expert_bias(self, expert_load: torch.Tensor) -> None:
+        if self.bias_update_rate <= 0.0:
+            return
+        violation = expert_load - expert_load.mean()
+        self.expert_bias.sub_(
+            self.bias_update_rate * violation.to(device=self.expert_bias.device, dtype=self.expert_bias.dtype)
+        )
+
+    def forward(
+        self,
+        *,
+        labels: torch.Tensor,
+        attention_mask: torch.Tensor | None = None,
+    ) -> torch.Tensor:
+        return torch.softmax(
+            self.compute_router_logits(labels=labels, attention_mask=attention_mask),
+            dim=-1,
+        )
