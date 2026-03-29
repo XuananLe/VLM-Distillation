@@ -9,17 +9,15 @@ SUPPORTED_SMOLVLM_HIDDEN_SIZES = {
 
 
 class Gate(nn.Module):
-    def __init__(self, model: nn.Module, num_teachers: int, bias_update_rate: float = 0.0):
+    def __init__(self, model: nn.Module, num_teachers: int):
         super().__init__()
         hidden_size, hook_module = self.resolve_gate_source(model)
         self.normalizer = nn.LayerNorm(hidden_size)
-        self.router = nn.Linear(hidden_size, out_features=num_teachers)
+        self.router = nn.Linear(hidden_size, num_teachers)
         nn.init.xavier_uniform_(self.router.weight)
-        nn.init.xavier_uniform_(self.router.bias)
+        nn.init.zeros_(self.router.bias)
 
-        self.bias_update_rate = bias_update_rate
         self.hidden_state = None
-        self.register_buffer("expert_bias", torch.zeros(num_teachers))
         self.hook_handle = hook_module.register_forward_pre_hook(self.capture_hidden_state)
 
 
@@ -76,15 +74,13 @@ class Gate(nn.Module):
     def reset(self) -> None:
         self.hidden_state = None
 
-    def pool_features(
+    def pool_tensor(
         self,
+        tensor: torch.Tensor,
         *,
         labels: torch.Tensor,
         attention_mask: torch.Tensor | None,
     ) -> torch.Tensor:
-        if self.hidden_state is None:
-            raise RuntimeError("Teacher gate hidden state was not captured during the student forward pass.")
-
         label_mask = labels.ne(other=-100)
         if attention_mask is not None:
             fallback_mask = attention_mask.bool()
@@ -97,32 +93,25 @@ class Gate(nn.Module):
             gate_mask = gate_mask.clone()
             gate_mask[missing_supervised] = fallback_mask[missing_supervised]
 
-        gate_mask = gate_mask.to(dtype=self.hidden_state.dtype)
-        pooled_features = (self.hidden_state * gate_mask.unsqueeze(-1)).sum(dim=1)
-        pooled_features = pooled_features / gate_mask.sum(dim=1, keepdim=True).clamp(min=1.0)
-        self.hidden_state = None
-        return pooled_features
+        gate_mask = gate_mask.to(dtype=tensor.dtype)
+        pooled_tensor = (tensor * gate_mask.unsqueeze(-1)).sum(dim=1)
+        return pooled_tensor / gate_mask.sum(dim=1, keepdim=True).clamp(min=1.0)
 
-    def compute_router_logits(
+    def pool_features(
         self,
         *,
         labels: torch.Tensor,
-        attention_mask: torch.Tensor | None = None,
+        attention_mask: torch.Tensor | None,
     ) -> torch.Tensor:
-        pooled_features = self.pool_features(labels=labels, attention_mask=attention_mask)
-        return self.router(self.normalizer(pooled_features))
-
-    def apply_expert_bias(self, router_logits: torch.Tensor) -> torch.Tensor:
-        return router_logits + self.expert_bias.to(device=router_logits.device, dtype=router_logits.dtype)
-
-    @torch.no_grad()
-    def update_expert_bias(self, expert_load: torch.Tensor) -> None:
-        if self.bias_update_rate <= 0.0:
-            return
-        violation = expert_load - expert_load.mean()
-        self.expert_bias.sub_(
-            self.bias_update_rate * violation.to(device=self.expert_bias.device, dtype=self.expert_bias.dtype)
+        if self.hidden_state is None:
+            raise RuntimeError("Teacher gate hidden state was not captured during the student forward pass.")
+        pooled_features = self.pool_tensor(
+            self.hidden_state,
+            labels=labels,
+            attention_mask=attention_mask,
         )
+        self.hidden_state = None
+        return pooled_features
 
     def forward(
         self,
@@ -130,7 +119,5 @@ class Gate(nn.Module):
         labels: torch.Tensor,
         attention_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        return torch.softmax(
-            self.compute_router_logits(labels=labels, attention_mask=attention_mask),
-            dim=-1,
-        )
+        pooled_features = self.pool_features(labels=labels, attention_mask=attention_mask)
+        return torch.softmax(self.router(self.normalizer(pooled_features)), dim=-1)

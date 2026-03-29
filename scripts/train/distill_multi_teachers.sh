@@ -11,22 +11,20 @@ TEACHER_MODEL_IDS="[\"${TEACHER_MODEL_1}\", \"${TEACHER_MODEL_2}\", \"${TEACHER_
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 DISTILLATION_LOSS="uld_loss"
 TEMPERATURE=1.0
-KD_LOSS_ALPHA=1.5
-TEACHER_GATE_BALANCE_ALPHA=5e-2
-TEACHER_GATE_TOP_K=2
-TEACHER_GATE_CAPACITY_FACTOR=1.25
-TEACHER_GATE_BIAS_UPDATE_RATE=1e-3
+ALPHA=1.5
+GRADIENT_ALIGNMENT_THRESHOLD=0.0
+GRADIENT_ALIGNMENT_WARMUP_RATIO=0.05
 NUM_TEACHERS=4
 DATASET_NAME="chartqa"
 EVAL_SPLIT="val"
-PER_DEVICE_TRAIN_BATCH_SIZE=32
+PER_DEVICE_TRAIN_BATCH_SIZE=16
 GRADIENT_ACCUMULATION_STEPS=1
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME_1="${TEACHER_MODEL_1##*/}"
 TEACHER_NAME_2="${TEACHER_MODEL_2##*/}"
 TEACHER_NAME_3="${TEACHER_MODEL_3##*/}"
 TEACHER_NAME_4="${TEACHER_MODEL_4##*/}"
-RUN_TAG="${RUN_TAG:-$(date +%Y%m%d_%H%M%S)}"
+RUN_TAG="${RUN_TAG:-$(date +%Y%m%d_%H%M)}"
 OUTPUT_DIR="/output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${TEACHER_NAME_3}_${TEACHER_NAME_4}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
 
 deepspeed src/train/train_distillation.py \
@@ -42,11 +40,9 @@ deepspeed src/train/train_distillation.py \
     --disable_flash_attn2 False \
     --output_dir "$OUTPUT_DIR" \
     --temperature "$TEMPERATURE" \
-    --kd_loss_alpha "$KD_LOSS_ALPHA" \
-    --teacher_gate_balance_alpha "$TEACHER_GATE_BALANCE_ALPHA" \
-    --teacher_gate_top_k "$TEACHER_GATE_TOP_K" \
-    --teacher_gate_capacity_factor "$TEACHER_GATE_CAPACITY_FACTOR" \
-    --teacher_gate_bias_update_rate "$TEACHER_GATE_BIAS_UPDATE_RATE" \
+    --alpha "$ALPHA" \
+    --gradient_alignment_threshold "$GRADIENT_ALIGNMENT_THRESHOLD" \
+    --gradient_alignment_warmup_ratio "$GRADIENT_ALIGNMENT_WARMUP_RATIO" \
     --num_train_epochs 1 \
     --per_device_train_batch_size "$PER_DEVICE_TRAIN_BATCH_SIZE" \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
@@ -58,17 +54,17 @@ deepspeed src/train/train_distillation.py \
     --freeze_vision_tower False \
     --freeze_llm False \
     --freeze_connector False \
-    --tf32 False \
+    --tf32 True \
     --gradient_checkpointing True \
     --lazy_preprocess True \
     --logging_steps 10 \
     --save_strategy steps \
-    --save_steps 100 \
-    --save_total_limit 10 \
+    --save_steps 200 \
+    --save_total_limit 5 \
     --save_only_model False \
     --eval_strategy steps \
-    --eval_steps 100 \
-    --per_device_eval_batch_size 20 \
+    --eval_steps 200 \
+    --per_device_eval_batch_size 16 \
     --load_best_model_at_end True \
     --metric_for_best_model eval_loss \
     --greater_is_better False \

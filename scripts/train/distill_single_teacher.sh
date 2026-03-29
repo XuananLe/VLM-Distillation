@@ -8,7 +8,7 @@ TEACHER_MODEL_IDS="[\"${TEACHER_MODEL}\"]"
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 DISTILLATION_LOSS="uld_loss"
 TEMPERATURE=1.0
-KD_LOSS_ALPHA=1.0
+ALPHA=1.0
 DATASET_NAME="textvqa"
 EVAL_SPLIT="validation"
 EARLY_STOPPING_PATIENCE="5"
@@ -38,7 +38,7 @@ deepspeed src/train/train_distillation.py \
     --disable_flash_attn2 False \
     --output_dir "$OUTPUT_DIR" \
     --temperature "$TEMPERATURE" \
-    --kd_loss_alpha "$KD_LOSS_ALPHA" \
+    --alpha "$ALPHA" \
     "${EARLY_STOPPING_ARGS[@]}" \
     --num_train_epochs 1 \
     --per_device_train_batch_size 16 \

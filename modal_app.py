@@ -50,9 +50,12 @@ base_image = (
         "torchaudio==2.8.0+cu126",
         extra_index_url="https://download.pytorch.org/whl/cu126",
     )
-    .pip_install_from_requirements(
-        "requirements.txt",
-        extra_options="--no-build-isolation",
+    .run_commands(
+        "python -c \"from pathlib import Path; src = Path('/root/VLM-Distillation/requirements.txt'); "
+        "dst = Path('/tmp/modal-requirements.txt'); blocked_prefixes = ('torch==', 'torchvision==', 'torchaudio==', 'nvidia-'); "
+        "filtered_lines = [line for line in src.read_text().splitlines() if line.strip() and not line.lstrip().startswith(blocked_prefixes)]; "
+        "dst.write_text('\\\\n'.join(filtered_lines) + '\\\\n'); print(f'Filtered requirements written to {dst}')\"",
+        "python -m pip install -r /tmp/modal-requirements.txt --no-build-isolation",
     )
     .env(
         {
@@ -138,6 +141,6 @@ def exec_cmd(cmd: str) -> None:
 def run():
     cmd = { 
         "train": f"cd {ROOT_DIR} && bash scripts/train/distill_single_teacher.sh",
-        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data ChartQA_TEST --model SmolVLM-500M-Routing --work-dir /output/vlmeval/SmolVLM-500M-Routing",
+        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data ChartQA_TEST --model SmolVLM-500M-Load-Balancing-Best-Eval-Ce --work-dir /output/vlmeval/SmolVLM-500M-Load-Balancing-Best-Eval-Ce",
     }
     exec_cmd.remote(cmd['eval'])

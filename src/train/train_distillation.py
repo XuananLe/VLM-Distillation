@@ -69,33 +69,19 @@ class DistillationArguments:
         metadata={"help": "Temperature for distillation (higher = softer probabilities)"}
     )
 
-    kd_loss_alpha: float = field(
+    alpha: float = field(
         default=1.0,
         metadata={"help": "Weight for the distillation term in `ce_loss + alpha * kd_loss`."},
     )
 
-    teacher_gate_balance_alpha: float = field(
-        default=1e-2,
-        metadata={
-            "help": "Weight for the Switch-style load-balancing loss on the learned multi-teacher gate."
-        },
+    gradient_alignment_threshold: float = field(
+        default=0.0,
+        metadata={"help": "Keep a teacher active for a sample only when its gradient agreement exceeds this threshold."},
     )
 
-    teacher_gate_top_k: int = field(
-        default=1,
-        metadata={"help": "Number of teachers to keep per sample in the hard top-k teacher gate."},
-    )
-
-    teacher_gate_capacity_factor: float = field(
-        default=1.25,
-        metadata={"help": "Capacity factor for hard top-k teacher routing."},
-    )
-
-    teacher_gate_bias_update_rate: float = field(
-        default=1e-3,
-        metadata={
-            "help": "Per-step update rate for the loss-free expert-bias rebalancing on the learned multi-teacher gate."
-        },
+    gradient_alignment_warmup_ratio: float = field(
+        default=0.0,
+        metadata={"help": "Fraction of total training steps to skip before enabling gradient alignment routing."},
     )
 
 def train_distillation():
@@ -119,16 +105,10 @@ def train_distillation():
         distillation_args.teacher_model_ids,
         arg_name="--teacher_model_ids",
     )
-    if distillation_args.kd_loss_alpha < 0.0:
-        raise ValueError("--kd_loss_alpha must be >= 0.")
-    if distillation_args.teacher_gate_balance_alpha < 0.0:
-        raise ValueError("--teacher_gate_balance_alpha must be >= 0.")
-    if distillation_args.teacher_gate_top_k < 1:
-        raise ValueError("--teacher_gate_top_k must be >= 1.")
-    if distillation_args.teacher_gate_capacity_factor <= 0.0:
-        raise ValueError("--teacher_gate_capacity_factor must be > 0.")
-    if distillation_args.teacher_gate_bias_update_rate < 0.0:
-        raise ValueError("--teacher_gate_bias_update_rate must be >= 0.")
+    if distillation_args.alpha < 0.0:
+        raise ValueError("--alpha must be >= 0.")
+    if distillation_args.gradient_alignment_warmup_ratio < 0.0:
+        raise ValueError("--gradient_alignment_warmup_ratio must be >= 0.")
     gradient_checkpointing_kwargs = dict(training_args.gradient_checkpointing_kwargs or {})
     if "use_reentrant" not in gradient_checkpointing_kwargs:
         gradient_checkpointing_kwargs["use_reentrant"] = True
@@ -154,12 +134,11 @@ def train_distillation():
     )
     rank0_print("Objective: CE + alpha * KD")
     rank0_print(f"KD Function: {distillation_args.distillation_loss}")
-    rank0_print(f"KD Loss Alpha: {distillation_args.kd_loss_alpha}")
+    rank0_print(f"Alpha: {distillation_args.alpha}")
     if len(teacher_ids) > 1:
-        rank0_print(f"Teacher Gate Balance Alpha: {distillation_args.teacher_gate_balance_alpha}")
-        rank0_print(f"Teacher Gate Top-K: {distillation_args.teacher_gate_top_k}")
-        rank0_print(f"Teacher Gate Capacity Factor: {distillation_args.teacher_gate_capacity_factor}")
-        rank0_print(f"Teacher Gate Bias Update Rate: {distillation_args.teacher_gate_bias_update_rate}")
+        rank0_print("Routing: learned gate + gradient alignment filter")
+        rank0_print(f"Gradient Alignment Threshold: {distillation_args.gradient_alignment_threshold}")
+        rank0_print(f"Gradient Alignment Warmup Ratio: {distillation_args.gradient_alignment_warmup_ratio}")
     rank0_print(f"Temperature: {distillation_args.temperature}")
     if training_args.gradient_checkpointing:
         rank0_print(f"Gradient Checkpointing Kwargs: {gradient_checkpointing_kwargs}")
@@ -391,11 +370,9 @@ def train_distillation():
         teacher_model=teacher_models,
         loss_function=distillation_args.distillation_loss,
         temperature=distillation_args.temperature,
-        kd_loss_alpha=distillation_args.kd_loss_alpha,
-        teacher_gate_balance_alpha=distillation_args.teacher_gate_balance_alpha,
-        teacher_gate_top_k=distillation_args.teacher_gate_top_k,
-        teacher_gate_capacity_factor=distillation_args.teacher_gate_capacity_factor,
-        teacher_gate_bias_update_rate=distillation_args.teacher_gate_bias_update_rate,
+        alpha=distillation_args.alpha,
+        gradient_alignment_threshold=distillation_args.gradient_alignment_threshold,
+        gradient_alignment_warmup_ratio=distillation_args.gradient_alignment_warmup_ratio,
         args=training_args,
         callbacks=trainer_callbacks,
         **data_module,
