@@ -150,12 +150,23 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         *,
         student_logits: torch.Tensor,
         student_labels: torch.Tensor,
+        student_attention_mask: torch.Tensor | None,
         teacher_batches,
-    ) -> tuple[torch.Tensor, list[torch.Tensor], list[torch.Tensor]]:
+    ) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
         collect_alignment_tensors = self.should_apply_gradient_alignment_routing()
         teacher_losses = []
-        teacher_logits_list = []
-        teacher_labels_list = []
+        alignment_scores = []
+        alignment_active = []
+
+        pooled_ce_grad = None
+        if collect_alignment_tensors:
+            with torch.no_grad():
+                pooled_ce_grad = self.teacher_gate.pool_tensor(
+                    self._compute_ce_alignment_grad(student_logits.detach(), student_labels),
+                    labels=student_labels,
+                    attention_mask=student_attention_mask,
+                )
+
         for teacher_model, (teacher_inputs, teacher_labels) in zip(self.teacher_models, teacher_batches):
             prepared_teacher_labels = self._prepare_input(teacher_labels)
             teacher_logits = compute_teacher_forward(
@@ -172,11 +183,37 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                     teacher_labels=prepared_teacher_labels,
                 )
             )
-            if collect_alignment_tensors:
-                teacher_logits_list.append(teacher_logits.to(device="cpu", copy=True))
-                teacher_labels_list.append(prepared_teacher_labels.to(device="cpu", copy=True))
+            if pooled_ce_grad is not None:
+                with torch.no_grad():
+                    pooled_kd_grad = self.teacher_gate.pool_tensor(
+                        self._compute_kd_alignment_grad(
+                            student_logits=student_logits.detach(),
+                            student_labels=student_labels,
+                            teacher_logits=teacher_logits,
+                            teacher_labels=prepared_teacher_labels,
+                        ),
+                        labels=student_labels,
+                        attention_mask=student_attention_mask,
+                    )
+                    agreement = F.cosine_similarity(
+                        pooled_ce_grad,
+                        pooled_kd_grad,
+                        dim=-1,
+                        eps=1e-8,
+                    )
+                alignment_scores.append(agreement)
+                alignment_active.append(agreement > self.gradient_alignment_threshold)
+                del pooled_kd_grad
             del teacher_logits
-        return torch.stack(teacher_losses, dim=-1), teacher_logits_list, teacher_labels_list
+
+        teacher_loss_matrix = torch.stack(teacher_losses, dim=-1)
+        if not alignment_scores:
+            return teacher_loss_matrix, None, None
+        return (
+            teacher_loss_matrix,
+            torch.stack(alignment_scores, dim=-1),
+            torch.stack(alignment_active, dim=-1),
+        )
 
     def _compute_ce_alignment_grad(
         self,
@@ -224,61 +261,28 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self,
         *,
         teacher_gate_weights: torch.Tensor | None,
-        student_logits: torch.Tensor,
-        teacher_logits_list: list[torch.Tensor],
-        teacher_labels_list: list[torch.Tensor],
-        student_inputs,
+        teacher_alignment_scores: torch.Tensor | None,
+        teacher_alignment_active: torch.Tensor | None,
     ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
         if (
             teacher_gate_weights is None
-            or not self.should_apply_gradient_alignment_routing()
-            or not teacher_logits_list
+            or teacher_alignment_scores is None
+            or teacher_alignment_active is None
         ):
-            return teacher_gate_weights, None, None
+            return teacher_gate_weights, teacher_alignment_scores, teacher_alignment_active
 
-        pooled_ce_grad = self.teacher_gate.pool_tensor(
-            self._compute_ce_alignment_grad(student_logits, student_inputs["labels"]),
-            labels=student_inputs["labels"],
-            attention_mask=student_inputs.get("attention_mask"),
-        )
-
-        alignment_scores = []
-        alignment_active = []
-        for teacher_logits, teacher_labels in zip(teacher_logits_list, teacher_labels_list):
-            pooled_kd_grad = self.teacher_gate.pool_tensor(
-                self._compute_kd_alignment_grad(
-                    student_logits=student_logits,
-                    student_labels=student_inputs["labels"],
-                    teacher_logits=teacher_logits.to(device=student_logits.device),
-                    teacher_labels=teacher_labels.to(device=student_logits.device),
-                ),
-                labels=student_inputs["labels"],
-                attention_mask=student_inputs.get("attention_mask"),
-            )
-            agreement = F.cosine_similarity(
-                pooled_ce_grad,
-                pooled_kd_grad,
-                dim=-1,
-                eps=1e-8,
-            )
-            alignment_scores.append(agreement)
-            alignment_active.append(agreement > self.gradient_alignment_threshold)
-
-        alignment_scores = torch.stack(alignment_scores, dim=-1)
-        alignment_active = torch.stack(alignment_active, dim=-1)
-
-        missing_samples = ~alignment_active.any(dim=-1)
+        missing_samples = ~teacher_alignment_active.any(dim=-1)
         if missing_samples.any():
-            fallback_indices = alignment_scores.argmax(dim=-1, keepdim=True)
-            fallback_mask = torch.zeros_like(alignment_active)
+            fallback_indices = teacher_alignment_scores.argmax(dim=-1, keepdim=True)
+            fallback_mask = torch.zeros_like(teacher_alignment_active)
             fallback_mask.scatter_(1, fallback_indices, True)
-            alignment_active = alignment_active | (fallback_mask & missing_samples.unsqueeze(-1))
+            teacher_alignment_active = teacher_alignment_active | (fallback_mask & missing_samples.unsqueeze(-1))
 
-        effective_weights = teacher_gate_weights * alignment_active.to(dtype=teacher_gate_weights.dtype)
+        effective_weights = teacher_gate_weights * teacher_alignment_active.to(dtype=teacher_gate_weights.dtype)
         effective_weights = effective_weights / effective_weights.sum(dim=-1, keepdim=True).clamp(
             min=torch.finfo(effective_weights.dtype).eps
         )
-        return effective_weights, alignment_scores, alignment_active
+        return effective_weights, teacher_alignment_scores, teacher_alignment_active
 
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         target_device = inputs["input_ids"].device
@@ -309,19 +313,18 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             if self.teacher_gate is not None
             else None
         )
-        teacher_loss_matrix, teacher_logits_list, teacher_labels_list = self._compute_teacher_loss_matrix(
+        teacher_loss_matrix, teacher_alignment_scores, teacher_alignment_active = self._compute_teacher_loss_matrix(
             student_logits=student_logits,
             student_labels=student_inputs["labels"],
+            student_attention_mask=student_inputs.get("attention_mask"),
             teacher_batches=teacher_batches,
         )
         ce_loss = student_outputs.loss
         effective_teacher_gate_weights, teacher_alignment_scores, teacher_alignment_active = (
             self.apply_gradient_alignment_routing(
                 teacher_gate_weights=teacher_gate_weights,
-                student_logits=student_logits,
-                teacher_logits_list=teacher_logits_list,
-                teacher_labels_list=teacher_labels_list,
-                student_inputs=student_inputs,
+                teacher_alignment_scores=teacher_alignment_scores,
+                teacher_alignment_active=teacher_alignment_active,
             )
         )
         distillation_loss = teacher_loss_matrix.mean()
