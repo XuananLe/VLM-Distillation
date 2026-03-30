@@ -27,6 +27,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         teacher_temperature: float | None = None,
         skip_student_eos: bool = False,
         skip_teacher_eos: bool = False,
+        orientation_vote_margin: float = 0.02,
         alpha: float = 1.0,
         *args,
         **kwargs
@@ -36,6 +37,8 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         from src.components import loss as distillation_loss_module
         if alpha < 0.0:
             raise ValueError("DistillationTrainer requires `alpha >= 0`.")
+        if orientation_vote_margin < 0.0:
+            raise ValueError("DistillationTrainer requires `orientation_vote_margin >= 0`.")
         if not hasattr(distillation_loss_module, loss_function):
             raise ValueError(f"Unknown distillation loss: {loss_function!r}")
         self.loss_function = loss_function
@@ -62,6 +65,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         )
         self.skip_student_eos = skip_student_eos
         self.skip_teacher_eos = skip_teacher_eos
+        self.orientation_vote_margin = float(orientation_vote_margin)
         self.alpha = alpha
         self.non_lora_require_grad_only = True
         self.eval_ce_loss_sum = 0.0
@@ -79,6 +83,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         print(f"  - Teacher temperature: {self.teacher_temperature}")
         print(f"  - Skip student EOS: {self.skip_student_eos}")
         print(f"  - Skip teacher EOS: {self.skip_teacher_eos}")
+        print(f"  - Orientation vote margin: {self.orientation_vote_margin}")
         print(f"  - Alpha: {alpha}")
         if len(self.teacher_models) > 1:
             print("  - Routing: Orientation vote")
@@ -217,8 +222,22 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 student_temperature=self.student_temperature,
                 teacher_temperature=self.teacher_temperature,
             )
-            orientation = (ce_grad_masked * kd_grad).sum()
-            sample_votes.append(orientation.sign())
+            alignment = F.cosine_similarity(
+                ce_grad_masked.reshape(1, -1),
+                kd_grad.reshape(1, -1),
+                dim=-1,
+                eps=1e-8,
+            ).squeeze(0)
+            vote = torch.where(
+                alignment > self.orientation_vote_margin,
+                torch.ones_like(alignment),
+                torch.where(
+                    alignment < -self.orientation_vote_margin,
+                    -torch.ones_like(alignment),
+                    torch.zeros_like(alignment),
+                ),
+            )
+            sample_votes.append(vote)
 
         if not sample_votes:
             return student_logits.new_zeros((student_logits.size(0),), dtype=torch.float32)
