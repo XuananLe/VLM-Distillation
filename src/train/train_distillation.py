@@ -8,7 +8,6 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 import torch
-from dataclasses import dataclass, field
 from peft import LoraConfig, get_peft_model
 from transformers import (
     AutoModel,
@@ -22,6 +21,13 @@ from transformers import (
 from src.trainer.distillation_trainer import DistillationTrainer
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, TrainingArguments
+from src.train.distillation_setup import (
+    VlmEvalOnSaveCallback,
+    DistillationArguments,
+    infer_post_save_eval_datasets,
+    log_distillation_setup,
+    validate_distillation_args,
+)
 from src.train.train_utils import (
     safe_save_model_for_hf_trainer,
     get_compute_dtype,
@@ -45,44 +51,39 @@ ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
 
 
-@dataclass
-class DistillationArguments:
-    """Arguments for knowledge distillation."""
+def _uses_wandb(report_to) -> bool:
+    if report_to is None:
+        return False
+    if isinstance(report_to, str):
+        parts = [part.strip() for part in report_to.split(",") if part.strip()]
+        return "all" in parts or "wandb" in parts
+    return "all" in report_to or "wandb" in report_to
 
-    student_model_id: str = field(
-        metadata={"help": "Student model ID or path."}
-    )
 
-    teacher_model_ids: str = field(
-        metadata={"help": "Teacher model IDs as a Python list literal or comma-separated string."}
-    )
+def _init_primary_wandb_run(training_args) -> None:
+    if not _uses_wandb(training_args.report_to):
+        return
 
-    distillation_loss: str = field(
-        default="uld_loss",
-        metadata={
-            "help": "KD loss to use. Supported by src/components/loss.py, e.g. uld_loss, forward_kl, reverse_kl, jensen_shannon_divergence."
-        },
-    )
+    try:
+        import wandb
+    except Exception:
+        return
 
-    temperature: float = field(
-        default=2.0,
-        metadata={"help": "Temperature for distillation (higher = softer probabilities)"}
-    )
+    if wandb.run is not None:
+        return
 
-    alpha: float = field(
-        default=1.0,
-        metadata={"help": "Weight for the distillation term in `ce_loss + alpha * kd_loss`."},
-    )
+    init_kwargs = {
+        "project": os.getenv("WANDB_PROJECT", "huggingface"),
+        "settings": wandb.Settings(
+            mode="shared",
+            x_primary=True,
+            x_label="trainer",
+        ),
+    }
+    if training_args.run_name is not None:
+        init_kwargs["name"] = training_args.run_name
+    wandb.init(**init_kwargs)
 
-    gradient_alignment_threshold: float = field(
-        default=0.0,
-        metadata={"help": "Keep a teacher active for a sample only when its gradient agreement exceeds this threshold."},
-    )
-
-    gradient_alignment_warmup_ratio: float = field(
-        default=0.0,
-        metadata={"help": "Fraction of total training steps to skip before enabling gradient alignment routing."},
-    )
 
 def train_distillation():
     """
@@ -105,10 +106,7 @@ def train_distillation():
         distillation_args.teacher_model_ids,
         arg_name="--teacher_model_ids",
     )
-    if distillation_args.alpha < 0.0:
-        raise ValueError("--alpha must be >= 0.")
-    if distillation_args.gradient_alignment_warmup_ratio < 0.0:
-        raise ValueError("--gradient_alignment_warmup_ratio must be >= 0.")
+    validate_distillation_args(distillation_args)
     gradient_checkpointing_kwargs = dict(training_args.gradient_checkpointing_kwargs or {})
     if "use_reentrant" not in gradient_checkpointing_kwargs:
         gradient_checkpointing_kwargs["use_reentrant"] = True
@@ -122,27 +120,13 @@ def train_distillation():
         if not training_args.vision_lora:
             training_args.lora_namespan_exclude += ["vision_model"]
 
-    rank0_print("=" * 80)
-    rank0_print("Logits Distillation Training")
-    rank0_print("=" * 80)
-    rank0_print(f"Student Model: {distillation_args.student_model_id}")
-    rank0_print(f"Teacher Model(s): {teacher_ids}")
-    rank0_print(
-        "Teacher Weighting: learned gate"
-        if len(teacher_ids) > 1
-        else "Teacher Weighting: uniform mean"
+    log_distillation_setup(
+        teacher_ids=teacher_ids,
+        data_args=data_args,
+        training_args=training_args,
+        distillation_args=distillation_args,
+        gradient_checkpointing_kwargs=gradient_checkpointing_kwargs,
     )
-    rank0_print("Objective: CE + alpha * KD")
-    rank0_print(f"KD Function: {distillation_args.distillation_loss}")
-    rank0_print(f"Alpha: {distillation_args.alpha}")
-    if len(teacher_ids) > 1:
-        rank0_print("Routing: learned gate + gradient alignment filter")
-        rank0_print(f"Gradient Alignment Threshold: {distillation_args.gradient_alignment_threshold}")
-        rank0_print(f"Gradient Alignment Warmup Ratio: {distillation_args.gradient_alignment_warmup_ratio}")
-    rank0_print(f"Temperature: {distillation_args.temperature}")
-    if training_args.gradient_checkpointing:
-        rank0_print(f"Gradient Checkpointing Kwargs: {gradient_checkpointing_kwargs}")
-    rank0_print("=" * 80)
 
     attn_impl = "flash_attention_2" if not training_args.disable_flash_attn2 else "eager"
 
@@ -339,9 +323,18 @@ def train_distillation():
         data_args=data_args,
         teacher_processors=teacher_processors,
     )
+    _init_primary_wandb_run(training_args)
 
     rank0_print("\nInitializing distillation trainer...")
     trainer_callbacks = []
+    trainer_callbacks.append(
+        VlmEvalOnSaveCallback(
+            root_dir=ROOT_DIR,
+            student_model_id=distillation_args.student_model_id,
+            eval_base_dir=distillation_args.post_save_eval_root,
+            dataset_names=infer_post_save_eval_datasets(data_args.data_path),
+        )
+    )
     if training_args.early_stopping_patience is not None:
         if data_module["eval_dataset"] is None:
             raise ValueError("Early stopping requires --eval_data_path.")
@@ -370,9 +363,12 @@ def train_distillation():
         teacher_model=teacher_models,
         loss_function=distillation_args.distillation_loss,
         temperature=distillation_args.temperature,
+        student_temperature=distillation_args.student_temperature,
+        teacher_temperature=distillation_args.teacher_temperature,
+        skip_student_eos=distillation_args.skip_student_eos,
+        skip_teacher_eos=distillation_args.skip_teacher_eos,
         alpha=distillation_args.alpha,
-        gradient_alignment_threshold=distillation_args.gradient_alignment_threshold,
-        gradient_alignment_warmup_ratio=distillation_args.gradient_alignment_warmup_ratio,
+        processing_class=processor,
         args=training_args,
         callbacks=trainer_callbacks,
         **data_module,

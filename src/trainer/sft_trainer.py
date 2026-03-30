@@ -1,4 +1,6 @@
 import os
+from typing import override
+
 import torch
 import torch.nn as nn
 
@@ -27,6 +29,7 @@ class SmolVLMSFTTrainer(Trainer):
             os.path.join(output_dir, "non_lora_state_dict.bin"),
         )
 
+    @override
     def create_optimizer(self):
         if is_sagemaker_mp_enabled():
             return super().create_optimizer()
@@ -80,6 +83,7 @@ class SmolVLMSFTTrainer(Trainer):
 
         return self.optimizer
 
+    @override
     def _save_checkpoint(self, model, trial):
         super()._save_checkpoint(model, trial)
         output_dir = os.path.join(

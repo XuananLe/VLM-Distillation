@@ -11,12 +11,13 @@ TEACHER_MODEL_IDS="[\"${TEACHER_MODEL_1}\", \"${TEACHER_MODEL_2}\", \"${TEACHER_
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 DISTILLATION_LOSS="uld_loss"
 TEMPERATURE=1.0
-ALPHA=1.5
-GRADIENT_ALIGNMENT_THRESHOLD=0.0
-GRADIENT_ALIGNMENT_WARMUP_RATIO=0.05
+STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-$TEMPERATURE}"
+TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-$TEMPERATURE}"
+ALPHA=0.6
 NUM_TEACHERS=4
-DATASET_NAME="chartqa"
-EVAL_SPLIT="val"
+DATASET_NAME="textvqa"
+EVAL_SPLIT="validation"
+POST_SAVE_EVAL_ROOT="/output/vlmeval"
 PER_DEVICE_TRAIN_BATCH_SIZE=16
 GRADIENT_ACCUMULATION_STEPS=1
 STUDENT_NAME="${STUDENT_MODEL##*/}"
@@ -31,18 +32,19 @@ deepspeed src/train/train_distillation.py \
     --deepspeed scripts/deepspeed/zero2.json \
     --student_model_id "$STUDENT_MODEL" \
     --teacher_model_ids "$TEACHER_MODEL_IDS" \
-    --data_path /data/chartqa/train_llava.json \
+    --data_path /data/textvqa/train_llava.json \
     --eval_data_path /data/${DATASET_NAME}/${EVAL_SPLIT}_llava.json \
-    --image_folder /data/chartqa/images \
+    --image_folder /data/textvqa/images \
     --distillation_loss "$DISTILLATION_LOSS" \
     --bf16 True \
     --fp16 False \
     --disable_flash_attn2 False \
     --output_dir "$OUTPUT_DIR" \
     --temperature "$TEMPERATURE" \
+    --student_temperature "$STUDENT_TEMPERATURE" \
+    --teacher_temperature "$TEACHER_TEMPERATURE" \
     --alpha "$ALPHA" \
-    --gradient_alignment_threshold "$GRADIENT_ALIGNMENT_THRESHOLD" \
-    --gradient_alignment_warmup_ratio "$GRADIENT_ALIGNMENT_WARMUP_RATIO" \
+    --post_save_eval_root "$POST_SAVE_EVAL_ROOT" \
     --num_train_epochs 1 \
     --per_device_train_batch_size "$PER_DEVICE_TRAIN_BATCH_SIZE" \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
@@ -59,15 +61,10 @@ deepspeed src/train/train_distillation.py \
     --lazy_preprocess True \
     --logging_steps 10 \
     --save_strategy steps \
-    --save_steps 200 \
+    --save_steps 100 \
     --save_total_limit 5 \
     --save_only_model False \
-    --eval_strategy steps \
-    --eval_steps 200 \
-    --per_device_eval_batch_size 16 \
-    --load_best_model_at_end True \
-    --metric_for_best_model eval_loss \
-    --greater_is_better False \
+    --eval_strategy no \
     --dataloader_num_workers 4 \
     --remove_unused_columns False \
     --report_to wandb

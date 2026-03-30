@@ -8,22 +8,15 @@ TEACHER_MODEL_IDS="[\"${TEACHER_MODEL}\"]"
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 DISTILLATION_LOSS="uld_loss"
 TEMPERATURE=1.0
-ALPHA=1.0
+STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-$TEMPERATURE}"
+TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-$TEMPERATURE}"
+ALPHA=0.5
 DATASET_NAME="textvqa"
 EVAL_SPLIT="validation"
-EARLY_STOPPING_PATIENCE="5"
-EARLY_STOPPING_THRESHOLD="0.1"
+POST_SAVE_EVAL_ROOT="${POST_SAVE_EVAL_ROOT:-/output/vlmeval}"
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME="${TEACHER_MODEL##*/}"
 OUTPUT_DIR="/output/${DISTILLATION_LOSS}_single_teacher_${TEACHER_NAME}_${STUDENT_NAME}_${DATASET_NAME}"
-
-EARLY_STOPPING_ARGS=()
-if [[ -n "$EARLY_STOPPING_PATIENCE" ]]; then
-    EARLY_STOPPING_ARGS+=(
-        --early_stopping_patience "$EARLY_STOPPING_PATIENCE"
-        --early_stopping_threshold "$EARLY_STOPPING_THRESHOLD"
-    )
-fi
 
 deepspeed src/train/train_distillation.py \
     --deepspeed scripts/deepspeed/zero2.json \
@@ -38,8 +31,10 @@ deepspeed src/train/train_distillation.py \
     --disable_flash_attn2 False \
     --output_dir "$OUTPUT_DIR" \
     --temperature "$TEMPERATURE" \
+    --student_temperature "$STUDENT_TEMPERATURE" \
+    --teacher_temperature "$TEACHER_TEMPERATURE" \
     --alpha "$ALPHA" \
-    "${EARLY_STOPPING_ARGS[@]}" \
+    --post_save_eval_root "$POST_SAVE_EVAL_ROOT" \
     --num_train_epochs 1 \
     --per_device_train_batch_size 16 \
     --gradient_accumulation_steps 1 \
@@ -59,12 +54,7 @@ deepspeed src/train/train_distillation.py \
     --save_steps 100 \
     --save_total_limit 3 \
     --save_only_model False \
-    --eval_strategy steps \
-    --eval_steps 100 \
-    --per_device_eval_batch_size 2 \
-    --load_best_model_at_end True \
-    --metric_for_best_model eval_loss \
-    --greater_is_better False \
+    --eval_strategy no \
     --dataloader_num_workers 4 \
     --remove_unused_columns False \
     --report_to wandb
