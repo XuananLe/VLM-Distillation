@@ -1,4 +1,5 @@
 import gc
+from types import SimpleNamespace
 
 import torch
 
@@ -67,6 +68,45 @@ def select_labels_at_positions(
     return labels.index_select(dim=1, index=positions.to(device=labels.device))
 
 
+def _slice_hidden_states_for_logits(
+    hidden_states: torch.Tensor,
+    logits_to_keep: int | torch.Tensor,
+) -> torch.Tensor:
+    if isinstance(logits_to_keep, int):
+        if logits_to_keep == 0:
+            return hidden_states
+        return hidden_states[:, -logits_to_keep:, :]
+
+    if not isinstance(logits_to_keep, torch.Tensor):
+        raise TypeError(f"Unsupported logits_to_keep type: {type(logits_to_keep)!r}")
+
+    positions = logits_to_keep.reshape(-1).to(device=hidden_states.device, dtype=torch.long)
+    return hidden_states.index_select(dim=1, index=positions)
+
+
+def _compute_teacher_forward_with_manual_logit_slice(
+    teacher_model,
+    teacher_inputs,
+    *,
+    output_hidden_states: bool,
+    logits_to_keep: int | torch.Tensor,
+):
+    model_type = getattr(getattr(teacher_model, "config", None), "model_type", None)
+    if model_type != "qwen2_vl":
+        return None
+
+    backbone_inputs = {
+        **teacher_inputs,
+        "return_dict": True,
+        "output_hidden_states": output_hidden_states,
+    }
+    backbone_outputs = forward_with_kwarg_retry(teacher_model.model, backbone_inputs)
+    hidden_states = backbone_outputs[0]
+    sliced_hidden_states = _slice_hidden_states_for_logits(hidden_states, logits_to_keep)
+    logits = teacher_model.lm_head(sliced_hidden_states)
+    return SimpleNamespace(logits=logits, hidden_states=backbone_outputs.hidden_states)
+
+
 def compute_teacher_forward(
     teacher_model,
     teacher_inputs,
@@ -89,4 +129,14 @@ def compute_teacher_forward(
     with torch.no_grad():
         stdout_context = redirect_stdout(io.StringIO()) if suppress_stdout else nullcontext()
         with stdout_context:
+            manual_outputs = None
+            if logits_to_keep is not None:
+                manual_outputs = _compute_teacher_forward_with_manual_logit_slice(
+                    teacher_model,
+                    teacher_inputs,
+                    output_hidden_states=output_hidden_states,
+                    logits_to_keep=logits_to_keep,
+                )
+            if manual_outputs is not None:
+                return manual_outputs
             return forward_with_kwarg_retry(teacher_model, call_inputs)
