@@ -1,0 +1,192 @@
+\begin{thebibliography}{10}
+
+\bibitem{wikimedia_clip_pretraining_image}
+{Wikimedia Commons contributors}.
+\newblock File: Contrastive language-image pretraining.png.
+\newblock Wikimedia Commons, 2024.
+\newblock MIT License. Accessed: 2026-03-06.
+
+\bibitem{radford2021learningtransferablevisualmodels}
+Alec Radford, Jong~Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh,
+  Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark,
+  Gretchen Krueger, and Ilya Sutskever.
+\newblock Learning transferable visual models from natural language
+  supervision, 2021.
+
+\bibitem{wikimedia_knowledge_distillation_example}
+{Wikimedia Commons contributors}.
+\newblock File: Knowledge-distillation-example.png.
+\newblock Wikimedia Commons, 2023.
+\newblock CC0 1.0. Source: Intel Distiller knowledge distillation page.
+  Accessed: 2026-03-07.
+
+\bibitem{hinton2015distillingknowledgeneuralnetwork}
+Geoffrey Hinton, Oriol Vinyals, and Jeff Dean.
+\newblock Distilling the knowledge in a neural network, 2015.
+
+\bibitem{wikimedia_transformer_attention_block_image}
+{Wikimedia Commons contributors}.
+\newblock File: Transformer, attention block diagram.png.
+\newblock Wikimedia Commons, 2024.
+\newblock CC BY 4.0. Accessed: 2026-03-06.
+
+\bibitem{vaswani2023attentionneed}
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
+  Aidan~N. Gomez, Lukasz Kaiser, and Illia Polosukhin.
+\newblock Attention is all you need.
+\newblock In {\em Advances in Neural Information Processing Systems 30 (NeurIPS
+  2017)}, pages 5998--6008, 2017.
+
+\bibitem{wikimedia_vision_transformer_image}
+{Wikimedia Commons contributors}.
+\newblock File: Vision transformer.png.
+\newblock Wikimedia Commons, 2024.
+\newblock CC BY 4.0. Accessed: 2026-03-06.
+
+\bibitem{dosovitskiy2021imageworth16x16words}
+Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn,
+  Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg
+  Heigold, Sylvain Gelly, Jakob Uszkoreit, and Neil Houlsby.
+\newblock An image is worth 16x16 words: Transformers for image recognition at
+  scale, 2021.
+
+\bibitem{singh2019vqamodelsread}
+Amanpreet Singh, Vivek Natarajan, Meet Shah, Yu~Jiang, Xinlei Chen, Dhruv
+  Batra, Devi Parikh, and Marcus Rohrbach.
+\newblock Towards vqa models that can read, 2019.
+
+\bibitem{mathew2021docvqadatasetvqadocument}
+Minesh Mathew, Dimosthenis Karatzas, and C.~V. Jawahar.
+\newblock Docvqa: A dataset for vqa on document images, 2021.
+
+\bibitem{masry2022chartqabenchmarkquestionanswering}
+Ahmed Masry, Do~Xuan Long, Jia~Qing Tan, Shafiq Joty, and Enamul Hoque.
+\newblock Chartqa: A benchmark for question answering about charts with visual
+  and logical reasoning, 2022.
+
+\bibitem{boizard2024towardscrosstokenizerdistillation}
+Nicolas Boizard, Kevin~El Haddad, Pierre Colombo, and Chlo{\'e} Clavel.
+\newblock Towards cross-tokenizer distillation: The universal logit
+  distillation loss for llms, 2024.
+
+\bibitem{wikimedia_deepseek_moe_mla_image}
+{Wikimedia Commons contributors}.
+\newblock File: Deepseek moe and mla (deepseek-v2).svg.
+\newblock Wikimedia Commons, 2025.
+\newblock MIT License. Accessed: 2026-03-06.
+
+\bibitem{deepseekai2024deepseekv2strongeconomicalefficient}
+{DeepSeek-AI}.
+\newblock Deepseek-v2: A strong, economical, and efficient mixture-of-experts
+  language model, 2024.
+
+\bibitem{wikimedia_stop_sign_image}
+{Wikimedia Commons contributors}.
+\newblock File: Stop sign.jpg.
+\newblock Wikimedia Commons, 2006.
+\newblock Public domain. Accessed: 2026-03-06.
+
+\bibitem{wikimedia_receipt_swiss_image}
+{Wikimedia Commons contributors}.
+\newblock File: Receiptswiss.jpg.
+\newblock Wikimedia Commons, 2015.
+\newblock CC BY-SA 3.0. Accessed: 2026-03-06.
+
+\bibitem{wikimedia_bar_chart_image}
+{Wikimedia Commons contributors}.
+\newblock File: Bar chart.svg.
+\newblock Wikimedia Commons, 2016.
+\newblock CC BY-SA 4.0. Accessed: 2026-03-06.
+
+\bibitem{alayrac2022flamingovisuallanguagemodel}
+Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech, Iain Barr,
+  Yana Hasson, Karel Lenc, Arthur Mensch, Katie Millican, Malcolm Reynolds,
+  Roman Ring, Eliza Rutherford, Serkan Cabi, Tengda Han, Zhitao Gong, Sina
+  Samangooei, Marianne Monteiro, Jacob Menick, Sebastian Borgeaud, Andrew
+  Brock, Aida Nematzadeh, Sahand Sharifzadeh, Mikolaj Binkowski, Ricardo
+  Barreira, Oriol Vinyals, Andrew Zisserman, and Karen Simonyan.
+\newblock Flamingo: a visual language model for few-shot learning, 2022.
+
+\bibitem{li2023blip2bootstrappinglanguageimagepretraining}
+Junnan Li, Dongxu Li, Silvio Savarese, and Steven Hoi.
+\newblock Blip-2: Bootstrapping language-image pre-training with frozen image
+  encoders and large language models, 2023.
+
+\bibitem{liu2023visualinstructiontuning}
+Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong~Jae Lee.
+\newblock Visual instruction tuning, 2023.
+
+\bibitem{hu2024visualprogramdistillation}
+Yushi Hu, Otilia Stretcu, Chun-Ta Lu, Krishnamurthy Viswanathan, Kenji Hata,
+  Enming Luo, Ranjay Krishna, and Ariel Fuxman.
+\newblock Visual program distillation: Distilling tools and programmatic
+  reasoning into vision-language models, 2024.
+
+\bibitem{chu2023mobilevlm}
+Xiangxiang Chu, Limeng Qiao, Xinyang Lin, Shuang Xu, Yang Yang, Yiming Hu, Fei
+  Wei, Xinyu Zhang, Bo~Zhang, Xiaolin Wei, and Chunhua Shen.
+\newblock Mobilevlm: A fast, strong and open vision language assistant for
+  mobile devices, 2023.
+
+\bibitem{zhou2024tinyllava}
+Baichuan Zhou, Ying Hu, Xi~Weng, Junlong Jia, Jie Luo, Xien Liu, Ji~Wu, and Lei
+  Huang.
+\newblock Tinyllava: A framework of small-scale large multimodal models, 2024.
+
+\bibitem{xu2024surveyknowledgedistillationlarge}
+Xiaohan Xu, Ming Li, Chongyang Tao, Tao Shen, Reynold Cheng, Jinyang Li, Can
+  Xu, Dacheng Tao, and Tianyi Zhou.
+\newblock A survey on knowledge distillation of large language models, 2024.
+
+\bibitem{yang2024clipcid}
+Kaicheng Yang, Tiancheng Gu, Xiang An, Haiqiang Jiang, Xiangzi Dai, Ziyong
+  Feng, Weidong Cai, and Jiankang Deng.
+\newblock Clip-cid: Efficient clip distillation via cluster-instance
+  discrimination, 2024.
+
+\bibitem{yuan2020reinforcedmultiteacherselection}
+Fei Yuan, Linjun Shou, Jian Pei, Wutao Lin, Ming Gong, Yan Fu, and Daxin Jiang.
+\newblock Reinforced multi-teacher selection for knowledge distillation, 2020.
+
+\bibitem{zhang2023adaptivemultiteachermetalearning}
+Hailin Zhang, Defang Chen, and Can Wang.
+\newblock Adaptive multi-teacher knowledge distillation with meta-learning,
+  2023.
+
+\bibitem{yu2024selectdistill}
+Yu-Chu Yu, Chi-Pin Huang, Jr-Jen Chen, Kai-Po Chang, Yung-Hsuan Lai, Fu-En
+  Yang, and Yu-Chiang~Frank Wang.
+\newblock Select and distill: Selective dual-teacher knowledge transfer for
+  continual learning on vision-language models, 2024.
+
+\bibitem{shazeer2017outrageouslylargeneuralnetworks}
+Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le,
+  Geoffrey Hinton, and Jeff Dean.
+\newblock Outrageously large neural networks: The sparsely-gated
+  mixture-of-experts layer, 2017.
+
+\bibitem{fedus2022switchtransformersscalingtrillion}
+William Fedus, Barret Zoph, and Noam Shazeer.
+\newblock Switch transformers: Scaling to trillion parameter models with simple
+  and efficient sparsity, 2022.
+
+\bibitem{kornblith2019similarityrepresentations}
+Simon Kornblith, Mohammad Norouzi, Honglak Lee, and Geoffrey Hinton.
+\newblock Similarity of neural network representations revisited.
+\newblock In {\em Proceedings of the 36th International Conference on Machine
+  Learning}, volume~97 of {\em Proceedings of Machine Learning Research}, pages
+  3519--3529. PMLR, 2019.
+
+\bibitem{zhu2021studentcustomized}
+Yichen Zhu and Yi~Wang.
+\newblock Student customized knowledge distillation: Bridging the gap between
+  student and teacher.
+\newblock In {\em Proceedings of the IEEE/CVF International Conference on
+  Computer Vision}, pages 5057--5066, 2021.
+
+\bibitem{duan2024vlmevalkit}
+Haodong Duan, Xinyu Fang, Junming Yang, et~al.
+\newblock Vlmevalkit: An open-source toolkit for evaluating large
+  multi-modality models, 2024.
+
+\end{thebibliography}

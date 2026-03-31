@@ -1,0 +1,373 @@
+\chapter{Proposed Method}
+\label{chap:proposed-method}
+
+\section{Problem Formulation}
+
+We consider text-rich multimodal understanding tasks such as TextVQA, DocVQA, and ChartQA
+\cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+The training set is
+\begin{equation}
+\mathcal{D}=\{(x_b,y_b)\}_{b=1}^{B},
+\end{equation}
+where \(x_b\) is a multimodal input and \(y_b\) is the target answer sequence.
+
+Let \(S_{\theta}\) denote the student VLM with trainable parameters \(\theta\), and let
+\begin{equation}
+\mathcal{T}=\{T_1,T_2,\ldots,T_N\}
+\end{equation}
+be a pool of frozen teacher VLMs. For each sample \(b\), the student produces logits
+\(\mathbf{z}_s^{(b)}\), and teacher \(T_i\) produces teacher logits
+\(\mathbf{z}_t^{(b,i)}\).
+
+The goal of this thesis is not to search for a fixed teacher subset before training.
+Instead, the student is trained with \emph{alignment-aware gated multi-teacher
+distillation}: a learned student-side router first proposes sparse teacher weights,
+balancing terms prevent routing collapse, and gradient alignment then filters the
+routed teachers according to whether their KD update direction agrees with the
+supervised cross-entropy objective.
+
+\section{Method Overview}
+
+The proposed method is \textbf{alignment-aware gated multi-teacher distillation}.
+It combines four components:
+\begin{enumerate}
+\item a supervised student objective \(\mathcal{L}_{CE}\),
+\item a per-teacher logit distillation objective \(\mathcal{L}_{KD}^{(b,i)}\),
+\item a learned teacher gate with balancing and capacity control,
+\item a cosine gradient-alignment filter applied on top of the routed teachers.
+\end{enumerate}
+
+At a high level, each teacher first produces a candidate KD signal for the current
+sample. The student-side gate proposes sparse routing weights from pooled hidden
+features, balancing terms keep the gate from collapsing, and gradient alignment
+removes routed teachers whose KD direction is not sufficiently consistent with the
+supervised objective. The final student update is
+\begin{equation}
+\mathcal{L}=\mathcal{L}_{CE}+\alpha \mathcal{L}_{KD}+\lambda_{bal}\mathcal{L}_{bal},
+\end{equation}
+where \(\alpha \ge 0\) controls the strength of distillation and \(\lambda_{bal}\)
+controls the gate-balancing term.
+
+This design is closer in spirit to selective gradient-based distillation
+\cite{zhu2021studentcustomized} and sparse expert routing
+\cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion}
+than to static teacher averaging, but it is adapted here to the multi-teacher
+multimodal setting with token-level logit distillation.
+
+\section{Token-Level Distillation with ULD}
+
+\subsection{Supervised Answer Tokens}
+
+Distillation is applied only on supervised answer tokens, not on prompt tokens.
+For sample \(b\), let \(\Omega_b\) denote the set of supervised token positions after:
+\begin{enumerate}
+\item masking ignored labels,
+\item optionally removing the EOS token from both student and teacher answer spans,
+\item truncating student and teacher answer spans to a common length.
+\end{enumerate}
+
+This produces aligned token sequences for the student and each teacher. The alignment is important because
+teacher and student models may differ in tokenizer and vocabulary size.
+
+\subsection{Universal Logit Distillation}
+
+For each sample \(b\), token position \(j \in \Omega_b\), and teacher \(T_i\), let
+\(\mathbf{z}_{s,j}^{(b)} \in \mathbb{R}^{V_s}\) be the student logits and
+\(\mathbf{z}_{t,j}^{(b,i)} \in \mathbb{R}^{V_i}\) be the teacher logits.
+The student and teacher probability distributions are
+\begin{equation}
+\mathbf{p}_{s,j}^{(b)}
+=
+\mathrm{softmax}\!\left(\frac{\mathbf{z}_{s,j}^{(b)}}{\tau_s}\right),
+\qquad
+\mathbf{p}_{t,j}^{(b,i)}
+=
+\mathrm{softmax}\!\left(\frac{\mathbf{z}_{t,j}^{(b,i)}}{\tau_t}\right),
+\end{equation}
+where \(\tau_s\) and \(\tau_t\) are the student and teacher temperatures.
+
+Following Universal Logit Distillation (ULD) \cite{boizard2024towardscrosstokenizerdistillation},
+we sort both probability vectors in descending order and pad the smaller vocabulary with zeros.
+Let \(\pi(\cdot)\) denote descending sort after zero-padding to a common size. The token-level ULD loss is
+\begin{equation}
+\ell_{ULD}\!\left(\mathbf{z}_{s,j}^{(b)}, \mathbf{z}_{t,j}^{(b,i)}\right)
+=
+\left\|
+\pi\!\left(\mathbf{p}_{s,j}^{(b)}\right)
+-
+\pi\!\left(\mathbf{p}_{t,j}^{(b,i)}\right)
+\right\|_1.
+\end{equation}
+
+The per-sample, per-teacher KD loss is the mean over supervised answer tokens:
+\begin{equation}
+\mathcal{L}_{KD}^{(b,i)}
+=
+\frac{1}{|\Omega_b|}
+\sum_{j \in \Omega_b}
+\ell_{ULD}\!\left(\mathbf{z}_{s,j}^{(b)}, \mathbf{z}_{t,j}^{(b,i)}\right).
+\label{eq:per_teacher_uld}
+\end{equation}
+
+ULD is particularly suitable here because it does not require the student and teacher to share the same vocabulary.
+This is important in our setting since the teacher pool may contain VLMs from different model families.
+
+\section{Learned Teacher Gate and Load Balancing}
+
+\subsection{Student-Conditioned Router}
+
+When the teacher pool contains multiple models, the method first builds a
+student-conditioned router instead of averaging teachers uniformly. Let
+\(\mathbf{H}_s^{(b)}\) denote the student hidden states captured at the routing
+source layer for sample \(b\). We pool these hidden states over supervised answer
+positions to obtain a routing feature
+\begin{equation}
+\mathbf{h}^{(b)} = \mathrm{Pool}\!\left(\mathbf{H}_s^{(b)}\right).
+\end{equation}
+
+A deep router \(G(\cdot)\) then produces gate logits
+\begin{equation}
+\mathbf{r}^{(b)} = G\!\left(\mathbf{h}^{(b)}\right),
+\qquad
+\mathbf{p}^{(b)} = \mathrm{softmax}\!\left(\mathbf{r}^{(b)}\right),
+\label{eq:router-softmax}
+\end{equation}
+where \(p_i^{(b)}\) is the initial gate weight for teacher \(T_i\).
+
+
+
+\subsection{Top-\(k\), Capacity, and Fallback}
+
+The router is made sparse by applying top-\(k\) routing to bias-adjusted scores
+\begin{equation}
+\tilde{r}_i^{(b)} = r_i^{(b)} + b_i,
+\end{equation}
+where \(b_i\) is a teacher-specific expert bias. Let
+\(\mathcal{K}_b=\mathrm{TopK}(\tilde{\mathbf{r}}^{(b)},k)\) be the candidate
+teacher set for sample \(b\). To prevent one teacher from receiving too many
+assignments, each teacher is additionally limited by a capacity
+\begin{equation}
+C = \left\lceil \phi \frac{Bk}{N}\right\rceil,
+\end{equation}
+where \(B\) is the mini-batch size, \(N\) is the number of teachers, and
+\(\phi > 0\) is the capacity factor.
+
+Let \(m_i^{(b)} \in \{0,1\}\) denote the resulting assignment mask after top-\(k\)
+selection and capacity pruning. The constrained gate weights are
+\begin{equation}
+\hat{p}_i^{(b)}
+=
+\frac{m_i^{(b)} p_i^{(b)}}{\sum_{j=1}^{N} m_j^{(b)} p_j^{(b)}}.
+\label{eq:constrained_gate_weights}
+\end{equation}
+
+If capacity pruning leaves a sample without any assigned teacher, the algorithm
+falls back to the teacher with the largest bias-adjusted routing score
+\(\tilde{r}_i^{(b)}\), ensuring that at least one teacher remains active before
+alignment filtering.
+
+\subsection{Balancing Loss and Expert Bias Update}
+
+The gate is regularized by a balancing loss that uses both soft routing weights
+and hard assignments. Define the soft load
+\begin{equation}
+\bar{p}_i = \frac{1}{B}\sum_{b=1}^{B} p_i^{(b)}
+\end{equation}
+and the hard assignment load
+\begin{equation}
+\bar{q}_i
+=
+\frac{1}{Bk}
+\sum_{b=1}^{B}
+\sum_{j=1}^{k}
+\mathbf{1}\!\left[\mathrm{TopK}_j(\tilde{\mathbf{r}}^{(b)}) = i\right].
+\end{equation}
+The balancing objective is
+\begin{equation}
+\mathcal{L}_{bal}
+=
+N\sum_{i=1}^{N}\bar{p}_i\bar{q}_i.
+\label{eq:balance_loss}
+\end{equation}
+
+In addition, the expert bias is updated from the per-batch assignment load
+\(\ell_i\) to discourage teacher overuse:
+\begin{equation}
+b_i \leftarrow b_i - \eta_b \left(\ell_i - \frac{1}{N}\sum_{j=1}^{N}\ell_j\right),
+\end{equation}
+where \(\eta_b\) is a small bias-update rate.
+
+\section{Gradient Alignment Filtering}
+
+\subsection{CE Gradient Proxy}
+
+For each sample \(b\), let \(\mathcal{L}_{CE}^{(b)}\) be the student cross-entropy loss on supervised answer tokens.
+We define the CE logit-gradient proxy as
+\begin{equation}
+\mathbf{g}_{CE}^{(b)}
+=
+\nabla_{\mathbf{z}_s^{(b)}} \mathcal{L}_{CE}^{(b)}.
+\end{equation}
+
+In implementation, this gradient is obtained in closed form from the student probability distribution and target labels,
+which avoids an additional backward pass through the full model.
+
+\subsection{KD Gradient Proxy}
+
+For each teacher \(T_i\), the KD logit-gradient proxy is
+\begin{equation}
+\mathbf{g}_{i}^{(b)}
+=
+\nabla_{\mathbf{z}_s^{(b)}} \mathcal{L}_{KD}^{(b,i)}.
+\end{equation}
+
+This proxy is computed directly from the selected distillation loss.
+In the default setting of this thesis, \(\mathcal{L}_{KD}^{(b,i)}\) is the ULD loss in
+Equation~\ref{eq:per_teacher_uld}.
+
+\subsection{Pooled Cosine Alignment}
+
+For each sample \(b\) and teacher \(T_i\), we measure directional agreement between supervised learning and KD by cosine similarity:
+\begin{equation}
+\tilde{\mathbf{g}}_{CE}^{(b)}
+=
+\mathrm{Pool}\!\left(\mathbf{g}_{CE}^{(b)}\right),
+\qquad
+\tilde{\mathbf{g}}_{i}^{(b)}
+=
+\mathrm{Pool}\!\left(\mathbf{g}_{i}^{(b)}\right),
+\end{equation}
+\begin{equation}
+s_i^{(b)}
+=
+\cos\!\left(
+\tilde{\mathbf{g}}_{CE}^{(b)},
+\tilde{\mathbf{g}}_{i}^{(b)}
+\right).
+\end{equation}
+
+Here, \(\mathrm{Pool}(\cdot)\) averages the logit-gradient tensor over supervised
+answer positions, producing one pooled CE gradient and one pooled KD gradient per
+teacher. This is the quantity used by the current implementation.
+
+\subsection{Warmup and Thresholding}
+
+The alignment filter is enabled only after an optional warmup phase. Let
+\(\rho \in [0,1]\) denote the warmup ratio with respect to the total number of
+training steps. During the first \(\rho\) fraction of training, the method uses
+only the constrained gate weights \(\hat{p}_i^{(b)}\). After warmup, a teacher is
+considered alignment-active when
+\begin{equation}
+a_i^{(b)} = \mathbf{1}[s_i^{(b)} > \delta],
+\label{eq:alignment_active}
+\end{equation}
+where \(\delta\) is the gradient-alignment threshold.
+
+\subsection{Alignment Fallback and Effective Weights}
+
+Alignment is applied on top of the already routed teachers. If at least one routed
+teacher satisfies Equation~\ref{eq:alignment_active}, the final effective teacher
+weights are
+\begin{equation}
+w_i^{(b)}
+=
+\frac{\hat{p}_i^{(b)} a_i^{(b)}}
+{\sum_{j=1}^{N}\hat{p}_j^{(b)} a_j^{(b)}}.
+\label{eq:effective_teacher_weights}
+\end{equation}
+
+If none of the routed teachers exceeds the alignment threshold, the method falls
+back to the routed teacher with the largest alignment score:
+\begin{equation}
+i^\star
+=
+\arg\max_{i:\hat{p}_i^{(b)}>0} s_i^{(b)},
+\qquad
+a_i^{(b)} = \mathbf{1}[i=i^\star].
+\label{eq:alignment_fallback}
+\end{equation}
+Equation~\ref{eq:effective_teacher_weights} is then recomputed with this fallback
+mask. As a result, the current implementation never drops KD entirely for a sample
+after routing; instead, it keeps the least-negative routed teacher when necessary.
+
+\subsection{Sample-Wise KD Aggregation}
+
+The routed KD loss for sample \(b\) is the weighted combination
+\begin{equation}
+\bar{\mathcal{L}}_{KD}^{(b)}
+=
+\sum_{i=1}^{N} w_i^{(b)} \mathcal{L}_{KD}^{(b,i)}.
+\label{eq:sample_kd_average}
+\end{equation}
+
+The batch-level KD loss is then the mean over samples:
+\begin{equation}
+\mathcal{L}_{KD}
+=
+\frac{1}{B}\sum_{b=1}^{B}\bar{\mathcal{L}}_{KD}^{(b)}.
+\label{eq:batch_kd}
+\end{equation}
+
+This rule combines two stages: the gate proposes sparse teacher weights, and
+gradient alignment filters the routed teachers before the final weighted KD
+average is formed.
+
+\section{Final Objective and Training Procedure}
+
+\subsection{Final Objective}
+
+The final optimization objective is
+\begin{equation}
+\mathcal{L}
+=
+\mathcal{L}_{CE}
++
+\alpha \mathcal{L}_{KD}
++
+\lambda_{bal}\mathcal{L}_{bal},
+\label{eq:final_objective}
+\end{equation}
+where \(\mathcal{L}_{CE}\) is the standard supervised next-token cross-entropy loss and
+\(\mathcal{L}_{KD}\) is defined in Equation~\ref{eq:batch_kd}. The balance term
+\(\mathcal{L}_{bal}\) is defined in Equation~\ref{eq:balance_loss}.
+
+Equation~\ref{eq:final_objective} has an intuitive interpretation:
+\begin{itemize}
+\item \(\mathcal{L}_{CE}\) ensures the student always follows the ground-truth supervision,
+\item \(\alpha \mathcal{L}_{KD}\) adds teacher guidance through gated and alignment-filtered multi-teacher routing,
+\item \(\lambda_{bal}\mathcal{L}_{bal}\) regularizes the teacher gate against routing collapse.
+\end{itemize}
+
+\subsection{Training Procedure}
+
+\begin{algorithm}[H]
+\caption{Alignment-aware gated multi-teacher distillation}
+\label{alg:training_procedure}
+\begin{algorithmic}[1]
+\Require mini-batch \(\{(x_b, y_b)\}_{b=1}^B\), frozen teachers \(\{T_i\}_{i=1}^N\)
+\State Run \(S_\theta\) on the batch to obtain \(\mathbf{z}_s\), \(\mathbf{H}_s\), and \(\mathcal{L}_{CE}\)
+\State Compute \(\mathbf{r}=G(\mathrm{Pool}(\mathbf{H}_s))\) and \(\mathbf{p}=\mathrm{softmax}(\mathbf{r})\)
+\State Apply top-\(k\), capacity, and routing fallback to obtain \(\hat{\mathbf{p}}\)
+\For{each teacher \(T_i\)}
+    \State Compute teacher logits \(\mathbf{z}_t^{(i)}\)
+    \State Compute \(\mathcal{L}_{KD}^{(b,i)}\) and pooled KD gradient \(\tilde{\mathbf{g}}_i^{(b)}\)
+\EndFor
+\State Compute pooled CE gradient \(\tilde{\mathbf{g}}_{CE}^{(b)}\) and alignment scores \(s_i^{(b)}\)
+\If{warmup is finished}
+    \State Set \(a_i^{(b)}=\mathbf{1}[s_i^{(b)}>\delta]\)
+    \If{\(\sum_i a_i^{(b)}=0\)}
+        \State Activate \(i^\star=\arg\max_{i:\hat{p}_i^{(b)}>0} s_i^{(b)}\)
+    \EndIf
+    \State Compute effective weights \(w_i^{(b)} \propto \hat{p}_i^{(b)} a_i^{(b)}\)
+\Else
+    \State Use routed weights \(w_i^{(b)}=\hat{p}_i^{(b)}\)
+\EndIf
+\State Compute \(\mathcal{L}_{KD}\), \(\mathcal{L}_{bal}\), and
+\(\mathcal{L}=\mathcal{L}_{CE}+\alpha\mathcal{L}_{KD}+\lambda_{bal}\mathcal{L}_{bal}\)
+\State Update student parameters \(\theta\); keep all teachers frozen; update gate bias from assignment load
+\end{algorithmic}
+\end{algorithm}
+
+Compared with static multi-teacher averaging, this procedure makes the teacher contribution adaptive at the sample level.
+Compared with fixed teacher-set optimization, it avoids committing to one teacher subset for the entire training run.
+As a result, the method can exploit complementary teachers while still biasing the update toward teachers whose current KD signal is closer to the supervised objective and toward gates that remain balanced across teachers.

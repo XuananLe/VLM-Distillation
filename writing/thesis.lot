@@ -1,0 +1,7 @@
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {4.1}{\ignorespaces Dataset split sizes (number of QA pairs) for TextVQA, DocVQA and ChartQA \cite {singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.\relax }}{28}{table.caption.19}%
+\addvspace {10\p@ }
+\contentsline {table}{\numberline {5.1}{\ignorespaces Original benchmark results of the two SmolVLM models evaluated with VLM-Eval-Kit.\relax }}{30}{table.caption.20}%

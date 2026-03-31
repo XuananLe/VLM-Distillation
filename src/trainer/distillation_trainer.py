@@ -16,6 +16,8 @@ from src.trainer.distillation_utils import (
     build_teacher_batches,
     compute_teacher_forward,
     release_eval_memory,
+    select_labels_at_positions,
+    select_supervised_logit_positions,
 )
 
 
@@ -224,22 +226,41 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         return torch.stack(sample_losses)
 
     @staticmethod
-    def compute_ce_logit_grad(
+    def get_supervised_positions(
+        labels: torch.Tensor,
+        *,
+        skip_last: bool = False,
+    ) -> torch.Tensor:
+        positions = labels.ne(-100).nonzero(as_tuple=False).squeeze(-1)
+        if skip_last and positions.numel() > 0:
+            positions = positions[:-1]
+        return positions
+
+    def compute_pooled_ce_alignment_grad(
+        self,
         student_logits: torch.Tensor,
         student_labels: torch.Tensor,
     ) -> torch.Tensor:
-        ce_grad = F.softmax(student_logits.float(), dim=-1)
-        label_mask = student_labels != -100
-        if not label_mask.any():
-            return torch.zeros_like(student_logits, dtype=torch.float32)
+        pooled_grads = []
+        vocab_size = student_logits.size(-1)
+        zero_grad = student_logits.new_zeros((vocab_size,), dtype=torch.float32)
 
-        batch_idx, token_idx = label_mask.nonzero(as_tuple=True)
-        label_idx = student_labels[batch_idx, token_idx]
-        ce_grad[batch_idx, token_idx, label_idx] -= 1.0
-        ce_grad[~label_mask] = 0.0
-        return ce_grad
+        for sample_index in range(student_logits.size(0)):
+            positions = self.get_supervised_positions(student_labels[sample_index])
+            if positions.numel() == 0:
+                pooled_grads.append(zero_grad)
+                continue
 
-    def compute_kd_alignment_grad(
+            sample_labels = student_labels[sample_index, positions]
+            sample_grad = F.softmax(student_logits[sample_index, positions].float(), dim=-1)
+            sample_grad[torch.arange(sample_labels.numel(), device=sample_labels.device), sample_labels] -= 1.0
+            pooled_grads.append(sample_grad.sum(dim=0) / positions.numel())
+
+        if not pooled_grads:
+            return student_logits.new_zeros((0, vocab_size), dtype=torch.float32)
+        return torch.stack(pooled_grads, dim=0)
+
+    def compute_pooled_kd_alignment_grad(
         self,
         *,
         student_logits: torch.Tensor,
@@ -247,23 +268,33 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         teacher_logits: torch.Tensor,
         teacher_labels: torch.Tensor,
     ) -> torch.Tensor:
-        kd_grad = torch.zeros_like(student_logits, dtype=torch.float32)
-        for sample_index in range(student_logits.size(0)):
-            student_positions = student_labels[sample_index].ne(-100).nonzero(as_tuple=False).squeeze(-1)
-            teacher_positions = teacher_labels[sample_index].ne(-100).nonzero(as_tuple=False).squeeze(-1)
+        pooled_grads = []
+        vocab_size = student_logits.size(-1)
+        zero_grad = student_logits.new_zeros((vocab_size,), dtype=torch.float32)
 
-            if self.skip_student_eos and student_positions.numel() > 0:
-                student_positions = student_positions[:-1]
-            if self.skip_teacher_eos and teacher_positions.numel() > 0:
-                teacher_positions = teacher_positions[:-1]
+        for sample_index in range(student_logits.size(0)):
+            supervised_student_count = int(student_labels[sample_index].ne(-100).sum().item())
+            if supervised_student_count == 0:
+                pooled_grads.append(zero_grad)
+                continue
+
+            student_positions = self.get_supervised_positions(
+                student_labels[sample_index],
+                skip_last=self.skip_student_eos,
+            )
+            teacher_positions = self.get_supervised_positions(
+                teacher_labels[sample_index],
+                skip_last=self.skip_teacher_eos,
+            )
 
             matched_tokens = min(student_positions.numel(), teacher_positions.numel())
             if matched_tokens == 0:
+                pooled_grads.append(zero_grad)
                 continue
 
             student_positions = student_positions[:matched_tokens]
             teacher_positions = teacher_positions[:matched_tokens]
-            kd_grad[sample_index, student_positions] = self.distillation_logit_grad_fn(
+            sample_kd_grad = self.distillation_logit_grad_fn(
                 self.loss_function,
                 student_logits[sample_index, student_positions],
                 teacher_logits[sample_index, teacher_positions].to(
@@ -274,7 +305,11 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 student_temperature=self.student_temperature,
                 teacher_temperature=self.teacher_temperature,
             )
-        return kd_grad
+            pooled_grads.append(sample_kd_grad.sum(dim=0) / supervised_student_count)
+
+        if not pooled_grads:
+            return student_logits.new_zeros((0, vocab_size), dtype=torch.float32)
+        return torch.stack(pooled_grads, dim=0)
 
     def compute_teacher_gate_balance_loss(
         self,
@@ -355,46 +390,59 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         pooled_ce_grad = None
         if collect_alignment_tensors:
             with torch.no_grad():
-                pooled_ce_grad = self.teacher_gate.pool_tensor(
-                    self.compute_ce_logit_grad(student_logits.detach(), student_labels),
-                    labels=student_labels,
-                    attention_mask=student_attention_mask,
+                pooled_ce_grad = self.compute_pooled_ce_alignment_grad(
+                    student_logits.detach(),
+                    student_labels,
                 )
 
         for teacher_model, (teacher_inputs, teacher_labels) in zip(self.teacher_models, teacher_batches):
             prepared_teacher_labels = self._prepare_input(teacher_labels)
-            teacher_logits = compute_teacher_forward(
+            teacher_logit_positions = select_supervised_logit_positions(prepared_teacher_labels)
+            if teacher_logit_positions is None and not prepared_teacher_labels.ne(-100).any():
+                zero_losses = student_logits.new_zeros((student_logits.size(0),))
+                teacher_losses.append(zero_losses)
+                if pooled_ce_grad is not None:
+                    zero_alignment = pooled_ce_grad.new_zeros((student_logits.size(0),))
+                    alignment_scores.append(zero_alignment)
+                    alignment_active.append(zero_alignment > self.gradient_alignment_threshold)
+                continue
+
+            teacher_outputs = compute_teacher_forward(
                 teacher_model,
                 self._prepare_input(teacher_inputs),
                 output_hidden_states=False,
                 suppress_stdout=getattr(teacher_model, "_suppress_forward_stdout", False),
-            ).logits.detach()
+                logits_to_keep=teacher_logit_positions,
+            )
+            teacher_logits = teacher_outputs.logits.detach()
+            del teacher_outputs
+
+            selected_teacher_labels = select_labels_at_positions(
+                prepared_teacher_labels,
+                teacher_logit_positions,
+            )
+            effective_teacher_labels = (
+                selected_teacher_labels
+                if selected_teacher_labels.size(1) == teacher_logits.size(1)
+                else prepared_teacher_labels
+            )
             teacher_losses.append(
                 self.compute_single_teacher_loss(
                     student_logits=student_logits,
                     student_labels=student_labels,
                     teacher_logits=teacher_logits,
-                    teacher_labels=prepared_teacher_labels,
+                    teacher_labels=effective_teacher_labels,
                 )
             )
             if pooled_ce_grad is not None:
                 with torch.no_grad():
-                    pooled_kd_grad = self.teacher_gate.pool_tensor(
-                        self.compute_kd_alignment_grad(
-                            student_logits=student_logits.detach(),
-                            student_labels=student_labels,
-                            teacher_logits=teacher_logits,
-                            teacher_labels=prepared_teacher_labels,
-                        ),
-                        labels=student_labels,
-                        attention_mask=student_attention_mask,
+                    pooled_kd_grad = self.compute_pooled_kd_alignment_grad(
+                        student_logits=student_logits.detach(),
+                        student_labels=student_labels,
+                        teacher_logits=teacher_logits,
+                        teacher_labels=effective_teacher_labels,
                     )
-                    agreement = F.cosine_similarity(
-                        pooled_ce_grad,
-                        pooled_kd_grad,
-                        dim=-1,
-                        eps=1e-8,
-                    )
+                    agreement = F.cosine_similarity(pooled_ce_grad, pooled_kd_grad, dim=-1, eps=1e-8)
                 alignment_scores.append(agreement)
                 alignment_active.append(agreement > self.gradient_alignment_threshold)
                 del pooled_kd_grad

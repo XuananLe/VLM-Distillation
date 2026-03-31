@@ -1,0 +1,31 @@
+\chapter{Experiment Results}
+\label{chap:experiment-results}
+
+\section{Main Comparison Results}
+This section compares the proposed method with the baselines on TextVQA, DocVQA and ChartQA.
+
+\subsection{Baseline Results}
+Before applying any adaptation or distillation, we report the original performance of the two base student models, \textbf{SmolVLM-500M} and \textbf{SmolVLM-256M}. These baseline results establish the starting point for later comparison. All results are obtained using \textbf{VLM-Eval-Kit} under the same evaluation pipeline described in Chapter~\ref{chap:evaluation-methodology}.
+
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{TextVQA} & \textbf{DocVQA} & \textbf{ChartQA} \\
+\midrule
+SmolVLM-500M & 56.75 & 59.5247 & 62.8 \\
+SmolVLM-256M & 47.17 & 48.6411 & 45.04 \\
+\bottomrule
+\end{tabular}
+\caption{Original benchmark results of the two SmolVLM models evaluated with VLM-Eval-Kit.}
+\label{tab:smolvlm-original-results}
+\end{table}
+
+\section{Ablation Study}
+This section analyzes the effect of teacher-set selection, weighting strategy and student model size on final performance.
+
+\section{Qualitative Analysis}
+This section presents representative examples to inspect how distillation affects text reading and basic reasoning behavior.
+
+\section{Discussion}
+This section discusses the trade-off between model size, teacher supervision and transfer performance across the evaluated benchmarks.

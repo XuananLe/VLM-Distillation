@@ -1,0 +1,104 @@
+\chapter{Evaluation Methodology}
+\label{chap:evaluation-methodology}
+
+\section{Experimental Setup}
+All experiments follow a shared evaluation protocol for fair comparison across methods. The study focuses on the two compact student models, \textbf{SmolVLM-500M} and \textbf{SmolVLM-256M}, evaluated on text-rich multimodal benchmarks. All model evaluations are conducted using \textbf{VLM-Eval-Kit} \cite{duan2024vlmevalkit}. In brief, the toolkit works as follows:
+\begin{enumerate}
+\item Load a benchmark split and apply its prompt template or input format.
+\item Run model inference through a unified model wrapper interface.
+\item Post-process raw generations into normalized answers.
+\item Compute dataset-specific scores (e.g., VQA Accuracy, ANLS, Relaxed Accuracy) and aggregate final results.
+\end{enumerate}
+This unified pipeline ensures a consistent evaluation procedure across all compared models.
+
+\section{Datasets}
+We evaluate on three text-centric VQA benchmarks: \textbf{TextVQA}, \textbf{DocVQA} and \textbf{ChartQA}.  
+The main purpose is to measure whether the model can \textbf{read textual content in images, understand questions and perform basic reasoning} across different visual domains (natural scenes, scanned documents and charts). These datasets are selected because they require OCR-heavy understanding, cover complementary visual domains and include retrieval, layout understanding and numerical reasoning.
+
+\subsection{Dataset Descriptions}
+\textbf{TextVQA} \cite{singh2019vqamodelsread}: evaluates question answering on natural images containing scene text.  
+It focuses on reading text in-the-wild and combining it with question understanding.
+\textit{Sample question}: ``What word is written on the stop sign?''
+\textit{Sample answer}: ``No word is visible on this sign.''
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.32\linewidth]{figures/textvqa_sample_stop_sign.jpg}
+    \caption{Example image for a TextVQA-style question \cite{wikimedia_stop_sign_image}.}
+    \label{fig:textvqa-sample}
+\end{figure}
+
+\textbf{DocVQA} \cite{mathew2021docvqadatasetvqadocument}: evaluates VQA on real document images (scans/photos), where layout, paragraphs, tables and forms are important.  
+It emphasizes document structure understanding in addition to OCR.
+\textit{Sample question}: ``What is the invoice number shown in this document?''
+\textit{Sample answer}: ``4572.''
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.40\linewidth]{figures/docvqa_sample_receipt.jpg}
+    \caption{Example document image for a DocVQA-style question \cite{wikimedia_receipt_swiss_image}.}
+    \label{fig:docvqa-sample}
+\end{figure}
+
+\textbf{ChartQA} \cite{masry2022chartqabenchmarkquestionanswering}: evaluates question answering over charts.  
+It tests chart reading plus numerical and logical reasoning to derive the final answer.
+\textit{Sample question}: ``Which year has the highest sales value in the chart?''
+\textit{Sample answer}: ``The second (middle) bar has the highest value.''
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.40\linewidth]{figures/chartqa_sample_bar_chart.png}
+    \caption{Example chart image for a ChartQA-style question \cite{wikimedia_bar_chart_image}.}
+    \label{fig:chartqa-sample}
+\end{figure}
+
+\subsection{Dataset Size and Splits}
+\begin{table}[htbp]
+\centering
+\scalebox{0.96}{
+\begin{tabular}{lrrrr}
+\toprule
+\textbf{Dataset} & \textbf{Train} & \textbf{Val} & \textbf{Test} & \textbf{Total} \\
+\midrule
+TextVQA & 34,602 & 5,000 & 5,734 & 45,336 \\
+DocVQA & 39,463 & 5,349 & 5,188 & 50,000 \\
+ChartQA-H (human) & 7,398 & 960 & 1,250 & 9,608 \\
+ChartQA-M (machine) & 20,901 & 960 & 1,250 & 23,111 \\
+ChartQA (H+M, combined) & 28,299 & 1,920 & 2,500 & 32,719 \\
+\bottomrule
+\end{tabular}
+}
+\caption{Dataset split sizes (number of QA pairs) for TextVQA, DocVQA and ChartQA \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.}
+\label{tab:dataset-sizes}
+\end{table}
+
+\section{Evaluation Metrics}
+We report benchmark-specific official metrics for each dataset:
+\begin{itemize}
+\item \textbf{TextVQA}: \textbf{VQA Accuracy}. For a predicted answer \(\hat{a}\), the per-question score is
+\[
+s_{\text{VQA}}=\min\left(\frac{\#\text{annotators that provided } \hat{a}}{3},\,1\right),
+\]
+and the final score is the mean over all questions \cite{singh2019vqamodelsread}.
+
+\item \textbf{DocVQA}: \textbf{ANLS} (Average Normalized Levenshtein Similarity):
+\[
+\mathrm{NLS}(a,\hat{a})=1-\frac{d_{\text{Lev}}(a,\hat{a})}{\max(|a|,|\hat{a}|)}, \quad
+s_{\text{ANLS}}=
+\begin{cases}
+\mathrm{NLS}(a,\hat{a}), & \mathrm{NLS}\ge 0.5,\\
+0, & \text{otherwise}.
+\end{cases}
+\]
+The final ANLS is the average score over all samples \cite{mathew2021docvqadatasetvqadocument}.
+
+\item \textbf{ChartQA}: \textbf{Relaxed Accuracy}. A prediction is correct if it matches exactly for text answers, or if the relative error is within \(5\%\) for numeric answers:
+\[
+\frac{|\hat{y}-y|}{|y|}\le 0.05.
+\]
+The final score is the proportion of correct predictions \cite{masry2022chartqabenchmarkquestionanswering}.
+\end{itemize}
+
+\section{Baselines and Compared Methods}
+\textbf{Full finetuning.} This baseline updates all trainable parameters of the student VLM on the target training data. It provides a strong upper-baseline adaptation setting because the model is optimized directly for the downstream task without distillation constraints. The training objective is the standard supervised next-token prediction loss:
+\begin{equation}
+\mathcal{L}_{\text{FT}} = - \sum_{t=1}^{T} \log p_{\theta}(y_t \mid x, y_{<t}),
+\end{equation}
+where \(x\) denotes the multimodal input, \(y_t\) is the target token at step \(t\) and \(\theta\) denotes all trainable parameters of the model.
