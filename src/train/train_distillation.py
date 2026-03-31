@@ -22,9 +22,7 @@ from src.trainer.distillation_trainer import DistillationTrainer
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, TrainingArguments
 from src.train.distillation_setup import (
-    VlmEvalOnSaveCallback,
     DistillationArguments,
-    infer_post_save_eval_datasets,
     log_distillation_setup,
     validate_distillation_args,
 )
@@ -327,14 +325,6 @@ def train_distillation():
 
     rank0_print("\nInitializing distillation trainer...")
     trainer_callbacks = []
-    trainer_callbacks.append(
-        VlmEvalOnSaveCallback(
-            root_dir=ROOT_DIR,
-            student_model_id=distillation_args.student_model_id,
-            eval_base_dir=distillation_args.post_save_eval_root,
-            dataset_names=infer_post_save_eval_datasets(data_args.data_path),
-        )
-    )
     if training_args.early_stopping_patience is not None:
         if data_module["eval_dataset"] is None:
             raise ValueError("Early stopping requires --eval_data_path.")
@@ -368,6 +358,12 @@ def train_distillation():
         skip_student_eos=distillation_args.skip_student_eos,
         skip_teacher_eos=distillation_args.skip_teacher_eos,
         alpha=distillation_args.alpha,
+        teacher_gate_balance_alpha=distillation_args.teacher_gate_balance_alpha,
+        teacher_gate_top_k=distillation_args.teacher_gate_top_k,
+        teacher_gate_capacity_factor=distillation_args.teacher_gate_capacity_factor,
+        teacher_gate_bias_update_rate=distillation_args.teacher_gate_bias_update_rate,
+        gradient_alignment_threshold=distillation_args.gradient_alignment_threshold,
+        gradient_alignment_warmup_ratio=distillation_args.gradient_alignment_warmup_ratio,
         processing_class=processor,
         args=training_args,
         callbacks=trainer_callbacks,

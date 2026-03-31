@@ -13,7 +13,6 @@ TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-$TEMPERATURE}"
 ALPHA=0.5
 DATASET_NAME="textvqa"
 EVAL_SPLIT="validation"
-POST_SAVE_EVAL_ROOT="${POST_SAVE_EVAL_ROOT:-/output/vlmeval}"
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME="${TEACHER_MODEL##*/}"
 OUTPUT_DIR="/output/${DISTILLATION_LOSS}_single_teacher_${TEACHER_NAME}_${STUDENT_NAME}_${DATASET_NAME}"
@@ -34,7 +33,6 @@ deepspeed src/train/train_distillation.py \
     --student_temperature "$STUDENT_TEMPERATURE" \
     --teacher_temperature "$TEACHER_TEMPERATURE" \
     --alpha "$ALPHA" \
-    --post_save_eval_root "$POST_SAVE_EVAL_ROOT" \
     --num_train_epochs 1 \
     --per_device_train_batch_size 16 \
     --gradient_accumulation_steps 1 \

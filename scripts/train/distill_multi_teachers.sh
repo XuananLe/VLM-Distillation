@@ -14,10 +14,15 @@ TEMPERATURE=1.0
 STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-$TEMPERATURE}"
 TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-$TEMPERATURE}"
 ALPHA=0.6
+TEACHER_GATE_BALANCE_ALPHA=5e-2
+TEACHER_GATE_TOP_K=2
+TEACHER_GATE_CAPACITY_FACTOR=1.25
+TEACHER_GATE_BIAS_UPDATE_RATE=1e-3
+GRADIENT_ALIGNMENT_THRESHOLD=0.0
+GRADIENT_ALIGNMENT_WARMUP_RATIO=0.05
 NUM_TEACHERS=4
 DATASET_NAME="textvqa"
 EVAL_SPLIT="validation"
-POST_SAVE_EVAL_ROOT="/output/vlmeval"
 PER_DEVICE_TRAIN_BATCH_SIZE=16
 GRADIENT_ACCUMULATION_STEPS=1
 STUDENT_NAME="${STUDENT_MODEL##*/}"
@@ -44,7 +49,12 @@ deepspeed src/train/train_distillation.py \
     --student_temperature "$STUDENT_TEMPERATURE" \
     --teacher_temperature "$TEACHER_TEMPERATURE" \
     --alpha "$ALPHA" \
-    --post_save_eval_root "$POST_SAVE_EVAL_ROOT" \
+    --teacher_gate_balance_alpha "$TEACHER_GATE_BALANCE_ALPHA" \
+    --teacher_gate_top_k "$TEACHER_GATE_TOP_K" \
+    --teacher_gate_capacity_factor "$TEACHER_GATE_CAPACITY_FACTOR" \
+    --teacher_gate_bias_update_rate "$TEACHER_GATE_BIAS_UPDATE_RATE" \
+    --gradient_alignment_threshold "$GRADIENT_ALIGNMENT_THRESHOLD" \
+    --gradient_alignment_warmup_ratio "$GRADIENT_ALIGNMENT_WARMUP_RATIO" \
     --num_train_epochs 1 \
     --per_device_train_batch_size "$PER_DEVICE_TRAIN_BATCH_SIZE" \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
@@ -62,7 +72,7 @@ deepspeed src/train/train_distillation.py \
     --logging_steps 10 \
     --save_strategy steps \
     --save_steps 100 \
-    --save_total_limit 5 \
+    --save_total_limit 100 \
     --save_only_model False \
     --eval_strategy no \
     --dataloader_num_workers 4 \
