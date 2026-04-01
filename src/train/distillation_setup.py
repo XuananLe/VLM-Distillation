@@ -15,6 +15,11 @@ class DistillationArguments:
         metadata={"help": "Teacher model IDs as a Python list literal or comma-separated string."}
     )
 
+    teacher_weighting_strategy: str = field(
+        default="routing",
+        metadata={"help": "Teacher weighting strategy: `routing` or `uniform_mean`."},
+    )
+
     distillation_loss: str = field(
         default="uld_loss",
         metadata={
@@ -38,18 +43,18 @@ class DistillationArguments:
     )
 
     skip_student_eos: bool = field(
-        default=True,
-        metadata={"help": "Drop the last supervised student token from KD, matching the paper's optional EOS skip."}
+        default=False,
+        metadata={"help": "Optionally drop the last supervised student token from KD."}
     )
 
     skip_teacher_eos: bool = field(
-        default=True,
-        metadata={"help": "Drop the last supervised teacher token from KD, matching the paper's optional EOS skip."}
+        default=False,
+        metadata={"help": "Optionally drop the last supervised teacher token from KD."}
     )
 
     alpha: float = field(
         default=1.0,
-        metadata={"help": "Weight on KD in `ce_loss + alpha * kd_loss`."},
+        metadata={"help": "KD mixing weight in `(1 - alpha) * ce_loss + alpha * kd_loss`."},
     )
 
     teacher_gate_balance_alpha: float = field(
@@ -84,8 +89,10 @@ class DistillationArguments:
 
 
 def validate_distillation_args(distillation_args) -> None:
-    if distillation_args.alpha < 0.0:
-        raise ValueError("--alpha must be >= 0.")
+    if distillation_args.teacher_weighting_strategy not in {"routing", "uniform_mean"}:
+        raise ValueError("--teacher_weighting_strategy must be `routing` or `uniform_mean`.")
+    if not 0.0 <= distillation_args.alpha <= 1.0:
+        raise ValueError("--alpha must be between 0 and 1.")
     if distillation_args.teacher_gate_balance_alpha < 0.0:
         raise ValueError("--teacher_gate_balance_alpha must be >= 0.")
     if distillation_args.teacher_gate_top_k < 1:
@@ -119,12 +126,13 @@ def log_distillation_setup(
     rank0_print(f"Teacher Model(s): {teacher_ids}")
     rank0_print(
         "Teacher Weighting: learned deep gate + balancing + gradient alignment"
-        if len(teacher_ids) > 1
+        if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing"
         else "Teacher Weighting: uniform mean"
     )
-    rank0_print("Objective: CE + alpha * KD")
+    rank0_print("Objective: (1 - alpha) * CE + alpha * KD")
     rank0_print(f"KD Function: {distillation_args.distillation_loss}")
-    rank0_print(f"Alpha: {distillation_args.alpha}")
+    rank0_print(f"KD Weight (Alpha): {distillation_args.alpha}")
+    rank0_print(f"CE Weight: {1.0 - distillation_args.alpha}")
     resolved_student_temperature = (
         distillation_args.temperature
         if distillation_args.student_temperature is None
@@ -139,7 +147,7 @@ def log_distillation_setup(
     rank0_print(f"Teacher Temperature: {resolved_teacher_temperature}")
     rank0_print(f"Skip Student EOS: {distillation_args.skip_student_eos}")
     rank0_print(f"Skip Teacher EOS: {distillation_args.skip_teacher_eos}")
-    if len(teacher_ids) > 1:
+    if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing":
         rank0_print(f"Teacher Gate Balance Alpha: {distillation_args.teacher_gate_balance_alpha}")
         rank0_print(f"Teacher Gate Top-k: {distillation_args.teacher_gate_top_k}")
         rank0_print(f"Teacher Gate Capacity Factor: {distillation_args.teacher_gate_capacity_factor}")

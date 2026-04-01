@@ -351,6 +351,7 @@ def train_distillation():
     trainer = DistillationTrainer(
         model=student_model,
         teacher_model=teacher_models,
+        teacher_weighting_strategy=distillation_args.teacher_weighting_strategy,
         loss_function=distillation_args.distillation_loss,
         temperature=distillation_args.temperature,
         student_temperature=distillation_args.student_temperature,

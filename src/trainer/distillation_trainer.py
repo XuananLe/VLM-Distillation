@@ -25,6 +25,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
     def __init__(
         self,
         teacher_model: PreTrainedModel = None,
+        teacher_weighting_strategy: str = "routing",
         loss_function: str = "uld_loss",
         temperature: float = 2.0,
         student_temperature: float | None = None,
@@ -45,8 +46,8 @@ class DistillationTrainer(SmolVLMSFTTrainer):
 
         from src.components import loss as distillation_loss_module
 
-        if alpha < 0.0:
-            raise ValueError("DistillationTrainer requires `alpha >= 0`.")
+        if not 0.0 <= alpha <= 1.0:
+            raise ValueError("DistillationTrainer requires `0 <= alpha <= 1`.")
         if teacher_gate_balance_alpha < 0.0:
             raise ValueError("DistillationTrainer requires `teacher_gate_balance_alpha >= 0`.")
         if teacher_gate_top_k < 1:
@@ -59,10 +60,16 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             raise ValueError("DistillationTrainer requires `gradient_alignment_warmup_ratio >= 0`.")
         if not hasattr(distillation_loss_module, loss_function):
             raise ValueError(f"Unknown distillation loss: {loss_function!r}")
+        if teacher_weighting_strategy not in {"routing", "uniform_mean"}:
+            raise ValueError(
+                "DistillationTrainer requires `teacher_weighting_strategy` to be "
+                "`routing` or `uniform_mean`."
+            )
 
         self.loss_function = loss_function
         self.distillation_loss_fn = getattr(distillation_loss_module, loss_function)
         self.distillation_logit_grad_fn = distillation_loss_module.distillation_logit_grad
+        self.teacher_weighting_strategy = teacher_weighting_strategy
 
         if teacher_model is None:
             raise ValueError("teacher_model must be provided for distillation.")
@@ -77,7 +84,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 param.requires_grad = False
 
         self.teacher_gate = None
-        if len(self.teacher_models) > 1:
+        if len(self.teacher_models) > 1 and self.teacher_weighting_strategy == "routing":
             self.teacher_gate = Gate(
                 self.model,
                 len(self.teacher_models),
@@ -107,17 +114,17 @@ class DistillationTrainer(SmolVLMSFTTrainer):
 
         print("Distillation Trainer initialized:")
         print(f"  - Teachers: {len(self.teacher_models)}")
-        print(
-            "  - Teacher weighting: learned deep gate + balancing + gradient alignment"
-            if len(self.teacher_models) > 1
-            else "  - Teacher weighting: uniform mean"
-        )
+        if len(self.teacher_models) > 1 and self.teacher_weighting_strategy == "routing":
+            print("  - Teacher weighting: learned deep gate + balancing + gradient alignment")
+        else:
+            print("  - Teacher weighting: uniform mean")
         print(f"  - Loss function: {loss_function}")
         print(f"  - Student temperature: {self.student_temperature}")
         print(f"  - Teacher temperature: {self.teacher_temperature}")
         print(f"  - Skip student EOS: {self.skip_student_eos}")
         print(f"  - Skip teacher EOS: {self.skip_teacher_eos}")
-        print(f"  - Alpha: {alpha}")
+        print(f"  - KD weight (alpha): {alpha}")
+        print(f"  - CE weight: {1.0 - alpha}")
         if self.teacher_gate is not None:
             print(f"  - Teacher gate balance alpha: {teacher_gate_balance_alpha}")
             print(f"  - Teacher gate top-k: {teacher_gate_top_k}")
@@ -125,7 +132,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             print(f"  - Teacher gate bias update rate: {teacher_gate_bias_update_rate}")
             print(f"  - Gradient alignment threshold: {gradient_alignment_threshold}")
             print(f"  - Gradient alignment warmup ratio: {gradient_alignment_warmup_ratio}")
-        print("  - Loss weighting: CE + alpha * KD")
+        print("  - Loss weighting: (1 - alpha) * CE + alpha * KD")
 
     @override
     def _prepare_inputs(self, inputs):
@@ -579,7 +586,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             self.eval_ce_loss_sum += ce_loss.detach().float().item() * batch_size
             self.eval_ce_loss_count += batch_size
 
-        loss = ce_loss + self.alpha * distillation_loss
+        loss = (1.0 - self.alpha) * ce_loss + self.alpha * distillation_loss
         if teacher_gate_balance_loss is not None:
             loss = loss + teacher_gate_balance_loss * self.teacher_gate_balance_alpha
 
