@@ -1329,9 +1329,7 @@ idefics_series = {
 
 smolvlm_series = {
     "SmolVLM-256M": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-256M-Instruct"),
-    "SmolVLM-500M-Routing": partial(SmolVLM, model_path="/output/checkpoint-700"),
-    "SmolVLM-500M-Load-Balancing-Best-Eval-Ce": partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2-VL-2B-Instruct_Qwen2.5-VL-3B-Instruct_InternVL3-1B_gemma-3-4b-it_SmolVLM-500M-Instruct_chartqa_20260328_025915/checkpoint-400"),
-    "SmolVLM-500M-Load-Balancing": partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2-VL-2B-Instruct_Qwen2.5-VL-3B-Instruct_InternVL3-1B_gemma-3-4b-it_SmolVLM-500M-Instruct_chartqa_20260328_025915/checkpoint-700"),
+    "SmolVLM-500M": partial(SmolVLM, model_path="/output/uld_loss_2_teachers_Qwen2-VL-2B-Instruct_Qwen2.5-VL-3B-Instruct_SmolVLM-500M-Instruct_docvqa_20260402_1739/checkpoint-1000"),
     "SmolVLM": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-Instruct"),
     "SmolVLM-DPO": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-Instruct-DPO"),
     "SmolVLM-Synthetic": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-Synthetic"),

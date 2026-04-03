@@ -11,6 +11,14 @@ import os
 import math
 
 
+def _pop_control_kwargs(kwargs):
+    control_kwargs = {}
+    for key in ("use_vllm", "use_lmdeploy"):
+        if key in kwargs:
+            control_kwargs[key] = kwargs.pop(key)
+    return control_kwargs
+
+
 def _checkpoint_sort_key(path):
     name = osp.basename(path.rstrip("/"))
     if name.startswith("checkpoint-"):
@@ -103,6 +111,7 @@ class SmolVLM(BaseModel):
     def __init__(self, model_path="HuggingFaceTB/SmolVLM-Instruct", **kwargs):
         from transformers import AutoProcessor, Idefics3ForConditionalGeneration
 
+        control_kwargs = _pop_control_kwargs(kwargs)
         resolved_model_path = _resolve_model_path(model_path)
         assert osp.exists(resolved_model_path) or splitlen(resolved_model_path) == 2
 
@@ -114,6 +123,14 @@ class SmolVLM(BaseModel):
         kwargs_default = {"max_new_tokens": 2048, "use_cache": True}
         kwargs_default.update(kwargs)
         self.kwargs = kwargs_default
+        if control_kwargs.get("use_vllm"):
+            warnings.warn(
+                "SmolVLM does not use vLLM in this wrapper; ignoring `use_vllm` during generation."
+            )
+        if control_kwargs.get("use_lmdeploy"):
+            warnings.warn(
+                "SmolVLM does not use lmdeploy in this wrapper; ignoring `use_lmdeploy` during generation."
+            )
         warnings.warn(
             f"Following kwargs received: {self.kwargs}, will use as generation config."
         )
@@ -448,6 +465,7 @@ class SmolVLM2(BaseModel):
         from transformers import AutoProcessor, AutoModelForImageTextToText
         import torch
 
+        control_kwargs = _pop_control_kwargs(kwargs)
         resolved_model_path = _resolve_model_path(model_path)
         assert osp.exists(resolved_model_path) or splitlen(resolved_model_path) == 2
 
@@ -470,6 +488,14 @@ class SmolVLM2(BaseModel):
         kwargs_default = {"max_new_tokens": 2048, "do_sample": False, "use_cache": True}
         kwargs_default.update(kwargs)
         self.kwargs = kwargs_default
+        if control_kwargs.get("use_vllm"):
+            warnings.warn(
+                "SmolVLM2 does not use vLLM in this wrapper; ignoring `use_vllm` during generation."
+            )
+        if control_kwargs.get("use_lmdeploy"):
+            warnings.warn(
+                "SmolVLM2 does not use lmdeploy in this wrapper; ignoring `use_lmdeploy` during generation."
+            )
         warnings.warn(
             f"Following kwargs received: {self.kwargs}, will use as generation config."
         )

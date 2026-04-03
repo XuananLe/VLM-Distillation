@@ -1,10 +1,12 @@
 import math
 import os
+import time
 from typing import override
 
 import torch
 import torch.nn.functional as F
 from transformers import PreTrainedModel
+from transformers.trainer import PREFIX_CHECKPOINT_DIR, TRAINER_STATE_NAME
 
 from src.components.forward_utils import (
     forward_with_kwarg_retry,
@@ -39,6 +41,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         teacher_gate_bias_update_rate: float = 1e-3,
         gradient_alignment_threshold: float = 0.0,
         gradient_alignment_warmup_ratio: float = 0.0,
+        gradient_alignment_sigmoid_temperature: float = 0.02,
         *args,
         **kwargs
     ):
@@ -58,6 +61,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             raise ValueError("DistillationTrainer requires `teacher_gate_bias_update_rate >= 0`.")
         if gradient_alignment_warmup_ratio < 0.0:
             raise ValueError("DistillationTrainer requires `gradient_alignment_warmup_ratio >= 0`.")
+        if gradient_alignment_sigmoid_temperature <= 0.0:
+            raise ValueError(
+                "DistillationTrainer requires `gradient_alignment_sigmoid_temperature > 0`."
+            )
         if not hasattr(distillation_loss_module, loss_function):
             raise ValueError(f"Unknown distillation loss: {loss_function!r}")
         if teacher_weighting_strategy not in {"routing", "uniform_mean"}:
@@ -108,9 +115,12 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.teacher_gate_bias_update_rate = teacher_gate_bias_update_rate
         self.gradient_alignment_threshold = gradient_alignment_threshold
         self.gradient_alignment_warmup_ratio = gradient_alignment_warmup_ratio
+        self.gradient_alignment_sigmoid_temperature = gradient_alignment_sigmoid_temperature
         self.non_lora_require_grad_only = True
         self.eval_ce_loss_sum = 0.0
         self.eval_ce_loss_count = 0
+        self.last_compute_loss_end_time = None
+        self.latest_train_ce_loss = None
 
         print("Distillation Trainer initialized:")
         print(f"  - Teachers: {len(self.teacher_models)}")
@@ -132,7 +142,30 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             print(f"  - Teacher gate bias update rate: {teacher_gate_bias_update_rate}")
             print(f"  - Gradient alignment threshold: {gradient_alignment_threshold}")
             print(f"  - Gradient alignment warmup ratio: {gradient_alignment_warmup_ratio}")
+            print(
+                "  - Gradient alignment sigmoid temperature: "
+                f"{gradient_alignment_sigmoid_temperature}"
+            )
         print("  - Loss weighting: (1 - alpha) * CE + alpha * KD")
+
+    @staticmethod
+    def summarize_teacher_vector(prefix: str, values: torch.Tensor) -> dict[str, float]:
+        return {
+            f"{prefix}_{teacher_index}": value.item()
+            for teacher_index, value in enumerate(values.detach().mean(dim=0))
+        }
+
+    @staticmethod
+    def mean_categorical_entropy(weights: torch.Tensor) -> torch.Tensor:
+        safe_weights = weights.clamp(min=torch.finfo(weights.dtype).eps)
+        return (-(safe_weights * safe_weights.log()).sum(dim=-1)).mean()
+
+    def tracks_best_checkpoint_by_train_ce(self) -> bool:
+        metric_name = getattr(self.args, "metric_for_best_model", None)
+        return (
+            getattr(self.args, "eval_strategy", "no") == "no"
+            and metric_name in (None, "train_ce_loss", "ce_loss", "train/ce_loss")
+        )
 
     @override
     def _prepare_inputs(self, inputs):
@@ -341,7 +374,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self,
         routing_scores: torch.Tensor,
         teacher_gate_weights: torch.Tensor,
-    ) -> tuple[torch.Tensor, int, torch.Tensor, torch.Tensor]:
+    ) -> tuple[torch.Tensor, int, torch.Tensor, torch.Tensor, torch.Tensor]:
         batch_size, num_teachers = teacher_gate_weights.shape
         top_k = min(self.teacher_gate_top_k, num_teachers)
         capacity = max(
@@ -366,6 +399,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             assignment_mask[sample_indices, teacher_index] = True
 
         missing_indices = (routed_weights.sum(dim=-1) == 0).nonzero(as_tuple=True)[0]
+        fallback_rate = teacher_gate_weights.new_tensor(missing_indices.numel() / max(batch_size, 1))
         if missing_indices.numel() > 0:
             fallback_indices = routing_scores.argmax(dim=-1)
             routed_weights[missing_indices, fallback_indices[missing_indices]] = teacher_gate_weights[
@@ -379,7 +413,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         )
         expert_load = assignment_mask.float().sum(dim=0)
         assignment_rate = expert_load / max(batch_size, 1)
-        return routed_weights, capacity, assignment_rate, expert_load
+        return routed_weights, capacity, assignment_rate, expert_load, fallback_rate
 
     def compute_teacher_loss_matrix(
         self,
@@ -470,32 +504,65 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         teacher_gate_weights: torch.Tensor | None,
         teacher_alignment_scores: torch.Tensor | None,
         teacher_alignment_active: torch.Tensor | None,
-    ) -> tuple[torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
+    ) -> tuple[
+        torch.Tensor | None,
+        torch.Tensor | None,
+        torch.Tensor | None,
+        torch.Tensor | None,
+        torch.Tensor | None,
+    ]:
         if (
             teacher_gate_weights is None
             or teacher_alignment_scores is None
             or teacher_alignment_active is None
         ):
-            return teacher_gate_weights, teacher_alignment_scores, teacher_alignment_active
+            return (
+                teacher_gate_weights,
+                teacher_alignment_scores,
+                teacher_alignment_active,
+                None,
+                None,
+            )
 
         available_mask = teacher_gate_weights > 0
-        teacher_alignment_active = teacher_alignment_active & available_mask
-        missing_samples = ~teacher_alignment_active.any(dim=-1)
+        alignment_weights = torch.sigmoid(
+            (teacher_alignment_scores - self.gradient_alignment_threshold)
+            / self.gradient_alignment_sigmoid_temperature
+        ) * available_mask.to(dtype=teacher_gate_weights.dtype)
+
+        effective_weights = teacher_gate_weights * alignment_weights
+        missing_samples = effective_weights.sum(dim=-1) <= torch.finfo(effective_weights.dtype).eps
+        fallback_rate = missing_samples.to(dtype=teacher_gate_weights.dtype).mean()
         if missing_samples.any():
             masked_scores = teacher_alignment_scores.masked_fill(~available_mask, float("-inf"))
             fallback_indices = masked_scores.argmax(dim=-1, keepdim=True)
-            fallback_mask = torch.zeros_like(teacher_alignment_active)
-            fallback_mask.scatter_(1, fallback_indices, True)
-            teacher_alignment_active = teacher_alignment_active | (fallback_mask & missing_samples.unsqueeze(-1))
+            fallback_mask = torch.zeros_like(effective_weights)
+            fallback_mask.scatter_(1, fallback_indices, 1.0)
+            effective_weights = torch.where(
+                missing_samples.unsqueeze(-1),
+                teacher_gate_weights * fallback_mask,
+                effective_weights,
+            )
 
-        effective_weights = teacher_gate_weights * teacher_alignment_active.to(dtype=teacher_gate_weights.dtype)
         effective_weights = effective_weights / effective_weights.sum(dim=-1, keepdim=True).clamp(
             min=torch.finfo(effective_weights.dtype).eps
         )
-        return effective_weights, teacher_alignment_scores, teacher_alignment_active
+        return (
+            effective_weights,
+            teacher_alignment_scores,
+            teacher_alignment_active,
+            alignment_weights,
+            fallback_rate,
+        )
 
     @override
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        compute_loss_start_time = time.perf_counter()
+        outside_compute_loss_time = (
+            None
+            if self.last_compute_loss_end_time is None
+            else compute_loss_start_time - self.last_compute_loss_end_time
+        )
         target_device = inputs["input_ids"].device
         for index, teacher_model in enumerate(self.teacher_models):
             teacher_device = next(teacher_model.parameters()).device
@@ -511,11 +578,15 @@ class DistillationTrainer(SmolVLMSFTTrainer):
 
         if self.teacher_gate is not None:
             self.teacher_gate.reset()
+        student_forward_start_time = time.perf_counter()
         student_outputs = forward_with_kwarg_retry(
             model,
             {**student_inputs, "return_dict": True, "output_hidden_states": False},
         )
+        student_forward_time = time.perf_counter() - student_forward_start_time
         student_logits = student_outputs.logits
+        teacher_gate_time = 0.0
+        teacher_gate_start_time = time.perf_counter()
         teacher_gate_logits = (
             self.teacher_gate.compute_router_logits(
                 labels=student_inputs["labels"],
@@ -524,6 +595,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             if self.teacher_gate is not None
             else None
         )
+        teacher_gate_time = time.perf_counter() - teacher_gate_start_time
         teacher_gate_weights = (
             torch.softmax(teacher_gate_logits, dim=-1)
             if teacher_gate_logits is not None
@@ -540,7 +612,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         teacher_gate_capacity = None
         teacher_gate_assignment_rate = None
         teacher_gate_expert_load = None
+        teacher_gate_routing_fallback_rate = None
         routed_teacher_gate_weights = teacher_gate_weights
+        routing_constraint_time = 0.0
+        routing_constraint_start_time = time.perf_counter()
         if teacher_gate_weights is not None:
             (
                 teacher_gate_balance_loss,
@@ -555,26 +630,40 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 teacher_gate_capacity,
                 teacher_gate_assignment_rate,
                 teacher_gate_expert_load,
+                teacher_gate_routing_fallback_rate,
             ) = self.apply_teacher_gate_constraints(
                 teacher_gate_routing_scores,
                 teacher_gate_weights,
             )
             if model.training:
                 self.teacher_gate.update_expert_bias(teacher_gate_expert_load.detach())
+        routing_constraint_time = time.perf_counter() - routing_constraint_start_time
+        teacher_loss_matrix_start_time = time.perf_counter()
         teacher_loss_matrix, teacher_alignment_scores, teacher_alignment_active = self.compute_teacher_loss_matrix(
             student_logits=student_logits,
             student_labels=student_inputs["labels"],
             student_attention_mask=student_inputs.get("attention_mask"),
             teacher_batches=teacher_batches,
         )
+        teacher_loss_matrix_time = time.perf_counter() - teacher_loss_matrix_start_time
         ce_loss = student_outputs.loss
-        effective_teacher_gate_weights, teacher_alignment_scores, teacher_alignment_active = (
+        if model.training:
+            self.latest_train_ce_loss = ce_loss.detach().float().item()
+        alignment_routing_start_time = time.perf_counter()
+        (
+            effective_teacher_gate_weights,
+            teacher_alignment_scores,
+            teacher_alignment_active,
+            teacher_alignment_weights,
+            teacher_alignment_fallback_rate,
+        ) = (
             self.apply_gradient_alignment_routing(
                 teacher_gate_weights=routed_teacher_gate_weights,
                 teacher_alignment_scores=teacher_alignment_scores,
                 teacher_alignment_active=teacher_alignment_active,
             )
         )
+        alignment_routing_time = time.perf_counter() - alignment_routing_start_time
         distillation_loss = teacher_loss_matrix.mean()
         if effective_teacher_gate_weights is not None:
             distillation_loss = (teacher_loss_matrix * effective_teacher_gate_weights).sum(dim=-1).mean()
@@ -590,26 +679,60 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         if teacher_gate_balance_loss is not None:
             loss = loss + teacher_gate_balance_loss * self.teacher_gate_balance_alpha
 
+        compute_loss_time = time.perf_counter() - compute_loss_start_time
+        self.last_compute_loss_end_time = time.perf_counter()
+
         if self.state.global_step % self.args.logging_steps == 0:
             metrics = {
                 "loss": loss.item(),
                 "distillation_loss": distillation_loss.item(),
                 "ce_loss": ce_loss.item(),
+                "perf_compute_loss_s": compute_loss_time,
+                "perf_student_forward_s": student_forward_time,
+                "perf_teacher_gate_s": teacher_gate_time,
+                "perf_routing_constraint_s": routing_constraint_time,
+                "perf_teacher_loss_matrix_s": teacher_loss_matrix_time,
+                "perf_alignment_routing_s": alignment_routing_time,
             }
+            if outside_compute_loss_time is not None:
+                metrics["perf_outside_compute_loss_s"] = outside_compute_loss_time
+            metrics.update(
+                self.summarize_teacher_vector(
+                    "teacher_kd_loss",
+                    teacher_loss_matrix,
+                )
+            )
             if routed_teacher_gate_weights is not None:
                 logged_weights = (
                     effective_teacher_gate_weights
                     if effective_teacher_gate_weights is not None
                     else routed_teacher_gate_weights
                 )
+                metrics.update(self.summarize_teacher_vector("teacher_gate_w", logged_weights))
+                metrics.update(self.summarize_teacher_vector("teacher_gate_router_w", teacher_gate_weights))
+                metrics.update(self.summarize_teacher_vector("teacher_gate_routed_w", routed_teacher_gate_weights))
+                metrics.update(self.summarize_teacher_vector("teacher_gate_logit", teacher_gate_logits))
                 metrics.update(
-                    {
-                        f"teacher_gate_w_{teacher_index}": weight.item()
-                        for teacher_index, weight in enumerate(logged_weights.detach().mean(dim=0))
-                    }
+                    self.summarize_teacher_vector("teacher_gate_score", teacher_gate_routing_scores)
                 )
                 metrics["teacher_gate_balance_loss"] = teacher_gate_balance_loss.item()
                 metrics["teacher_gate_capacity"] = float(teacher_gate_capacity)
+                metrics["teacher_gate_router_entropy"] = self.mean_categorical_entropy(
+                    teacher_gate_weights
+                ).item()
+                metrics["teacher_gate_routed_entropy"] = self.mean_categorical_entropy(
+                    routed_teacher_gate_weights
+                ).item()
+                metrics["teacher_gate_final_entropy"] = self.mean_categorical_entropy(
+                    logged_weights
+                ).item()
+                metrics["teacher_gate_active_teachers"] = (
+                    routed_teacher_gate_weights > 0
+                ).to(dtype=logged_weights.dtype).sum(dim=-1).mean().item()
+                metrics["teacher_gate_routing_fallback_rate"] = teacher_gate_routing_fallback_rate.item()
+                metrics["teacher_alignment_warmup_active"] = float(
+                    self.should_apply_gradient_alignment_routing()
+                )
                 metrics.update(
                     {
                         f"teacher_gate_soft_load_{teacher_index}": load.item()
@@ -636,10 +759,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 )
                 if teacher_alignment_scores is not None and teacher_alignment_active is not None:
                     metrics.update(
-                        {
-                            f"teacher_alignment_score_{teacher_index}": score.item()
-                            for teacher_index, score in enumerate(teacher_alignment_scores.detach().mean(dim=0))
-                        }
+                        self.summarize_teacher_vector(
+                            "teacher_alignment_score",
+                            teacher_alignment_scores,
+                        )
                     )
                     metrics.update(
                         {
@@ -649,6 +772,23 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                             )
                         }
                     )
+                    metrics["teacher_alignment_active_teachers"] = (
+                        teacher_alignment_active.detach().to(dtype=logged_weights.dtype).sum(dim=-1).mean().item()
+                    )
+                if teacher_alignment_weights is not None:
+                    metrics.update(
+                        self.summarize_teacher_vector(
+                            "teacher_alignment_weight",
+                            teacher_alignment_weights,
+                        )
+                    )
+                    metrics["teacher_alignment_entropy"] = self.mean_categorical_entropy(
+                        teacher_alignment_weights
+                        / teacher_alignment_weights.sum(dim=-1, keepdim=True).clamp(
+                            min=torch.finfo(teacher_alignment_weights.dtype).eps
+                        )
+                    ).item()
+                    metrics["teacher_alignment_fallback_rate"] = teacher_alignment_fallback_rate.item()
             self.log(metrics)
 
         return (loss, student_outputs) if return_outputs else loss
@@ -722,6 +862,29 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 self.eval_ce_loss_count = 0
 
         super().log(logs, start_time=start_time)
+
+    @override
+    def _save_checkpoint(self, model, trial):
+        super()._save_checkpoint(model, trial)
+
+        if not self.tracks_best_checkpoint_by_train_ce() or self.latest_train_ce_loss is None:
+            return
+
+        current_best = self.state.best_metric
+        if current_best is not None and self.latest_train_ce_loss >= current_best:
+            return
+
+        checkpoint_dir = os.path.join(
+            self._get_output_dir(trial=trial),
+            f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}",
+        )
+        self.state.best_metric = self.latest_train_ce_loss
+        self.state.best_model_checkpoint = checkpoint_dir
+        self.state.save_to_json(os.path.join(checkpoint_dir, TRAINER_STATE_NAME))
+        print(
+            "Updated best checkpoint by train_ce_loss: "
+            f"{checkpoint_dir} (train_ce_loss={self.latest_train_ce_loss:.6f})"
+        )
 
     @override
     def _load_best_model(self):

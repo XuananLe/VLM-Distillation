@@ -365,6 +365,7 @@ def train_distillation():
         teacher_gate_bias_update_rate=distillation_args.teacher_gate_bias_update_rate,
         gradient_alignment_threshold=distillation_args.gradient_alignment_threshold,
         gradient_alignment_warmup_ratio=distillation_args.gradient_alignment_warmup_ratio,
+        gradient_alignment_sigmoid_temperature=distillation_args.gradient_alignment_sigmoid_temperature,
         processing_class=processor,
         args=training_args,
         callbacks=trainer_callbacks,
@@ -381,7 +382,7 @@ def train_distillation():
         trainer.train()
 
     if trainer.state.best_model_checkpoint is not None:
-        best_metric_name = training_args.metric_for_best_model or "loss"
+        best_metric_name = training_args.metric_for_best_model or "train_ce_loss"
         rank0_print(f"\nLoading best checkpoint based on {best_metric_name}...")
         rank0_print(f"Best checkpoint: {trainer.state.best_model_checkpoint}")
         rank0_print(f"Best {best_metric_name}: {trainer.state.best_metric:.6f}")

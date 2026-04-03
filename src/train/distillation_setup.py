@@ -87,6 +87,11 @@ class DistillationArguments:
         metadata={"help": "Fraction of training steps to wait before enabling gradient-alignment filtering."},
     )
 
+    gradient_alignment_sigmoid_temperature: float = field(
+        default=0.02,
+        metadata={"help": "Sigmoid temperature used to convert alignment scores into soft weights."},
+    )
+
 
 def validate_distillation_args(distillation_args) -> None:
     if distillation_args.teacher_weighting_strategy not in {"routing", "uniform_mean"}:
@@ -103,6 +108,8 @@ def validate_distillation_args(distillation_args) -> None:
         raise ValueError("--teacher_gate_bias_update_rate must be >= 0.")
     if distillation_args.gradient_alignment_warmup_ratio < 0.0:
         raise ValueError("--gradient_alignment_warmup_ratio must be >= 0.")
+    if distillation_args.gradient_alignment_sigmoid_temperature <= 0.0:
+        raise ValueError("--gradient_alignment_sigmoid_temperature must be > 0.")
     if distillation_args.student_temperature is not None and distillation_args.student_temperature <= 0:
         raise ValueError("--student_temperature must be > 0.")
     if distillation_args.teacher_temperature is not None and distillation_args.teacher_temperature <= 0:
@@ -154,6 +161,10 @@ def log_distillation_setup(
         rank0_print(f"Teacher Gate Bias Update Rate: {distillation_args.teacher_gate_bias_update_rate}")
         rank0_print(f"Gradient Alignment Threshold: {distillation_args.gradient_alignment_threshold}")
         rank0_print(f"Gradient Alignment Warmup Ratio: {distillation_args.gradient_alignment_warmup_ratio}")
+        rank0_print(
+            f"Gradient Alignment Sigmoid Temperature: "
+            f"{distillation_args.gradient_alignment_sigmoid_temperature}"
+        )
     if training_args.gradient_checkpointing:
         rank0_print(f"Gradient Checkpointing Kwargs: {gradient_checkpointing_kwargs}")
     rank0_print("=" * 80)

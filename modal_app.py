@@ -81,7 +81,7 @@ app = modal.App(
 )
 
 
-@app.function(gpu = "A100-80GB", timeout=60 * 60 * 12)
+@app.function(gpu = "T4", timeout=60 * 60 * 24)
 def exec_cmd(cmd: str) -> None:
     cmd = cmd.strip()
     if not cmd:
@@ -139,8 +139,9 @@ def exec_cmd(cmd: str) -> None:
 
 @app.local_entrypoint()
 def run():
+    CHECKPOINT = "/output/uld_loss_2_teachers_Qwen2-VL-2B-Instruct_Qwen2.5-VL-3B-Instruct_SmolVLM-500M-Instruct_docvqa_20260402_1739/checkpoint-1000"
     cmd = { 
         "train": f"cd {ROOT_DIR} && bash scripts/train/distill_single_teacher.sh",
-        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data ChartQA_TEST --model SmolVLM-500M-Load-Balancing-Best-Eval-Ce --work-dir /output/vlmeval/SmolVLM-500M-Load-Balancing-Best-Eval-Ce",
+        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data DocVQA_VAL --model SmolVLM-500M --work-dir /output/vlmeval/{CHECKPOINT.split('/')[-2]}/{CHECKPOINT.split('/')[-1]}",
     }
     exec_cmd.remote(cmd['eval'])
