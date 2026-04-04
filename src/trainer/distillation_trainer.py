@@ -41,7 +41,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         teacher_gate_bias_update_rate: float = 1e-3,
         gradient_alignment_threshold: float = 0.0,
         gradient_alignment_warmup_ratio: float = 0.0,
-        gradient_alignment_sigmoid_temperature: float = 0.02,
+        gradient_alignment_epsilon: float = 0.01,
+        gradient_alignment_softmax_beta: float = 20.0,
+        gradient_alignment_router_blend_lambda: float = 0.5,
+        gradient_alignment_ema_decay: float = 0.9,
         *args,
         **kwargs
     ):
@@ -61,9 +64,21 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             raise ValueError("DistillationTrainer requires `teacher_gate_bias_update_rate >= 0`.")
         if gradient_alignment_warmup_ratio < 0.0:
             raise ValueError("DistillationTrainer requires `gradient_alignment_warmup_ratio >= 0`.")
-        if gradient_alignment_sigmoid_temperature <= 0.0:
+        if gradient_alignment_epsilon < 0.0:
             raise ValueError(
-                "DistillationTrainer requires `gradient_alignment_sigmoid_temperature > 0`."
+                "DistillationTrainer requires `gradient_alignment_epsilon >= 0`."
+            )
+        if gradient_alignment_softmax_beta <= 0.0:
+            raise ValueError(
+                "DistillationTrainer requires `gradient_alignment_softmax_beta > 0`."
+            )
+        if not 0.0 <= gradient_alignment_router_blend_lambda <= 1.0:
+            raise ValueError(
+                "DistillationTrainer requires `0 <= gradient_alignment_router_blend_lambda <= 1`."
+            )
+        if not 0.0 <= gradient_alignment_ema_decay < 1.0:
+            raise ValueError(
+                "DistillationTrainer requires `0 <= gradient_alignment_ema_decay < 1`."
             )
         if not hasattr(distillation_loss_module, loss_function):
             raise ValueError(f"Unknown distillation loss: {loss_function!r}")
@@ -115,12 +130,16 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.teacher_gate_bias_update_rate = teacher_gate_bias_update_rate
         self.gradient_alignment_threshold = gradient_alignment_threshold
         self.gradient_alignment_warmup_ratio = gradient_alignment_warmup_ratio
-        self.gradient_alignment_sigmoid_temperature = gradient_alignment_sigmoid_temperature
+        self.gradient_alignment_epsilon = gradient_alignment_epsilon
+        self.gradient_alignment_softmax_beta = gradient_alignment_softmax_beta
+        self.gradient_alignment_router_blend_lambda = gradient_alignment_router_blend_lambda
+        self.gradient_alignment_ema_decay = gradient_alignment_ema_decay
         self.non_lora_require_grad_only = True
         self.eval_ce_loss_sum = 0.0
         self.eval_ce_loss_count = 0
         self.last_compute_loss_end_time = None
         self.latest_train_ce_loss = None
+        self.teacher_alignment_score_ema = None
 
         print("Distillation Trainer initialized:")
         print(f"  - Teachers: {len(self.teacher_models)}")
@@ -143,8 +162,20 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             print(f"  - Gradient alignment threshold: {gradient_alignment_threshold}")
             print(f"  - Gradient alignment warmup ratio: {gradient_alignment_warmup_ratio}")
             print(
-                "  - Gradient alignment sigmoid temperature: "
-                f"{gradient_alignment_sigmoid_temperature}"
+                "  - Gradient alignment epsilon: "
+                f"{gradient_alignment_epsilon}"
+            )
+            print(
+                "  - Gradient alignment softmax beta: "
+                f"{gradient_alignment_softmax_beta}"
+            )
+            print(
+                "  - Gradient alignment router blend lambda: "
+                f"{gradient_alignment_router_blend_lambda}"
+            )
+            print(
+                "  - Gradient alignment EMA decay: "
+                f"{gradient_alignment_ema_decay}"
             )
         print("  - Loss weighting: (1 - alpha) * CE + alpha * KD")
 
@@ -525,33 +556,64 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             )
 
         available_mask = teacher_gate_weights > 0
-        alignment_weights = torch.sigmoid(
-            (teacher_alignment_scores - self.gradient_alignment_threshold)
-            / self.gradient_alignment_sigmoid_temperature
-        ) * available_mask.to(dtype=teacher_gate_weights.dtype)
-
-        effective_weights = teacher_gate_weights * alignment_weights
-        missing_samples = effective_weights.sum(dim=-1) <= torch.finfo(effective_weights.dtype).eps
-        fallback_rate = missing_samples.to(dtype=teacher_gate_weights.dtype).mean()
-        if missing_samples.any():
-            masked_scores = teacher_alignment_scores.masked_fill(~available_mask, float("-inf"))
-            fallback_indices = masked_scores.argmax(dim=-1, keepdim=True)
-            fallback_mask = torch.zeros_like(effective_weights)
-            fallback_mask.scatter_(1, fallback_indices, 1.0)
-            effective_weights = torch.where(
-                missing_samples.unsqueeze(-1),
-                teacher_gate_weights * fallback_mask,
-                effective_weights,
+        prev_alignment_score_ema = self.teacher_alignment_score_ema
+        if prev_alignment_score_ema is None or prev_alignment_score_ema.numel() != teacher_alignment_scores.size(-1):
+            smoothed_alignment_scores = teacher_alignment_scores
+        else:
+            prev_alignment_score_ema = prev_alignment_score_ema.to(
+                device=teacher_alignment_scores.device,
+                dtype=teacher_alignment_scores.dtype,
+            )
+            smoothed_alignment_scores = (
+                self.gradient_alignment_ema_decay * prev_alignment_score_ema.unsqueeze(0)
+                + (1.0 - self.gradient_alignment_ema_decay) * teacher_alignment_scores
             )
 
-        effective_weights = effective_weights / effective_weights.sum(dim=-1, keepdim=True).clamp(
-            min=torch.finfo(effective_weights.dtype).eps
+        batch_alignment_mean = teacher_alignment_scores.detach().mean(dim=0).float()
+        if prev_alignment_score_ema is None or prev_alignment_score_ema.numel() != batch_alignment_mean.numel():
+            self.teacher_alignment_score_ema = batch_alignment_mean
+        else:
+            self.teacher_alignment_score_ema = (
+                self.gradient_alignment_ema_decay * prev_alignment_score_ema.float()
+                + (1.0 - self.gradient_alignment_ema_decay) * batch_alignment_mean
+            )
+
+        masked_smoothed_scores = smoothed_alignment_scores.masked_fill(~available_mask, float("-inf"))
+        gradient_weights = torch.softmax(
+            self.gradient_alignment_softmax_beta * masked_smoothed_scores,
+            dim=-1,
         )
+        gradient_weights = gradient_weights * available_mask.to(dtype=teacher_gate_weights.dtype)
+        gradient_weights = gradient_weights / gradient_weights.sum(dim=-1, keepdim=True).clamp(
+            min=torch.finfo(gradient_weights.dtype).eps
+        )
+
+        router_weights = teacher_gate_weights.clamp(min=torch.finfo(teacher_gate_weights.dtype).eps)
+        blended_weights = (
+            router_weights.pow(self.gradient_alignment_router_blend_lambda)
+            * gradient_weights.clamp(min=torch.finfo(gradient_weights.dtype).eps).pow(
+                1.0 - self.gradient_alignment_router_blend_lambda
+            )
+        )
+        blended_weights = blended_weights * available_mask.to(dtype=teacher_gate_weights.dtype)
+        blended_weights = blended_weights / blended_weights.sum(dim=-1, keepdim=True).clamp(
+            min=torch.finfo(blended_weights.dtype).eps
+        )
+
+        available_counts = available_mask.sum(dim=-1, keepdim=True).clamp(min=1)
+        uniform_weights = available_mask.to(dtype=teacher_gate_weights.dtype) / available_counts
+        score_spread = (
+            masked_smoothed_scores.max(dim=-1).values
+            - smoothed_alignment_scores.masked_fill(~available_mask, float("inf")).min(dim=-1).values
+        )
+        use_uniform = score_spread < self.gradient_alignment_epsilon
+        effective_weights = torch.where(use_uniform.unsqueeze(-1), uniform_weights, blended_weights)
+        fallback_rate = use_uniform.to(dtype=teacher_gate_weights.dtype).mean()
         return (
             effective_weights,
             teacher_alignment_scores,
             teacher_alignment_active,
-            alignment_weights,
+            gradient_weights,
             fallback_rate,
         )
 
@@ -775,6 +837,13 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                     metrics["teacher_alignment_active_teachers"] = (
                         teacher_alignment_active.detach().to(dtype=logged_weights.dtype).sum(dim=-1).mean().item()
                     )
+                    if self.teacher_alignment_score_ema is not None:
+                        metrics.update(
+                            {
+                                f"teacher_alignment_score_ema_{teacher_index}": score.item()
+                                for teacher_index, score in enumerate(self.teacher_alignment_score_ema.detach())
+                            }
+                        )
                 if teacher_alignment_weights is not None:
                     metrics.update(
                         self.summarize_teacher_vector(
@@ -789,6 +858,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                         )
                     ).item()
                     metrics["teacher_alignment_fallback_rate"] = teacher_alignment_fallback_rate.item()
+                    metrics["teacher_alignment_uniform_rate"] = teacher_alignment_fallback_rate.item()
             self.log(metrics)
 
         return (loss, student_outputs) if return_outputs else loss

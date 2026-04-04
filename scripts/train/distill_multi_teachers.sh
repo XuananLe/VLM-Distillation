@@ -19,11 +19,13 @@ TEACHER_GATE_CAPACITY_FACTOR="${TEACHER_GATE_CAPACITY_FACTOR:-1.25}"
 TEACHER_GATE_BIAS_UPDATE_RATE="${TEACHER_GATE_BIAS_UPDATE_RATE:-5e-4}"
 GRADIENT_ALIGNMENT_THRESHOLD="${GRADIENT_ALIGNMENT_THRESHOLD:--0.02}"
 GRADIENT_ALIGNMENT_WARMUP_RATIO="${GRADIENT_ALIGNMENT_WARMUP_RATIO:-0.2}"
-GRADIENT_ALIGNMENT_SIGMOID_TEMPERATURE="${GRADIENT_ALIGNMENT_SIGMOID_TEMPERATURE:-0.02}"
+GRADIENT_ALIGNMENT_EPSILON="${GRADIENT_ALIGNMENT_EPSILON:-0.01}"
+GRADIENT_ALIGNMENT_SOFTMAX_BETA="${GRADIENT_ALIGNMENT_SOFTMAX_BETA:-20.0}"
+GRADIENT_ALIGNMENT_ROUTER_BLEND_LAMBDA="${GRADIENT_ALIGNMENT_ROUTER_BLEND_LAMBDA:-0.5}"
+GRADIENT_ALIGNMENT_EMA_DECAY="${GRADIENT_ALIGNMENT_EMA_DECAY:-0.9}"
 NUM_TEACHERS=2
 DATASET_NAME="docvqa"
-EVAL_SPLIT="validation"
-PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-10}"
+PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-18}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 LOGGING_STEPS="${LOGGING_STEPS:-10}"
 DATALOADER_NUM_WORKERS="${DATALOADER_NUM_WORKERS:-8}"
@@ -41,7 +43,6 @@ deepspeed src/train/train_distillation.py \
     --teacher_model_ids "$TEACHER_MODEL_IDS" \
     --teacher_weighting_strategy "$TEACHER_WEIGHTING_STRATEGY" \
     --data_path /data/${DATASET_NAME}/train_llava.json \
-    --eval_data_path /data/${DATASET_NAME}/${EVAL_SPLIT}_llava.json \
     --image_folder /data/${DATASET_NAME}/images \
     --distillation_loss "$DISTILLATION_LOSS" \
     --bf16 True \
@@ -58,7 +59,10 @@ deepspeed src/train/train_distillation.py \
     --teacher_gate_bias_update_rate "$TEACHER_GATE_BIAS_UPDATE_RATE" \
     --gradient_alignment_threshold "$GRADIENT_ALIGNMENT_THRESHOLD" \
     --gradient_alignment_warmup_ratio "$GRADIENT_ALIGNMENT_WARMUP_RATIO" \
-    --gradient_alignment_sigmoid_temperature "$GRADIENT_ALIGNMENT_SIGMOID_TEMPERATURE" \
+    --gradient_alignment_epsilon "$GRADIENT_ALIGNMENT_EPSILON" \
+    --gradient_alignment_softmax_beta "$GRADIENT_ALIGNMENT_SOFTMAX_BETA" \
+    --gradient_alignment_router_blend_lambda "$GRADIENT_ALIGNMENT_ROUTER_BLEND_LAMBDA" \
+    --gradient_alignment_ema_decay "$GRADIENT_ALIGNMENT_EMA_DECAY" \
     --num_train_epochs 1 \
     --per_device_train_batch_size "$PER_DEVICE_TRAIN_BATCH_SIZE" \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
@@ -75,7 +79,7 @@ deepspeed src/train/train_distillation.py \
     --lazy_preprocess True \
     --logging_steps "$LOGGING_STEPS" \
     --save_strategy steps \
-    --save_steps 100 \
+    --save_steps 150 \
     --save_total_limit 100 \
     --save_only_model False \
     --eval_strategy no \

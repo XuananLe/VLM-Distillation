@@ -87,9 +87,30 @@ class DistillationArguments:
         metadata={"help": "Fraction of training steps to wait before enabling gradient-alignment filtering."},
     )
 
-    gradient_alignment_sigmoid_temperature: float = field(
-        default=0.02,
-        metadata={"help": "Sigmoid temperature used to convert alignment scores into soft weights."},
+    gradient_alignment_epsilon: float = field(
+        default=0.01,
+        metadata={
+            "help": "If the spread between teacher alignment scores is below this epsilon, fall back to uniform-mean teacher weights."
+        },
+    )
+
+    gradient_alignment_softmax_beta: float = field(
+        default=20.0,
+        metadata={
+            "help": "Inverse temperature used to convert alignment scores into softmax gradient weights."
+        },
+    )
+
+    gradient_alignment_router_blend_lambda: float = field(
+        default=0.5,
+        metadata={
+            "help": "Blend factor between router weights and gradient-derived weights. 1.0 keeps only router weights; 0.0 keeps only gradient weights."
+        },
+    )
+
+    gradient_alignment_ema_decay: float = field(
+        default=0.9,
+        metadata={"help": "EMA decay applied to teacher alignment scores before computing gradient weights."},
     )
 
 
@@ -108,8 +129,14 @@ def validate_distillation_args(distillation_args) -> None:
         raise ValueError("--teacher_gate_bias_update_rate must be >= 0.")
     if distillation_args.gradient_alignment_warmup_ratio < 0.0:
         raise ValueError("--gradient_alignment_warmup_ratio must be >= 0.")
-    if distillation_args.gradient_alignment_sigmoid_temperature <= 0.0:
-        raise ValueError("--gradient_alignment_sigmoid_temperature must be > 0.")
+    if distillation_args.gradient_alignment_epsilon < 0.0:
+        raise ValueError("--gradient_alignment_epsilon must be >= 0.")
+    if distillation_args.gradient_alignment_softmax_beta <= 0.0:
+        raise ValueError("--gradient_alignment_softmax_beta must be > 0.")
+    if not 0.0 <= distillation_args.gradient_alignment_router_blend_lambda <= 1.0:
+        raise ValueError("--gradient_alignment_router_blend_lambda must be between 0 and 1.")
+    if not 0.0 <= distillation_args.gradient_alignment_ema_decay < 1.0:
+        raise ValueError("--gradient_alignment_ema_decay must be in [0, 1).")
     if distillation_args.student_temperature is not None and distillation_args.student_temperature <= 0:
         raise ValueError("--student_temperature must be > 0.")
     if distillation_args.teacher_temperature is not None and distillation_args.teacher_temperature <= 0:
@@ -162,8 +189,20 @@ def log_distillation_setup(
         rank0_print(f"Gradient Alignment Threshold: {distillation_args.gradient_alignment_threshold}")
         rank0_print(f"Gradient Alignment Warmup Ratio: {distillation_args.gradient_alignment_warmup_ratio}")
         rank0_print(
-            f"Gradient Alignment Sigmoid Temperature: "
-            f"{distillation_args.gradient_alignment_sigmoid_temperature}"
+            f"Gradient Alignment Epsilon: "
+            f"{distillation_args.gradient_alignment_epsilon}"
+        )
+        rank0_print(
+            f"Gradient Alignment Softmax Beta: "
+            f"{distillation_args.gradient_alignment_softmax_beta}"
+        )
+        rank0_print(
+            f"Gradient Alignment Router Blend Lambda: "
+            f"{distillation_args.gradient_alignment_router_blend_lambda}"
+        )
+        rank0_print(
+            f"Gradient Alignment EMA Decay: "
+            f"{distillation_args.gradient_alignment_ema_decay}"
         )
     if training_args.gradient_checkpointing:
         rank0_print(f"Gradient Checkpointing Kwargs: {gradient_checkpointing_kwargs}")
