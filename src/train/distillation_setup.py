@@ -77,6 +77,11 @@ class DistillationArguments:
         metadata={"help": "Feedback update rate for the teacher-gate expert bias."},
     )
 
+    teacher_gate_router_z_loss_alpha: float = field(
+        default=1e-3,
+        metadata={"help": "Weight on router z-loss for stabilizing teacher-gate logits."},
+    )
+
     gradient_alignment_threshold: float = field(
         default=0.0,
         metadata={"help": "Keep a routed teacher active only when its gradient alignment exceeds this threshold."},
@@ -127,6 +132,8 @@ def validate_distillation_args(distillation_args) -> None:
         raise ValueError("--teacher_gate_capacity_factor must be > 0.")
     if distillation_args.teacher_gate_bias_update_rate < 0.0:
         raise ValueError("--teacher_gate_bias_update_rate must be >= 0.")
+    if distillation_args.teacher_gate_router_z_loss_alpha < 0.0:
+        raise ValueError("--teacher_gate_router_z_loss_alpha must be >= 0.")
     if distillation_args.gradient_alignment_warmup_ratio < 0.0:
         raise ValueError("--gradient_alignment_warmup_ratio must be >= 0.")
     if distillation_args.gradient_alignment_epsilon < 0.0:
@@ -186,6 +193,10 @@ def log_distillation_setup(
         rank0_print(f"Teacher Gate Top-k: {distillation_args.teacher_gate_top_k}")
         rank0_print(f"Teacher Gate Capacity Factor: {distillation_args.teacher_gate_capacity_factor}")
         rank0_print(f"Teacher Gate Bias Update Rate: {distillation_args.teacher_gate_bias_update_rate}")
+        rank0_print(
+            f"Teacher Gate Router Z-Loss Alpha: "
+            f"{distillation_args.teacher_gate_router_z_loss_alpha}"
+        )
         rank0_print(f"Gradient Alignment Threshold: {distillation_args.gradient_alignment_threshold}")
         rank0_print(f"Gradient Alignment Warmup Ratio: {distillation_args.gradient_alignment_warmup_ratio}")
         rank0_print(

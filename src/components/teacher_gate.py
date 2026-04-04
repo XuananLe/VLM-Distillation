@@ -24,7 +24,14 @@ class DeepRouter(nn.Module):
 
     @staticmethod
     def resolve_hidden_size(input_size: int, num_experts: int) -> int:
-        return min(512, max(64, num_experts * 16, input_size // 2))
+        del input_size
+        if num_experts <= 4:
+            return 64
+        if num_experts <= 16:
+            return 128
+        if num_experts <= 32:
+            return 256
+        return 512
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         hidden = self.normalizer(inputs)
