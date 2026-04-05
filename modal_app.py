@@ -81,7 +81,7 @@ app = modal.App(
 )
 
 
-@app.function(gpu = "A100-80GB", timeout=60 * 60 * 24)
+@app.function(gpu = "T4", timeout=60 * 60 * 24)
 def exec_cmd(cmd: str) -> None:
     cmd = cmd.strip()
     if not cmd:
@@ -139,9 +139,10 @@ def exec_cmd(cmd: str) -> None:
 
 @app.local_entrypoint()
 def run():
-    CHECKPOINT = "/output/uld_loss_2_teachers_Qwen2-VL-2B-Instruct_Qwen2.5-VL-3B-Instruct_SmolVLM-500M-Instruct_docvqa_20260402_1739/checkpoint-1800"
-    cmd = { 
-        "train": f"cd {ROOT_DIR} && bash scripts/train/distill_single_teacher.sh",
-        "eval": f"cd /root/VLM-Distillation/src/eval && python run.py --data DocVQA_VAL --model SmolVLM-500M --work-dir /output/vlmeval/{CHECKPOINT.split('/')[-2]}/{CHECKPOINT.split('/')[-1]}",
-    }
-    exec_cmd.remote(cmd['eval'])
+    cmd = f"""
+    CUDA_VISIBLE_DEVICES=0 cd /root/VLM-Distillation/src/eval && python run.py --data DocVQA_VAL --model SmolVLM-500M-Checkpoint-300 --work-dir /output/vlmeval/log_300 2>&1 &
+    CUDA_VISIBLE_DEVICES=0 cd /root/VLM-Distillation/src/eval && python run.py --data DocVQA_VAL --model SmolVLM-500M-Checkpoint-200 --work-dir /output/vlmeval/log_200 2>&1 &
+    CUDA_VISIBLE_DEVICES=0 cd /root/VLM-Distillation/src/eval && python run.py --data DocVQA_VAL --model SmolVLM-500M-Checkpoint-100 --work-dir /output/vlmeval/log_100 2>&1 &
+    wait
+    """
+    exec_cmd.remote(cmd)

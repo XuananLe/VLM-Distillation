@@ -2,6 +2,12 @@
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {4.1}{\ignorespaces Dataset split sizes (number of QA pairs) for TextVQA, DocVQA and ChartQA \cite {singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.\relax }}{28}{table.caption.19}%
+\contentsline {table}{\numberline {4.1}{\ignorespaces Dataset split sizes for the three benchmarks.}}{33}{table.caption.31}%
+\contentsline {table}{\numberline {4.2}{\ignorespaces Training configuration for the current main distillation script.}}{34}{table.caption.32}%
+\contentsline {table}{\numberline {4.3}{\ignorespaces Baseline groups used in the evaluation chapter.\relax }}{36}{table.caption.33}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {5.1}{\ignorespaces Original benchmark results of the two SmolVLM models evaluated with VLM-Eval-Kit.\relax }}{30}{table.caption.20}%
+\contentsline {table}{\numberline {5.1}{\ignorespaces Original benchmark results of the two SmolVLM models evaluated with VLM-Eval-Kit.\relax }}{37}{table.caption.34}%
+\contentsline {table}{\numberline {5.2}{\ignorespaces Original benchmark results of the teacher models used in the heterogeneous teacher pool, compiled from the official model releases \cite {qwen2vl2b_modelcard,qwen25vl3b_modelcard} and \cite {internvl3_blog,gemma3_technical_report} and, for the Qwen2.5-VL-3B ChartQA entry, from a model-comparison page that reports the base-model metric \cite {qwen25vl3b_quantized_card}.\relax }}{37}{table.caption.35}%
+\contentsline {table}{\numberline {5.3}{\ignorespaces TextVQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }}{39}{table.caption.36}%
+\contentsline {table}{\numberline {5.4}{\ignorespaces DocVQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }}{40}{table.caption.37}%
+\contentsline {table}{\numberline {5.5}{\ignorespaces ChartQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }}{41}{table.caption.38}%

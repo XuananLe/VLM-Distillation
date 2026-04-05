@@ -13,7 +13,7 @@ def build_distillation_train_metrics(
     teacher_gate_time: float,
     routing_constraint_time: float,
     teacher_loss_matrix_time: float,
-    alignment_routing_time: float,
+    grace_routing_time: float,
     outside_compute_loss_time: float | None,
     teacher_loss_matrix: torch.Tensor,
     routed_teacher_gate_weights: torch.Tensor | None,
@@ -22,6 +22,7 @@ def build_distillation_train_metrics(
     teacher_gate_logits: torch.Tensor | None,
     teacher_gate_routing_scores: torch.Tensor | None,
     teacher_gate_balance_loss: torch.Tensor | None,
+    teacher_gate_entropy_loss: torch.Tensor | None,
     teacher_gate_z_loss: torch.Tensor | None,
     teacher_gate_capacity,
     teacher_gate_routing_fallback_rate: torch.Tensor | None,
@@ -29,12 +30,16 @@ def build_distillation_train_metrics(
     teacher_gate_hard_load: torch.Tensor | None,
     teacher_gate_assignment_rate: torch.Tensor | None,
     teacher_gate_bias: torch.Tensor | None,
-    teacher_alignment_scores: torch.Tensor | None,
-    teacher_alignment_active: torch.Tensor | None,
-    teacher_alignment_score_ema: torch.Tensor | None,
-    teacher_alignment_weights: torch.Tensor | None,
-    teacher_alignment_fallback_rate: torch.Tensor | None,
-    alignment_warmup_active: bool,
+    teacher_grace_scores: torch.Tensor | None,
+    teacher_grace_active: torch.Tensor | None,
+    teacher_grace_score_ema: torch.Tensor | None,
+    teacher_grace_weights: torch.Tensor | None,
+    teacher_grace_fallback_rate: torch.Tensor | None,
+    grace_warmup_active: bool,
+    objective_conflict_strategy: str,
+    objective_ce_weight: torch.Tensor | None,
+    objective_kd_weight: torch.Tensor | None,
+    objective_gradient_cosine: torch.Tensor | None,
 ) -> dict[str, float]:
     metrics = {
         "loss": loss.item(),
@@ -45,26 +50,40 @@ def build_distillation_train_metrics(
         "perf_teacher_gate_s": teacher_gate_time,
         "perf_routing_constraint_s": routing_constraint_time,
         "perf_teacher_loss_matrix_s": teacher_loss_matrix_time,
-        "perf_alignment_routing_s": alignment_routing_time,
+        "perf_grace_routing_s": grace_routing_time,
     }
     if outside_compute_loss_time is not None:
         metrics["perf_outside_compute_loss_s"] = outside_compute_loss_time
     metrics.update(summarize_teacher_vector("teacher_kd_loss", teacher_loss_matrix))
-
-    if routed_teacher_gate_weights is None:
-        return metrics
+    metrics["objective_conflict_active"] = float(objective_conflict_strategy != "fixed")
+    if objective_ce_weight is not None:
+        metrics["objective_ce_weight"] = objective_ce_weight.item()
+    if objective_kd_weight is not None:
+        metrics["objective_kd_weight"] = objective_kd_weight.item()
+    if objective_gradient_cosine is not None:
+        metrics["objective_gradient_cosine"] = objective_gradient_cosine.item()
 
     logged_weights = (
         effective_teacher_gate_weights
         if effective_teacher_gate_weights is not None
         else routed_teacher_gate_weights
     )
+    if logged_weights is not None:
+        metrics.update(summarize_teacher_vector("teacher_mix_w", logged_weights))
+        metrics["teacher_mix_entropy"] = mean_categorical_entropy(logged_weights).item()
+
+    if routed_teacher_gate_weights is None:
+        return metrics
+
     metrics.update(summarize_teacher_vector("teacher_gate_w", logged_weights))
     metrics.update(summarize_teacher_vector("teacher_gate_router_w", teacher_gate_weights))
     metrics.update(summarize_teacher_vector("teacher_gate_routed_w", routed_teacher_gate_weights))
     metrics.update(summarize_teacher_vector("teacher_gate_logit", teacher_gate_logits))
     metrics.update(summarize_teacher_vector("teacher_gate_score", teacher_gate_routing_scores))
     metrics["teacher_gate_balance_loss"] = teacher_gate_balance_loss.item()
+    metrics["teacher_gate_entropy_loss"] = (
+        teacher_gate_entropy_loss.item() if teacher_gate_entropy_loss is not None else 0.0
+    )
     metrics["teacher_gate_router_z_loss"] = (
         teacher_gate_z_loss.item() if teacher_gate_z_loss is not None else 0.0
     )
@@ -80,7 +99,7 @@ def build_distillation_train_metrics(
         routed_teacher_gate_weights > 0
     ).to(dtype=logged_weights.dtype).sum(dim=-1).mean().item()
     metrics["teacher_gate_routing_fallback_rate"] = teacher_gate_routing_fallback_rate.item()
-    metrics["teacher_alignment_warmup_active"] = float(alignment_warmup_active)
+    metrics["teacher_grace_warmup_active"] = float(grace_warmup_active)
     metrics.update(
         {
             f"teacher_gate_soft_load_{teacher_index}": load.item()
@@ -106,42 +125,42 @@ def build_distillation_train_metrics(
         }
     )
 
-    if teacher_alignment_scores is not None and teacher_alignment_active is not None:
+    if teacher_grace_scores is not None and teacher_grace_active is not None:
         metrics.update(
-            summarize_teacher_vector("teacher_alignment_score", teacher_alignment_scores)
+            summarize_teacher_vector("teacher_grace_score", teacher_grace_scores)
         )
         metrics.update(
             {
-                f"teacher_alignment_active_{teacher_index}": active.item()
+                f"teacher_grace_active_{teacher_index}": active.item()
                 for teacher_index, active in enumerate(
-                    teacher_alignment_active.detach().to(dtype=logged_weights.dtype).mean(dim=0)
+                    teacher_grace_active.detach().to(dtype=logged_weights.dtype).mean(dim=0)
                 )
             }
         )
-        metrics["teacher_alignment_active_teachers"] = (
-            teacher_alignment_active.detach().to(dtype=logged_weights.dtype).sum(dim=-1).mean().item()
+        metrics["teacher_grace_active_teachers"] = (
+            teacher_grace_active.detach().to(dtype=logged_weights.dtype).sum(dim=-1).mean().item()
         )
-        if teacher_alignment_score_ema is not None:
+        if teacher_grace_score_ema is not None:
             metrics.update(
                 {
-                    f"teacher_alignment_score_ema_{teacher_index}": score.item()
-                    for teacher_index, score in enumerate(teacher_alignment_score_ema.detach())
+                    f"teacher_grace_score_ema_{teacher_index}": score.item()
+                    for teacher_index, score in enumerate(teacher_grace_score_ema.detach())
                 }
             )
 
-    if teacher_alignment_weights is not None:
+    if teacher_grace_weights is not None:
         metrics.update(
-            summarize_teacher_vector("teacher_alignment_weight", teacher_alignment_weights)
+            summarize_teacher_vector("teacher_grace_weight", teacher_grace_weights)
         )
-        normalized_alignment_weights = teacher_alignment_weights / teacher_alignment_weights.sum(
+        normalized_grace_weights = teacher_grace_weights / teacher_grace_weights.sum(
             dim=-1,
             keepdim=True,
-        ).clamp(min=torch.finfo(teacher_alignment_weights.dtype).eps)
-        metrics["teacher_alignment_entropy"] = mean_categorical_entropy(
-            normalized_alignment_weights
+        ).clamp(min=torch.finfo(teacher_grace_weights.dtype).eps)
+        metrics["teacher_grace_entropy"] = mean_categorical_entropy(
+            normalized_grace_weights
         ).item()
-        metrics["teacher_alignment_fallback_rate"] = teacher_alignment_fallback_rate.item()
-        metrics["teacher_alignment_uniform_rate"] = teacher_alignment_fallback_rate.item()
+        metrics["teacher_grace_fallback_rate"] = teacher_grace_fallback_rate.item()
+        metrics["teacher_grace_uniform_rate"] = teacher_grace_fallback_rate.item()
 
     return metrics
 

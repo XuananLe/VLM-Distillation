@@ -8,13 +8,22 @@ def validate_distillation_trainer_args(
     teacher_gate_top_k: int,
     teacher_gate_capacity_factor: float,
     teacher_gate_bias_update_rate: float,
+    teacher_gate_temperature: float,
+    teacher_gate_noise_std: float,
+    teacher_gate_entropy_alpha: float,
     teacher_gate_router_z_loss_alpha: float,
-    gradient_alignment_warmup_ratio: float,
-    gradient_alignment_epsilon: float,
-    gradient_alignment_softmax_beta: float,
-    gradient_alignment_router_blend_lambda: float,
-    gradient_alignment_ema_decay: float,
+    teacher_gate_hard_routing_warmup_ratio: float,
+    grace_warmup_ratio: float,
+    grace_epsilon: float,
+    grace_softmax_beta: float,
+    grace_router_blend_lambda: float,
+    grace_ema_decay: float,
+    gradient_weight_cap: float,
+    gradient_weight_steps: int,
     teacher_weighting_strategy: str,
+    objective_conflict_strategy: str,
+    objective_conflict_cagrad_c: float,
+    objective_conflict_cagrad_grid_steps: int,
     loss_function: str,
     distillation_loss_module,
 ) -> None:
@@ -28,28 +37,51 @@ def validate_distillation_trainer_args(
         raise ValueError("DistillationTrainer requires `teacher_gate_capacity_factor > 0`.")
     if teacher_gate_bias_update_rate < 0.0:
         raise ValueError("DistillationTrainer requires `teacher_gate_bias_update_rate >= 0`.")
+    if teacher_gate_temperature <= 0.0:
+        raise ValueError("DistillationTrainer requires `teacher_gate_temperature > 0`.")
+    if teacher_gate_noise_std < 0.0:
+        raise ValueError("DistillationTrainer requires `teacher_gate_noise_std >= 0`.")
+    if teacher_gate_entropy_alpha < 0.0:
+        raise ValueError("DistillationTrainer requires `teacher_gate_entropy_alpha >= 0`.")
     if teacher_gate_router_z_loss_alpha < 0.0:
         raise ValueError(
             "DistillationTrainer requires `teacher_gate_router_z_loss_alpha >= 0`."
         )
-    if gradient_alignment_warmup_ratio < 0.0:
-        raise ValueError("DistillationTrainer requires `gradient_alignment_warmup_ratio >= 0`.")
-    if gradient_alignment_epsilon < 0.0:
-        raise ValueError("DistillationTrainer requires `gradient_alignment_epsilon >= 0`.")
-    if gradient_alignment_softmax_beta <= 0.0:
-        raise ValueError("DistillationTrainer requires `gradient_alignment_softmax_beta > 0`.")
-    if not 0.0 <= gradient_alignment_router_blend_lambda <= 1.0:
+    if teacher_gate_hard_routing_warmup_ratio < 0.0:
         raise ValueError(
-            "DistillationTrainer requires `0 <= gradient_alignment_router_blend_lambda <= 1`."
+            "DistillationTrainer requires `teacher_gate_hard_routing_warmup_ratio >= 0`."
         )
-    if not 0.0 <= gradient_alignment_ema_decay < 1.0:
-        raise ValueError("DistillationTrainer requires `0 <= gradient_alignment_ema_decay < 1`.")
+    if grace_warmup_ratio < 0.0:
+        raise ValueError("DistillationTrainer requires `grace_warmup_ratio >= 0`.")
+    if grace_epsilon < 0.0:
+        raise ValueError("DistillationTrainer requires `grace_epsilon >= 0`.")
+    if grace_softmax_beta <= 0.0:
+        raise ValueError("DistillationTrainer requires `grace_softmax_beta > 0`.")
+    if not 0.0 <= grace_router_blend_lambda <= 1.0:
+        raise ValueError(
+            "DistillationTrainer requires `0 <= grace_router_blend_lambda <= 1`."
+        )
+    if not 0.0 <= grace_ema_decay < 1.0:
+        raise ValueError("DistillationTrainer requires `0 <= grace_ema_decay < 1`.")
+    if gradient_weight_cap <= 0.0:
+        raise ValueError("DistillationTrainer requires `gradient_weight_cap > 0`.")
+    if gradient_weight_steps < 1:
+        raise ValueError("DistillationTrainer requires `gradient_weight_steps >= 1`.")
+    if objective_conflict_cagrad_c < 0.0:
+        raise ValueError("DistillationTrainer requires `objective_conflict_cagrad_c >= 0`.")
+    if objective_conflict_cagrad_grid_steps < 2:
+        raise ValueError("DistillationTrainer requires `objective_conflict_cagrad_grid_steps >= 2`.")
     if not hasattr(distillation_loss_module, loss_function):
         raise ValueError(f"Unknown distillation loss: {loss_function!r}")
-    if teacher_weighting_strategy not in {"routing", "uniform_mean"}:
+    if teacher_weighting_strategy not in {"routing", "uniform_mean", "gradient_optimal"}:
         raise ValueError(
             "DistillationTrainer requires `teacher_weighting_strategy` to be "
-            "`routing` or `uniform_mean`."
+            "`routing`, `uniform_mean`, or `gradient_optimal`."
+        )
+    if objective_conflict_strategy not in {"fixed", "pcgrad", "cagrad", "mgda"}:
+        raise ValueError(
+            "DistillationTrainer requires `objective_conflict_strategy` to be "
+            "`fixed`, `pcgrad`, `cagrad`, or `mgda`."
         )
 
 
@@ -86,6 +118,8 @@ def maybe_create_teacher_gate(
     num_teachers: int,
     teacher_weighting_strategy: str,
     teacher_gate_bias_update_rate: float,
+    teacher_gate_temperature: float,
+    teacher_gate_noise_std: float,
 ):
     if num_teachers <= 1 or teacher_weighting_strategy != "routing":
         return None
@@ -94,6 +128,8 @@ def maybe_create_teacher_gate(
         model,
         num_teachers,
         bias_update_rate=teacher_gate_bias_update_rate,
+        router_temperature=teacher_gate_temperature,
+        router_noise_std=teacher_gate_noise_std,
     )
     model.teacher_gate = teacher_gate
     return teacher_gate
@@ -114,43 +150,72 @@ def log_distillation_trainer_setup(
     teacher_gate_top_k: int,
     teacher_gate_capacity_factor: float,
     teacher_gate_bias_update_rate: float,
+    teacher_gate_temperature: float,
+    teacher_gate_noise_std: float,
+    teacher_gate_entropy_alpha: float,
     teacher_gate_router_z_loss_alpha: float,
-    gradient_alignment_threshold: float,
-    gradient_alignment_warmup_ratio: float,
-    gradient_alignment_epsilon: float,
-    gradient_alignment_softmax_beta: float,
-    gradient_alignment_router_blend_lambda: float,
-    gradient_alignment_ema_decay: float,
+    teacher_gate_hard_routing_warmup_ratio: float,
+    grace_threshold: float,
+    grace_warmup_ratio: float,
+    grace_epsilon: float,
+    grace_softmax_beta: float,
+    grace_router_blend_lambda: float,
+    grace_ema_decay: float,
+    gradient_weight_cap: float,
+    gradient_weight_steps: int,
+    objective_conflict_strategy: str,
+    objective_conflict_cagrad_c: float,
+    objective_conflict_cagrad_grid_steps: int,
 ) -> None:
     print("Distillation Trainer initialized:")
     print(f"  - Teachers: {num_teachers}")
     if num_teachers > 1 and teacher_weighting_strategy == "routing":
-        print("  - Teacher weighting: learned deep gate + balancing + gradient alignment")
+        print("  - Teacher weighting: learned deep gate + balancing + GRACE routing")
+    elif num_teachers > 1 and teacher_weighting_strategy == "gradient_optimal":
+        print("  - Teacher weighting: gradient-optimized mixing")
     else:
         print("  - Teacher weighting: uniform mean")
+    print(f"  - Objective conflict strategy: {objective_conflict_strategy}")
     print(f"  - Loss function: {loss_function}")
     print(f"  - Student temperature: {student_temperature}")
     print(f"  - Teacher temperature: {teacher_temperature}")
     print(f"  - Skip student EOS: {skip_student_eos}")
     print(f"  - Skip teacher EOS: {skip_teacher_eos}")
-    print(f"  - KD weight (alpha): {alpha}")
-    print(f"  - CE weight: {1.0 - alpha}")
+    print(f"  - Alpha: {alpha}")
+    print(f"  - KD weight: {1.0 - alpha}")
+    print("  - CE weight: 1.0")
     if teacher_gate is not None:
         print(f"  - Teacher gate balance alpha: {teacher_gate_balance_alpha}")
         print(f"  - Teacher gate top-k: {teacher_gate_top_k}")
         print(f"  - Teacher gate capacity factor: {teacher_gate_capacity_factor}")
         print(f"  - Teacher gate bias update rate: {teacher_gate_bias_update_rate}")
+        print(f"  - Teacher gate temperature: {teacher_gate_temperature}")
+        print(f"  - Teacher gate noise std: {teacher_gate_noise_std}")
+        print(f"  - Teacher gate entropy alpha: {teacher_gate_entropy_alpha}")
         print(f"  - Teacher gate router z-loss alpha: {teacher_gate_router_z_loss_alpha}")
-        print(f"  - Gradient alignment threshold: {gradient_alignment_threshold}")
-        print(f"  - Gradient alignment warmup ratio: {gradient_alignment_warmup_ratio}")
-        print(f"  - Gradient alignment epsilon: {gradient_alignment_epsilon}")
-        print(f"  - Gradient alignment softmax beta: {gradient_alignment_softmax_beta}")
         print(
-            "  - Gradient alignment router blend lambda: "
-            f"{gradient_alignment_router_blend_lambda}"
+            "  - Teacher gate hard routing warmup ratio: "
+            f"{teacher_gate_hard_routing_warmup_ratio}"
         )
-        print(f"  - Gradient alignment EMA decay: {gradient_alignment_ema_decay}")
-    print("  - Loss weighting: (1 - alpha) * CE + alpha * KD")
+        print(f"  - GRACE threshold: {grace_threshold}")
+        print(f"  - GRACE warmup ratio: {grace_warmup_ratio}")
+        print(f"  - GRACE epsilon: {grace_epsilon}")
+        print(f"  - GRACE softmax beta: {grace_softmax_beta}")
+        print(
+            "  - GRACE router blend lambda: "
+            f"{grace_router_blend_lambda}"
+        )
+        print(f"  - GRACE EMA decay: {grace_ema_decay}")
+    elif num_teachers > 1 and teacher_weighting_strategy == "gradient_optimal":
+        print(f"  - Gradient weight cap: {gradient_weight_cap}")
+        print(f"  - Gradient weight steps: {gradient_weight_steps}")
+    if objective_conflict_strategy == "cagrad":
+        print(f"  - Objective conflict c: {objective_conflict_cagrad_c}")
+        print(
+            "  - Objective conflict grid steps: "
+            f"{objective_conflict_cagrad_grid_steps}"
+        )
+    print("  - Loss weighting: CE + (1 - alpha) * KD")
 
 
 __all__ = [

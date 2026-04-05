@@ -5,7 +5,7 @@
 \setlength{\LTleft}{0pt}
 \setlength{\LTright}{0pt}
 \renewcommand{\arraystretch}{1.1}
-\begin{longtable}{|m{2.1cm}|m{5.8cm}|m{6.2cm}|}
+\begin{longtable}{|>{\raggedright\arraybackslash}p{2.1cm}|>{\raggedright\arraybackslash}p{5.8cm}|>{\raggedright\arraybackslash}p{6.2cm}|}
 \hline
 \thead{Abbr.} & \thead{Full Term} & \thead{Description} \\
 \hline
@@ -18,9 +18,15 @@ ANLS & Average Normalized Levenshtein Similarity & Evaluation metric used for Do
 \hline
 API & Application Programming Interface & Interface used to query model outputs in black-box settings. \\
 \hline
+bf16 & Brain Floating Point 16 & Low-precision floating-point format used for efficient mixed-precision training. \\
+\hline
 BLIP-2 & Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models & A modular vision-language model with a Q-Former bridge. \\
 \hline
+CCA & Canonical Correlation Analysis & Classical similarity analysis method related to the interpretation of CKA scores. \\
+\hline
 CE & Cross-Entropy & Supervised loss used for classification or distillation objectives. \\
+\hline
+CKA & Centered Kernel Alignment & Representation similarity measure used to compare hidden layers between teacher and student models. \\
 \hline
 ChartQA & Chart Question Answering & Benchmark for question answering over charts. \\
 \hline
@@ -30,9 +36,21 @@ CNN & Convolutional Neural Network & Standard visual backbone architecture used 
 \hline
 DocVQA & Document Visual Question Answering & Benchmark for question answering on document images. \\
 \hline
+EOS & End of Sequence & Special token that marks the end of a generated answer span. \\
+\hline
 FFN & Feedforward Network & Transformer sublayer applied after attention. \\
 \hline
+fp16 & Floating Point 16 & Half-precision floating-point format used in mixed-precision training or inference. \\
+\hline
+GRACE & Gradient-Routed Alignment with Capacity-aware Experts & Proposed multi-teacher distillation method in this thesis. \\
+\hline
+GPU & Graphics Processing Unit & Parallel hardware accelerator used for training and serving deep learning models. \\
+\hline
+HSM-CKA & Hidden-State Matching with CKA & Baseline distillation method that aligns teacher and student hidden representations using CKA. \\
+\hline
 InfoNCE & Information Noise-Contrastive Estimation & Contrastive objective for aligning image and text representations. \\
+\hline
+JSON & JavaScript Object Notation & Lightweight structured data format used for the LLaVA-style training files in this thesis. \\
 \hline
 JS & Jensen-Shannon & Symmetric divergence measure between probability distributions. \\
 \hline
@@ -64,6 +82,8 @@ NLS & Normalized Levenshtein Similarity & String similarity score used in DocVQA
 \hline
 OCR & Optical Character Recognition & Extraction of text from images or scanned documents. \\
 \hline
+OT & Optimal Transport & Distribution-matching perspective used to motivate tokenizer-agnostic distillation. \\
+\hline
 PE & Positional Encoding & Representation of token order in Transformer models. \\
 \hline
 PLN & Parametric Layer Normalization & Layer normalization variant with trainable scale and bias. \\
@@ -78,7 +98,11 @@ RMSNorm & Root Mean Square Layer Normalization & Lightweight normalization metho
 \hline
 RoPE & Rotary Positional Embedding & Positional encoding method based on rotational transformations. \\
 \hline
+TF32 & TensorFloat-32 & NVIDIA tensor-core numeric format used to accelerate matrix operations during training. \\
+\hline
 TextVQA & Text Visual Question Answering & Benchmark for question answering on natural images containing text. \\
+\hline
+ULD & Universal Logit Distillation & Tokenizer-agnostic distillation loss based on ranked probability distributions. \\
 \hline
 ViT & Vision Transformer & Transformer-based model for image representation learning. \\
 \hline
@@ -89,6 +113,8 @@ VLM-Eval-Kit & Vision-Language Model Evaluation Kit & Toolkit used in this thesi
 VNU & Vietnam National University & Parent university system of VNU University of Engineering and Technology. \\
 \hline
 VQA & Visual Question Answering & Task of answering questions grounded in visual inputs. \\
+\hline
+ZeRO & Zero Redundancy Optimizer & Memory-optimization technique used by DeepSpeed to reduce optimizer-state replication during large-model training. \\
 \hline
 \end{longtable}
 \end{small}

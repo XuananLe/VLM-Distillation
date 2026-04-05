@@ -20,7 +20,7 @@ network and residual normalization.
 For language modeling, the Transformer produces a sequence of hidden states and
 next-token logits. In this thesis, the student and teacher models are trained or
 evaluated through their output logits because the distillation method operates at
-the token-distribution level.
+the token-distribution level \cite{vaswani2023attentionneed,hinton2015distillingknowledgeneuralnetwork}.
 
 \begin{figure}[htbp]
     \centering
@@ -124,20 +124,20 @@ on OCR-sensitive recognition and token-level answer generation.
 Knowledge distillation transfers information from a stronger teacher model to a
 smaller student model \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
 Let \(\mathcal{L}_{CE}\) denote the supervised cross-entropy loss of the student.
-A generic distillation objective is
+A generic distillation objective can be written as
 \begin{equation}
 \mathcal{L}
 =
-\mathcal{L}_{CE}
+\lambda_{CE}\mathcal{L}_{CE}
 +
-\alpha \mathcal{L}_{KD},
+\lambda_{KD}\mathcal{L}_{KD},
 \end{equation}
-where \(\mathcal{L}_{KD}\) is a teacher-guided loss and \(\alpha \ge 0\) controls
-its weight.
+where \(\mathcal{L}_{KD}\) is a teacher-guided loss. In later chapters, GRACE
+uses the specific convex-mixing form \((1-\alpha)\mathcal{L}_{CE}+\alpha\mathcal{L}_{KD}\).
 
 In token-level distillation, the teacher and student are compared on their output
 logits rather than only on hard labels. This allows the student to learn richer
-distributional structure, often called \emph{dark knowledge}.
+distributional structure, often called \emph{dark knowledge} \cite{hinton2015distillingknowledgeneuralnetwork}.
 
 \begin{figure}[htbp]
     \centering
@@ -158,7 +158,8 @@ With temperatures \(\tau_s\) and \(\tau_t\), the corresponding distributions are
 
 Many classical KD methods compare \(\mathbf{p}_s\) and \(\mathbf{p}_t\) using
 divergences such as forward KL or Jensen-Shannon divergence. However, such
-approaches usually assume that teacher and student share the same vocabulary.
+approaches usually assume that teacher and student share the same vocabulary
+\cite{hinton2015distillingknowledgeneuralnetwork,lin1991jensen,boizard2024towardscrosstokenizerdistillation}.
 
 \section{Universal Logit Distillation}
 
@@ -187,7 +188,46 @@ where \(\pi(\cdot)\) denotes sorting in descending order after zero-padding.
 
 The key advantage of ULD is that it compares distributions by their ranked
 probability mass rather than by token identity. This makes it directly applicable
-to cross-tokenizer teacher-student distillation.
+to cross-tokenizer teacher-student distillation \cite{boizard2024towardscrosstokenizerdistillation}.
+
+\subsection{Optimal Transport Perspective}
+
+Optimal transport compares two probability measures by the minimum cost required
+to move mass from one distribution to the other
+\cite{peyre2019computationaloptimaltransport}. For discrete source weights
+\(\mathbf{a}\), target weights \(\mathbf{b}\), and transport cost matrix
+\(\mathbf{C}\), the corresponding optimization problem can be written as
+\begin{equation}
+W(\mathbf{a},\mathbf{b})
+=
+\min_{\mathbf{P}\in\mathcal{U}(\mathbf{a},\mathbf{b})}
+\langle \mathbf{P}, \mathbf{C} \rangle,
+\qquad
+\mathcal{U}(\mathbf{a},\mathbf{b})
+=
+\left\{
+\mathbf{P}\ge 0 \mid
+\mathbf{P}\mathbf{1}=\mathbf{a},\
+\mathbf{P}^{\top}\mathbf{1}=\mathbf{b}
+\right\}.
+\end{equation}
+Here, \(\mathbf{P}\) is a transport plan that specifies how much mass is moved
+from each source bin to each target bin.
+
+This viewpoint helps explain why ULD works across tokenizers.
+
+When teacher and student have different vocabularies, matching probabilities by token index is not meaningful. What matters instead is how much probability mass is assigned to highly ranked outcomes \cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport}.
+
+ULD does not solve a full OT problem at each training step. However, it follows the same geometric view: compare the shape of the mass distribution rather than enforcing one-to-one token correspondence \cite{boizard2024towardscrosstokenizerdistillation}.
+
+The sorted-probability surrogate in ULD is therefore an efficient tokenizer-agnostic approximation to mass-matching behavior \cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport}.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[height=0.26\textheight,keepaspectratio]{figures/optimal_transport_matrix_wikimedia.png}
+    \caption{Discrete transport plan matrix in optimal transport, showing how source and target marginals are coupled by a transport matrix \cite{wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}.}
+    \label{fig:prelim-optimal-transport}
+\end{figure}
 
 \begin{figure}[htbp]
     \centering
@@ -210,12 +250,12 @@ to cross-tokenizer teacher-student distillation.
         \node[widebox, fill=green!10, right=2.0cm of $(pis)!0.5!(pit)$] (l1)
             {$\mathcal{L}_{ULD}=\left\|\pi(\mathbf{p}_s)-\pi(\mathbf{p}_t)\right\|_1$};
 
-        \draw[arrow] (zs) -- node[oplabel] {$\mathrm{softmax}(\cdot/\tau_s)$} (ps);
-        \draw[arrow] (ps) -- node[oplabel] {$\mathrm{sort}+\mathrm{pad}$} (pis);
-        \draw[arrow] (zt) -- node[oplabel] {$\mathrm{softmax}(\cdot/\tau_t)$} (pt);
-        \draw[arrow] (pt) -- node[oplabel] {$\mathrm{sort}+\mathrm{pad}$} (pit);
-        \draw[arrow] (pis) -- (l1);
-        \draw[arrow] (pit) -- (l1);
+        % \draw[arrow] (zs) to node[oplabel] {$\mathrm{softmax}(\cdot/\tau_s)$} (ps);
+        % \draw[arrow] (ps) to node[oplabel] {$\mathrm{sort}+\mathrm{pad}$} (pis);
+        % \draw[arrow] (zt) to node[oplabel] {$\mathrm{softmax}(\cdot/\tau_t)$} (pt);
+        % \draw[arrow] (pt) to node[oplabel] {$\mathrm{sort}+\mathrm{pad}$} (pit);
+        % \draw[arrow] (pis) to (l1);
+        % \draw[arrow] (pit) to (l1);
     \end{tikzpicture}
     \caption{ULD compares ranked probability mass after temperature scaling, sorting, and zero-padding to a common vocabulary length \cite{boizard2024towardscrosstokenizerdistillation}.}
     \label{fig:prelim-uld-schematic}
@@ -223,11 +263,13 @@ to cross-tokenizer teacher-student distillation.
 
 \subsection{Answer-Token Distillation}
 
-For multimodal question answering, distillation should focus on answer tokens rather
-than prompt tokens. In our implementation, KD is computed only on supervised answer
-positions after masking ignored tokens, optionally removing EOS, and truncating
-student and teacher answer spans to a common length. This gives a token-aligned
-distillation signal while remaining compatible with different tokenizers.
+For multimodal question answering, distillation should focus on answer tokens rather than prompt tokens \cite{liu2023visualinstructiontuning}.
+
+In our implementation, KD is computed only on supervised answer positions after masking ignored tokens, optionally removing EOS, and truncating student and teacher answer spans to a common length.
+
+In Chapter~\ref{chap:proposed-method}, this supervised answer-position set is denoted by \(\Omega_b\).
+
+This gives a token-aligned distillation signal while remaining compatible with different tokenizers.
 
 \section{Multi-Teacher Distillation}
 
@@ -243,21 +285,17 @@ Let \(\mathcal{T}=\{T_1,\ldots,T_N\}\) be a pool of frozen teachers. For sample
 \end{equation}
 but this assumes every teacher is equally useful for every sample.
 
-\subsection{Need for Selective Routing}
-
 In practice, different teachers may provide conflicting guidance. Some teachers
 may help the supervised objective on a given sample, while others may push the
-student in a different direction. This motivates a selective routing mechanism
-that decides, for each sample, which teachers should be active.
+student in a different direction \cite{zhu2021studentcustomized}. This motivates
+a selective routing mechanism that decides, for each sample, which teachers
+should be active.
 
 \subsection{Learned Routing and Load Balancing}
 
-Recent sparse expert models route each sample or token through only a subset of
-available experts, which improves efficiency and allows specialized computation
-\cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,deepseekai2024deepseekv2strongeconomicalefficient}.
-The same high-level idea is useful in multi-teacher distillation: instead of
-averaging all teachers equally, a learned router can propose teacher weights from
-student-side features.
+Recent sparse expert models route each sample or token through only a subset of available experts. This improves efficiency and allows specialized computation \cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,deepseekai2024deepseekv2strongeconomicalefficient}.
+
+The same high-level idea is useful in multi-teacher distillation. Instead of averaging all teachers equally, a learned router can propose teacher weights from student-side features \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
 
 Let \(\mathbf{h}^{(b)}\) denote a pooled student representation for sample \(b\).
 A router network \(G(\cdot)\) produces gate logits
@@ -286,195 +324,42 @@ N\sum_{i=1}^{N}\bar{p}_i \bar{q}_i.
 This auxiliary term does not replace the KD objective; instead, it regularizes
 the router so that different teachers remain usable during training.
 
+In \methodname, the router is implemented as a deep student-conditioned gate on
+top of pooled student hidden states. It is followed by softmax weights,
+top-\(k\) sparsification, and capacity filtering. The full framework also
+supports optional balancing and expert-bias updates.
+
+When enabled, the expert bias term nudges the router toward under-used teachers
+in subsequent batches.
+
+This makes the routing stage closer to sparse-expert training than to a static teacher average \cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}.
+
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.80\linewidth]{figures/switch_capacity_routing_jmlr_clean2.png}
+    \caption[Sparse routing with expert capacity constraints.]{Illustration of sparse routing with expert capacity constraints, adapted from Switch Transformers \cite{fedus2022switchtransformersscalingtrillion}. Capacity factors control how many routed samples each expert can accept before overflow, which is directly analogous to the capacity-aware teacher routing used in \methodname.}
+    \label{fig:prelim-switch-routing}
+\end{figure}
+
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.78\linewidth]{figures/deepseek_moe_wikimedia.png}
-    \caption{Example of sparse routing and expert specialization in a mixture-of-experts architecture \cite{wikimedia_deepseek_moe_mla_image,deepseekai2024deepseekv2strongeconomicalefficient}. Although our setting is multi-teacher distillation rather than token-level MoE language modeling, the same principles of learned routing, sparse activation, and load balancing are directly relevant.}
+    \caption[Sparse routing and expert specialization in MoE.]{Example of sparse routing and expert specialization in a mixture-of-experts architecture \cite{wikimedia_deepseek_moe_mla_image,deepseekai2024deepseekv2strongeconomicalefficient}. Although our setting is multi-teacher distillation rather than token-level MoE language modeling, the same principles of learned routing, sparse activation, and load balancing are directly relevant.}
     \label{fig:prelim-sparse-routing}
 \end{figure}
 
-\section{Gradient Alignment}
+\subsection{Gradient Alignment as a Routing Signal}
 
-\subsection{Cross-Entropy Gradient Proxy}
+Gradient similarity has been used in distillation as a signal for deciding
+whether teacher supervision helps or conflicts with the student objective
+\cite{zhu2021studentcustomized}.
 
-For sample \(b\), let \(\mathcal{L}_{CE}^{(b)}\) be the student cross-entropy loss
-and let \(\mathbf{z}_s^{(b)}\) be the corresponding student logits. We define the
-cross-entropy logit-gradient proxy as
-\begin{equation}
-\mathbf{g}_{CE}^{(b)}
-=
-\nabla_{\mathbf{z}_s^{(b)}} \mathcal{L}_{CE}^{(b)}.
-\end{equation}
+The high-level idea is simple. If the teacher-induced update points in a
+similar direction to the supervised update, the teacher is more likely to be
+helpful. If the two directions conflict, teacher supervision may hurt learning
+on that sample \cite{zhu2021studentcustomized}.
 
-This gradient describes the local update direction preferred by supervised learning.
-
-\subsection{Per-Teacher KD Gradient Proxy}
-
-Similarly, for each teacher \(T_i\), we define a KD logit-gradient proxy
-\begin{equation}
-\mathbf{g}_{i}^{(b)}
-=
-\nabla_{\mathbf{z}_s^{(b)}} \mathcal{L}_{KD}^{(b,i)}.
-\end{equation}
-
-This gives a teacher-specific candidate update direction in the same logit space
-as \(\mathbf{g}_{CE}^{(b)}\).
-
-\subsection{Cosine Alignment}
-
-To measure whether teacher \(T_i\) is locally consistent with the supervised
-objective, we compare pooled CE and KD gradient proxies in the same logit space.
-Let
-\begin{equation}
-\tilde{\mathbf{g}}_{CE}^{(b)} = \mathrm{Pool}\!\left(\mathbf{g}_{CE}^{(b)}\right),
-\qquad
-\tilde{\mathbf{g}}_{i}^{(b)} = \mathrm{Pool}\!\left(\mathbf{g}_{i}^{(b)}\right),
-\end{equation}
-where \(\mathrm{Pool}(\cdot)\) averages over supervised answer positions. The
-sample-level cosine alignment score is then
-\begin{equation}
-s_i^{(b)}
-=
-\cos\!\left(\tilde{\mathbf{g}}_{CE}^{(b)}, \tilde{\mathbf{g}}_{i}^{(b)}\right).
-\end{equation}
-
-Thus, \(s_i^{(b)}\) is a sample-level agreement score after pooling the
-supervised-token gradients. A larger value indicates that teacher \(T_i\)
-provides a KD direction more consistent with the supervised objective, while a
-negative value indicates directional conflict.
-
-\begin{figure}[htbp]
-    \centering
-    \begin{tikzpicture}[
-        >=latex,
-        every node/.style={font=\small},
-        note/.style={draw, rounded corners=2pt, align=center, minimum width=2.4cm, minimum height=1.0cm},
-        eqbox/.style={draw, rounded corners=2pt, fill=gray!8, align=left, inner sep=6pt}
-    ]
-        \coordinate (o) at (0,0);
-        \draw[->, thick] (o) -- (3.6,0) node[below right] {$\mathbf{g}_{CE}$};
-        \draw[->, thick, green!60!black] (o) -- (2.9,1.15) node[above right] {$\mathbf{g}_{i}^{+}$};
-        \draw[->, thick, orange!90!black] (o) -- (0.35,2.35) node[above] {$\mathbf{g}_{i}^{0}$};
-        \draw[->, thick, red!70!black] (o) -- (-2.35,-0.95) node[below left] {$\mathbf{g}_{i}^{-}$};
-
-        \node[note, fill=green!10] at (5.15,1.15) {$s_i>\delta$\\active};
-        \node[note, fill=orange!10] at (2.25,2.75) {$|s_i|\approx 0$\\filtered};
-        \node[note, fill=red!10] at (-3.45,-1.25) {$s_i<0$\\filtered};
-
-        \node[eqbox] at (5.55,-1.0) {$
-            s_i^{(b)}=
-            \cos\!\left(\tilde{\mathbf{g}}_{CE}^{(b)},\tilde{\mathbf{g}}_{i}^{(b)}\right)
-            $\\[0.35em]$
-            a_i^{(b)}=
-            \mathbf{1}[s_i^{(b)}>\delta]
-            $\\[0.35em]$
-            \omega_i^{(b)}\propto
-            \hat{p}_i^{(b)} a_i^{(b)},\quad
-            i^\star=\arg\max_i s_i^{(b)}
-        $};
-    \end{tikzpicture}
-    \caption{Illustration of gradient alignment in pooled logit-gradient space. The learned gate first proposes constrained routing weights \(\hat{p}_i^{(b)}\); gradient alignment then activates only sufficiently aligned teachers. If none are active, the router falls back to the least-negative teacher.}
-    \label{fig:prelim-gradient-alignment}
-\end{figure}
-
-\subsection{Alignment Filtering on Top of Gated Routing}
-
-In the current method, alignment does not replace the learned gate. Instead, the
-gate first proposes constrained routing weights \(\hat{p}_i^{(b)}\) after top-\(k\)
-selection and capacity control, and alignment is then used as a binary activation
-filter:
-\begin{equation}
-\hat{a}_i^{(b)}
-=
-\mathbf{1}[s_i^{(b)}>\delta],
-\end{equation}
-where \(\delta\) is an alignment threshold.
-
-If no teacher remains active after thresholding, the method falls back to the
-least-negative aligned teacher among the currently routed teachers,
-\begin{equation}
-i^\star = \arg\max_i s_i^{(b)},
-\qquad
-\hat{a}_i^{(b)} = \mathbf{1}[i=i^\star].
-\end{equation}
-The final effective teacher weights are then
-\begin{equation}
-\omega_i^{(b)}
-=
-\frac{\hat{p}_i^{(b)}\hat{a}_i^{(b)}}{\sum_{k=1}^{N}\hat{p}_k^{(b)}\hat{a}_k^{(b)}}.
-\end{equation}
-This keeps the learned gate responsible for coarse routing and balancing, while
-alignment acts as a second-stage filter that suppresses routed teachers whose KD
-gradient conflicts with the supervised objective.
-
-\section{Representation Similarity and CKA}
-
-\subsection{Why Compare Hidden Layers?}
-
-When analyzing whether layer-wise distillation is suitable, it is useful to ask
-whether a teacher hidden layer and a student hidden layer actually encode similar
-representations. A common way to study this question is to compare activation
-matrices collected from the same set of inputs and measure their similarity
-\cite{kornblith2019similarityrepresentations}.
-
-\subsection{Centered Kernel Alignment}
-
-Let \(\mathbf{X}\in\mathbb{R}^{n\times p}\) and
-\(\mathbf{Y}\in\mathbb{R}^{n\times q}\) denote centered activation matrices from
-two layers over the same \(n\) examples. In this thesis, we use linear centered
-kernel alignment (CKA) as the layer-similarity measure:
-\begin{equation}
-\mathrm{CKA}(\mathbf{X},\mathbf{Y})
-=
-\frac{\left\|\mathbf{X}^{\top}\mathbf{Y}\right\|_{F}^{2}}
-{\left\|\mathbf{X}^{\top}\mathbf{X}\right\|_{F}
-\left\|\mathbf{Y}^{\top}\mathbf{Y}\right\|_{F}}.
-\end{equation}
-
-CKA produces a scalar similarity score between two representations. Larger values
-indicate that the two layers encode more similar geometry across the input set.
-Compared with earlier similarity measures, CKA is widely used because it is
-stable in practical settings and is well suited for comparing learned hidden
-representations across layers and across models
-\cite{kornblith2019similarityrepresentations}.
-
-\begin{figure}[htbp]
-    \centering
-    \begin{subfigure}[t]{0.48\linewidth}
-        \centering
-        \includegraphics[width=\linewidth]{figures/cka_last_textvqa_qwen2vl2b_smolvlm500m.png}
-        \caption{High layer similarity in a teacher-student CKA heatmap from our preliminary analysis.}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[t]{0.48\linewidth}
-        \centering
-        \includegraphics[width=\linewidth]{figures/tinyllava_vs_llava7b_chart.png}
-        \caption{Compact VLMs still exhibit a benchmark gap against larger models \cite{zhou2024tinyllava}.}
-    \end{subfigure}
-    \caption{A high CKA score is not sufficient to conclude that layer-wise transfer will remove the downstream performance gap. Representation similarity and task performance are related but not equivalent.}
-    \label{fig:prelim-cka-vs-performance-gap}
-\end{figure}
-
-\subsection{Connection to Layer-Wise Distillation}
-
-Later in the thesis, we use CKA as an analysis tool rather than as a training
-loss. The goal is to examine whether teacher and student layers exhibit clear
-one-to-one correspondence. If the cross-model layer similarity is weak or
-diffuse, then directly enforcing layer-wise feature matching is unlikely to be a
-good inductive bias. This motivates our later conclusion that explicit layer-wise
-distillation is not effective for the current multimodal distillation setting.
-
-\section{Summary}
-
-The preliminaries in this chapter establish the concepts needed for the proposed
-method:
-\begin{enumerate}
-\item Transformer-based VLMs produce token logits for multimodal answer generation.
-\item Knowledge distillation adds a teacher-guided loss to the supervised CE loss.
-\item ULD enables output-level distillation even when student and teacher vocabularies differ.
-\item Multi-teacher distillation benefits from learned routing, sparse activation, and load balancing when teachers are used unevenly.
-\item Gradient alignment provides a principled way to filter routed teachers according to whether their KD update agrees with the supervised objective.
-\end{enumerate}
-
-These concepts are combined in Chapter~\ref{chap:proposed-method} to define the
-full selective multi-teacher distillation method used in this thesis.
+In this thesis, \methodname{} uses this idea only after routing. The
+GRACE-specific formulation of gradient proxies, cosine alignment, thresholding,
+and fallback is presented in Chapter~\ref{chap:proposed-method}, where it is
+part of the method rather than general background.

@@ -2,12 +2,18 @@ import time
 
 import torch
 
+from src.components.grace import apply_grace_routing
+from src.components.objective_conflict import resolve_objective_conflict_weights
+from src.components.teacher_weighting import solve_gradient_weight_vector
 from src.components.forward_utils import forward_with_kwarg_retry, infer_batch_size
 from src.trainer.alignment_utils import compute_teacher_loss_matrix
-from src.trainer.gradient_utils import apply_gradient_alignment_routing
+from src.trainer.gradient_utils import (
+    compute_pooled_ce_grace_grad,
+)
 from src.trainer.routing_utils import (
     apply_teacher_gate_constraints,
     compute_teacher_gate_balance_loss,
+    compute_teacher_gate_entropy_loss,
     compute_teacher_gate_z_loss,
 )
 from src.trainer.distillation_utils import build_cached_teacher_batches, build_teacher_batches
@@ -59,13 +65,13 @@ def run_student_forward_and_teacher_gate(*, trainer, model, student_inputs):
         else None
     )
     teacher_gate_time = time.perf_counter() - teacher_gate_start_time
-    teacher_gate_weights = (
-        torch.softmax(teacher_gate_logits, dim=-1)
+    teacher_gate_routing_scores = (
+        trainer.teacher_gate.prepare_routing_scores(teacher_gate_logits)
         if teacher_gate_logits is not None
         else None
     )
-    teacher_gate_routing_scores = (
-        trainer.teacher_gate.apply_expert_bias(teacher_gate_logits)
+    teacher_gate_weights = (
+        torch.softmax(teacher_gate_routing_scores, dim=-1)
         if teacher_gate_logits is not None
         else None
     )
@@ -84,6 +90,7 @@ def run_student_forward_and_teacher_gate(*, trainer, model, student_inputs):
 def apply_teacher_gate_routing(*, trainer, model, teacher_gate_logits, teacher_gate_weights, teacher_gate_routing_scores):
     state = {
         "teacher_gate_balance_loss": None,
+        "teacher_gate_entropy_loss": None,
         "teacher_gate_z_loss": None,
         "teacher_gate_soft_load": None,
         "teacher_gate_hard_load": None,
@@ -98,6 +105,7 @@ def apply_teacher_gate_routing(*, trainer, model, teacher_gate_logits, teacher_g
     routing_constraint_start_time = time.perf_counter()
     if teacher_gate_weights is not None:
         state["teacher_gate_z_loss"] = compute_teacher_gate_z_loss(teacher_gate_logits)
+        state["teacher_gate_entropy_loss"] = compute_teacher_gate_entropy_loss(teacher_gate_weights)
         (
             state["routed_teacher_gate_weights"],
             state["teacher_gate_capacity"],
@@ -108,7 +116,7 @@ def apply_teacher_gate_routing(*, trainer, model, teacher_gate_logits, teacher_g
         ) = apply_teacher_gate_constraints(
             teacher_gate_routing_scores,
             teacher_gate_weights,
-            trainer.teacher_gate_top_k,
+            trainer.current_teacher_gate_top_k(),
             trainer.teacher_gate_capacity_factor,
         )
         (
@@ -117,7 +125,7 @@ def apply_teacher_gate_routing(*, trainer, model, teacher_gate_logits, teacher_g
             state["teacher_gate_hard_load"],
         ) = compute_teacher_gate_balance_loss(
             teacher_gate_weights,
-            trainer.teacher_gate_top_k,
+            trainer.current_teacher_gate_top_k(),
             routing_scores=teacher_gate_routing_scores,
             assignment_mask=state["teacher_gate_assignment_mask"],
         )
@@ -128,7 +136,7 @@ def apply_teacher_gate_routing(*, trainer, model, teacher_gate_logits, teacher_g
     return state
 
 
-def compute_teacher_losses_and_alignment(
+def compute_teacher_losses_and_grace(
     *,
     trainer,
     student_logits,
@@ -139,8 +147,9 @@ def compute_teacher_losses_and_alignment(
     teacher_loss_matrix_start_time = time.perf_counter()
     (
         teacher_loss_matrix,
-        teacher_alignment_scores,
-        teacher_alignment_active,
+        teacher_grace_scores,
+        teacher_grace_active,
+        teacher_gradient_vectors,
     ) = compute_teacher_loss_matrix(
         student_logits=student_logits,
         student_labels=student_labels,
@@ -148,8 +157,12 @@ def compute_teacher_losses_and_alignment(
         teacher_batches=teacher_batches,
         cached_teacher_batches=cached_teacher_batches,
         prepare_input_fn=trainer._prepare_input,
-        collect_alignment_tensors=trainer.should_apply_gradient_alignment_routing(),
-        gradient_alignment_threshold=trainer.gradient_alignment_threshold,
+        collect_grace_tensors=trainer.should_apply_grace_routing(),
+        collect_teacher_gradient_vectors=(
+            trainer.teacher_weighting_strategy == "gradient_optimal"
+            or trainer.objective_conflict_strategy != "fixed"
+        ),
+        grace_threshold=trainer.grace_threshold,
         distillation_loss_fn=trainer.distillation_loss_fn,
         distillation_logit_grad_fn=trainer.distillation_logit_grad_fn,
         loss_function=trainer.loss_function,
@@ -161,39 +174,77 @@ def compute_teacher_losses_and_alignment(
     )
     return {
         "teacher_loss_matrix": teacher_loss_matrix,
-        "teacher_alignment_scores": teacher_alignment_scores,
-        "teacher_alignment_active": teacher_alignment_active,
+        "teacher_grace_scores": teacher_grace_scores,
+        "teacher_grace_active": teacher_grace_active,
+        "teacher_gradient_vectors": teacher_gradient_vectors,
         "teacher_loss_matrix_time": time.perf_counter() - teacher_loss_matrix_start_time,
     }
 
 
-def apply_alignment_and_compute_distillation_loss(
+def apply_grace_and_compute_distillation_loss(
     *,
     trainer,
     routed_teacher_gate_weights,
-    teacher_alignment_scores,
-    teacher_alignment_active,
+    teacher_grace_scores,
+    teacher_grace_active,
+    teacher_gradient_vectors,
     teacher_loss_matrix,
 ):
-    alignment_routing_start_time = time.perf_counter()
-    (
-        effective_teacher_gate_weights,
-        teacher_alignment_scores,
-        teacher_alignment_active,
-        teacher_alignment_weights,
-        teacher_alignment_fallback_rate,
-        trainer.teacher_alignment_score_ema,
-    ) = apply_gradient_alignment_routing(
-        teacher_gate_weights=routed_teacher_gate_weights,
-        teacher_alignment_scores=teacher_alignment_scores,
-        teacher_alignment_active=teacher_alignment_active,
-        prev_alignment_score_ema=trainer.teacher_alignment_score_ema,
-        gradient_alignment_ema_decay=trainer.gradient_alignment_ema_decay,
-        gradient_alignment_softmax_beta=trainer.gradient_alignment_softmax_beta,
-        gradient_alignment_router_blend_lambda=trainer.gradient_alignment_router_blend_lambda,
-        gradient_alignment_epsilon=trainer.gradient_alignment_epsilon,
-    )
-    alignment_routing_time = time.perf_counter() - alignment_routing_start_time
+    grace_routing_start_time = time.perf_counter()
+    teacher_grace_weights = None
+    teacher_grace_fallback_rate = None
+    effective_teacher_gate_weights = None
+
+    if trainer.teacher_weighting_strategy == "gradient_optimal":
+        if teacher_gradient_vectors is not None:
+            solved_weights = solve_gradient_weight_vector(
+                teacher_gradient_vectors,
+                weight_cap=trainer.gradient_weight_cap,
+                max_steps=trainer.gradient_weight_steps,
+            ).to(
+                device=teacher_loss_matrix.device,
+                dtype=teacher_loss_matrix.dtype,
+            )
+            effective_teacher_gate_weights = solved_weights.unsqueeze(0).expand(
+                teacher_loss_matrix.size(0),
+                -1,
+            )
+    else:
+        if not trainer.should_apply_grace_routing():
+            if routed_teacher_gate_weights is not None:
+                available_teacher_mask = routed_teacher_gate_weights.gt(0)
+                if not available_teacher_mask.any():
+                    available_teacher_mask = torch.ones_like(
+                        routed_teacher_gate_weights,
+                        dtype=torch.bool,
+                    )
+                effective_teacher_gate_weights = available_teacher_mask.to(
+                    dtype=teacher_loss_matrix.dtype,
+                )
+                effective_teacher_gate_weights = effective_teacher_gate_weights / (
+                    effective_teacher_gate_weights.sum(dim=-1, keepdim=True).clamp(
+                        min=torch.finfo(effective_teacher_gate_weights.dtype).eps
+                    )
+                )
+        else:
+            (
+                effective_teacher_gate_weights,
+                teacher_grace_scores,
+                teacher_grace_active,
+                teacher_grace_weights,
+                teacher_grace_fallback_rate,
+                trainer.teacher_grace_score_ema,
+            ) = apply_grace_routing(
+                teacher_gate_weights=routed_teacher_gate_weights,
+                teacher_grace_scores=teacher_grace_scores,
+                teacher_grace_active=teacher_grace_active,
+                prev_grace_score_ema=trainer.teacher_grace_score_ema,
+                grace_ema_decay=trainer.grace_ema_decay,
+                grace_softmax_beta=trainer.grace_softmax_beta,
+                grace_router_blend_lambda=trainer.grace_router_blend_lambda,
+                grace_epsilon=trainer.grace_epsilon,
+            )
+    grace_routing_time = time.perf_counter() - grace_routing_start_time
 
     distillation_loss = teacher_loss_matrix.mean()
     if effective_teacher_gate_weights is not None:
@@ -203,12 +254,70 @@ def apply_alignment_and_compute_distillation_loss(
 
     return {
         "effective_teacher_gate_weights": effective_teacher_gate_weights,
-        "teacher_alignment_scores": teacher_alignment_scores,
-        "teacher_alignment_active": teacher_alignment_active,
-        "teacher_alignment_weights": teacher_alignment_weights,
-        "teacher_alignment_fallback_rate": teacher_alignment_fallback_rate,
+        "teacher_grace_scores": teacher_grace_scores,
+        "teacher_grace_active": teacher_grace_active,
+        "teacher_grace_weights": teacher_grace_weights,
+        "teacher_grace_fallback_rate": teacher_grace_fallback_rate,
         "distillation_loss": distillation_loss,
-        "alignment_routing_time": alignment_routing_time,
+        "grace_routing_time": grace_routing_time,
+    }
+
+
+def compute_objective_conflict_state(
+    *,
+    trainer,
+    student_logits,
+    student_labels,
+    distillation_loss,
+    effective_teacher_gate_weights,
+    routed_teacher_gate_weights,
+    teacher_gradient_vectors,
+):
+    if trainer.objective_conflict_strategy == "fixed":
+        return {
+            "objective_ce_weight": None,
+            "objective_kd_weight": None,
+            "objective_gradient_cosine": None,
+        }
+
+    pooled_ce_grads = compute_pooled_ce_grace_grad(
+        student_logits=student_logits.detach(),
+        student_labels=student_labels,
+    )
+    ce_grad_vector = pooled_ce_grads.mean(dim=0)
+
+    if teacher_gradient_vectors is None:
+        kd_grad_vector = ce_grad_vector.new_zeros(ce_grad_vector.shape)
+    else:
+        if effective_teacher_gate_weights is not None:
+            teacher_mix = effective_teacher_gate_weights.mean(dim=0).to(
+                dtype=teacher_gradient_vectors.dtype,
+                device=teacher_gradient_vectors.device,
+            )
+        elif routed_teacher_gate_weights is not None:
+            teacher_mix = routed_teacher_gate_weights.mean(dim=0).to(
+                dtype=teacher_gradient_vectors.dtype,
+                device=teacher_gradient_vectors.device,
+            )
+        else:
+            teacher_mix = teacher_gradient_vectors.new_full(
+                (teacher_gradient_vectors.size(0),),
+                1.0 / teacher_gradient_vectors.size(0),
+            )
+        kd_grad_vector = (teacher_gradient_vectors * teacher_mix.unsqueeze(-1)).sum(dim=0)
+
+    base_kd_scale = max(1.0 - trainer.alpha, 0.0)
+    objective_weights, gradient_cosine = resolve_objective_conflict_weights(
+        strategy=trainer.objective_conflict_strategy,
+        ce_grad=ce_grad_vector,
+        kd_grad=base_kd_scale * kd_grad_vector,
+        cagrad_c=trainer.objective_conflict_cagrad_c,
+        cagrad_grid_steps=trainer.objective_conflict_cagrad_grid_steps,
+    )
+    return {
+        "objective_ce_weight": objective_weights[0].to(dtype=distillation_loss.dtype),
+        "objective_kd_weight": objective_weights[1].to(dtype=distillation_loss.dtype),
+        "objective_gradient_cosine": gradient_cosine.to(dtype=distillation_loss.dtype),
     }
 
 
@@ -220,19 +329,36 @@ def update_eval_ce_stats(*, trainer, student_inputs, ce_loss) -> None:
     trainer.eval_ce_loss_count += batch_size
 
 
-def compute_total_loss(*, trainer, ce_loss, distillation_loss, teacher_gate_balance_loss, teacher_gate_z_loss):
-    loss = (1.0 - trainer.alpha) * ce_loss + trainer.alpha * distillation_loss
+def compute_total_loss(
+    *,
+    trainer,
+    ce_loss,
+    distillation_loss,
+    teacher_gate_balance_loss,
+    teacher_gate_entropy_loss,
+    teacher_gate_z_loss,
+    objective_ce_weight=None,
+    objective_kd_weight=None,
+):
+    base_kd_loss = (1.0 - trainer.alpha) * distillation_loss
+    if objective_ce_weight is None or objective_kd_weight is None:
+        loss = ce_loss + base_kd_loss
+    else:
+        loss = objective_ce_weight * ce_loss + objective_kd_weight * base_kd_loss
     if teacher_gate_balance_loss is not None:
         loss = loss + teacher_gate_balance_loss * trainer.teacher_gate_balance_alpha
+    if teacher_gate_entropy_loss is not None:
+        loss = loss + teacher_gate_entropy_loss * trainer.teacher_gate_entropy_alpha
     if teacher_gate_z_loss is not None:
         loss = loss + teacher_gate_z_loss * trainer.teacher_gate_router_z_loss_alpha
     return loss
 
 
 __all__ = [
-    "apply_alignment_and_compute_distillation_loss",
+    "apply_grace_and_compute_distillation_loss",
     "apply_teacher_gate_routing",
-    "compute_teacher_losses_and_alignment",
+    "compute_objective_conflict_state",
+    "compute_teacher_losses_and_grace",
     "compute_total_loss",
     "move_teacher_models_to_device",
     "prepare_teacher_batches",

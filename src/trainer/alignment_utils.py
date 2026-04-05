@@ -4,8 +4,8 @@ import torch
 import torch.nn.functional as F
 
 from src.trainer.gradient_utils import (
-    compute_pooled_ce_alignment_grad,
-    compute_pooled_kd_alignment_grad,
+    compute_pooled_ce_grace_grad,
+    compute_pooled_kd_grace_grad,
 )
 from src.trainer.kd_sequence_utils import compute_single_teacher_loss
 from src.trainer.distillation_utils import (
@@ -23,8 +23,9 @@ def compute_teacher_loss_matrix(
     teacher_batches,
     cached_teacher_batches=None,
     prepare_input_fn: Callable,
-    collect_alignment_tensors: bool,
-    gradient_alignment_threshold: float,
+    collect_grace_tensors: bool,
+    collect_teacher_gradient_vectors: bool,
+    grace_threshold: float,
     distillation_loss_fn: Callable,
     distillation_logit_grad_fn: Callable,
     loss_function: str,
@@ -33,15 +34,16 @@ def compute_teacher_loss_matrix(
     teacher_temperature: float,
     skip_student_eos: bool,
     skip_teacher_eos: bool,
-) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None]:
+) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
     teacher_losses = []
-    alignment_scores = []
-    alignment_active = []
+    grace_scores = []
+    grace_active = []
+    teacher_gradient_vectors = []
 
-    pooled_ce_grad = None
-    if collect_alignment_tensors:
+    pooled_ce_grace_grad = None
+    if collect_grace_tensors:
         with torch.no_grad():
-            pooled_ce_grad = compute_pooled_ce_alignment_grad(
+            pooled_ce_grace_grad = compute_pooled_ce_grace_grad(
                 student_logits=student_logits.detach(),
                 student_labels=student_labels,
             )
@@ -66,9 +68,9 @@ def compute_teacher_loss_matrix(
                     skip_teacher_eos=skip_teacher_eos,
                 )
             )
-            if pooled_ce_grad is not None:
+            if pooled_ce_grace_grad is not None or collect_teacher_gradient_vectors:
                 with torch.no_grad():
-                    pooled_kd_grad = compute_pooled_kd_alignment_grad(
+                    pooled_kd_grad = compute_pooled_kd_grace_grad(
                         student_logits=student_logits.detach(),
                         student_labels=student_labels,
                         teacher_logits=prepared_teacher_logits,
@@ -81,18 +83,26 @@ def compute_teacher_loss_matrix(
                         skip_student_eos=skip_student_eos,
                         skip_teacher_eos=skip_teacher_eos,
                     )
-                    agreement = F.cosine_similarity(pooled_ce_grad, pooled_kd_grad, dim=-1, eps=1e-8)
-                alignment_scores.append(agreement)
-                alignment_active.append(agreement > gradient_alignment_threshold)
+                    if pooled_ce_grace_grad is not None:
+                        agreement = F.cosine_similarity(pooled_ce_grace_grad, pooled_kd_grad, dim=-1, eps=1e-8)
+                if collect_teacher_gradient_vectors:
+                    teacher_gradient_vectors.append(pooled_kd_grad.mean(dim=0))
+                if pooled_ce_grace_grad is not None:
+                    grace_scores.append(agreement)
+                    grace_active.append(agreement > grace_threshold)
                 del pooled_kd_grad
 
         teacher_loss_matrix = torch.stack(teacher_losses, dim=-1)
-        if not alignment_scores:
-            return teacher_loss_matrix, None, None
+        teacher_gradient_matrix = (
+            torch.stack(teacher_gradient_vectors, dim=0) if teacher_gradient_vectors else None
+        )
+        if not grace_scores:
+            return teacher_loss_matrix, None, None, teacher_gradient_matrix
         return (
             teacher_loss_matrix,
-            torch.stack(alignment_scores, dim=-1),
-            torch.stack(alignment_active, dim=-1),
+            torch.stack(grace_scores, dim=-1),
+            torch.stack(grace_active, dim=-1),
+            teacher_gradient_matrix,
         )
 
     for teacher_model, (teacher_inputs, teacher_labels) in zip(teacher_models, teacher_batches):
@@ -101,10 +111,12 @@ def compute_teacher_loss_matrix(
         if teacher_logit_positions is None and not prepared_teacher_labels.ne(-100).any():
             zero_losses = student_logits.new_zeros((student_logits.size(0),))
             teacher_losses.append(zero_losses)
-            if pooled_ce_grad is not None:
-                zero_alignment = pooled_ce_grad.new_zeros((student_logits.size(0),))
-                alignment_scores.append(zero_alignment)
-                alignment_active.append(zero_alignment > gradient_alignment_threshold)
+            if pooled_ce_grace_grad is not None:
+                zero_grace = pooled_ce_grace_grad.new_zeros((student_logits.size(0),))
+                grace_scores.append(zero_grace)
+                grace_active.append(zero_grace > grace_threshold)
+            if collect_teacher_gradient_vectors:
+                teacher_gradient_vectors.append(student_logits.new_zeros((student_logits.size(-1),), dtype=torch.float32))
             continue
 
         teacher_outputs = compute_teacher_forward(
@@ -140,9 +152,9 @@ def compute_teacher_loss_matrix(
                 skip_teacher_eos=skip_teacher_eos,
             )
         )
-        if pooled_ce_grad is not None:
+        if pooled_ce_grace_grad is not None or collect_teacher_gradient_vectors:
             with torch.no_grad():
-                pooled_kd_grad = compute_pooled_kd_alignment_grad(
+                pooled_kd_grad = compute_pooled_kd_grace_grad(
                     student_logits=student_logits.detach(),
                     student_labels=student_labels,
                     teacher_logits=teacher_logits,
@@ -155,17 +167,25 @@ def compute_teacher_loss_matrix(
                     skip_student_eos=skip_student_eos,
                     skip_teacher_eos=skip_teacher_eos,
                 )
-                agreement = F.cosine_similarity(pooled_ce_grad, pooled_kd_grad, dim=-1, eps=1e-8)
-            alignment_scores.append(agreement)
-            alignment_active.append(agreement > gradient_alignment_threshold)
+                if pooled_ce_grace_grad is not None:
+                    agreement = F.cosine_similarity(pooled_ce_grace_grad, pooled_kd_grad, dim=-1, eps=1e-8)
+            if collect_teacher_gradient_vectors:
+                teacher_gradient_vectors.append(pooled_kd_grad.mean(dim=0))
+            if pooled_ce_grace_grad is not None:
+                grace_scores.append(agreement)
+                grace_active.append(agreement > grace_threshold)
             del pooled_kd_grad
         del teacher_logits
 
     teacher_loss_matrix = torch.stack(teacher_losses, dim=-1)
-    if not alignment_scores:
-        return teacher_loss_matrix, None, None
+    teacher_gradient_matrix = (
+        torch.stack(teacher_gradient_vectors, dim=0) if teacher_gradient_vectors else None
+    )
+    if not grace_scores:
+        return teacher_loss_matrix, None, None, teacher_gradient_matrix
     return (
         teacher_loss_matrix,
-        torch.stack(alignment_scores, dim=-1),
-        torch.stack(alignment_active, dim=-1),
+        torch.stack(grace_scores, dim=-1),
+        torch.stack(grace_active, dim=-1),
+        teacher_gradient_matrix,
     )

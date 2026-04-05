@@ -43,6 +43,10 @@ def compute_teacher_gate_z_loss(router_logits: torch.Tensor) -> torch.Tensor:
     return torch.logsumexp(router_logits.float(), dim=-1).square().mean().to(dtype=router_logits.dtype)
 
 
+def compute_teacher_gate_entropy_loss(teacher_gate_weights: torch.Tensor) -> torch.Tensor:
+    return -mean_categorical_entropy(teacher_gate_weights).to(dtype=teacher_gate_weights.dtype)
+
+
 def apply_teacher_gate_constraints(
     routing_scores: torch.Tensor,
     teacher_gate_weights: torch.Tensor,

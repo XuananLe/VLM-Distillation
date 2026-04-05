@@ -41,12 +41,21 @@ class DeepRouter(nn.Module):
 
 
 class Gate(nn.Module):
-    def __init__(self, model: nn.Module, num_teachers: int, bias_update_rate: float = 0.0):
+    def __init__(
+        self,
+        model: nn.Module,
+        num_teachers: int,
+        bias_update_rate: float = 0.0,
+        router_temperature: float = 1.0,
+        router_noise_std: float = 0.0,
+    ):
         super().__init__()
         hidden_size, hook_module = self.resolve_gate_source(model)
         self.router = DeepRouter(hidden_size, num_teachers)
 
         self.bias_update_rate = bias_update_rate
+        self.router_temperature = router_temperature
+        self.router_noise_std = router_noise_std
         self.hidden_state = None
         self.register_buffer("expert_bias", torch.zeros(num_teachers))
         self.hook_handle = hook_module.register_forward_pre_hook(self.capture_hidden_state)
@@ -156,6 +165,12 @@ class Gate(nn.Module):
     def apply_expert_bias(self, router_logits: torch.Tensor) -> torch.Tensor:
         return router_logits + self.expert_bias.to(device=router_logits.device, dtype=router_logits.dtype)
 
+    def prepare_routing_scores(self, router_logits: torch.Tensor) -> torch.Tensor:
+        routing_scores = self.apply_expert_bias(router_logits)
+        if self.training and self.router_noise_std > 0.0:
+            routing_scores = routing_scores + torch.randn_like(routing_scores) * self.router_noise_std
+        return routing_scores / self.router_temperature
+
     @torch.no_grad()
     def update_expert_bias(self, expert_load: torch.Tensor) -> None:
         if self.bias_update_rate <= 0.0:
@@ -171,7 +186,5 @@ class Gate(nn.Module):
         labels: torch.Tensor,
         attention_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        return torch.softmax(
-            self.compute_router_logits(labels=labels, attention_mask=attention_mask),
-            dim=-1,
-        )
+        router_logits = self.compute_router_logits(labels=labels, attention_mask=attention_mask)
+        return torch.softmax(self.prepare_routing_scores(router_logits), dim=-1)

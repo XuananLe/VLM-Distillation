@@ -2,7 +2,11 @@
 \label{chap:evaluation-methodology}
 
 \section{Experimental Setup}
-All experiments follow a shared evaluation protocol for fair comparison across methods. The study focuses on the two compact student models, \textbf{SmolVLM-500M} and \textbf{SmolVLM-256M}, evaluated on text-rich multimodal benchmarks. All model evaluations are conducted using \textbf{VLM-Eval-Kit} \cite{duan2024vlmevalkit}. In brief, the toolkit works as follows:
+All experiments follow a shared evaluation protocol for fair comparison across methods.
+
+The study focuses on two compact student models, \textbf{SmolVLM-500M} and \textbf{SmolVLM-256M}, evaluated on text-rich multimodal benchmarks \cite{marafioti2025smolvlm}.
+
+All model evaluations are conducted using \textbf{VLM-Eval-Kit} \cite{duan2024vlmevalkit}. In brief, the toolkit works as follows:
 \begin{enumerate}
 \item Load a benchmark split and apply its prompt template or input format.
 \item Run model inference through a unified model wrapper interface.
@@ -12,8 +16,11 @@ All experiments follow a shared evaluation protocol for fair comparison across m
 This unified pipeline ensures a consistent evaluation procedure across all compared models.
 
 \section{Datasets}
-We evaluate on three text-centric VQA benchmarks: \textbf{TextVQA}, \textbf{DocVQA} and \textbf{ChartQA}.  
-The main purpose is to measure whether the model can \textbf{read textual content in images, understand questions and perform basic reasoning} across different visual domains (natural scenes, scanned documents and charts). These datasets are selected because they require OCR-heavy understanding, cover complementary visual domains and include retrieval, layout understanding and numerical reasoning.
+We evaluate three text-centric VQA benchmarks: \textbf{TextVQA}, \textbf{DocVQA}, and \textbf{ChartQA}.
+
+The goal is to measure whether the model can \textbf{read textual content in images, understand questions, and perform basic reasoning} across different visual domains \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+
+These datasets are selected because they require OCR-heavy understanding, cover complementary visual domains, and include retrieval, layout understanding, and numerical reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
 \subsection{Dataset Descriptions}
 \textbf{TextVQA} \cite{singh2019vqamodelsread}: evaluates question answering on natural images containing scene text.  
@@ -65,9 +72,107 @@ ChartQA (H+M, combined) & 28,299 & 1,920 & 2,500 & 32,719 \\
 \bottomrule
 \end{tabular}
 }
-\caption{Dataset split sizes (number of QA pairs) for TextVQA, DocVQA and ChartQA \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.}
+\caption[Dataset split sizes for the three benchmarks.]{Dataset split sizes (number of QA pairs) for TextVQA, DocVQA and ChartQA \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.}
 \label{tab:dataset-sizes}
 \end{table}
+
+\section{Training Configuration}
+
+Unless otherwise stated, the main distillation experiments use a shared training
+configuration so that differences in performance can be attributed to the
+distillation strategy rather than unrelated optimization choices.
+
+All training runs are executed on a single \textbf{NVIDIA A100 80GB} GPU using
+the \textbf{Modal} runtime environment. Distillation training uses
+\textbf{DeepSpeed ZeRO Stage 2}, \textbf{bf16} mixed precision, \textbf{TF32}
+matrix multiplication, and gradient checkpointing to control memory use while
+keeping the student fully trainable and all teachers frozen
+\cite{rajbhandari2020zero,chen2016sublinear}.
+
+Before training, all benchmark samples are converted into a unified
+\textbf{LLaVA-style multimodal instruction format}
+\cite{liu2023visualinstructiontuning}. Each example is stored as an image plus
+a short user-assistant dialogue, so TextVQA, DocVQA, and ChartQA can share the
+same data loader, prompt template, and answer supervision interface.
+
+Listing~\ref{lst:llava-format} shows the structure used in our preprocessing
+pipeline.
+
+\begin{lstlisting}[basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single,caption={Representative LLaVA-style sample used after dataset conversion.},label={lst:llava-format}]
+{
+  "image": "sample_000123.jpg",
+  "conversations": [
+    {"from": "human", "value": "<image>\nWhat is the invoice number?"},
+    {"from": "gpt", "value": "4572"}
+  ]
+}
+\end{lstlisting}
+
+\noindent
+Table~\ref{tab:training-configuration} summarizes the \emph{current} main
+two-teacher training recipe used in the repository. Items marked as
+\textbf{N/A} are not fixed in the launch script and can be completed later in
+the final report.
+
+\begin{table}[htbp]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{0.92}
+\begin{tabular}{p{0.34\linewidth} p{0.58\linewidth}}
+\toprule
+\textbf{Setting} & \textbf{Value} \\
+\midrule
+Student model & HuggingFaceTB/SmolVLM-500M-Instruct \\
+Teacher models & \makecell[l]{Qwen/Qwen2-VL-2B-Instruct\\Qwen/Qwen2.5-VL-3B-Instruct} \\
+Teacher weighting strategy & routing \\
+Distillation loss & ULD \\
+Training dataset & DocVQA \\
+Validation split & validation \\
+Hardware and runtime & 1$\times$ NVIDIA A100 80GB GPU on Modal \\
+Distributed training & DeepSpeed ZeRO-2 \\
+Optimizer & adamw\_torch \\
+Adam betas & \((0.9, 0.98)\) \\
+Adam epsilon & \(1\times 10^{-7}\) \\
+Weight decay & N/A \\
+Numerical precision & bf16 enabled, fp16 disabled, TF32 enabled \\
+FlashAttention-2 & Enabled \\
+Training data format & LLaVA-style multimodal instruction JSON \\
+Max sequence length & 16384 \\
+Training epochs & 1 \\
+Per-device batch size & 10 \\
+Gradient accumulation steps & 1 \\
+Effective batch size & 10 \\
+Base learning rate & \(1\times 10^{-5}\) \\
+Vision learning rate & \(2\times 10^{-6}\) \\
+Connector learning rate & \(1\times 10^{-5}\) \\
+Learning-rate schedule & Cosine decay with warmup ratio \(0.03\) \\
+Gradient checkpointing & Enabled \\
+Frozen modules & None \\
+Dataloader workers & 4 \\
+Logging and checkpointing & Log every 10 steps; save every 100 steps \\
+Student/teacher temperature & \(\tau_s=\tau_t=1.0\) \\
+KD weight & \(\alpha=0.5\) \\
+Top-\(k\) routing & \(k=1\) \\
+Capacity factor & \(\phi=4.0\) \\
+Balance weight & \(\lambda_{bal}=0.0\) \\
+Bias-update rate & \(\eta_b=0.0\) \\
+Alignment warmup ratio & \(\rho=0.2\) \\
+Alignment threshold & \(\delta=-0.02\) \\
+Seed & N/A \\
+Image resolution / visual token budget & N/A \\
+\bottomrule
+\end{tabular}
+\caption[Training configuration for the current main distillation script.]{Training configuration for the current main two-teacher distillation script. The table mixes fixed launch-script values with a small number of placeholders that can be finalized later.}
+\label{tab:training-configuration}
+\end{table}
+
+The values above define the current main two-teacher GRACE recipe in the
+repository. Chapter~\ref{chap:experiment-results} also aggregates additional
+historical runs, including single-teacher baselines, uniform multi-teacher
+averaging, and a broader four-teacher GRACE setting when those results are
+available. Baselines that do not use routing or alignment keep the same
+hardware and core optimization setup, but omit the GRACE-specific terms that do
+not apply to them.
 
 \section{Evaluation Metrics}
 We report benchmark-specific official metrics for each dataset:
@@ -97,8 +202,39 @@ The final score is the proportion of correct predictions \cite{masry2022chartqab
 \end{itemize}
 
 \section{Baselines and Compared Methods}
-\textbf{Full finetuning.} This baseline updates all trainable parameters of the student VLM on the target training data. It provides a strong upper-baseline adaptation setting because the model is optimized directly for the downstream task without distillation constraints. The training objective is the standard supervised next-token prediction loss:
-\begin{equation}
-\mathcal{L}_{\text{FT}} = - \sum_{t=1}^{T} \log p_{\theta}(y_t \mid x, y_{<t}),
-\end{equation}
-where \(x\) denotes the multimodal input, \(y_t\) is the target token at step \(t\) and \(\theta\) denotes all trainable parameters of the model.
+\noindent
+For consistency with Chapter~\ref{chap:experiment-results}, we organize the
+compared methods into four groups: non-distillation references, same-family
+distillation baselines, different-family single-teacher baselines, and
+heterogeneous multi-teacher baselines.
+
+\begin{table}[htbp]
+\centering
+\scriptsize
+\renewcommand{\arraystretch}{0.95}
+\begin{tabular}{@{}llll@{}}
+\toprule
+\textbf{Group} & \textbf{Methods} & \textbf{Teacher setup} & \textbf{Purpose} \\
+\midrule
+ \makecell[l]{Non-distillation\\references} & \makecell[l]{Original,\\full finetuning} & No teacher & \makecell[l]{Student-only\\reference points} \\
+\makecell[l]{Same-family\\baselines} & \makecell[l]{Forward KL, Reverse KL,\\Jensen-Shannon, HSM-CKA} & SmolVLM2-2.2B-Instruct & \makecell[l]{Standard single-teacher\\objectives within the\\SmolVLM family} \\
+\makecell[l]{Different-family\\single-teacher\\baselines} & \makecell[l]{ULD, layer-wise\\hidden-state loss} & \makecell[l]{Qwen2-VL-2B-Instruct\\or Gemma-4B} & \makecell[l]{Cross-family transfer\\without multi-teacher routing} \\
+\makecell[l]{Heterogeneous\\multi-teacher\\baselines} & \makecell[l]{Uniform averaging,\\\methodname{}} & \makecell[l]{Mixed teacher pool from\\multiple VLM families} & \makecell[l]{Static averaging vs.\\adaptive teacher assignment} \\
+\bottomrule
+\end{tabular}
+\caption{Baseline groups used in the evaluation chapter.}
+\label{tab:baseline-groups}
+\end{table}
+
+\begin{itemize}
+\item \textbf{Non-distillation references.} The original student and the full-finetuning baseline provide the student-only reference points for each benchmark.
+\item \textbf{Same-family baselines.} Forward KL, reverse KL, Jensen-Shannon divergence, and HSM-CKA all use \textbf{SmolVLM2-2.2B-Instruct} as a same-family teacher \cite{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,dasgupta2025improving}. Their mathematical forms are standard and are cited rather than re-derived here.
+\item \textbf{Different-family single-teacher baselines.} This group uses one teacher outside the SmolVLM family. ULD follows the cross-tokenizer distillation formulation of Boizard et al. \cite{boizard2024towardscrosstokenizerdistillation}, while the layer-wise hidden-state baseline follows the representation-matching approach of Dasgupta and Cohn \cite{dasgupta2025improving}.
+\item \textbf{Heterogeneous multi-teacher baselines.} Uniform averaging and \methodname{} share the same heterogeneous teacher pool, but only \methodname{} applies sparse routing, capacity control, and post-routing alignment filtering \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
+\end{itemize}
+
+Unless noted otherwise, all baselines reuse the same data conversion pipeline,
+hardware, optimizer family, and checkpointing protocol described earlier in
+this chapter. Methods that do not use routing simply omit the GRACE-specific
+terms and retain the corresponding single-teacher or uniform multi-teacher
+objective from the cited source.

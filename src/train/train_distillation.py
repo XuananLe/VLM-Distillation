@@ -233,10 +233,7 @@ def train_distillation():
                         module = module.to(torch.bfloat16)
 
     use_cached_teacher_logits = distillation_args.teacher_logits_cache_dir is not None
-    should_load_online_teachers = (
-        not use_cached_teacher_logits
-        or data_args.eval_data_path is not None
-    )
+    should_load_online_teachers = not use_cached_teacher_logits
     if should_load_online_teachers:
         teacher_models, teacher_processors = load_teacher_models_and_processors(
             teacher_ids=teacher_ids,
@@ -269,6 +266,7 @@ def train_distillation():
         teacher_model=teacher_models or None,
         teacher_count=len(teacher_ids),
         teacher_weighting_strategy=distillation_args.teacher_weighting_strategy,
+        objective_conflict_strategy=distillation_args.objective_conflict_strategy,
         loss_function=distillation_args.distillation_loss,
         temperature=distillation_args.temperature,
         student_temperature=distillation_args.student_temperature,
@@ -280,13 +278,21 @@ def train_distillation():
         teacher_gate_top_k=distillation_args.teacher_gate_top_k,
         teacher_gate_capacity_factor=distillation_args.teacher_gate_capacity_factor,
         teacher_gate_bias_update_rate=distillation_args.teacher_gate_bias_update_rate,
+        teacher_gate_temperature=distillation_args.teacher_gate_temperature,
+        teacher_gate_noise_std=distillation_args.teacher_gate_noise_std,
+        teacher_gate_entropy_alpha=distillation_args.teacher_gate_entropy_alpha,
         teacher_gate_router_z_loss_alpha=distillation_args.teacher_gate_router_z_loss_alpha,
-        gradient_alignment_threshold=distillation_args.gradient_alignment_threshold,
-        gradient_alignment_warmup_ratio=distillation_args.gradient_alignment_warmup_ratio,
-        gradient_alignment_epsilon=distillation_args.gradient_alignment_epsilon,
-        gradient_alignment_softmax_beta=distillation_args.gradient_alignment_softmax_beta,
-        gradient_alignment_router_blend_lambda=distillation_args.gradient_alignment_router_blend_lambda,
-        gradient_alignment_ema_decay=distillation_args.gradient_alignment_ema_decay,
+        teacher_gate_hard_routing_warmup_ratio=distillation_args.teacher_gate_hard_routing_warmup_ratio,
+        grace_threshold=distillation_args.grace_threshold,
+        grace_warmup_ratio=distillation_args.grace_warmup_ratio,
+        grace_epsilon=distillation_args.grace_epsilon,
+        grace_softmax_beta=distillation_args.grace_softmax_beta,
+        grace_router_blend_lambda=distillation_args.grace_router_blend_lambda,
+        grace_ema_decay=distillation_args.grace_ema_decay,
+        gradient_weight_cap=distillation_args.gradient_weight_cap,
+        gradient_weight_steps=distillation_args.gradient_weight_steps,
+        objective_conflict_cagrad_c=distillation_args.objective_conflict_cagrad_c,
+        objective_conflict_cagrad_grid_steps=distillation_args.objective_conflict_cagrad_grid_steps,
         processing_class=processor,
         args=training_args,
         callbacks=trainer_callbacks,

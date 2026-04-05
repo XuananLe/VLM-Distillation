@@ -1,0 +1,102 @@
+"""GRACE routing refinement for teacher mixing."""
+
+import torch
+
+
+def apply_grace_routing(
+    *,
+    teacher_gate_weights: torch.Tensor | None,
+    teacher_grace_scores: torch.Tensor | None,
+    teacher_grace_active: torch.Tensor | None,
+    prev_grace_score_ema: torch.Tensor | None,
+    grace_ema_decay: float,
+    grace_softmax_beta: float,
+    grace_router_blend_lambda: float,
+    grace_epsilon: float,
+) -> tuple[
+    torch.Tensor | None,
+    torch.Tensor | None,
+    torch.Tensor | None,
+    torch.Tensor | None,
+    torch.Tensor | None,
+    torch.Tensor | None,
+]:
+    if (
+        teacher_gate_weights is None
+        or teacher_grace_scores is None
+        or teacher_grace_active is None
+    ):
+        return (
+            teacher_gate_weights,
+            teacher_grace_scores,
+            teacher_grace_active,
+            None,
+            None,
+            prev_grace_score_ema,
+        )
+
+    available_mask = teacher_gate_weights > 0
+    if prev_grace_score_ema is None or prev_grace_score_ema.numel() != teacher_grace_scores.size(-1):
+        smoothed_grace_scores = teacher_grace_scores
+    else:
+        prev_grace_score_ema = prev_grace_score_ema.to(
+            device=teacher_grace_scores.device,
+            dtype=teacher_grace_scores.dtype,
+        )
+        smoothed_grace_scores = (
+            grace_ema_decay * prev_grace_score_ema.unsqueeze(0)
+            + (1.0 - grace_ema_decay) * teacher_grace_scores
+        )
+
+    batch_grace_mean = teacher_grace_scores.detach().mean(dim=0).float()
+    if prev_grace_score_ema is None or prev_grace_score_ema.numel() != batch_grace_mean.numel():
+        next_grace_score_ema = batch_grace_mean
+    else:
+        next_grace_score_ema = (
+            grace_ema_decay * prev_grace_score_ema.float()
+            + (1.0 - grace_ema_decay) * batch_grace_mean
+        )
+
+    masked_smoothed_scores = smoothed_grace_scores.masked_fill(~available_mask, float("-inf"))
+    gradient_weights = torch.softmax(
+        grace_softmax_beta * masked_smoothed_scores,
+        dim=-1,
+    )
+    gradient_weights = gradient_weights * available_mask.to(dtype=teacher_gate_weights.dtype)
+    gradient_weights = gradient_weights / gradient_weights.sum(dim=-1, keepdim=True).clamp(
+        min=torch.finfo(gradient_weights.dtype).eps
+    )
+
+    router_weights = teacher_gate_weights.clamp(min=torch.finfo(teacher_gate_weights.dtype).eps)
+    blended_weights = (
+        router_weights.pow(grace_router_blend_lambda)
+        * gradient_weights.clamp(min=torch.finfo(gradient_weights.dtype).eps).pow(
+            1.0 - grace_router_blend_lambda
+        )
+    )
+    blended_weights = blended_weights * available_mask.to(dtype=teacher_gate_weights.dtype)
+    blended_weights = blended_weights / blended_weights.sum(dim=-1, keepdim=True).clamp(
+        min=torch.finfo(blended_weights.dtype).eps
+    )
+
+    available_counts = available_mask.sum(dim=-1, keepdim=True).clamp(min=1)
+    uniform_weights = available_mask.to(dtype=teacher_gate_weights.dtype) / available_counts
+    score_spread = (
+        masked_smoothed_scores.max(dim=-1).values
+        - smoothed_grace_scores.masked_fill(~available_mask, float("inf")).min(dim=-1).values
+    )
+    use_uniform = score_spread < grace_epsilon
+    effective_weights = torch.where(use_uniform.unsqueeze(-1), uniform_weights, blended_weights)
+    fallback_rate = use_uniform.to(dtype=teacher_gate_weights.dtype).mean()
+    return (
+        effective_weights,
+        teacher_grace_scores,
+        teacher_grace_active,
+        gradient_weights,
+        fallback_rate,
+        next_grace_score_ema,
+    )
+
+__all__ = [
+    "apply_grace_routing",
+]

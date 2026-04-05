@@ -3,33 +3,61 @@
 export PYTHONPATH=src:$PYTHONPATH
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
+# Models
 TEACHER_MODEL_1="Qwen/Qwen2-VL-2B-Instruct"
 TEACHER_MODEL_2="Qwen/Qwen2.5-VL-3B-Instruct"
 TEACHER_MODEL_IDS="[\"${TEACHER_MODEL_1}\", \"${TEACHER_MODEL_2}\"]"
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
+
+# Distillation strategy
+# Available strategies: uniform_mean, routing, gradient_optimal
 TEACHER_WEIGHTING_STRATEGY="${TEACHER_WEIGHTING_STRATEGY:-routing}"
+# Objective conflict strategies: fixed, pcgrad, cagrad, mgda
+OBJECTIVE_CONFLICT_STRATEGY="${OBJECTIVE_CONFLICT_STRATEGY:-fixed}"
+OBJECTIVE_CONFLICT_CAGRAD_C="${OBJECTIVE_CONFLICT_CAGRAD_C:-0.5}"
+OBJECTIVE_CONFLICT_CAGRAD_GRID_STEPS="${OBJECTIVE_CONFLICT_CAGRAD_GRID_STEPS:-257}"
 DISTILLATION_LOSS="uld_loss"
 TEMPERATURE=1.0
 STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-$TEMPERATURE}"
 TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-$TEMPERATURE}"
+
+# For fixed weighting strategy and as a base alpha for other strategies
 ALPHA=0.5
+
+# Router-based weighting knobs
 TEACHER_GATE_TOP_K="${TEACHER_GATE_TOP_K:-2}"
 TEACHER_GATE_BALANCE_ALPHA="${TEACHER_GATE_BALANCE_ALPHA:-0.01}"
 TEACHER_GATE_CAPACITY_FACTOR="${TEACHER_GATE_CAPACITY_FACTOR:-1.25}"
 TEACHER_GATE_BIAS_UPDATE_RATE="${TEACHER_GATE_BIAS_UPDATE_RATE:-5e-4}"
+TEACHER_GATE_TEMPERATURE="${TEACHER_GATE_TEMPERATURE:-1.5}"
+TEACHER_GATE_NOISE_STD="${TEACHER_GATE_NOISE_STD:-0.01}"
+TEACHER_GATE_ENTROPY_ALPHA="${TEACHER_GATE_ENTROPY_ALPHA:-1e-3}"
 TEACHER_GATE_ROUTER_Z_LOSS_ALPHA="${TEACHER_GATE_ROUTER_Z_LOSS_ALPHA:-1e-3}"
-GRADIENT_ALIGNMENT_THRESHOLD="${GRADIENT_ALIGNMENT_THRESHOLD:--0.02}"
-GRADIENT_ALIGNMENT_WARMUP_RATIO="${GRADIENT_ALIGNMENT_WARMUP_RATIO:-0.2}"
-GRADIENT_ALIGNMENT_EPSILON="${GRADIENT_ALIGNMENT_EPSILON:-0.01}"
-GRADIENT_ALIGNMENT_SOFTMAX_BETA="${GRADIENT_ALIGNMENT_SOFTMAX_BETA:-20.0}"
-GRADIENT_ALIGNMENT_ROUTER_BLEND_LAMBDA="${GRADIENT_ALIGNMENT_ROUTER_BLEND_LAMBDA:-0.5}"
-GRADIENT_ALIGNMENT_EMA_DECAY="${GRADIENT_ALIGNMENT_EMA_DECAY:-0.9}"
+TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO="${TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO:-0.2}"
+
+# GRACE weighting knobs
+GRACE_THRESHOLD="${GRACE_THRESHOLD:--0.02}"
+GRACE_WARMUP_RATIO="${GRACE_WARMUP_RATIO:-0.2}"
+GRACE_EPSILON="${GRACE_EPSILON:-0.01}"
+GRACE_SOFTMAX_BETA="${GRACE_SOFTMAX_BETA:-20.0}"
+GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.5}"
+GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.9}"
+
+# Gradient-optimized weighting knobs
+GRADIENT_WEIGHT_CAP="${GRADIENT_WEIGHT_CAP:-1.0}"
+GRADIENT_WEIGHT_STEPS="${GRADIENT_WEIGHT_STEPS:-50}"
+
+# Optional cached teacher logits
 TEACHER_LOGITS_CACHE_DIR="${TEACHER_LOGITS_CACHE_DIR:-}"
+
+# Dataset and runtime
 NUM_TEACHERS=2
 DATASET_NAME="docvqa"
 PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-18}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 LOGGING_STEPS="${LOGGING_STEPS:-10}"
+
+# Naming
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME_1="${TEACHER_MODEL_1##*/}"
 TEACHER_NAME_2="${TEACHER_MODEL_2##*/}"
@@ -46,6 +74,9 @@ deepspeed src/train/train_distillation.py \
     --student_model_id "$STUDENT_MODEL" \
     --teacher_model_ids "$TEACHER_MODEL_IDS" \
     --teacher_weighting_strategy "$TEACHER_WEIGHTING_STRATEGY" \
+    --objective_conflict_strategy "$OBJECTIVE_CONFLICT_STRATEGY" \
+    --objective_conflict_cagrad_c "$OBJECTIVE_CONFLICT_CAGRAD_C" \
+    --objective_conflict_cagrad_grid_steps "$OBJECTIVE_CONFLICT_CAGRAD_GRID_STEPS" \
     --data_path /data/${DATASET_NAME}/train_llava.json \
     --image_folder /data/${DATASET_NAME}/images \
     --distillation_loss "$DISTILLATION_LOSS" \
@@ -61,13 +92,19 @@ deepspeed src/train/train_distillation.py \
     --teacher_gate_top_k "$TEACHER_GATE_TOP_K" \
     --teacher_gate_capacity_factor "$TEACHER_GATE_CAPACITY_FACTOR" \
     --teacher_gate_bias_update_rate "$TEACHER_GATE_BIAS_UPDATE_RATE" \
+    --teacher_gate_temperature "$TEACHER_GATE_TEMPERATURE" \
+    --teacher_gate_noise_std "$TEACHER_GATE_NOISE_STD" \
+    --teacher_gate_entropy_alpha "$TEACHER_GATE_ENTROPY_ALPHA" \
     --teacher_gate_router_z_loss_alpha "$TEACHER_GATE_ROUTER_Z_LOSS_ALPHA" \
-    --gradient_alignment_threshold "$GRADIENT_ALIGNMENT_THRESHOLD" \
-    --gradient_alignment_warmup_ratio "$GRADIENT_ALIGNMENT_WARMUP_RATIO" \
-    --gradient_alignment_epsilon "$GRADIENT_ALIGNMENT_EPSILON" \
-    --gradient_alignment_softmax_beta "$GRADIENT_ALIGNMENT_SOFTMAX_BETA" \
-    --gradient_alignment_router_blend_lambda "$GRADIENT_ALIGNMENT_ROUTER_BLEND_LAMBDA" \
-    --gradient_alignment_ema_decay "$GRADIENT_ALIGNMENT_EMA_DECAY" \
+    --teacher_gate_hard_routing_warmup_ratio "$TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO" \
+    --grace_threshold "$GRACE_THRESHOLD" \
+    --grace_warmup_ratio "$GRACE_WARMUP_RATIO" \
+    --grace_epsilon "$GRACE_EPSILON" \
+    --grace_softmax_beta "$GRACE_SOFTMAX_BETA" \
+    --grace_router_blend_lambda "$GRACE_ROUTER_BLEND_LAMBDA" \
+    --grace_ema_decay "$GRACE_EMA_DECAY" \
+    --gradient_weight_cap "$GRADIENT_WEIGHT_CAP" \
+    --gradient_weight_steps "$GRADIENT_WEIGHT_STEPS" \
     --num_train_epochs 1 \
     --per_device_train_batch_size "$PER_DEVICE_TRAIN_BATCH_SIZE" \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \

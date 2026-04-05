@@ -13,17 +13,6 @@ Alec Radford, Jong~Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh,
 \newblock Learning transferable visual models from natural language
   supervision, 2021.
 
-\bibitem{wikimedia_knowledge_distillation_example}
-{Wikimedia Commons contributors}.
-\newblock File: Knowledge-distillation-example.png.
-\newblock Wikimedia Commons, 2023.
-\newblock CC0 1.0. Source: Intel Distiller knowledge distillation page.
-  Accessed: 2026-03-07.
-
-\bibitem{hinton2015distillingknowledgeneuralnetwork}
-Geoffrey Hinton, Oriol Vinyals, and Jeff Dean.
-\newblock Distilling the knowledge in a neural network, 2015.
-
 \bibitem{wikimedia_transformer_attention_block_image}
 {Wikimedia Commons contributors}.
 \newblock File: Transformer, attention block diagram.png.
@@ -64,21 +53,31 @@ Ahmed Masry, Do~Xuan Long, Jia~Qing Tan, Shafiq Joty, and Enamul Hoque.
 \newblock Chartqa: A benchmark for question answering about charts with visual
   and logical reasoning, 2022.
 
+\bibitem{wikimedia_knowledge_distillation_example}
+{Wikimedia Commons contributors}.
+\newblock File: Knowledge-distillation-example.png.
+\newblock Wikimedia Commons, 2023.
+\newblock CC0 1.0. Source: Intel Distiller knowledge distillation page.
+  Accessed: 2026-03-07.
+
+\bibitem{hinton2015distillingknowledgeneuralnetwork}
+Geoffrey Hinton, Oriol Vinyals, and Jeff Dean.
+\newblock Distilling the knowledge in a neural network, 2015.
+
+\bibitem{wikimedia_optimal_transport_matrix_image}
+{Wikimedia Commons contributors}.
+\newblock File: Optimal transport matrix.png.
+\newblock Wikimedia Commons, 2018.
+\newblock CC BY-SA 4.0. Accessed: 2026-03-31.
+
+\bibitem{peyre2019computationaloptimaltransport}
+Gabriel Peyr{\'e} and Marco Cuturi.
+\newblock Computational optimal transport, 2019.
+
 \bibitem{boizard2024towardscrosstokenizerdistillation}
 Nicolas Boizard, Kevin~El Haddad, Pierre Colombo, and Chlo{\'e} Clavel.
 \newblock Towards cross-tokenizer distillation: The universal logit
   distillation loss for llms, 2024.
-
-\bibitem{wikimedia_deepseek_moe_mla_image}
-{Wikimedia Commons contributors}.
-\newblock File: Deepseek moe and mla (deepseek-v2).svg.
-\newblock Wikimedia Commons, 2025.
-\newblock MIT License. Accessed: 2026-03-06.
-
-\bibitem{deepseekai2024deepseekv2strongeconomicalefficient}
-{DeepSeek-AI}.
-\newblock Deepseek-v2: A strong, economical, and efficient mixture-of-experts
-  language model, 2024.
 
 \bibitem{wikimedia_stop_sign_image}
 {Wikimedia Commons contributors}.
@@ -97,6 +96,37 @@ Nicolas Boizard, Kevin~El Haddad, Pierre Colombo, and Chlo{\'e} Clavel.
 \newblock File: Bar chart.svg.
 \newblock Wikimedia Commons, 2016.
 \newblock CC BY-SA 4.0. Accessed: 2026-03-06.
+
+\bibitem{qwen2vl2b_modelcard}
+{Qwen Team}.
+\newblock Qwen2-vl-2b-instruct model card.
+\newblock Hugging Face, 2024.
+\newblock Accessed: 2026-04-01.
+
+\bibitem{qwen25vl3b_modelcard}
+{Qwen Team}.
+\newblock Qwen2.5-vl-3b-instruct model card.
+\newblock Hugging Face, 2025.
+\newblock Accessed: 2026-04-01.
+
+\bibitem{internvl3_blog}
+{OpenGVLab}.
+\newblock Internvl 3.0.
+\newblock Project blog, 2025.
+\newblock Accessed: 2026-04-01.
+
+\bibitem{gemma3_technical_report}
+{Gemma Team} and {Google DeepMind}.
+\newblock Gemma 3 technical report.
+\newblock Technical report, 2025.
+\newblock Accessed: 2026-04-01.
+
+\bibitem{qwen25vl3b_quantized_card}
+{Red Hat AI}.
+\newblock Qwen2.5-vl-3b-instruct-quantized.w8a8 model card.
+\newblock Hugging Face, 2025.
+\newblock Reports the base-model comparison table including ChartQA. Accessed:
+  2026-04-01.
 
 \bibitem{alayrac2022flamingovisuallanguagemodel}
 Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech, Iain Barr,
@@ -133,10 +163,85 @@ Baichuan Zhou, Ying Hu, Xi~Weng, Junlong Jia, Jie Luo, Xien Liu, Ji~Wu, and Lei
   Huang.
 \newblock Tinyllava: A framework of small-scale large multimodal models, 2024.
 
+\bibitem{kaplan2020scalinglaws}
+Jared Kaplan, Sam McCandlish, Tom Henighan, Tom~B. Brown, Benjamin Chess, Rewon
+  Child, Scott Gray, Alec Radford, Jeffrey Wu, and Dario Amodei.
+\newblock Scaling laws for neural language models, 2020.
+
+\bibitem{hoffmann2022trainingcomputeoptimal}
+Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor
+  Cai, Eliza Rutherford, Diego de~Las~Casas, Lisa~Anne Hendricks, Johannes
+  Welbl, Aidan Clark, Tom Hennigan, Eric Noland, Katie Millican, George van~den
+  Driessche, Bogdan Damoc, Aurelia Guy, Simon Osindero, Karen Simonyan, Erich
+  Elsen, Jack~W. Rae, Oriol Vinyals, and Laurent Sifre.
+\newblock Training compute-optimal large language models, 2022.
+
+\bibitem{marafioti2025smolvlm}
+Andr{\'e}s Marafioti, Orr Zohar, Miquel Farr{\'e}, Merve Noyan, Elie Bakouch,
+  Pedro Cuenca, Cyril Zakka, Loubna~Ben Allal, Anton Lozhkov, Nouamane Tazi,
+  Vaibhav Srivastav, Joshua Lochner, Hugo Larcher, Mathieu Morlon, Lewis
+  Tunstall, Leandro von Werra, and Thomas Wolf.
+\newblock Smolvlm: Redefining small and efficient multimodal models, 2025.
+
+\bibitem{smolvlm_blog}
+Andr{\'e}s Marafioti, Merve Noyan, Miquel Farr{\'e}, Elie Bakouch, and Pedro
+  Cuenca.
+\newblock Smolvlm - small yet mighty vision language model.
+\newblock Hugging Face Blog, 2024.
+\newblock Accessed: 2026-04-02.
+
+\bibitem{airank_textvqa_2026}
+{AI Rank}.
+\newblock Textvqa benchmark: Complete leaderboard and performance analysis.
+\newblock AI Rank, 2026.
+\newblock Self-reported leaderboard. Accessed: 2026-04-02.
+
+\bibitem{airank_docvqa_2026}
+{AI Rank}.
+\newblock Docvqa benchmark: Complete leaderboard and performance analysis.
+\newblock AI Rank, 2026.
+\newblock Self-reported leaderboard. Accessed: 2026-04-02.
+
+\bibitem{airank_chartqa_2026}
+{AI Rank}.
+\newblock Chartqa benchmark: Complete leaderboard and performance analysis.
+\newblock AI Rank, 2026.
+\newblock Self-reported leaderboard. Accessed: 2026-04-02.
+
 \bibitem{xu2024surveyknowledgedistillationlarge}
 Xiaohan Xu, Ming Li, Chongyang Tao, Tao Shen, Reynold Cheng, Jinyang Li, Can
   Xu, Dacheng Tao, and Tianyi Zhou.
 \newblock A survey on knowledge distillation of large language models, 2024.
+
+\bibitem{dasgupta2025improving}
+Sayantan Dasgupta and Trevor Cohn.
+\newblock Improving language model distillation through hidden state matching.
+\newblock In {\em International Conference on Learning Representations}, 2025.
+
+\bibitem{frantar2022gptq}
+Elias Frantar, Saleh Ashkboos, Torsten Hoefler, and Dan Alistarh.
+\newblock Gptq: Accurate post-training quantization for generative pre-trained
+  transformers, 2022.
+
+\bibitem{xiao2023smoothquant}
+Guangxuan Xiao, Ji~Lin, Mickael Seznec, Hao Wu, Julien Demouth, and Song Han.
+\newblock Smoothquant: Accurate and efficient post-training quantization for
+  large language models.
+\newblock In {\em Proceedings of the 40th International Conference on Machine
+  Learning}, pages 38087--38099, 2023.
+
+\bibitem{lin2024awq}
+Ji~Lin, Jiaming Tang, Haotian Tang, Shang Yang, Wei-Ming Chen, Wei-Chen Wang,
+  Guangxuan Xiao, Xingyu Dang, Chuang Gan, and Song Han.
+\newblock Awq: Activation-aware weight quantization for llm compression and
+  acceleration, 2024.
+
+\bibitem{li2025mbq}
+Shiyao Li, Yingchun Hu, Xuefei Ning, Xihui Liu, Ke~Hong, Xiaotao Jia, Xiuhong
+  Li, Yaqi Yan, Pei Ran, Guohao Dai, Shengen Yan, Huazhong Yang, and Yu~Wang.
+\newblock Mbq: Modality-balanced quantization for large vision-language models.
+\newblock In {\em Proceedings of the IEEE/CVF Conference on Computer Vision and
+  Pattern Recognition}, pages 4167--4177, 2025.
 
 \bibitem{yang2024clipcid}
 Kaicheng Yang, Tiancheng Gu, Xiang An, Haiqiang Jiang, Xiangzi Dai, Ziyong
@@ -159,23 +264,15 @@ Yu-Chu Yu, Chi-Pin Huang, Jr-Jen Chen, Kai-Po Chang, Yung-Hsuan Lai, Fu-En
 \newblock Select and distill: Selective dual-teacher knowledge transfer for
   continual learning on vision-language models, 2024.
 
-\bibitem{shazeer2017outrageouslylargeneuralnetworks}
-Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le,
-  Geoffrey Hinton, and Jeff Dean.
-\newblock Outrageously large neural networks: The sparsely-gated
-  mixture-of-experts layer, 2017.
-
 \bibitem{fedus2022switchtransformersscalingtrillion}
 William Fedus, Barret Zoph, and Noam Shazeer.
 \newblock Switch transformers: Scaling to trillion parameter models with simple
   and efficient sparsity, 2022.
 
-\bibitem{kornblith2019similarityrepresentations}
-Simon Kornblith, Mohammad Norouzi, Honglak Lee, and Geoffrey Hinton.
-\newblock Similarity of neural network representations revisited.
-\newblock In {\em Proceedings of the 36th International Conference on Machine
-  Learning}, volume~97 of {\em Proceedings of Machine Learning Research}, pages
-  3519--3529. PMLR, 2019.
+\bibitem{zhou2022mixtureofexpertswithexpertchoice}
+Yanqi Zhou, Tao Lei, Hanxiao Liu, Nan Du, Yanping Huang, Vincent Zhao, Andrew
+  Dai, Zhifeng Chen, Quoc Le, and James Laudon.
+\newblock Mixture-of-experts with expert choice routing, 2022.
 
 \bibitem{zhu2021studentcustomized}
 Yichen Zhu and Yi~Wang.
@@ -184,9 +281,53 @@ Yichen Zhu and Yi~Wang.
 \newblock In {\em Proceedings of the IEEE/CVF International Conference on
   Computer Vision}, pages 5057--5066, 2021.
 
+\bibitem{lin1991jensen}
+Jianhua Lin.
+\newblock Divergence measures based on the shannon entropy.
+\newblock {\em IEEE Transactions on Information Theory}, 37(1), 1991.
+
+\bibitem{shazeer2017outrageouslylargeneuralnetworks}
+Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le,
+  Geoffrey Hinton, and Jeff Dean.
+\newblock Outrageously large neural networks: The sparsely-gated
+  mixture-of-experts layer, 2017.
+
+\bibitem{deepseekai2024deepseekv2strongeconomicalefficient}
+{DeepSeek-AI}.
+\newblock Deepseek-v2: A strong, economical, and efficient mixture-of-experts
+  language model, 2024.
+
+\bibitem{wikimedia_deepseek_moe_mla_image}
+{Wikimedia Commons contributors}.
+\newblock File: Deepseek moe and mla (deepseek-v2).svg.
+\newblock Wikimedia Commons, 2025.
+\newblock MIT License. Accessed: 2026-03-06.
+
 \bibitem{duan2024vlmevalkit}
 Haodong Duan, Xinyu Fang, Junming Yang, et~al.
 \newblock Vlmevalkit: An open-source toolkit for evaluating large
   multi-modality models, 2024.
+
+\bibitem{rajbhandari2020zero}
+Samyam Rajbhandari, Jeff Rasley, Olatunji Ruwase, and Yuxiong He.
+\newblock Zero: Memory optimizations toward training trillion parameter models,
+  2020.
+
+\bibitem{chen2016sublinear}
+Tianqi Chen, Bing Xu, Chiyuan Zhang, and Carlos Guestrin.
+\newblock Training deep nets with sublinear memory cost, 2016.
+
+\bibitem{smolvlm2_modelcard}
+{Hugging Face TB}.
+\newblock Smolvlm2-2.2b-instruct model card.
+\newblock Hugging Face, 2025.
+\newblock Accessed: 2026-04-02.
+
+\bibitem{kornblith2019similarityrepresentations}
+Simon Kornblith, Mohammad Norouzi, Honglak Lee, and Geoffrey Hinton.
+\newblock Similarity of neural network representations revisited.
+\newblock In {\em Proceedings of the 36th International Conference on Machine
+  Learning}, volume~97 of {\em Proceedings of Machine Learning Research}, pages
+  3519--3529. PMLR, 2019.
 
 \end{thebibliography}

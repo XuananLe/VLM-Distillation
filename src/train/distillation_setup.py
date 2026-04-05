@@ -24,7 +24,12 @@ class DistillationArguments:
 
     teacher_weighting_strategy: str = field(
         default="routing",
-        metadata={"help": "Teacher weighting strategy: `routing` or `uniform_mean`."},
+        metadata={"help": "Teacher weighting strategy: `routing`, `uniform_mean`, or `gradient_optimal`."},
+    )
+
+    objective_conflict_strategy: str = field(
+        default="fixed",
+        metadata={"help": "How to combine CE and KD objectives: `fixed`, `pcgrad`, `cagrad`, or `mgda`."},
     )
 
     distillation_loss: str = field(
@@ -61,7 +66,7 @@ class DistillationArguments:
 
     alpha: float = field(
         default=1.0,
-        metadata={"help": "KD mixing weight in `(1 - alpha) * ce_loss + alpha * kd_loss`."},
+        metadata={"help": "KD attenuation factor in `ce_loss + (1 - alpha) * kd_loss`."},
     )
 
     teacher_gate_balance_alpha: float = field(
@@ -84,51 +89,93 @@ class DistillationArguments:
         metadata={"help": "Feedback update rate for the teacher-gate expert bias."},
     )
 
+    teacher_gate_temperature: float = field(
+        default=1.5,
+        metadata={"help": "Softmax temperature applied to router scores before teacher-gate weighting."},
+    )
+
+    teacher_gate_noise_std: float = field(
+        default=0.01,
+        metadata={"help": "Gaussian noise std added to router scores during training before teacher-gate softmax."},
+    )
+
+    teacher_gate_entropy_alpha: float = field(
+        default=1e-3,
+        metadata={"help": "Weight on the entropy bonus applied to teacher-gate probabilities."},
+    )
+
     teacher_gate_router_z_loss_alpha: float = field(
         default=1e-3,
         metadata={"help": "Weight on router z-loss for stabilizing teacher-gate logits."},
     )
 
-    gradient_alignment_threshold: float = field(
-        default=0.0,
-        metadata={"help": "Keep a routed teacher active only when its gradient alignment exceeds this threshold."},
+    teacher_gate_hard_routing_warmup_ratio: float = field(
+        default=0.2,
+        metadata={"help": "Fraction of training steps to keep routing fully soft before enforcing the configured top-k."},
     )
 
-    gradient_alignment_warmup_ratio: float = field(
+    grace_threshold: float = field(
         default=0.0,
-        metadata={"help": "Fraction of training steps to wait before enabling gradient-alignment filtering."},
+        metadata={"help": "GRACE threshold: keep a routed teacher active only when its agreement score exceeds this threshold."},
     )
 
-    gradient_alignment_epsilon: float = field(
+    grace_warmup_ratio: float = field(
+        default=0.0,
+        metadata={"help": "Fraction of training steps to wait before enabling GRACE routing refinement."},
+    )
+
+    grace_epsilon: float = field(
         default=0.01,
         metadata={
-            "help": "If the spread between teacher alignment scores is below this epsilon, fall back to uniform-mean teacher weights."
+            "help": "If the spread between teacher agreement scores is below this epsilon, GRACE falls back to uniform-mean teacher weights."
         },
     )
 
-    gradient_alignment_softmax_beta: float = field(
+    grace_softmax_beta: float = field(
         default=20.0,
         metadata={
-            "help": "Inverse temperature used to convert alignment scores into softmax gradient weights."
+            "help": "Inverse temperature used by GRACE to convert agreement scores into softmax gradient weights."
         },
     )
 
-    gradient_alignment_router_blend_lambda: float = field(
+    grace_router_blend_lambda: float = field(
         default=0.5,
         metadata={
-            "help": "Blend factor between router weights and gradient-derived weights. 1.0 keeps only router weights; 0.0 keeps only gradient weights."
+            "help": "GRACE blend factor between router weights and gradient-derived weights. 1.0 keeps only router weights; 0.0 keeps only gradient weights."
         },
     )
 
-    gradient_alignment_ema_decay: float = field(
+    grace_ema_decay: float = field(
         default=0.9,
-        metadata={"help": "EMA decay applied to teacher alignment scores before computing gradient weights."},
+        metadata={"help": "EMA decay applied to teacher agreement scores before GRACE computes gradient weights."},
+    )
+
+    gradient_weight_cap: float = field(
+        default=1.0,
+        metadata={"help": "Upper bound applied to each teacher weight in the gradient-optimized mixing strategy."},
+    )
+
+    gradient_weight_steps: int = field(
+        default=50,
+        metadata={"help": "Projected-gradient solver steps for the gradient-optimized mixing strategy."},
+    )
+
+    objective_conflict_cagrad_c: float = field(
+        default=0.5,
+        metadata={"help": "Conflict-aversion coefficient used by the CAGrad-style objective combiner."},
+    )
+
+    objective_conflict_cagrad_grid_steps: int = field(
+        default=257,
+        metadata={"help": "1D search resolution for the CAGrad-style objective combiner."},
     )
 
 
 def validate_distillation_args(distillation_args) -> None:
-    if distillation_args.teacher_weighting_strategy not in {"routing", "uniform_mean"}:
-        raise ValueError("--teacher_weighting_strategy must be `routing` or `uniform_mean`.")
+    if distillation_args.teacher_weighting_strategy not in {"routing", "uniform_mean", "gradient_optimal"}:
+        raise ValueError("--teacher_weighting_strategy must be `routing`, `uniform_mean`, or `gradient_optimal`.")
+    if distillation_args.objective_conflict_strategy not in {"fixed", "pcgrad", "cagrad", "mgda"}:
+        raise ValueError("--objective_conflict_strategy must be `fixed`, `pcgrad`, `cagrad`, or `mgda`.")
     if not 0.0 <= distillation_args.alpha <= 1.0:
         raise ValueError("--alpha must be between 0 and 1.")
     if distillation_args.teacher_gate_balance_alpha < 0.0:
@@ -139,18 +186,34 @@ def validate_distillation_args(distillation_args) -> None:
         raise ValueError("--teacher_gate_capacity_factor must be > 0.")
     if distillation_args.teacher_gate_bias_update_rate < 0.0:
         raise ValueError("--teacher_gate_bias_update_rate must be >= 0.")
+    if distillation_args.teacher_gate_temperature <= 0.0:
+        raise ValueError("--teacher_gate_temperature must be > 0.")
+    if distillation_args.teacher_gate_noise_std < 0.0:
+        raise ValueError("--teacher_gate_noise_std must be >= 0.")
+    if distillation_args.teacher_gate_entropy_alpha < 0.0:
+        raise ValueError("--teacher_gate_entropy_alpha must be >= 0.")
     if distillation_args.teacher_gate_router_z_loss_alpha < 0.0:
         raise ValueError("--teacher_gate_router_z_loss_alpha must be >= 0.")
-    if distillation_args.gradient_alignment_warmup_ratio < 0.0:
-        raise ValueError("--gradient_alignment_warmup_ratio must be >= 0.")
-    if distillation_args.gradient_alignment_epsilon < 0.0:
-        raise ValueError("--gradient_alignment_epsilon must be >= 0.")
-    if distillation_args.gradient_alignment_softmax_beta <= 0.0:
-        raise ValueError("--gradient_alignment_softmax_beta must be > 0.")
-    if not 0.0 <= distillation_args.gradient_alignment_router_blend_lambda <= 1.0:
-        raise ValueError("--gradient_alignment_router_blend_lambda must be between 0 and 1.")
-    if not 0.0 <= distillation_args.gradient_alignment_ema_decay < 1.0:
-        raise ValueError("--gradient_alignment_ema_decay must be in [0, 1).")
+    if distillation_args.teacher_gate_hard_routing_warmup_ratio < 0.0:
+        raise ValueError("--teacher_gate_hard_routing_warmup_ratio must be >= 0.")
+    if distillation_args.grace_warmup_ratio < 0.0:
+        raise ValueError("--grace_warmup_ratio must be >= 0.")
+    if distillation_args.grace_epsilon < 0.0:
+        raise ValueError("--grace_epsilon must be >= 0.")
+    if distillation_args.grace_softmax_beta <= 0.0:
+        raise ValueError("--grace_softmax_beta must be > 0.")
+    if not 0.0 <= distillation_args.grace_router_blend_lambda <= 1.0:
+        raise ValueError("--grace_router_blend_lambda must be between 0 and 1.")
+    if not 0.0 <= distillation_args.grace_ema_decay < 1.0:
+        raise ValueError("--grace_ema_decay must be in [0, 1).")
+    if distillation_args.gradient_weight_cap <= 0.0:
+        raise ValueError("--gradient_weight_cap must be > 0.")
+    if distillation_args.gradient_weight_steps < 1:
+        raise ValueError("--gradient_weight_steps must be >= 1.")
+    if distillation_args.objective_conflict_cagrad_c < 0.0:
+        raise ValueError("--objective_conflict_cagrad_c must be >= 0.")
+    if distillation_args.objective_conflict_cagrad_grid_steps < 2:
+        raise ValueError("--objective_conflict_cagrad_grid_steps must be >= 2.")
     if distillation_args.student_temperature is not None and distillation_args.student_temperature <= 0:
         raise ValueError("--student_temperature must be > 0.")
     if distillation_args.teacher_temperature is not None and distillation_args.teacher_temperature <= 0:
@@ -175,14 +238,20 @@ def log_distillation_setup(
     if distillation_args.teacher_logits_cache_dir:
         rank0_print(f"Teacher Logits Cache: {distillation_args.teacher_logits_cache_dir}")
     rank0_print(
-        "Teacher Weighting: learned deep gate + balancing + gradient alignment"
+        "Teacher Weighting: learned deep gate + balancing + GRACE routing"
         if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing"
-        else "Teacher Weighting: uniform mean"
+        else (
+            "Teacher Weighting: gradient-optimized mixing"
+            if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "gradient_optimal"
+            else "Teacher Weighting: uniform mean"
+        )
     )
-    rank0_print("Objective: (1 - alpha) * CE + alpha * KD")
+    rank0_print(f"Objective Conflict Strategy: {distillation_args.objective_conflict_strategy}")
+    rank0_print("Objective: CE + (1 - alpha) * KD")
     rank0_print(f"KD Function: {distillation_args.distillation_loss}")
-    rank0_print(f"KD Weight (Alpha): {distillation_args.alpha}")
-    rank0_print(f"CE Weight: {1.0 - distillation_args.alpha}")
+    rank0_print(f"Alpha: {distillation_args.alpha}")
+    rank0_print(f"KD Weight: {1.0 - distillation_args.alpha}")
+    rank0_print("CE Weight: 1.0")
     resolved_student_temperature = (
         distillation_args.temperature
         if distillation_args.student_temperature is None
@@ -202,27 +271,43 @@ def log_distillation_setup(
         rank0_print(f"Teacher Gate Top-k: {distillation_args.teacher_gate_top_k}")
         rank0_print(f"Teacher Gate Capacity Factor: {distillation_args.teacher_gate_capacity_factor}")
         rank0_print(f"Teacher Gate Bias Update Rate: {distillation_args.teacher_gate_bias_update_rate}")
+        rank0_print(f"Teacher Gate Temperature: {distillation_args.teacher_gate_temperature}")
+        rank0_print(f"Teacher Gate Noise Std: {distillation_args.teacher_gate_noise_std}")
+        rank0_print(f"Teacher Gate Entropy Alpha: {distillation_args.teacher_gate_entropy_alpha}")
         rank0_print(
             f"Teacher Gate Router Z-Loss Alpha: "
             f"{distillation_args.teacher_gate_router_z_loss_alpha}"
         )
-        rank0_print(f"Gradient Alignment Threshold: {distillation_args.gradient_alignment_threshold}")
-        rank0_print(f"Gradient Alignment Warmup Ratio: {distillation_args.gradient_alignment_warmup_ratio}")
         rank0_print(
-            f"Gradient Alignment Epsilon: "
-            f"{distillation_args.gradient_alignment_epsilon}"
+            f"Teacher Gate Hard Routing Warmup Ratio: "
+            f"{distillation_args.teacher_gate_hard_routing_warmup_ratio}"
+        )
+        rank0_print(f"GRACE Threshold: {distillation_args.grace_threshold}")
+        rank0_print(f"GRACE Warmup Ratio: {distillation_args.grace_warmup_ratio}")
+        rank0_print(
+            f"GRACE Epsilon: "
+            f"{distillation_args.grace_epsilon}"
         )
         rank0_print(
-            f"Gradient Alignment Softmax Beta: "
-            f"{distillation_args.gradient_alignment_softmax_beta}"
+            f"GRACE Softmax Beta: "
+            f"{distillation_args.grace_softmax_beta}"
         )
         rank0_print(
-            f"Gradient Alignment Router Blend Lambda: "
-            f"{distillation_args.gradient_alignment_router_blend_lambda}"
+            f"GRACE Router Blend Lambda: "
+            f"{distillation_args.grace_router_blend_lambda}"
         )
         rank0_print(
-            f"Gradient Alignment EMA Decay: "
-            f"{distillation_args.gradient_alignment_ema_decay}"
+            f"GRACE EMA Decay: "
+            f"{distillation_args.grace_ema_decay}"
+        )
+    elif len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "gradient_optimal":
+        rank0_print(f"Gradient Weight Cap: {distillation_args.gradient_weight_cap}")
+        rank0_print(f"Gradient Weight Steps: {distillation_args.gradient_weight_steps}")
+    if distillation_args.objective_conflict_strategy == "cagrad":
+        rank0_print(f"Objective Conflict C: {distillation_args.objective_conflict_cagrad_c}")
+        rank0_print(
+            f"Objective Conflict Grid Steps: "
+            f"{distillation_args.objective_conflict_cagrad_grid_steps}"
         )
     if training_args.gradient_checkpointing:
         rank0_print(f"Gradient Checkpointing Kwargs: {gradient_checkpointing_kwargs}")

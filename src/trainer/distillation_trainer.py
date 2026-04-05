@@ -18,9 +18,10 @@ from src.trainer.setup_utils import (
 from src.trainer.sft_trainer import SmolVLMSFTTrainer
 from src.trainer.distillation_utils import release_eval_memory
 from src.trainer.step_utils import (
-    apply_alignment_and_compute_distillation_loss,
+    apply_grace_and_compute_distillation_loss,
     apply_teacher_gate_routing,
-    compute_teacher_losses_and_alignment,
+    compute_objective_conflict_state,
+    compute_teacher_losses_and_grace,
     compute_total_loss,
     move_teacher_models_to_device,
     prepare_teacher_batches,
@@ -35,6 +36,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         teacher_model: PreTrainedModel = None,
         teacher_count: int | None = None,
         teacher_weighting_strategy: str = "routing",
+        objective_conflict_strategy: str = "fixed",
         loss_function: str = "uld_loss",
         temperature: float = 2.0,
         student_temperature: float | None = None,
@@ -46,13 +48,21 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         teacher_gate_top_k: int = 1,
         teacher_gate_capacity_factor: float = 1.25,
         teacher_gate_bias_update_rate: float = 1e-3,
+        teacher_gate_temperature: float = 1.5,
+        teacher_gate_noise_std: float = 0.01,
+        teacher_gate_entropy_alpha: float = 1e-3,
         teacher_gate_router_z_loss_alpha: float = 1e-3,
-        gradient_alignment_threshold: float = 0.0,
-        gradient_alignment_warmup_ratio: float = 0.0,
-        gradient_alignment_epsilon: float = 0.01,
-        gradient_alignment_softmax_beta: float = 20.0,
-        gradient_alignment_router_blend_lambda: float = 0.5,
-        gradient_alignment_ema_decay: float = 0.9,
+        teacher_gate_hard_routing_warmup_ratio: float = 0.2,
+        grace_threshold: float = 0.0,
+        grace_warmup_ratio: float = 0.0,
+        grace_epsilon: float = 0.01,
+        grace_softmax_beta: float = 20.0,
+        grace_router_blend_lambda: float = 0.5,
+        grace_ema_decay: float = 0.9,
+        gradient_weight_cap: float = 1.0,
+        gradient_weight_steps: int = 50,
+        objective_conflict_cagrad_c: float = 0.5,
+        objective_conflict_cagrad_grid_steps: int = 257,
         *args,
         **kwargs
     ):
@@ -66,13 +76,22 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             teacher_gate_top_k=teacher_gate_top_k,
             teacher_gate_capacity_factor=teacher_gate_capacity_factor,
             teacher_gate_bias_update_rate=teacher_gate_bias_update_rate,
+            teacher_gate_temperature=teacher_gate_temperature,
+            teacher_gate_noise_std=teacher_gate_noise_std,
+            teacher_gate_entropy_alpha=teacher_gate_entropy_alpha,
             teacher_gate_router_z_loss_alpha=teacher_gate_router_z_loss_alpha,
-            gradient_alignment_warmup_ratio=gradient_alignment_warmup_ratio,
-            gradient_alignment_epsilon=gradient_alignment_epsilon,
-            gradient_alignment_softmax_beta=gradient_alignment_softmax_beta,
-            gradient_alignment_router_blend_lambda=gradient_alignment_router_blend_lambda,
-            gradient_alignment_ema_decay=gradient_alignment_ema_decay,
+            teacher_gate_hard_routing_warmup_ratio=teacher_gate_hard_routing_warmup_ratio,
+            grace_warmup_ratio=grace_warmup_ratio,
+            grace_epsilon=grace_epsilon,
+            grace_softmax_beta=grace_softmax_beta,
+            grace_router_blend_lambda=grace_router_blend_lambda,
+            grace_ema_decay=grace_ema_decay,
+            gradient_weight_cap=gradient_weight_cap,
+            gradient_weight_steps=gradient_weight_steps,
             teacher_weighting_strategy=teacher_weighting_strategy,
+            objective_conflict_strategy=objective_conflict_strategy,
+            objective_conflict_cagrad_c=objective_conflict_cagrad_c,
+            objective_conflict_cagrad_grid_steps=objective_conflict_cagrad_grid_steps,
             loss_function=loss_function,
             distillation_loss_module=distillation_loss_module,
         )
@@ -81,6 +100,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.distillation_loss_fn = getattr(distillation_loss_module, loss_function)
         self.distillation_logit_grad_fn = distillation_loss_module.distillation_logit_grad
         self.teacher_weighting_strategy = teacher_weighting_strategy
+        self.objective_conflict_strategy = objective_conflict_strategy
 
         self.teacher_models, self.num_teachers = normalize_teacher_models(
             teacher_model,
@@ -91,6 +111,8 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             num_teachers=self.num_teachers,
             teacher_weighting_strategy=self.teacher_weighting_strategy,
             teacher_gate_bias_update_rate=teacher_gate_bias_update_rate,
+            teacher_gate_temperature=teacher_gate_temperature,
+            teacher_gate_noise_std=teacher_gate_noise_std,
         )
 
         self.temperature = temperature
@@ -107,19 +129,27 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.teacher_gate_top_k = teacher_gate_top_k
         self.teacher_gate_capacity_factor = teacher_gate_capacity_factor
         self.teacher_gate_bias_update_rate = teacher_gate_bias_update_rate
+        self.teacher_gate_temperature = teacher_gate_temperature
+        self.teacher_gate_noise_std = teacher_gate_noise_std
+        self.teacher_gate_entropy_alpha = teacher_gate_entropy_alpha
         self.teacher_gate_router_z_loss_alpha = teacher_gate_router_z_loss_alpha
-        self.gradient_alignment_threshold = gradient_alignment_threshold
-        self.gradient_alignment_warmup_ratio = gradient_alignment_warmup_ratio
-        self.gradient_alignment_epsilon = gradient_alignment_epsilon
-        self.gradient_alignment_softmax_beta = gradient_alignment_softmax_beta
-        self.gradient_alignment_router_blend_lambda = gradient_alignment_router_blend_lambda
-        self.gradient_alignment_ema_decay = gradient_alignment_ema_decay
+        self.teacher_gate_hard_routing_warmup_ratio = teacher_gate_hard_routing_warmup_ratio
+        self.grace_threshold = grace_threshold
+        self.grace_warmup_ratio = grace_warmup_ratio
+        self.grace_epsilon = grace_epsilon
+        self.grace_softmax_beta = grace_softmax_beta
+        self.grace_router_blend_lambda = grace_router_blend_lambda
+        self.grace_ema_decay = grace_ema_decay
+        self.gradient_weight_cap = gradient_weight_cap
+        self.gradient_weight_steps = gradient_weight_steps
+        self.objective_conflict_cagrad_c = objective_conflict_cagrad_c
+        self.objective_conflict_cagrad_grid_steps = objective_conflict_cagrad_grid_steps
         self.non_lora_require_grad_only = True
         self.eval_ce_loss_sum = 0.0
         self.eval_ce_loss_count = 0
         self.last_compute_loss_end_time = None
         self.latest_train_ce_loss = None
-        self.teacher_alignment_score_ema = None
+        self.teacher_grace_score_ema = None
 
         log_distillation_trainer_setup(
             num_teachers=self.num_teachers,
@@ -135,13 +165,22 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             teacher_gate_top_k=teacher_gate_top_k,
             teacher_gate_capacity_factor=teacher_gate_capacity_factor,
             teacher_gate_bias_update_rate=teacher_gate_bias_update_rate,
+            teacher_gate_temperature=teacher_gate_temperature,
+            teacher_gate_noise_std=teacher_gate_noise_std,
+            teacher_gate_entropy_alpha=teacher_gate_entropy_alpha,
             teacher_gate_router_z_loss_alpha=teacher_gate_router_z_loss_alpha,
-            gradient_alignment_threshold=gradient_alignment_threshold,
-            gradient_alignment_warmup_ratio=gradient_alignment_warmup_ratio,
-            gradient_alignment_epsilon=gradient_alignment_epsilon,
-            gradient_alignment_softmax_beta=gradient_alignment_softmax_beta,
-            gradient_alignment_router_blend_lambda=gradient_alignment_router_blend_lambda,
-            gradient_alignment_ema_decay=gradient_alignment_ema_decay,
+            teacher_gate_hard_routing_warmup_ratio=teacher_gate_hard_routing_warmup_ratio,
+            grace_threshold=grace_threshold,
+            grace_warmup_ratio=grace_warmup_ratio,
+            grace_epsilon=grace_epsilon,
+            grace_softmax_beta=grace_softmax_beta,
+            grace_router_blend_lambda=grace_router_blend_lambda,
+            grace_ema_decay=grace_ema_decay,
+            gradient_weight_cap=gradient_weight_cap,
+            gradient_weight_steps=gradient_weight_steps,
+            objective_conflict_strategy=objective_conflict_strategy,
+            objective_conflict_cagrad_c=objective_conflict_cagrad_c,
+            objective_conflict_cagrad_grid_steps=objective_conflict_cagrad_grid_steps,
         )
 
     def tracks_best_checkpoint_by_train_ce(self) -> bool:
@@ -167,19 +206,33 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         prepared_inputs.update(teacher_inputs)
         return prepared_inputs
 
-    def should_apply_gradient_alignment_routing(self) -> bool:
+    def should_apply_grace_routing(self) -> bool:
         if self.teacher_gate is None or not self.model.training:
             return False
 
-        if self.gradient_alignment_warmup_ratio <= 0.0:
+        if self.grace_warmup_ratio <= 0.0:
             return True
 
         total_steps = max(self.state.max_steps, getattr(self.args, "max_steps", 0))
         if total_steps <= 0:
             return True
         import math
-        warmup_steps = math.ceil(total_steps * self.gradient_alignment_warmup_ratio)
+        warmup_steps = math.ceil(total_steps * self.grace_warmup_ratio)
         return self.state.global_step >= warmup_steps
+
+    def current_teacher_gate_top_k(self) -> int:
+        if self.teacher_gate is None:
+            return self.teacher_gate_top_k
+        if not self.model.training or self.teacher_gate_hard_routing_warmup_ratio <= 0.0:
+            return self.teacher_gate_top_k
+        total_steps = max(self.state.max_steps, getattr(self.args, "max_steps", 0))
+        if total_steps <= 0:
+            return self.teacher_gate_top_k
+        import math
+        warmup_steps = math.ceil(total_steps * self.teacher_gate_hard_routing_warmup_ratio)
+        if self.state.global_step < warmup_steps:
+            return self.num_teachers
+        return self.teacher_gate_top_k
 
     @override
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
@@ -211,7 +264,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             teacher_gate_weights=student_and_gate["teacher_gate_weights"],
             teacher_gate_routing_scores=student_and_gate["teacher_gate_routing_scores"],
         )
-        teacher_losses = compute_teacher_losses_and_alignment(
+        teacher_losses = compute_teacher_losses_and_grace(
             trainer=self,
             student_logits=student_and_gate["student_logits"],
             student_labels=student_inputs["labels"],
@@ -221,12 +274,22 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         ce_loss = student_and_gate["student_outputs"].loss
         if model.training:
             self.latest_train_ce_loss = ce_loss.detach().float().item()
-        alignment_and_loss = apply_alignment_and_compute_distillation_loss(
+        grace_and_loss = apply_grace_and_compute_distillation_loss(
             trainer=self,
             routed_teacher_gate_weights=gate_routing["routed_teacher_gate_weights"],
-            teacher_alignment_scores=teacher_losses["teacher_alignment_scores"],
-            teacher_alignment_active=teacher_losses["teacher_alignment_active"],
+            teacher_grace_scores=teacher_losses["teacher_grace_scores"],
+            teacher_grace_active=teacher_losses["teacher_grace_active"],
+            teacher_gradient_vectors=teacher_losses["teacher_gradient_vectors"],
             teacher_loss_matrix=teacher_losses["teacher_loss_matrix"],
+        )
+        objective_conflict_state = compute_objective_conflict_state(
+            trainer=self,
+            student_logits=student_and_gate["student_logits"],
+            student_labels=student_inputs["labels"],
+            distillation_loss=grace_and_loss["distillation_loss"],
+            effective_teacher_gate_weights=grace_and_loss["effective_teacher_gate_weights"],
+            routed_teacher_gate_weights=gate_routing["routed_teacher_gate_weights"],
+            teacher_gradient_vectors=teacher_losses["teacher_gradient_vectors"],
         )
 
         update_eval_ce_stats(
@@ -237,9 +300,12 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         loss = compute_total_loss(
             trainer=self,
             ce_loss=ce_loss,
-            distillation_loss=alignment_and_loss["distillation_loss"],
+            distillation_loss=grace_and_loss["distillation_loss"],
             teacher_gate_balance_loss=gate_routing["teacher_gate_balance_loss"],
+            teacher_gate_entropy_loss=gate_routing["teacher_gate_entropy_loss"],
             teacher_gate_z_loss=gate_routing["teacher_gate_z_loss"],
+            objective_ce_weight=objective_conflict_state["objective_ce_weight"],
+            objective_kd_weight=objective_conflict_state["objective_kd_weight"],
         )
 
         compute_loss_time = time.perf_counter() - compute_loss_start_time
@@ -248,22 +314,23 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         if self.state.global_step % self.args.logging_steps == 0:
             metrics = build_distillation_train_metrics(
                 loss=loss,
-                distillation_loss=alignment_and_loss["distillation_loss"],
+                distillation_loss=grace_and_loss["distillation_loss"],
                 ce_loss=ce_loss,
                 compute_loss_time=compute_loss_time,
                 student_forward_time=student_and_gate["student_forward_time"],
                 teacher_gate_time=student_and_gate["teacher_gate_time"],
                 routing_constraint_time=gate_routing["routing_constraint_time"],
                 teacher_loss_matrix_time=teacher_losses["teacher_loss_matrix_time"],
-                alignment_routing_time=alignment_and_loss["alignment_routing_time"],
+                grace_routing_time=grace_and_loss["grace_routing_time"],
                 outside_compute_loss_time=outside_compute_loss_time,
                 teacher_loss_matrix=teacher_losses["teacher_loss_matrix"],
                 routed_teacher_gate_weights=gate_routing["routed_teacher_gate_weights"],
-                effective_teacher_gate_weights=alignment_and_loss["effective_teacher_gate_weights"],
+                effective_teacher_gate_weights=grace_and_loss["effective_teacher_gate_weights"],
                 teacher_gate_weights=student_and_gate["teacher_gate_weights"],
                 teacher_gate_logits=student_and_gate["teacher_gate_logits"],
                 teacher_gate_routing_scores=student_and_gate["teacher_gate_routing_scores"],
                 teacher_gate_balance_loss=gate_routing["teacher_gate_balance_loss"],
+                teacher_gate_entropy_loss=gate_routing["teacher_gate_entropy_loss"],
                 teacher_gate_z_loss=gate_routing["teacher_gate_z_loss"],
                 teacher_gate_capacity=gate_routing["teacher_gate_capacity"],
                 teacher_gate_routing_fallback_rate=gate_routing["teacher_gate_routing_fallback_rate"],
@@ -271,12 +338,16 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 teacher_gate_hard_load=gate_routing["teacher_gate_hard_load"],
                 teacher_gate_assignment_rate=gate_routing["teacher_gate_assignment_rate"],
                 teacher_gate_bias=None if self.teacher_gate is None else self.teacher_gate.expert_bias,
-                teacher_alignment_scores=alignment_and_loss["teacher_alignment_scores"],
-                teacher_alignment_active=alignment_and_loss["teacher_alignment_active"],
-                teacher_alignment_score_ema=self.teacher_alignment_score_ema,
-                teacher_alignment_weights=alignment_and_loss["teacher_alignment_weights"],
-                teacher_alignment_fallback_rate=alignment_and_loss["teacher_alignment_fallback_rate"],
-                alignment_warmup_active=self.should_apply_gradient_alignment_routing(),
+                teacher_grace_scores=grace_and_loss["teacher_grace_scores"],
+                teacher_grace_active=grace_and_loss["teacher_grace_active"],
+                teacher_grace_score_ema=self.teacher_grace_score_ema,
+                teacher_grace_weights=grace_and_loss["teacher_grace_weights"],
+                teacher_grace_fallback_rate=grace_and_loss["teacher_grace_fallback_rate"],
+                grace_warmup_active=self.should_apply_grace_routing(),
+                objective_conflict_strategy=self.objective_conflict_strategy,
+                objective_ce_weight=objective_conflict_state["objective_ce_weight"],
+                objective_kd_weight=objective_conflict_state["objective_kd_weight"],
+                objective_gradient_cosine=objective_conflict_state["objective_gradient_cosine"],
             )
             self.log(metrics)
 

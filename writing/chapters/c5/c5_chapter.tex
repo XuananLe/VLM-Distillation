@@ -2,10 +2,14 @@
 \label{chap:experiment-results}
 
 \section{Main Comparison Results}
-This section compares the proposed method with the baselines on TextVQA, DocVQA and ChartQA.
+This section compares the proposed method with the baselines on TextVQA, DocVQA, and ChartQA.
 
 \subsection{Baseline Results}
-Before applying any adaptation or distillation, we report the original performance of the two base student models, \textbf{SmolVLM-500M} and \textbf{SmolVLM-256M}. These baseline results establish the starting point for later comparison. All results are obtained using \textbf{VLM-Eval-Kit} under the same evaluation pipeline described in Chapter~\ref{chap:evaluation-methodology}.
+Before applying adaptation or distillation, we report the original performance of the two student models, \textbf{SmolVLM-500M} and \textbf{SmolVLM-256M}.
+
+These baseline results establish the starting point for later comparison.
+
+All results are obtained using \textbf{VLM-Eval-Kit} \cite{duan2024vlmevalkit} under the same evaluation pipeline described in Chapter~\ref{chap:evaluation-methodology}.
 
 \begin{table}[htbp]
 \centering
@@ -21,11 +25,257 @@ SmolVLM-256M & 47.17 & 48.6411 & 45.04 \\
 \label{tab:smolvlm-original-results}
 \end{table}
 
+\begin{table}[htbp]
+\centering
+\begin{tabular}{lccc}
+\toprule
+\textbf{Teacher Model} & \textbf{TextVQA} & \textbf{DocVQA} & \textbf{ChartQA} \\
+\midrule
+Qwen2-VL-2B-Instruct & 79.7 & 90.1 & 73.5 \\
+Qwen2.5-VL-3B-Instruct & 79.3 & 93.9 & 81.2 \\
+InternVL3-1B & 74.1 & 81.9 & 75.3 \\
+Gemma-3-4B-it & 57.8 & 75.8 & 63.6 \\
+\bottomrule
+\end{tabular}
+\caption{Original benchmark results of the teacher models used in the heterogeneous teacher pool, compiled from the official model releases \cite{qwen2vl2b_modelcard,qwen25vl3b_modelcard} and \cite{internvl3_blog,gemma3_technical_report} and, for the Qwen2.5-VL-3B ChartQA entry, from a model-comparison page that reports the base-model metric \cite{qwen25vl3b_quantized_card}.}
+\label{tab:teacher-original-results}
+\end{table}
+
+\subsection{Overall Comparison}
+
+Tables~\ref{tab:textvqa-comparison}, \ref{tab:docvqa-comparison}, and \ref{tab:chartqa-comparison} summarize the main comparison results across original models, direct fine-tuning, standard logits distillation baselines, and \methodname.
+
+Missing entries are marked as `N/A' when a run was not completed or not reported in the current experiment set.
+
+We report the baselines in four groups.
+
+\begin{itemize}
+\item The \textbf{non-distillation references} are the original student and the full-finetuning baseline.
+\item The \textbf{same-family baselines} use \textbf{SmolVLM2-2.2B-Instruct} as teacher for forward KL, reverse KL, Jensen-Shannon divergence, and HSM-CKA \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge,dasgupta2025improving}.
+\item The \textbf{different-family single-teacher baselines}\\
+use a teacher outside the SmolVLM family. This group includes the ULD baseline \cite{boizard2024towardscrosstokenizerdistillation} and the layer-wise hidden-state baseline.
+\item The \textbf{heterogeneous multi-teacher baselines} use teacher pools drawn from different VLM families, including uniform averaging and \methodname{} \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
+\end{itemize}
+
+\begin{table}[htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{0.96}
+\begin{tabular}{@{}>{\centering\arraybackslash}m{2.1cm}llllc@{}}
+\toprule
+\textbf{Category} & \textbf{Method} & \textbf{Teacher} & \textbf{Student} & \textbf{TextVQA} \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{Non-distillation references}} \\
+\midrule
+\multirow[c]{2}{=}{\centering Original} & \multirow{2}{*}{None} & \multirow{2}{*}{None} & SmolVLM-500M & 56.75 \\
+& & & SmolVLM-256M & 47.17 \\
+\midrule
+\multirow[c]{2}{=}{\centering Reference} & \multirow{2}{*}{Finetuning} & \multirow{2}{*}{None} & SmolVLM-500M & 56.96 \\
+& & & SmolVLM-256M & 49.832 \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{Same-family distillation baselines}} \\
+\midrule
+\multirow[c]{4}{=}{\centering Same-family} & Forward KL & SmolVLM2-2.2B & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{59.0\\50.88} \\
+\cmidrule(l){2-5}
+& Reverse KL & SmolVLM2-2.2B & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{44.734\\29.752} \\
+\cmidrule(l){2-5}
+& \makecell[c]{Jensen-\\Shannon} & SmolVLM2-2.2B & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{N/A\\N/A} \\
+\cmidrule(l){2-5}
+& HSM-CKA & SmolVLM2-2.2B & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{N/A\\N/A} \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{Different-family single-teacher baselines}} \\
+\midrule
+\multirow[c]{2}{=}{\centering Cross-family} & ULD & Qwen2-VL-2B-Instruct & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{61.49\\53.946} \\
+\cmidrule(l){2-5}
+& \makecell[c]{Layer-wise\\loss} & Qwen2-VL-2B-Instruct & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{N/A\\N/A} \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{Heterogeneous multi-teacher baselines}} \\
+\midrule
+\multirow[c]{2}{=}[0.8ex]{\centering Multi-teacher} & Uniform & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{63.88\\54.57} \\
+\cmidrule(l){2-5}
+& GRACE & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct\\InternVL3-1B\\Gemma-3-4B-it} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{N/A\\N/A} \\
+\bottomrule
+\end{tabular}
+\caption{TextVQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.}
+\label{tab:textvqa-comparison}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{0.94}
+\begin{tabular}{@{}>{\centering\arraybackslash}m{2.1cm}llllc@{}}
+\toprule
+\textbf{Category} & \textbf{Method} & \textbf{Teacher} & \textbf{Student} & \textbf{DocVQA} \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{Non-distillation references}} \\
+\midrule
+\multirow[c]{2}{=}{\centering Original} & \multirow{2}{*}{None} & \multirow{2}{*}{None} & SmolVLM-500M & 59.5247 \\
+& & & SmolVLM-256M & 48.6411 \\
+\midrule
+\multirow[c]{2}{=}{\centering Reference} & \multirow{2}{*}{Finetuning} & \multirow{2}{*}{None} & SmolVLM-500M & 61.9634 \\
+& & & SmolVLM-256M & 42.0272 \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{Same-family distillation baselines}} \\
+\midrule
+\multirow[c]{4}{=}{\centering Same-family} & Forward KL & SmolVLM2-2.2B & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{63.5517\\49.46} \\
+\cmidrule(l){2-5}
+& Reverse KL & SmolVLM2-2.2B & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{29.28\\23.2811} \\
+\cmidrule(l){2-5}
+& \makecell[c]{Jensen-\\Shannon} & SmolVLM2-2.2B & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{N/A\\N/A} \\
+\cmidrule(l){2-5}
+& HSM-CKA & SmolVLM2-2.2B & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{N/A\\N/A} \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{Different-family single-teacher baselines}} \\
+\midrule
+\multirow[c]{2}{=}{\centering Cross-family} & ULD & Qwen2-VL-2B-Instruct & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{65.2832\\52.2424} \\
+\cmidrule(l){2-5}
+& \makecell[c]{Layer-wise\\loss} & \makecell[c]{Qwen2-VL-2B-Instruct\\Gemma-4B} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M\\SmolVLM-500M} & \makecell[c]{63.3218\,(gradnorm)\\N/A\\N/A} \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{Heterogeneous multi-teacher baselines}} \\
+\midrule
+\multirow[c]{2}{=}[0.8ex]{\centering Multi-teacher} & Uniform & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{69.59\\55.7036} \\
+\cmidrule(l){2-5}
+& GRACE & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct\\InternVL3-1B\\Gemma-3-4B-it} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{N/A\\N/A} \\
+\bottomrule
+\end{tabular}
+\caption{DocVQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.}
+\label{tab:docvqa-comparison}
+\end{table}
+
+\begin{table}[htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{0.94}
+\begin{tabular}{@{}>{\centering\arraybackslash}m{2.1cm}llllc@{}}
+\toprule
+\textbf{Category} & \textbf{Method} & \textbf{Teacher} & \textbf{Student} & \textbf{ChartQA} \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{Non-distillation references}} \\
+\midrule
+\multirow[c]{2}{=}{\centering Original} & \multirow{2}{*}{None} & \multirow{2}{*}{None} & SmolVLM-500M & 62.8 \\
+& & & SmolVLM-256M & 45.04 \\
+\midrule
+\multirow[c]{2}{=}{\centering Reference} & \multirow{2}{*}{Finetuning} & \multirow{2}{*}{None} & SmolVLM-500M & 63.0 \\
+& & & SmolVLM-256M & 49.68 \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{Same-family distillation baselines}} \\
+\midrule
+\multirow[c]{4}{=}{\centering Same-family} & Forward KL & SmolVLM2-2.2B & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{64.52\\56.8} \\
+\cmidrule(l){2-5}
+& Reverse KL & SmolVLM2-2.2B & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{30.16\\17.2} \\
+\cmidrule(l){2-5}
+& \makecell[c]{Jensen-\\Shannon} & SmolVLM2-2.2B & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{N/A\\N/A} \\
+\cmidrule(l){2-5}
+& HSM-CKA & SmolVLM2-2.2B & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{N/A\\N/A} \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{Different-family single-teacher baselines}} \\
+\midrule
+\multirow[c]{2}{=}{\centering Cross-family} & ULD & Qwen2-VL-2B-Instruct & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{66.92\\60.96} \\
+\cmidrule(l){2-5}
+& \makecell[c]{Layer-wise\\loss} & \makecell[c]{Qwen2-VL-2B-Instruct\\Gemma-4B} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M\\SmolVLM-500M} & \makecell[c]{76.88\\62.4\\76.08} \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{Heterogeneous multi-teacher baselines}} \\
+\midrule
+\multirow[c]{2}{=}[0.8ex]{\centering Multi-teacher} & Uniform & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{75.6\\63.68} \\
+\cmidrule(l){2-5}
+& GRACE & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct\\InternVL3-1B\\Gemma-3-4B-it} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{\textbf{79.2}\\N/A} \\
+\bottomrule
+\end{tabular}
+\caption{ChartQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.}
+\label{tab:chartqa-comparison}
+\end{table}
+
+\section{Representation Similarity Analysis}
+
+We use CKA as an analysis tool to examine whether teacher and student layers
+exhibit clear correspondence. For centered hidden-state matrices
+\(\tilde{\mathbf{H}}_s\) and \(\tilde{\mathbf{H}}_t\), linear CKA is
+\begin{equation}
+\mathrm{CKA}(\tilde{\mathbf{H}}_s,\tilde{\mathbf{H}}_t)=
+\frac{\left\|\tilde{\mathbf{H}}_t^{\top}\tilde{\mathbf{H}}_s\right\|_F^2}
+{\left\|\tilde{\mathbf{H}}_t^{\top}\tilde{\mathbf{H}}_t\right\|_F
+\left\|\tilde{\mathbf{H}}_s^{\top}\tilde{\mathbf{H}}_s\right\|_F}.
+\end{equation}
+Values closer to \(1\) indicate stronger representation similarity
+\cite{kornblith2019similarityrepresentations}.
+
+The main question is whether strong internal similarity is enough to justify
+layer-wise distillation. Our results suggest that it is not, as shown in the
+figures and tables below.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[t]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/cka_last_textvqa_qwen2vl2b_smolvlm500m.png}
+        \caption{TextVQA}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/cka_last_docvqa_qwen2vl2b_smolvlm500m.png}
+        \caption{DocVQA}
+    \end{subfigure}
+    \caption[Final-layer CKA heatmaps across two benchmarks.]{Final-layer CKA heatmaps from our experiments for the teacher-student pair Qwen2-VL-2B and SmolVLM-500M on TextVQA and DocVQA. Brighter regions and values closer to \(1\) indicate stronger representation similarity.}
+    \label{fig:exp-cka-multi-dataset}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[t]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/cka_vision_textvqa_qwen2vl2b_smolvlm500m.png}
+        \caption{TextVQA}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/cka_vision_docvqa_qwen2vl2b_smolvlm500m.png}
+        \caption{DocVQA}
+    \end{subfigure}
+    \caption[Vision-layer CKA heatmaps across two benchmarks.]{Vision-layer CKA heatmaps for the same teacher-student pair on TextVQA and DocVQA. Again, brighter regions and values closer to \(1\) indicate stronger similarity.}
+    \label{fig:exp-cka-vision-multi-dataset}
+\end{figure}
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[t]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/cka_last_textvqa_qwen2vl2b_smolvlm500m.png}
+        \caption{High internal similarity in CKA space.}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/tinyllava_vs_llava7b_chart.png}
+        \caption{A persistent benchmark gap remains for compact VLMs \cite{zhou2024tinyllava}.}
+    \end{subfigure}
+    \caption{High CKA does not by itself imply that layer-wise transfer will close the downstream performance gap. Representation similarity and task transfer are related, but not equivalent.}
+    \label{fig:exp-cka-vs-performance-gap}
+\end{figure}
+
+Figures~\ref{fig:exp-cka-multi-dataset} and
+\ref{fig:exp-cka-vision-multi-dataset} show that the teacher and student can be
+relatively close in both the language and vision stacks.
+
+However, Tables~\ref{tab:textvqa-comparison}, \ref{tab:docvqa-comparison}, and
+\ref{tab:chartqa-comparison} still show a clear benchmark gap between compact
+students and stronger models. The layer-wise baseline also fails to
+consistently outperform output-level distillation.
+
+This supports the design choice in GRACE. High hidden-state similarity alone is
+not a reliable signal that direct layer matching will produce better task
+transfer.
+
 \section{Ablation Study}
-This section analyzes the effect of teacher-set selection, weighting strategy and student model size on final performance.
+This section analyzes the effect of teacher assignment, balancing, and gradient alignment on final performance.
 
 \section{Qualitative Analysis}
 This section presents representative examples to inspect how distillation affects text reading and basic reasoning behavior.
 
 \section{Discussion}
-This section discusses the trade-off between model size, teacher supervision and transfer performance across the evaluated benchmarks.
+This section discusses the trade-off between model size, teacher supervision, and transfer performance across the evaluated benchmarks.
