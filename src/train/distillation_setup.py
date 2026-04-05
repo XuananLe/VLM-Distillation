@@ -15,6 +15,13 @@ class DistillationArguments:
         metadata={"help": "Teacher model IDs as a Python list literal or comma-separated string."}
     )
 
+    teacher_logits_cache_dir: str | None = field(
+        default=None,
+        metadata={
+            "help": "Optional root directory produced by scripts/analysis/cache_teacher_logits.py. When provided, training reads cached teacher logits instead of running teacher forwards online."
+        },
+    )
+
     teacher_weighting_strategy: str = field(
         default="routing",
         metadata={"help": "Teacher weighting strategy: `routing` or `uniform_mean`."},
@@ -165,6 +172,8 @@ def log_distillation_setup(
     rank0_print("=" * 80)
     rank0_print(f"Student Model: {distillation_args.student_model_id}")
     rank0_print(f"Teacher Model(s): {teacher_ids}")
+    if distillation_args.teacher_logits_cache_dir:
+        rank0_print(f"Teacher Logits Cache: {distillation_args.teacher_logits_cache_dir}")
     rank0_print(
         "Teacher Weighting: learned deep gate + balancing + gradient alignment"
         if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing"

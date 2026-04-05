@@ -214,13 +214,18 @@ def main() -> None:
             )
             teacher_logits = teacher_outputs.logits.detach()
             selected_labels = select_labels_at_positions(prepared_labels, logit_positions)
+            effective_labels = (
+                selected_labels
+                if selected_labels.size(1) == teacher_logits.size(1)
+                else prepared_labels
+            )
 
-            sample_mask = selected_labels[0].ne(-100)
+            sample_mask = effective_labels[0].ne(-100)
             sample_logits = teacher_logits[0][sample_mask].to(
                 dtype=storage_dtype,
                 device="cpu",
             ).contiguous()
-            sample_labels = selected_labels[0][sample_mask].to(device="cpu").contiguous()
+            sample_labels = effective_labels[0][sample_mask].to(device="cpu").contiguous()
             total_supervised_tokens[teacher_idx] += int(sample_mask.sum().item())
             save_sample(
                 output_root=output_root,
@@ -239,6 +244,7 @@ def main() -> None:
             del teacher_outputs
             del teacher_logits
             del selected_labels
+            del effective_labels
 
         total_samples += 1
         print(

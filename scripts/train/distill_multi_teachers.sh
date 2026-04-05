@@ -24,19 +24,22 @@ GRADIENT_ALIGNMENT_EPSILON="${GRADIENT_ALIGNMENT_EPSILON:-0.01}"
 GRADIENT_ALIGNMENT_SOFTMAX_BETA="${GRADIENT_ALIGNMENT_SOFTMAX_BETA:-20.0}"
 GRADIENT_ALIGNMENT_ROUTER_BLEND_LAMBDA="${GRADIENT_ALIGNMENT_ROUTER_BLEND_LAMBDA:-0.5}"
 GRADIENT_ALIGNMENT_EMA_DECAY="${GRADIENT_ALIGNMENT_EMA_DECAY:-0.9}"
+TEACHER_LOGITS_CACHE_DIR="${TEACHER_LOGITS_CACHE_DIR:-}"
 NUM_TEACHERS=2
 DATASET_NAME="docvqa"
 PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-18}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 LOGGING_STEPS="${LOGGING_STEPS:-10}"
-DATALOADER_NUM_WORKERS="${DATALOADER_NUM_WORKERS:-8}"
-DATALOADER_PERSISTENT_WORKERS="${DATALOADER_PERSISTENT_WORKERS:-True}"
-DATALOADER_PREFETCH_FACTOR="${DATALOADER_PREFETCH_FACTOR:-4}"
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME_1="${TEACHER_MODEL_1##*/}"
 TEACHER_NAME_2="${TEACHER_MODEL_2##*/}"
 RUN_TAG="${RUN_TAG:-$(date +%Y%m%d_%H%M)}"
 OUTPUT_DIR="/output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
+
+EXTRA_ARGS=()
+if [[ -n "$TEACHER_LOGITS_CACHE_DIR" ]]; then
+    EXTRA_ARGS+=(--teacher_logits_cache_dir "$TEACHER_LOGITS_CACHE_DIR")
+fi
 
 deepspeed src/train/train_distillation.py \
     --deepspeed scripts/deepspeed/zero2.json \
@@ -85,8 +88,7 @@ deepspeed src/train/train_distillation.py \
     --save_total_limit 100 \
     --save_only_model False \
     --eval_strategy no \
-    --dataloader_num_workers "$DATALOADER_NUM_WORKERS" \
-    --dataloader_persistent_workers "$DATALOADER_PERSISTENT_WORKERS" \
-    --dataloader_prefetch_factor "$DATALOADER_PREFETCH_FACTOR" \
+    --dataloader_num_workers 4 \
     --remove_unused_columns False \
-    --report_to wandb
+    --report_to wandb \
+    "${EXTRA_ARGS[@]}"

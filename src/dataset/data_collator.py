@@ -47,14 +47,14 @@ class DataCollatorForSupervisedDataset(object):
         self.teacher_pad_token_id = teacher_pad_token_id
         self.teacher_pad_token_ids = teacher_pad_token_ids or []
 
-    def _teacher_input_prefixes(self, example: Dict[str, torch.Tensor]) -> list[str]:
-        """Extract teacher input prefixes from an example."""
-        if "teacher_input_ids" in example:
+    def _teacher_prefixes(self, example: Dict[str, torch.Tensor], suffix: str) -> list[str]:
+        """Extract teacher prefixes for a specific field suffix from an example."""
+        if f"teacher_{suffix}" in example:
             return ["teacher"]
 
         prefixes = []
         for key in example:
-            match = re.fullmatch(r"(teacher_\d+)_input_ids", key)
+            match = re.fullmatch(rf"(teacher_\d+)_{re.escape(suffix)}", key)
             if match:
                 prefixes.append(match.group(1))
         return sorted(prefixes, key=lambda prefix: int(prefix.split("_")[1]))
@@ -124,6 +124,19 @@ class DataCollatorForSupervisedDataset(object):
                 dim=0,
             )
 
+    def _collate_cached_teacher_batch(self, examples, batch_dict, prefix: str) -> None:
+        """Collate cached teacher logits from examples into the batch dictionary."""
+        batch_dict[f"{prefix}_cached_logits"] = pad_sequence(
+            [e[f"{prefix}_cached_logits"] for e in examples],
+            padding_side="right",
+            padding_value=0.0,
+        )
+        batch_dict[f"{prefix}_cached_labels"] = pad_sequence(
+            [e[f"{prefix}_cached_labels"] for e in examples],
+            padding_side="right",
+            padding_value=IGNORE_INDEX,
+        )
+
     def __call__(self, examples):
         """Collate a batch of examples."""
         batch_input_ids            = [e["input_ids"]                    for e in examples]
@@ -147,7 +160,9 @@ class DataCollatorForSupervisedDataset(object):
         if pixel_values is not None:
             batch_dict.update(pixel_values=pixel_values, pixel_attention_mask=pixel_attention_mask)
 
-        for prefix in self._teacher_input_prefixes(examples[0]):
+        for prefix in self._teacher_prefixes(examples[0], "input_ids"):
             self._collate_teacher_batch(examples, batch_dict, prefix)
+        for prefix in self._teacher_prefixes(examples[0], "cached_logits"):
+            self._collate_cached_teacher_batch(examples, batch_dict, prefix)
 
         return batch_dict

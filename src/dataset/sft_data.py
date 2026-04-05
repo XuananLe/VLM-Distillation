@@ -1,8 +1,8 @@
 import copy
 import os
-import re
 from dataclasses import replace
 from typing import Dict, Optional
+
 import torch
 import transformers
 import ujson as json
@@ -15,8 +15,10 @@ from .conversation_encoders import (
     encode_student_data,
     encode_teacher_data,
 )
+from .conversation_transforms import llava_to_openai
 from .data_utils import pad_sequence, encode_video
 from .data_collator import DataCollatorForSupervisedDataset
+from .teacher_logits_cache import TeacherLogitsCache
 
 DUMMY_PIXEL_VALUES = (1, 13, 3, 384, 384)
 DUMMY_PIXEL_MASK = (1, 13, 384, 384)
@@ -32,6 +34,8 @@ class SupervisedDataset(Dataset):
         data_args: DataArguments,
         padding=True,
         teacher_processors: Optional[list[transformers.ProcessorMixin]] = None,
+        teacher_logits_cache_dir: Optional[str] = None,
+        teacher_model_ids: Optional[list[str]] = None,
     ):
         super(SupervisedDataset, self).__init__()
         if isinstance(data_path, str):
@@ -45,6 +49,26 @@ class SupervisedDataset(Dataset):
         self.data_args = data_args
         self.padding = padding
         self.max_num_frames = data_args.max_num_frames
+        self.teacher_logits_cache = None
+        if teacher_logits_cache_dir is not None:
+            self.teacher_logits_cache = TeacherLogitsCache(
+                cache_dir=teacher_logits_cache_dir,
+                teacher_model_ids=teacher_model_ids,
+                expected_num_samples=len(self.list_data_dict),
+            )
+
+        processor_teacher_count = len(self.teacher_processors)
+        cache_teacher_count = (
+            self.teacher_logits_cache.teacher_count
+            if self.teacher_logits_cache is not None
+            else 0
+        )
+        if processor_teacher_count and cache_teacher_count and processor_teacher_count != cache_teacher_count:
+            raise ValueError(
+                "Teacher processor count does not match the teacher-logits cache count. "
+                f"processors={processor_teacher_count}, cache={cache_teacher_count}"
+            )
+        self.teacher_count = max(processor_teacher_count, cache_teacher_count)
 
     def __len__(self):
         return len(self.list_data_dict)
@@ -106,10 +130,18 @@ class SupervisedDataset(Dataset):
             data_dict["pixel_values"] = pixel_values
             data_dict["pixel_attention_mask"] = pixel_attention_mask
 
+        if self.teacher_logits_cache is not None:
+            for teacher_index in range(self.teacher_count):
+                cache_sample = self.teacher_logits_cache.load_sample(teacher_index, i)
+                prefix = "teacher" if self.teacher_count == 1 else f"teacher_{teacher_index}"
+                data_dict[f"{prefix}_cached_logits"] = cache_sample["logits"]
+                data_dict[f"{prefix}_cached_labels"] = cache_sample["labels"]
+            return data_dict
+
         if not self.teacher_processors:
             return data_dict
 
-        teacher_count = len(self.teacher_processors)
+        teacher_count = self.teacher_count
         for teacher_index, teacher_processor in enumerate(self.teacher_processors):
             teacher_data = self._encode_teacher_data(sources, images, teacher_processor)
             prefix = "teacher" if teacher_count == 1 else f"teacher_{teacher_index}"
@@ -126,49 +158,12 @@ class SupervisedDataset(Dataset):
 
         return data_dict
 
-def replace_image_tokens(input_string, start_count=1):
-    count = start_count
-
-    if LLAVA_IMAGE_TOKEN not in input_string:
-        return input_string, count
-
-    while LLAVA_IMAGE_TOKEN+'\n' in input_string:
-        input_string = input_string.replace(LLAVA_IMAGE_TOKEN+'\n', "<image>", 1)
-        count += 1
-
-    return input_string, count
-
-def video_to_image_tokens(input_string, num_frames):
-
-    frame_tokens = "\n".join([LLAVA_IMAGE_TOKEN] * num_frames)
-    input_string = input_string.replace(LLAVA_VIDEO_TOKEN, frame_tokens)
-
-    return input_string
-
-def llava_to_openai(conversations, is_video=False, num_frames=None):
-
-    role_mapping = {"human": "user", "gpt": "assistant"}
-
-    transformed_data = []
-    image_count = 1
-    for conversation in conversations:
-
-        if is_video:
-            conversation['value'] = video_to_image_tokens(conversation["value"], num_frames)
-
-        transformed_content, image_count = replace_image_tokens(conversation["value"], image_count)
-        transformed_entry = {
-            "role": role_mapping.get(conversation["from"], conversation["from"]),
-            "content": transformed_content
-        }
-        transformed_data.append(transformed_entry)
-
-    return transformed_data
-
 def make_supervised_data_module(
     processor,
     data_args,
     teacher_processors: Optional[list[transformers.ProcessorMixin]] = None,
+    teacher_model_ids: Optional[list[str]] = None,
+    teacher_logits_cache_dir: Optional[str] = None,
 ):
     """Make dataset and collator for supervised fine-tuning."""
     normalized_teacher_processors = list(teacher_processors or [])
@@ -177,6 +172,8 @@ def make_supervised_data_module(
         processor=processor,
         data_args=data_args,
         teacher_processors=normalized_teacher_processors,
+        teacher_logits_cache_dir=teacher_logits_cache_dir,
+        teacher_model_ids=teacher_model_ids,
     )
     eval_dataset = None
     if data_args.eval_data_path:
@@ -185,6 +182,7 @@ def make_supervised_data_module(
             processor=processor,
             data_args=replace(data_args, data_path=data_args.eval_data_path),
             teacher_processors=normalized_teacher_processors,
+            teacher_model_ids=teacher_model_ids,
         )
     teacher_pad = None
     if len(normalized_teacher_processors) == 1:

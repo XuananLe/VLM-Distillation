@@ -232,18 +232,29 @@ def train_distillation():
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
 
-    teacher_models, teacher_processors = load_teacher_models_and_processors(
-        teacher_ids=teacher_ids,
-        training_args=training_args,
-        compute_dtype=compute_dtype,
-        attn_impl=attn_impl,
+    use_cached_teacher_logits = distillation_args.teacher_logits_cache_dir is not None
+    should_load_online_teachers = (
+        not use_cached_teacher_logits
+        or data_args.eval_data_path is not None
     )
+    if should_load_online_teachers:
+        teacher_models, teacher_processors = load_teacher_models_and_processors(
+            teacher_ids=teacher_ids,
+            training_args=training_args,
+            compute_dtype=compute_dtype,
+            attn_impl=attn_impl,
+        )
+    else:
+        rank0_print("\nUsing cached teacher logits; skipping online teacher model loading.")
+        teacher_models, teacher_processors = [], []
 
     rank0_print("\nPreparing datasets...")
     data_module = make_supervised_data_module(
         processor=processor,
         data_args=data_args,
         teacher_processors=teacher_processors,
+        teacher_model_ids=teacher_ids,
+        teacher_logits_cache_dir=distillation_args.teacher_logits_cache_dir,
     )
     _init_primary_wandb_run(training_args)
 
@@ -255,7 +266,8 @@ def train_distillation():
 
     trainer = DistillationTrainer(
         model=student_model,
-        teacher_model=teacher_models,
+        teacher_model=teacher_models or None,
+        teacher_count=len(teacher_ids),
         teacher_weighting_strategy=distillation_args.teacher_weighting_strategy,
         loss_function=distillation_args.distillation_loss,
         temperature=distillation_args.temperature,
