@@ -1,3 +1,5 @@
+import warnings
+
 import torch
 from transformers import (
     AutoModel,
@@ -53,9 +55,10 @@ def teacher_supports_flash_attention(teacher_model, teacher_id: str) -> bool:
 def require_flash_attention_support(teacher_model, teacher_id: str) -> None:
     if teacher_supports_flash_attention(teacher_model, teacher_id):
         return
-    raise ValueError(
+    warnings.warn(
         f"Teacher model {teacher_id!r} does not advertise FlashAttention support. "
-        "Choose a different teacher or disable FlashAttention for teacher loading."
+        "Continuing anyway; teacher loading may still fail or fall back internally.",
+        stacklevel=2,
     )
 
 
