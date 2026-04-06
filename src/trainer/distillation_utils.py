@@ -18,6 +18,31 @@ def release_eval_memory() -> None:
             torch.cuda.ipc_collect()
 
 
+def _infer_model_device_and_dtype(teacher_model):
+    try:
+        param = next(teacher_model.parameters())
+    except StopIteration:
+        return getattr(teacher_model, "device", None), None
+    dtype = param.dtype if param.is_floating_point() else None
+    return param.device, dtype
+
+
+def prepare_teacher_model_inputs(teacher_model, teacher_inputs):
+    model_device, model_dtype = _infer_model_device_and_dtype(teacher_model)
+    prepared_inputs = {}
+    for key, value in teacher_inputs.items():
+        if not torch.is_tensor(value):
+            prepared_inputs[key] = value
+            continue
+
+        target_dtype = model_dtype if model_dtype is not None and value.is_floating_point() else value.dtype
+        if model_device is None:
+            prepared_inputs[key] = value.to(dtype=target_dtype)
+        else:
+            prepared_inputs[key] = value.to(device=model_device, dtype=target_dtype)
+    return prepared_inputs
+
+
 def build_teacher_batches(inputs, student_inputs, num_teachers: int):
     prefixes = []
     if "teacher_input_ids" in inputs:
@@ -140,8 +165,10 @@ def compute_teacher_forward(
     import io
     from contextlib import nullcontext, redirect_stdout
 
+    prepared_teacher_inputs = prepare_teacher_model_inputs(teacher_model, teacher_inputs)
+
     call_inputs = {
-        **teacher_inputs,
+        **prepared_teacher_inputs,
         "return_dict": True,
         "output_hidden_states": output_hidden_states,
     }
@@ -155,7 +182,7 @@ def compute_teacher_forward(
             if logits_to_keep is not None:
                 manual_outputs = _compute_teacher_forward_with_manual_logit_slice(
                     teacher_model,
-                    teacher_inputs,
+                    prepared_teacher_inputs,
                     output_hidden_states=output_hidden_states,
                     logits_to_keep=logits_to_keep,
                 )
