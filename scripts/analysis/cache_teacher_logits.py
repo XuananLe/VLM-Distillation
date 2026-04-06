@@ -25,6 +25,10 @@ from src.trainer.distillation_utils import (
     select_labels_at_positions,
     select_supervised_logit_positions,
 )
+from src.train.distillation_runtime import (
+    ensure_flash_attention_available,
+    require_flash_attention_support,
+)
 from src.train.train_utils import parse_model_id_list
 
 
@@ -121,8 +125,11 @@ def load_teachers_and_processors(teacher_ids: list[str], device: str):
     }
     torch_dtype = dtype_map["cuda"] if device.startswith("cuda") else dtype_map["cpu"]
     attn_impl = "flash_attention_2" if device.startswith("cuda") else "eager"
+    flash_attention_requested = device.startswith("cuda")
     teacher_models = []
     teacher_processors = []
+    if flash_attention_requested:
+        ensure_flash_attention_available()
     for teacher_id in teacher_ids:
         if "internvl" in teacher_id.lower():
             teacher_model = AutoModel.from_pretrained(
@@ -192,6 +199,8 @@ def load_teachers_and_processors(teacher_ids: list[str], device: str):
             )
         if hasattr(teacher_model.config, "use_cache"):
             teacher_model.config.use_cache = False
+        if flash_attention_requested:
+            require_flash_attention_support(teacher_model, teacher_id)
         teacher_model._suppress_forward_stdout = "internvl" in teacher_id.lower()
         teacher_model.eval()
         for param in teacher_model.parameters():

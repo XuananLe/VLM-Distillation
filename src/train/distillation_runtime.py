@@ -11,6 +11,34 @@ from transformers import (
 from src.train.train_utils import rank0_print
 
 
+def ensure_flash_attention_available() -> None:
+    try:
+        import flash_attn  # noqa: F401
+    except Exception as exc:
+        raise RuntimeError(
+            "FlashAttention was requested for teacher loading, but the `flash_attn` package "
+            "is not available in the current environment."
+        ) from exc
+
+
+def teacher_supports_flash_attention(teacher_model, teacher_id: str) -> bool:
+    supports_flash_attn = getattr(teacher_model, "_supports_flash_attn", None)
+    if supports_flash_attn is not None:
+        return bool(supports_flash_attn)
+
+    model_type = getattr(getattr(teacher_model, "config", None), "model_type", None)
+    return model_type in {"internvl", "qwen2_vl", "qwen2_5_vl", "gemma3"}
+
+
+def require_flash_attention_support(teacher_model, teacher_id: str) -> None:
+    if teacher_supports_flash_attention(teacher_model, teacher_id):
+        return
+    raise ValueError(
+        f"Teacher model {teacher_id!r} does not advertise FlashAttention support. "
+        "Choose a different teacher or disable FlashAttention for teacher loading."
+    )
+
+
 def load_teacher_models_and_processors(
     *,
     teacher_ids,
@@ -20,6 +48,9 @@ def load_teacher_models_and_processors(
 ):
     teacher_models = []
     teacher_processors = []
+    flash_attention_requested = training_args.device.startswith("cuda") and not training_args.disable_flash_attn2
+    if flash_attention_requested:
+        ensure_flash_attention_available()
 
     for teacher_idx, teacher_id in enumerate(teacher_ids, start=1):
         rank0_print(f"\nLoading teacher model {teacher_idx}/{len(teacher_ids)}...")
@@ -53,6 +84,8 @@ def load_teacher_models_and_processors(
 
         if hasattr(teacher_model.config, "use_cache"):
             teacher_model.config.use_cache = False
+        if flash_attention_requested:
+            require_flash_attention_support(teacher_model, teacher_id)
         teacher_model._suppress_forward_stdout = "internvl" in teacher_id.lower()
         teacher_model.eval()
         for param in teacher_model.parameters():
