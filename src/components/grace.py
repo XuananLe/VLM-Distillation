@@ -1,5 +1,3 @@
-"""GRACE routing refinement for teacher mixing."""
-
 import torch
 
 

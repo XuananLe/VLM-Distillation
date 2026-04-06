@@ -12,7 +12,7 @@ SUPPORTED_SMOLVLM_HIDDEN_SIZES = {
 class DeepRouter(nn.Module):
     def __init__(self, input_size: int, num_experts: int):
         super().__init__()
-        self.hidden_size = self.resolve_hidden_size(input_size, num_experts)
+        self.hidden_size = self.resolve_hidden_size(num_experts)
         self.normalizer = nn.LayerNorm(input_size)
         self.up_proj = nn.Linear(input_size, self.hidden_size * 2)
         self.down_proj = nn.Linear(self.hidden_size, num_experts)
@@ -23,8 +23,7 @@ class DeepRouter(nn.Module):
         nn.init.zeros_(self.down_proj.bias)
 
     @staticmethod
-    def resolve_hidden_size(input_size: int, num_experts: int) -> int:
-        del input_size
+    def resolve_hidden_size(num_experts: int) -> int:
         if num_experts <= 4:
             return 64
         if num_experts <= 16:
@@ -66,18 +65,9 @@ class Gate(nn.Module):
         smolvlm_source = Gate.resolve_smolvlm_gate_source(model)
         if smolvlm_source is not None:
             return smolvlm_source
-
-        lm_head = model.get_output_embeddings()
-        if lm_head is None:
-            raise ValueError(
-                "Gate currently supports SmolVLM-500M, SmolVLM-256M, "
-                "or models exposing an output head with an explicit input dimension."
-            )
-        if hasattr(lm_head, "in_features"):
-            return lm_head.in_features, lm_head
-        if hasattr(lm_head, "weight") and lm_head.weight.ndim == 2:
-            return lm_head.weight.shape[1], lm_head
-        raise ValueError("Could not resolve gate source from the model output head.")
+        raise ValueError(
+            "Gate currently supports only SmolVLM-500M and SmolVLM-256M checkpoints."
+        )
 
     @staticmethod
     def resolve_smolvlm_gate_source(model: nn.Module) -> tuple[int, nn.Module] | None:

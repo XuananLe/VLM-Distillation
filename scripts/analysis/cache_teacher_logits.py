@@ -9,7 +9,13 @@ if str(ROOT_DIR) not in sys.path:
 
 import torch
 from torch.utils.data import Dataset
-from transformers import AutoProcessor
+from transformers import (
+    AutoModel,
+    AutoModelForVision2Seq,
+    AutoProcessor,
+    AutoTokenizer,
+    Gemma3ForConditionalGeneration,
+)
 
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments
@@ -82,21 +88,17 @@ class IndexedDataset(Dataset):
         return item
 
 
-def make_dataset_and_collator(args: argparse.Namespace):
-    teacher_ids = parse_model_id_list(args.teacher_model_ids, arg_name="--teacher-model-ids")
+def make_dataset_and_collator(
+    args: argparse.Namespace,
+    *,
+    teacher_ids: list[str],
+    teacher_processors,
+):
     student_processor = AutoProcessor.from_pretrained(
         args.student_model_id,
         padding_side="right",
         trust_remote_code=True,
     )
-    teacher_processors = [
-        AutoProcessor.from_pretrained(
-            teacher_id,
-            padding_side="right",
-            trust_remote_code=True,
-        )
-        for teacher_id in teacher_ids
-    ]
 
     data_args = DataArguments(
         data_path=args.data_path,
@@ -112,28 +114,90 @@ def make_dataset_and_collator(args: argparse.Namespace):
     return teacher_ids, indexed_dataset, data_module["data_collator"]
 
 
-def load_teachers(teacher_ids: list[str], device: str):
+def load_teachers_and_processors(teacher_ids: list[str], device: str):
     dtype_map = {
         "cuda": torch.bfloat16,
         "cpu": torch.float32,
     }
     torch_dtype = dtype_map["cuda"] if device.startswith("cuda") else dtype_map["cpu"]
+    attn_impl = "flash_attention_2" if device.startswith("cuda") else "eager"
     teacher_models = []
+    teacher_processors = []
     for teacher_id in teacher_ids:
-        from transformers import AutoModelForVision2Seq
-
-        teacher_model = AutoModelForVision2Seq.from_pretrained(
-            teacher_id,
-            attn_implementation="flash_attention_2" if device.startswith("cuda") else "eager",
-            torch_dtype=torch_dtype,
-            trust_remote_code=True,
-            device_map={"": device},
-        )
+        if "internvl" in teacher_id.lower():
+            teacher_model = AutoModel.from_pretrained(
+                teacher_id,
+                torch_dtype=torch_dtype,
+                low_cpu_mem_usage=True,
+                use_flash_attn=device.startswith("cuda"),
+                trust_remote_code=True,
+            ).to(device)
+            teacher_tokenizer = AutoTokenizer.from_pretrained(
+                teacher_id,
+                padding_side="right",
+                trust_remote_code=True,
+                use_fast=False,
+            )
+            img_context_token_id = teacher_tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
+            if hasattr(teacher_model, "img_context_token_id"):
+                teacher_model.img_context_token_id = img_context_token_id
+            vision_config = getattr(teacher_model.config, "vision_config", None)
+            teacher_processors.append(
+                {
+                    "model_id": teacher_id,
+                    "tokenizer": teacher_tokenizer,
+                    "image_size": getattr(teacher_model.config, "force_image_size", None)
+                    or getattr(vision_config, "image_size", 448),
+                    "normalize_type": (
+                        "siglip"
+                        if getattr(vision_config, "model_type", None) == "siglip_vision_model"
+                        else "imagenet"
+                    ),
+                    "max_num_tiles": 6,
+                    "num_image_token": getattr(teacher_model, "num_image_token", 256),
+                    "img_start_token": "<img>",
+                    "img_end_token": "</img>",
+                    "img_context_token": "<IMG_CONTEXT>",
+                }
+            )
+        elif "gemma-3" in teacher_id.lower():
+            teacher_model = Gemma3ForConditionalGeneration.from_pretrained(
+                teacher_id,
+                attn_implementation=attn_impl,
+                torch_dtype=torch_dtype,
+                trust_remote_code=True,
+                device_map={"": device},
+            )
+            teacher_processors.append(
+                AutoProcessor.from_pretrained(
+                    teacher_id,
+                    padding_side="right",
+                    trust_remote_code=True,
+                )
+            )
+        else:
+            teacher_model = AutoModelForVision2Seq.from_pretrained(
+                teacher_id,
+                attn_implementation=attn_impl,
+                torch_dtype=torch_dtype,
+                trust_remote_code=True,
+                device_map={"": device},
+            )
+            teacher_processors.append(
+                AutoProcessor.from_pretrained(
+                    teacher_id,
+                    padding_side="right",
+                    trust_remote_code=True,
+                )
+            )
+        if hasattr(teacher_model.config, "use_cache"):
+            teacher_model.config.use_cache = False
+        teacher_model._suppress_forward_stdout = "internvl" in teacher_id.lower()
         teacher_model.eval()
         for param in teacher_model.parameters():
             param.requires_grad_(False)
         teacher_models.append(teacher_model)
-    return teacher_models
+    return teacher_models, teacher_processors
 
 
 def prepare_storage_dtype(name: str) -> torch.dtype:
@@ -180,8 +244,13 @@ def main() -> None:
     output_root.mkdir(parents=True, exist_ok=True)
     storage_dtype = prepare_storage_dtype(args.dtype)
 
-    teacher_ids, dataset, data_collator = make_dataset_and_collator(args)
-    teacher_models = load_teachers(teacher_ids, device=device)
+    teacher_ids = parse_model_id_list(args.teacher_model_ids, arg_name="--teacher-model-ids")
+    teacher_models, teacher_processors = load_teachers_and_processors(teacher_ids, device=device)
+    teacher_ids, dataset, data_collator = make_dataset_and_collator(
+        args,
+        teacher_ids=teacher_ids,
+        teacher_processors=teacher_processors,
+    )
 
     teacher_slugs = [teacher_id.split("/")[-1] for teacher_id in teacher_ids]
     total_samples = 0
