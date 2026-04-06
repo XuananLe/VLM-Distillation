@@ -21,13 +21,33 @@ def ensure_flash_attention_available() -> None:
         ) from exc
 
 
+def _config_attr(config, name: str, default=None):
+    if config is None:
+        return default
+    if isinstance(config, dict):
+        return config.get(name, default)
+    return getattr(config, name, default)
+
+
 def teacher_supports_flash_attention(teacher_model, teacher_id: str) -> bool:
     supports_flash_attn = getattr(teacher_model, "_supports_flash_attn", None)
     if supports_flash_attn is not None:
         return bool(supports_flash_attn)
 
-    model_type = getattr(getattr(teacher_model, "config", None), "model_type", None)
-    return model_type in {"internvl", "qwen2_vl", "qwen2_5_vl", "gemma3"}
+    config = getattr(teacher_model, "config", None)
+    model_type = _config_attr(config, "model_type")
+    if isinstance(model_type, str) and model_type.startswith("internvl"):
+        return True
+
+    vision_config = _config_attr(config, "vision_config")
+    if _config_attr(vision_config, "use_flash_attn") is True:
+        return True
+
+    llm_config = _config_attr(config, "llm_config")
+    if _config_attr(llm_config, "attn_implementation") == "flash_attention_2":
+        return True
+
+    return model_type in {"qwen2_vl", "qwen2_5_vl", "gemma3"}
 
 
 def require_flash_attention_support(teacher_model, teacher_id: str) -> None:
