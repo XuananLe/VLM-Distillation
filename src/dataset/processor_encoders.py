@@ -19,6 +19,10 @@ QWEN2_5_VL_PROCESSOR = getattr(transformers, "Qwen2_5_VLProcessor", None)
 QWEN3_VL_PROCESSOR = getattr(transformers, "Qwen3VLProcessor", None)
 
 
+def is_internvl_teacher_model_id(model_id: str | None) -> bool:
+    return isinstance(model_id, str) and "internvl" in model_id.lower()
+
+
 def smolvlm_encode_conversation(
     sources,
     images,
@@ -372,6 +376,7 @@ __all__ = [
     "QWEN_PROCESSORS",
     "gemma3_encode_conversation",
     "internvl3_encode_conversation",
+    "is_internvl_teacher_model_id",
     "qwen_encode_conversation",
     "smolvlm_encode_conversation",
 ]

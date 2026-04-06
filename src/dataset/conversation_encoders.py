@@ -5,10 +5,11 @@ import transformers
 
 from .processor_encoders import (
     DICT_TEACHER_ENCODERS,
-    INTERNVL3_1B_MODEL_ID,
     INTERNVL3_DUMMY_IMAGE_FLAGS,
     PROCESSOR_ENCODERS,
     QWEN_PROCESSORS,
+    internvl3_encode_conversation,
+    is_internvl_teacher_model_id,
 )
 
 
@@ -45,7 +46,7 @@ def _finalize_teacher_data(
     if teacher_data["pixel_values"] is not None:
         return teacher_data
 
-    if teacher_model_id == INTERNVL3_1B_MODEL_ID:
+    if is_internvl_teacher_model_id(teacher_model_id):
         image_size = teacher_processor.get("image_size", 448)
         teacher_data["pixel_values"] = torch.zeros((1, 3, image_size, image_size))
         teacher_data["image_flags"] = torch.zeros(INTERNVL3_DUMMY_IMAGE_FLAGS, dtype=torch.long)
@@ -67,7 +68,11 @@ def encode_teacher_data(
 ) -> Dict[str, torch.Tensor]:
     teacher_model_id = teacher_processor.get("model_id") if isinstance(teacher_processor, dict) else None
     if isinstance(teacher_processor, dict):
-        encoder = DICT_TEACHER_ENCODERS.get(teacher_model_id)
+        encoder = (
+            internvl3_encode_conversation
+            if is_internvl_teacher_model_id(teacher_model_id)
+            else DICT_TEACHER_ENCODERS.get(teacher_model_id)
+        )
         if encoder is None:
             raise ValueError(f"Unsupported dict teacher processor for {teacher_model_id!r}.")
         teacher_data = encoder(sources, images, teacher_processor)
