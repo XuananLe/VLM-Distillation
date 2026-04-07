@@ -1,6 +1,7 @@
 import os
 import sys
 import ast
+import importlib
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -39,11 +40,11 @@ from src.train.train_utils import (
 )
 from src.train.distillation_runtime import (
     build_trainer_callbacks,
-    load_teacher_models_and_processors,
 )
 
-import pillow_avif
 from PIL import Image, ImageFile
+
+importlib.import_module("pillow_avif")
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
@@ -232,18 +233,13 @@ def train_distillation():
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
 
-    use_cached_teacher_logits = distillation_args.teacher_logits_cache_dir is not None
-    should_load_online_teachers = not use_cached_teacher_logits
-    if should_load_online_teachers:
-        teacher_models, teacher_processors = load_teacher_models_and_processors(
-            teacher_ids=teacher_ids,
-            training_args=training_args,
-            compute_dtype=compute_dtype,
-            attn_impl=attn_impl,
+    if distillation_args.teacher_logits_cache_dir is None:
+        raise ValueError(
+            "--teacher_logits_cache_dir must be set. Online teacher loading is disabled; "
+            "distillation always uses cached teacher logits."
         )
-    else:
-        rank0_print("\nUsing cached teacher logits; skipping online teacher model loading.")
-        teacher_models, teacher_processors = [], []
+    rank0_print("\nUsing cached teacher logits; skipping online teacher model loading.")
+    teacher_models, teacher_processors = [], []
 
     rank0_print("\nPreparing datasets...")
     data_module = make_supervised_data_module(

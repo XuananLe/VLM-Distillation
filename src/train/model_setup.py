@@ -1,8 +1,10 @@
+import importlib
+
 import torch
 from transformers import BitsAndBytesConfig
 
 try:
-    import pillow_avif  # noqa: F401
+    importlib.import_module("pillow_avif")
 
     _AVIF_SUPPORT = True
 except Exception:

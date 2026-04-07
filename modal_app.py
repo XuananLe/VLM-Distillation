@@ -10,10 +10,20 @@ MODEL_DIR = Path("/models")
 DATASET_DIR = Path("/data")
 OUTPUT_DIR = Path("/output")
 CACHE_DIR = Path("/cache")
+R2_SECRET_NAME = os.environ.get("MODAL_R2_SECRET_NAME", "cloudflare-r2-secret")
+R2_ENDPOINT_URL = os.environ.get(
+    "MODAL_R2_ENDPOINT_URL",
+    "https://7f19258d1ceabe6abc46808eca312b1e.r2.cloudflarestorage.com",
+)
+R2_CACHE_BUCKET = os.environ.get("MODAL_R2_CACHE_BUCKET", "google-drive-backup")
+R2_CACHE_PREFIX = os.environ.get(
+    "MODAL_R2_CACHE_PREFIX",
+    "1W9sUXnqNdR2qVHr8PrgVAtM6J2SXsJ-7",
+)
 model_volume = modal.Volume.from_name("model-weights-vol", create_if_missing=True)
 dataset_volume = modal.Volume.from_name("vlm-distillation-data", create_if_missing=True)
 output_volume = modal.Volume.from_name("output-vol", create_if_missing=True)
-cache_volume = modal.Volume.from_name("cache-vol", create_if_missing=True)
+
 base_image = (
     modal.Image.from_registry(
         "nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04",
@@ -69,19 +79,54 @@ base_image = (
     )
 )
 
-app = modal.App(
-    image=base_image,
-    secrets=[modal.Secret.from_name("wandb-secret"), modal.Secret.from_name("huggingface-secret")],
-    volumes={
+
+def build_r2_mount(bucket_name: str, key_prefix: str | None) -> modal.CloudBucketMount:
+    if not R2_ENDPOINT_URL:
+        raise ValueError(
+            "MODAL_R2_ENDPOINT_URL must be set when enabling Cloudflare R2 mounts."
+        )
+    normalized_prefix = None
+    if key_prefix:
+        normalized_prefix = key_prefix if key_prefix.endswith("/") else f"{key_prefix}/"
+    return modal.CloudBucketMount(
+        bucket_name=bucket_name,
+        bucket_endpoint_url=R2_ENDPOINT_URL,
+        key_prefix=normalized_prefix,
+        secret=modal.Secret.from_name(R2_SECRET_NAME),
+        read_only=True,
+    )
+
+
+def build_modal_mounts() -> tuple[dict[str, object], list[modal.Volume]]:
+    mounts: dict[str, object] = {
         MODEL_DIR.as_posix(): model_volume,
         DATASET_DIR.as_posix(): dataset_volume,
         OUTPUT_DIR.as_posix(): output_volume,
-        CACHE_DIR.as_posix(): cache_volume,
-    },
+        CACHE_DIR.as_posix(): build_r2_mount(
+            bucket_name=R2_CACHE_BUCKET,
+            key_prefix=R2_CACHE_PREFIX,
+        ),
+    }
+    return mounts, [model_volume, dataset_volume, output_volume]
+
+
+def _build_modal_secrets() -> list[modal.Secret]:
+    return [
+        modal.Secret.from_name("wandb-secret"),
+        modal.Secret.from_name("huggingface-secret"),
+        modal.Secret.from_name(R2_SECRET_NAME),
+    ]
+
+
+app_mounts, committable_volumes = build_modal_mounts()
+app = modal.App(
+    image=base_image,
+    secrets=_build_modal_secrets(),
+    volumes=app_mounts,
 )
 
 
-@app.function(gpu = "T4", timeout=60 * 60 * 24)
+@app.function(gpu = "A100-80GB", timeout=60 * 60 * 24)
 def exec_cmd(cmd: str) -> None:
     cmd = cmd.strip()
     if not cmd:
@@ -105,7 +150,6 @@ def exec_cmd(cmd: str) -> None:
     os.makedirs(env["HF_DATASETS_CACHE"], exist_ok=True)
     os.makedirs(env["HF_HUB_CACHE"], exist_ok=True)
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    os.makedirs(CACHE_DIR, exist_ok=True)
     os.makedirs(DATASET_DIR / ".hf_cache" / "datasets", exist_ok=True)
     os.makedirs(MODEL_DIR / ".hf_cache" / "hub", exist_ok=True)
 
@@ -130,7 +174,7 @@ def exec_cmd(cmd: str) -> None:
     finally:
         returncode = proc.wait()
 
-    for volume in (model_volume, dataset_volume, output_volume, cache_volume):
+    for volume in committable_volumes:
         volume.commit()
 
     if returncode != 0:
@@ -139,10 +183,11 @@ def exec_cmd(cmd: str) -> None:
 
 @app.local_entrypoint()
 def run():
-    cmd = f"""
-    CUDA_VISIBLE_DEVICES=0 cd /root/VLM-Distillation/src/eval && python run.py --data DocVQA_VAL --model SmolVLM-500M-Checkpoint-300 --work-dir /output/vlmeval/log_300 2>&1 &
-    CUDA_VISIBLE_DEVICES=0 cd /root/VLM-Distillation/src/eval && python run.py --data DocVQA_VAL --model SmolVLM-500M-Checkpoint-200 --work-dir /output/vlmeval/log_200 2>&1 &
-    CUDA_VISIBLE_DEVICES=0 cd /root/VLM-Distillation/src/eval && python run.py --data DocVQA_VAL --model SmolVLM-500M-Checkpoint-100 --work-dir /output/vlmeval/log_100 2>&1 &
-    wait
+    cmd = """
+    ls -la /cache
+    ls -la /cache/docvqa_teacher_logits_gemma3_4b
+    ls -la /cache/docvqa_teacher_logits_internvl2_1b
+    ls -la /cache/docvqa_teacher_logits_qwen25vl_3b
+    ls -la /cache/docvqa_teacher_logits_qwen2vl_2b
     """
     exec_cmd.remote(cmd)

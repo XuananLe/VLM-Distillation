@@ -10,13 +10,12 @@ from torch.utils.data import Dataset
 from PIL import Image
 
 from src.params import DataArguments
-from src.constants import *
 from .conversation_encoders import (
     encode_student_data,
     encode_teacher_data,
 )
 from .conversation_transforms import llava_to_openai
-from .data_utils import pad_sequence, encode_video
+from .data_utils import encode_video
 from .data_collator import DataCollatorForSupervisedDataset
 from .teacher_logits_cache import TeacherLogitsCache
 
@@ -47,7 +46,6 @@ class SupervisedDataset(Dataset):
         self.teacher_processors = list(teacher_processors or [])
         self.list_data_dict = list_data_dict
         self.data_args = data_args
-        self.padding = padding
         self.max_num_frames = data_args.max_num_frames
         self.teacher_logits_cache = None
         if teacher_logits_cache_dir is not None:

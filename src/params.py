@@ -12,8 +12,6 @@ if not hasattr(_ta, "ParallelismConfig"):
     _ta.ParallelismConfig = _PC
 
 from transformers import TrainingArguments as HFTrainingArguments
-from trl import DPOConfig as DPOConfigTRL
-from trl import GRPOConfig as GRPOConfigTRL
 
 
 

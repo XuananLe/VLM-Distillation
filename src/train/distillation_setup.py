@@ -18,7 +18,7 @@ class DistillationArguments:
     teacher_logits_cache_dir: str | None = field(
         default=None,
         metadata={
-            "help": "Optional root directory produced by scripts/analysis/cache_teacher_logits.py. When provided, training reads cached teacher logits instead of running teacher forwards online."
+            "help": "Optional cache directory produced by scripts/analysis/cache_teacher_logits.py. This can be either one shared cache root or a parent directory containing one cache root per teacher. When provided, training reads cached teacher logits instead of running teacher forwards online."
         },
     )
 
