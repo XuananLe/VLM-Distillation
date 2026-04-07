@@ -1,4 +1,5 @@
 from src.components.teacher_gate import Gate
+from src.components.reinforced_teacher_selection import ReinforcedTeacherSelectionPolicy
 
 
 def validate_distillation_trainer_args(
@@ -18,6 +19,10 @@ def validate_distillation_trainer_args(
     grace_softmax_beta: float,
     grace_router_blend_lambda: float,
     grace_ema_decay: float,
+    reinforced_selection_warmup_ratio: float,
+    reinforced_selection_reward_type: str,
+    reinforced_selection_reward_ema_decay: float,
+    reinforced_selection_policy_alpha: float,
     gradient_weight_cap: float,
     gradient_weight_steps: int,
     teacher_weighting_strategy: str,
@@ -63,6 +68,19 @@ def validate_distillation_trainer_args(
         )
     if not 0.0 <= grace_ema_decay < 1.0:
         raise ValueError("DistillationTrainer requires `0 <= grace_ema_decay < 1`.")
+    if reinforced_selection_warmup_ratio < 0.0:
+        raise ValueError("DistillationTrainer requires `reinforced_selection_warmup_ratio >= 0`.")
+    if reinforced_selection_reward_type not in {"reward1", "reward2"}:
+        raise ValueError(
+            "DistillationTrainer requires `reinforced_selection_reward_type` to be "
+            "`reward1` or `reward2`."
+        )
+    if not 0.0 <= reinforced_selection_reward_ema_decay < 1.0:
+        raise ValueError(
+            "DistillationTrainer requires `0 <= reinforced_selection_reward_ema_decay < 1`."
+        )
+    if reinforced_selection_policy_alpha < 0.0:
+        raise ValueError("DistillationTrainer requires `reinforced_selection_policy_alpha >= 0`.")
     if gradient_weight_cap <= 0.0:
         raise ValueError("DistillationTrainer requires `gradient_weight_cap > 0`.")
     if gradient_weight_steps < 1:
@@ -73,10 +91,10 @@ def validate_distillation_trainer_args(
         raise ValueError("DistillationTrainer requires `objective_conflict_cagrad_grid_steps >= 2`.")
     if not hasattr(distillation_loss_module, loss_function):
         raise ValueError(f"Unknown distillation loss: {loss_function!r}")
-    if teacher_weighting_strategy not in {"routing", "uniform_mean", "gradient_optimal"}:
+    if teacher_weighting_strategy not in {"routing", "uniform_mean", "gradient_optimal", "reinforced_selection"}:
         raise ValueError(
             "DistillationTrainer requires `teacher_weighting_strategy` to be "
-            "`routing`, `uniform_mean`, or `gradient_optimal`."
+            "`routing`, `uniform_mean`, `gradient_optimal`, or `reinforced_selection`."
         )
     if objective_conflict_strategy not in {"fixed", "pcgrad", "cagrad", "mgda"}:
         raise ValueError(
@@ -135,6 +153,23 @@ def maybe_create_teacher_gate(
     return teacher_gate
 
 
+def maybe_create_reinforced_teacher_selector(
+    *,
+    model,
+    num_teachers: int,
+    teacher_weighting_strategy: str,
+):
+    if num_teachers <= 1 or teacher_weighting_strategy != "reinforced_selection":
+        return None
+
+    selector = ReinforcedTeacherSelectionPolicy(
+        model,
+        num_teachers,
+    )
+    model.reinforced_teacher_selector = selector
+    return selector
+
+
 def log_distillation_trainer_setup(
     *,
     num_teachers: int,
@@ -161,6 +196,10 @@ def log_distillation_trainer_setup(
     grace_softmax_beta: float,
     grace_router_blend_lambda: float,
     grace_ema_decay: float,
+    reinforced_selection_warmup_ratio: float,
+    reinforced_selection_reward_type: str,
+    reinforced_selection_reward_ema_decay: float,
+    reinforced_selection_policy_alpha: float,
     gradient_weight_cap: float,
     gradient_weight_steps: int,
     objective_conflict_strategy: str,
@@ -173,6 +212,8 @@ def log_distillation_trainer_setup(
         print("  - Teacher weighting: learned deep gate + balancing + GRACE routing")
     elif num_teachers > 1 and teacher_weighting_strategy == "gradient_optimal":
         print("  - Teacher weighting: gradient-optimized mixing")
+    elif num_teachers > 1 and teacher_weighting_strategy == "reinforced_selection":
+        print("  - Teacher weighting: reinforced teacher selection")
     else:
         print("  - Teacher weighting: uniform mean")
     print(f"  - Objective conflict strategy: {objective_conflict_strategy}")
@@ -209,6 +250,14 @@ def log_distillation_trainer_setup(
     elif num_teachers > 1 and teacher_weighting_strategy == "gradient_optimal":
         print(f"  - Gradient weight cap: {gradient_weight_cap}")
         print(f"  - Gradient weight steps: {gradient_weight_steps}")
+    elif num_teachers > 1 and teacher_weighting_strategy == "reinforced_selection":
+        print(f"  - Reinforced selection warmup ratio: {reinforced_selection_warmup_ratio}")
+        print(f"  - Reinforced selection reward type: {reinforced_selection_reward_type}")
+        print(
+            f"  - Reinforced selection reward EMA decay: "
+            f"{reinforced_selection_reward_ema_decay}"
+        )
+        print(f"  - Reinforced selection policy alpha: {reinforced_selection_policy_alpha}")
     if objective_conflict_strategy == "cagrad":
         print(f"  - Objective conflict c: {objective_conflict_cagrad_c}")
         print(
@@ -221,6 +270,7 @@ def log_distillation_trainer_setup(
 __all__ = [
     "log_distillation_trainer_setup",
     "maybe_create_teacher_gate",
+    "maybe_create_reinforced_teacher_selector",
     "normalize_teacher_models",
     "validate_distillation_trainer_args",
 ]

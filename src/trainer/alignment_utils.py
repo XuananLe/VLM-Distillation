@@ -25,6 +25,7 @@ def compute_teacher_loss_matrix(
     prepare_input_fn: Callable,
     collect_grace_tensors: bool,
     collect_teacher_gradient_vectors: bool,
+    collect_teacher_target_batches: bool,
     grace_threshold: float,
     distillation_loss_fn: Callable,
     distillation_logit_grad_fn: Callable,
@@ -34,11 +35,20 @@ def compute_teacher_loss_matrix(
     teacher_temperature: float,
     skip_student_eos: bool,
     skip_teacher_eos: bool,
-) -> tuple[torch.Tensor, torch.Tensor | None, torch.Tensor | None, torch.Tensor | None]:
+) -> tuple[
+    torch.Tensor,
+    torch.Tensor | None,
+    torch.Tensor | None,
+    torch.Tensor | None,
+    list[torch.Tensor] | None,
+    list[torch.Tensor] | None,
+]:
     teacher_losses = []
     grace_scores = []
     grace_active = []
     teacher_gradient_vectors = []
+    teacher_logit_batches = [] if collect_teacher_target_batches else None
+    teacher_label_batches = [] if collect_teacher_target_batches else None
 
     pooled_ce_grace_grad = None
     if collect_grace_tensors:
@@ -54,6 +64,9 @@ def compute_teacher_loss_matrix(
                 dtype=student_logits.dtype
             )
             prepared_teacher_labels = prepare_input_fn(cached_teacher_labels)
+            if collect_teacher_target_batches:
+                teacher_logit_batches.append(prepared_teacher_logits)
+                teacher_label_batches.append(prepared_teacher_labels)
             teacher_losses.append(
                 compute_single_teacher_loss(
                     student_logits=student_logits,
@@ -97,12 +110,21 @@ def compute_teacher_loss_matrix(
             torch.stack(teacher_gradient_vectors, dim=0) if teacher_gradient_vectors else None
         )
         if not grace_scores:
-            return teacher_loss_matrix, None, None, teacher_gradient_matrix
+            return (
+                teacher_loss_matrix,
+                None,
+                None,
+                teacher_gradient_matrix,
+                teacher_logit_batches,
+                teacher_label_batches,
+            )
         return (
             teacher_loss_matrix,
             torch.stack(grace_scores, dim=-1),
             torch.stack(grace_active, dim=-1),
             teacher_gradient_matrix,
+            teacher_logit_batches,
+            teacher_label_batches,
         )
 
     for teacher_model, (teacher_inputs, teacher_labels) in zip(teacher_models, teacher_batches):
@@ -138,6 +160,9 @@ def compute_teacher_loss_matrix(
             if selected_teacher_labels.size(1) == teacher_logits.size(1)
             else prepared_teacher_labels
         )
+        if collect_teacher_target_batches:
+            teacher_logit_batches.append(teacher_logits)
+            teacher_label_batches.append(effective_teacher_labels)
         teacher_losses.append(
             compute_single_teacher_loss(
                 student_logits=student_logits,
@@ -182,10 +207,19 @@ def compute_teacher_loss_matrix(
         torch.stack(teacher_gradient_vectors, dim=0) if teacher_gradient_vectors else None
     )
     if not grace_scores:
-        return teacher_loss_matrix, None, None, teacher_gradient_matrix
+        return (
+            teacher_loss_matrix,
+            None,
+            None,
+            teacher_gradient_matrix,
+            teacher_logit_batches,
+            teacher_label_batches,
+        )
     return (
         teacher_loss_matrix,
         torch.stack(grace_scores, dim=-1),
         torch.stack(grace_active, dim=-1),
         teacher_gradient_matrix,
+        teacher_logit_batches,
+        teacher_label_batches,
     )

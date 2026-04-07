@@ -12,6 +12,7 @@ from src.trainer.metrics_utils import build_distillation_train_metrics
 from src.trainer.setup_utils import (
     log_distillation_trainer_setup,
     maybe_create_teacher_gate,
+    maybe_create_reinforced_teacher_selector,
     normalize_teacher_models,
     validate_distillation_trainer_args,
 )
@@ -59,6 +60,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         grace_softmax_beta: float = 20.0,
         grace_router_blend_lambda: float = 0.5,
         grace_ema_decay: float = 0.9,
+        reinforced_selection_warmup_ratio: float = 0.1,
+        reinforced_selection_reward_type: str = "reward2",
+        reinforced_selection_reward_ema_decay: float = 0.9,
+        reinforced_selection_policy_alpha: float = 1.0,
         gradient_weight_cap: float = 1.0,
         gradient_weight_steps: int = 50,
         objective_conflict_cagrad_c: float = 0.5,
@@ -86,6 +91,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             grace_softmax_beta=grace_softmax_beta,
             grace_router_blend_lambda=grace_router_blend_lambda,
             grace_ema_decay=grace_ema_decay,
+            reinforced_selection_warmup_ratio=reinforced_selection_warmup_ratio,
+            reinforced_selection_reward_type=reinforced_selection_reward_type,
+            reinforced_selection_reward_ema_decay=reinforced_selection_reward_ema_decay,
+            reinforced_selection_policy_alpha=reinforced_selection_policy_alpha,
             gradient_weight_cap=gradient_weight_cap,
             gradient_weight_steps=gradient_weight_steps,
             teacher_weighting_strategy=teacher_weighting_strategy,
@@ -114,6 +123,11 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             teacher_gate_temperature=teacher_gate_temperature,
             teacher_gate_noise_std=teacher_gate_noise_std,
         )
+        self.reinforced_teacher_selector = maybe_create_reinforced_teacher_selector(
+            model=self.model,
+            num_teachers=self.num_teachers,
+            teacher_weighting_strategy=self.teacher_weighting_strategy,
+        )
 
         self.temperature = temperature
         self.student_temperature = (
@@ -140,6 +154,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.grace_softmax_beta = grace_softmax_beta
         self.grace_router_blend_lambda = grace_router_blend_lambda
         self.grace_ema_decay = grace_ema_decay
+        self.reinforced_selection_warmup_ratio = reinforced_selection_warmup_ratio
+        self.reinforced_selection_reward_type = reinforced_selection_reward_type
+        self.reinforced_selection_reward_ema_decay = reinforced_selection_reward_ema_decay
+        self.reinforced_selection_policy_alpha = reinforced_selection_policy_alpha
         self.gradient_weight_cap = gradient_weight_cap
         self.gradient_weight_steps = gradient_weight_steps
         self.objective_conflict_cagrad_c = objective_conflict_cagrad_c
@@ -150,6 +168,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.last_compute_loss_end_time = None
         self.latest_train_ce_loss = None
         self.teacher_grace_score_ema = None
+        self.reinforced_selection_reward_baseline = None
 
         log_distillation_trainer_setup(
             num_teachers=self.num_teachers,
@@ -176,6 +195,10 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             grace_softmax_beta=grace_softmax_beta,
             grace_router_blend_lambda=grace_router_blend_lambda,
             grace_ema_decay=grace_ema_decay,
+            reinforced_selection_warmup_ratio=reinforced_selection_warmup_ratio,
+            reinforced_selection_reward_type=reinforced_selection_reward_type,
+            reinforced_selection_reward_ema_decay=reinforced_selection_reward_ema_decay,
+            reinforced_selection_policy_alpha=reinforced_selection_policy_alpha,
             gradient_weight_cap=gradient_weight_cap,
             gradient_weight_steps=gradient_weight_steps,
             objective_conflict_strategy=objective_conflict_strategy,
@@ -234,6 +257,18 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             return self.num_teachers
         return self.teacher_gate_top_k
 
+    def reinforced_selection_warmup_active(self) -> bool:
+        if self.reinforced_teacher_selector is None or not self.model.training:
+            return False
+        if self.reinforced_selection_warmup_ratio <= 0.0:
+            return False
+        total_steps = max(self.state.max_steps, getattr(self.args, "max_steps", 0))
+        if total_steps <= 0:
+            return False
+        import math
+        warmup_steps = math.ceil(total_steps * self.reinforced_selection_warmup_ratio)
+        return self.state.global_step < warmup_steps
+
     @override
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         compute_loss_start_time = time.perf_counter()
@@ -281,6 +316,11 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             teacher_grace_active=teacher_losses["teacher_grace_active"],
             teacher_gradient_vectors=teacher_losses["teacher_gradient_vectors"],
             teacher_loss_matrix=teacher_losses["teacher_loss_matrix"],
+            teacher_logits_batches=teacher_losses["teacher_logit_batches"],
+            teacher_label_batches=teacher_losses["teacher_label_batches"],
+            labels=student_inputs["labels"],
+            attention_mask=student_inputs.get("attention_mask"),
+            ce_loss=ce_loss,
         )
         objective_conflict_state = compute_objective_conflict_state(
             trainer=self,
@@ -304,6 +344,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             teacher_gate_balance_loss=gate_routing["teacher_gate_balance_loss"],
             teacher_gate_entropy_loss=gate_routing["teacher_gate_entropy_loss"],
             teacher_gate_z_loss=gate_routing["teacher_gate_z_loss"],
+            teacher_selection_policy_loss=grace_and_loss["teacher_selection_policy_loss"],
             objective_ce_weight=objective_conflict_state["objective_ce_weight"],
             objective_kd_weight=objective_conflict_state["objective_kd_weight"],
         )
@@ -343,6 +384,7 @@ class DistillationTrainer(SmolVLMSFTTrainer):
                 teacher_grace_score_ema=self.teacher_grace_score_ema,
                 teacher_grace_weights=grace_and_loss["teacher_grace_weights"],
                 teacher_grace_fallback_rate=grace_and_loss["teacher_grace_fallback_rate"],
+                reinforced_selection_metrics=grace_and_loss["reinforced_selection_metrics"],
                 grace_warmup_active=self.should_apply_grace_routing(),
                 objective_conflict_strategy=self.objective_conflict_strategy,
                 objective_ce_weight=objective_conflict_state["objective_ce_weight"],

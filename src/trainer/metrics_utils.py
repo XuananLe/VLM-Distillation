@@ -35,6 +35,7 @@ def build_distillation_train_metrics(
     teacher_grace_score_ema: torch.Tensor | None,
     teacher_grace_weights: torch.Tensor | None,
     teacher_grace_fallback_rate: torch.Tensor | None,
+    reinforced_selection_metrics: dict[str, float] | None,
     grace_warmup_active: bool,
     objective_conflict_strategy: str,
     objective_ce_weight: torch.Tensor | None,
@@ -62,6 +63,8 @@ def build_distillation_train_metrics(
         metrics["objective_kd_weight"] = objective_kd_weight.item()
     if objective_gradient_cosine is not None:
         metrics["objective_gradient_cosine"] = objective_gradient_cosine.item()
+    if reinforced_selection_metrics is not None:
+        metrics.update(reinforced_selection_metrics)
 
     logged_weights = (
         effective_teacher_gate_weights

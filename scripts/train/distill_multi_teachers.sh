@@ -10,7 +10,7 @@ TEACHER_MODEL_IDS="[\"${TEACHER_MODEL_1}\", \"${TEACHER_MODEL_2}\"]"
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 
 # Distillation strategy
-# Available strategies: uniform_mean, routing, gradient_optimal
+# Available strategies: uniform_mean, routing, gradient_optimal, reinforced_selection
 TEACHER_WEIGHTING_STRATEGY="${TEACHER_WEIGHTING_STRATEGY:-routing}"
 # Objective conflict strategies: fixed, pcgrad, cagrad, mgda
 OBJECTIVE_CONFLICT_STRATEGY="${OBJECTIVE_CONFLICT_STRATEGY:-fixed}"
@@ -46,6 +46,12 @@ GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.9}"
 # Gradient-optimized weighting knobs
 GRADIENT_WEIGHT_CAP="${GRADIENT_WEIGHT_CAP:-1.0}"
 GRADIENT_WEIGHT_STEPS="${GRADIENT_WEIGHT_STEPS:-50}"
+
+# Reinforced teacher-selection knobs
+REINFORCED_SELECTION_WARMUP_RATIO="${REINFORCED_SELECTION_WARMUP_RATIO:-0.1}"
+REINFORCED_SELECTION_REWARD_TYPE="${REINFORCED_SELECTION_REWARD_TYPE:-reward2}"
+REINFORCED_SELECTION_REWARD_EMA_DECAY="${REINFORCED_SELECTION_REWARD_EMA_DECAY:-0.9}"
+REINFORCED_SELECTION_POLICY_ALPHA="${REINFORCED_SELECTION_POLICY_ALPHA:-1.0}"
 
 # Optional cached teacher logits
 TEACHER_LOGITS_CACHE_DIR="${TEACHER_LOGITS_CACHE_DIR:-}"
@@ -103,6 +109,10 @@ deepspeed src/train/train_distillation.py \
     --grace_softmax_beta "$GRACE_SOFTMAX_BETA" \
     --grace_router_blend_lambda "$GRACE_ROUTER_BLEND_LAMBDA" \
     --grace_ema_decay "$GRACE_EMA_DECAY" \
+    --reinforced_selection_warmup_ratio "$REINFORCED_SELECTION_WARMUP_RATIO" \
+    --reinforced_selection_reward_type "$REINFORCED_SELECTION_REWARD_TYPE" \
+    --reinforced_selection_reward_ema_decay "$REINFORCED_SELECTION_REWARD_EMA_DECAY" \
+    --reinforced_selection_policy_alpha "$REINFORCED_SELECTION_POLICY_ALPHA" \
     --gradient_weight_cap "$GRADIENT_WEIGHT_CAP" \
     --gradient_weight_steps "$GRADIENT_WEIGHT_STEPS" \
     --num_train_epochs 1 \
