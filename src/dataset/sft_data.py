@@ -1,5 +1,6 @@
 import copy
 import os
+from pathlib import Path
 from dataclasses import replace
 from typing import Dict, Optional
 
@@ -17,7 +18,7 @@ from .conversation_encoders import (
 from .conversation_transforms import llava_to_openai
 from .data_utils import encode_video
 from .data_collator import DataCollatorForSupervisedDataset
-from .teacher_logits_cache import TeacherLogitsCache
+from .streaming_teacher_logits_cache import StreamingTeacherLogitsCache
 
 DUMMY_PIXEL_VALUES = (1, 13, 3, 384, 384)
 DUMMY_PIXEL_MASK = (1, 13, 384, 384)
@@ -35,6 +36,7 @@ class SupervisedDataset(Dataset):
         teacher_processors: Optional[list[transformers.ProcessorMixin]] = None,
         teacher_logits_cache_dir: Optional[str] = None,
         teacher_model_ids: Optional[list[str]] = None,
+        teacher_logits_remote_uri: Optional[str] = None,
     ):
         super(SupervisedDataset, self).__init__()
         if isinstance(data_path, str):
@@ -48,11 +50,19 @@ class SupervisedDataset(Dataset):
         self.data_args = data_args
         self.max_num_frames = data_args.max_num_frames
         self.teacher_logits_cache = None
-        if teacher_logits_cache_dir is not None:
-            self.teacher_logits_cache = TeacherLogitsCache(
+        dataset_name = self._infer_dataset_name(data_path)
+        if teacher_logits_cache_dir is not None or teacher_logits_remote_uri is not None:
+            if not teacher_model_ids:
+                raise ValueError(
+                    "teacher_model_ids must be provided when using cached teacher logits."
+                )
+            self.teacher_logits_cache = StreamingTeacherLogitsCache(
                 cache_dir=teacher_logits_cache_dir,
                 teacher_model_ids=teacher_model_ids,
                 expected_num_samples=len(self.list_data_dict),
+                dataset_name=dataset_name,
+                remote_uri=teacher_logits_remote_uri,
+                local_cache_dir=teacher_logits_cache_dir,
             )
 
         processor_teacher_count = len(self.teacher_processors)
@@ -77,6 +87,13 @@ class SupervisedDataset(Dataset):
             torch.zeros(DUMMY_PIXEL_VALUES),
             torch.zeros(DUMMY_PIXEL_MASK),
         )
+
+    @staticmethod
+    def _infer_dataset_name(data_path: str | list) -> str | None:
+        if not isinstance(data_path, str):
+            return None
+        parent = Path(data_path).parent.name
+        return parent or None
 
     def _encode_teacher_data(
         self,
@@ -162,6 +179,7 @@ def make_supervised_data_module(
     teacher_processors: Optional[list[transformers.ProcessorMixin]] = None,
     teacher_model_ids: Optional[list[str]] = None,
     teacher_logits_cache_dir: Optional[str] = None,
+    teacher_logits_remote_uri: Optional[str] = None,
 ):
     """Make dataset and collator for supervised fine-tuning."""
     normalized_teacher_processors = list(teacher_processors or [])
@@ -172,6 +190,7 @@ def make_supervised_data_module(
         teacher_processors=normalized_teacher_processors,
         teacher_logits_cache_dir=teacher_logits_cache_dir,
         teacher_model_ids=teacher_model_ids,
+        teacher_logits_remote_uri=teacher_logits_remote_uri,
     )
     eval_dataset = None
     if data_args.eval_data_path:

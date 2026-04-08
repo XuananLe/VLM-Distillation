@@ -108,7 +108,13 @@ class SmolVLM(BaseModel):
     INSTALL_REQ = True
     INTERLEAVE = True
 
-    def __init__(self, model_path="HuggingFaceTB/SmolVLM-Instruct", **kwargs):
+    def __init__(
+        self,
+        model_path="HuggingFaceTB/SmolVLM-Instruct",
+        smolvlm_runtime="orginal",
+        **kwargs,
+    ):
+        import importlib.util
         from transformers import AutoProcessor, Idefics3ForConditionalGeneration
 
         control_kwargs = _pop_control_kwargs(kwargs)
@@ -117,8 +123,51 @@ class SmolVLM(BaseModel):
 
         _normalize_legacy_tokenizer_config(resolved_model_path)
         self.processor = AutoProcessor.from_pretrained(resolved_model_path)
+        attn_implementation = "eager"
+        if smolvlm_runtime not in {"fast", "original"}:
+            raise ValueError(
+                f"Unsupported smolvlm_runtime={smolvlm_runtime}. "
+                "Expected one of: fast, original."
+            )
+
+        if smolvlm_runtime == "original":
+            model_dtype = torch.float32
+            warnings.warn(
+                "Using SmolVLM original runtime: float32 weights with eager attention."
+            )
+        else:
+            model_dtype = (
+                torch.bfloat16
+                if torch.cuda.is_available() and torch.cuda.is_bf16_supported()
+                else torch.float32
+            )
+            if model_dtype != torch.bfloat16:
+                warnings.warn(
+                    "SmolVLM fast runtime requested bfloat16, but the current runtime "
+                    "does not support it. Falling back to float32."
+                )
+            flash_attn_installed = importlib.util.find_spec("flash_attn") is not None
+            flash_attn_applicable = torch.cuda.is_available() and model_dtype in (
+                torch.float16,
+                torch.bfloat16,
+            )
+            if not flash_attn_installed:
+                warnings.warn(
+                    "flash_attn is not installed; SmolVLM will use eager attention."
+                )
+            elif not flash_attn_applicable:
+                warnings.warn(
+                    "flash_attn is installed, but FlashAttention 2 is not applicable for "
+                    "this SmolVLM runtime. It requires CUDA with fp16/bf16 weights; using "
+                    "eager attention."
+                )
+            else:
+                attn_implementation = "flash_attention_2"
         self.model = Idefics3ForConditionalGeneration.from_pretrained(
-            resolved_model_path, torch_dtype=torch.float32, device_map="cuda"
+            resolved_model_path,
+            torch_dtype=model_dtype,
+            _attn_implementation=attn_implementation,
+            device_map="cuda",
         )
         kwargs_default = {"max_new_tokens": 2048, "use_cache": True}
         kwargs_default.update(kwargs)

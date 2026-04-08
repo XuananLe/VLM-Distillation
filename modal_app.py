@@ -67,6 +67,10 @@ base_image = (
         "dst.write_text('\\\\n'.join(filtered_lines) + '\\\\n'); print(f'Filtered requirements written to {dst}')\"",
         "python -m pip install -r /tmp/modal-requirements.txt --no-build-isolation",
     )
+    .uv_pip_install(
+        "numpy<2.2",
+        "mosaicml-streaming==0.13.0",
+    )
     .env(
         {
             "HF_HUB_ENABLE_HF_TRANSFER": "1",
@@ -75,10 +79,11 @@ base_image = (
             "ACCELERATE_LOG_LEVEL": "error",
             "XFORMERS_IGNORE_FLASH_VERSION_CHECK": "1",
             "MAX_JOBS": "1",
+            "S3_ENDPOINT_URL": R2_ENDPOINT_URL,
+            "AWS_DEFAULT_REGION": os.environ.get("AWS_DEFAULT_REGION", "auto"),
         }
     )
 )
-
 
 def build_r2_mount(bucket_name: str, key_prefix: str | None) -> modal.CloudBucketMount:
     if not R2_ENDPOINT_URL:
@@ -126,7 +131,7 @@ app = modal.App(
 )
 
 
-@app.function(gpu = "A100-80GB", timeout=60 * 60 * 24)
+@app.function(gpu = "A100-40GB", timeout=60 * 60 * 24)
 def exec_cmd(cmd: str) -> None:
     cmd = cmd.strip()
     if not cmd:
@@ -180,14 +185,10 @@ def exec_cmd(cmd: str) -> None:
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, cmd)
 
-
 @app.local_entrypoint()
-def run():
-    cmd = """
-    ls -la /cache
-    ls -la /cache/docvqa_teacher_logits_gemma3_4b
-    ls -la /cache/docvqa_teacher_logits_internvl2_1b
-    ls -la /cache/docvqa_teacher_logits_qwen25vl_3b
-    ls -la /cache/docvqa_teacher_logits_qwen2vl_2b
+def run(
+    cmd: str = """
+    CUDA_VISIBLE_DEVICES=0 cd /root/VLM-Distillation/src/eval && python run.py --data DocVQA_VAL --model SmolVLM-500M-Grace-Checkpoint-600 --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-600-Batch-Size-5
     """
+):
     exec_cmd.remote(cmd)

@@ -6,10 +6,10 @@ from typing import Any
 
 DATASET_SOURCES = {
     "textvqa": {
-        "hub": "facebook/textvqa",
-        "config": "textvqa",
-        "fallback_hub": "lmms-lab/textvqa",
-        "fallback_config": None,
+        "hub": "lmms-lab/textvqa",
+        "config": None,
+        "fallback_hub": "facebook/textvqa",
+        "fallback_config": "textvqa",
     },
     "docvqa": {
         "hub": "HuggingFaceM4/DocumentVQA",

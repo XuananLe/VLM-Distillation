@@ -54,7 +54,7 @@ from vlmeval.utils.result_transfer import MMMU_result_transfer, MMTBench_result_
 
 
 # Make WORLD_SIZE invisible when build models
-def build_model_from_config(cfg, model_name, use_vllm=False):
+def build_model_from_config(cfg, model_name, use_vllm=False, smolvlm_runtime='fast'):
     import vlmeval.api
     import vlmeval.vlm
     ws_bak = os.environ.pop('WORLD_SIZE', None)
@@ -62,6 +62,11 @@ def build_model_from_config(cfg, model_name, use_vllm=False):
     config = cp.deepcopy(cfg[model_name])
     if use_vllm:
         config['use_vllm'] = use_vllm
+    if (
+        config.get('class') == 'SmolVLM'
+        or ('class' not in config and 'SmolVLM' in model_name and 'SmolVLM2' not in model_name)
+    ):
+        config['smolvlm_runtime'] = smolvlm_runtime
     if 'class' not in config:
         return supported_VLM[model_name](**config)
     cls_name = config.pop('class')
@@ -200,6 +205,14 @@ You can launch the evaluation by setting either --data and --model or --config.
     parser.add_argument(
         '--use-vllm', action='store_true', help='use vllm to generate, the flag is only supported in Llama4 for now')
     parser.add_argument('--use-verifier', action='store_true', help='use verifier to evaluate')
+    parser.add_argument(
+        '--smolvlm-runtime',
+        type=str,
+        default='fast',
+        choices=['fast', 'original'],
+        help='SmolVLM loader mode: `fast` uses bf16 + flash_attention_2 when available; '
+             '`original` uses float32 + eager attention.',
+    )
 
     args = parser.parse_args()
     return args
@@ -308,7 +321,12 @@ def main():
             os.makedirs(pred_root, exist_ok=True)
 
         if use_config:
-            model = build_model_from_config(cfg['model'], model_name, args.use_vllm)
+            model = build_model_from_config(
+                cfg['model'],
+                model_name,
+                args.use_vllm,
+                args.smolvlm_runtime,
+            )
 
         for _, dataset_name in enumerate(args.data):
             if WORLD_SIZE > 1:
@@ -381,7 +399,8 @@ def main():
                             verbose=args.verbose,
                             api_nproc=args.api_nproc,
                             ignore_failed=args.ignore,
-                            use_vllm=args.use_vllm)
+                            use_vllm=args.use_vllm,
+                            smolvlm_runtime=args.smolvlm_runtime)
                     else:
                         model = infer_data_job(
                             model,
@@ -391,7 +410,8 @@ def main():
                             verbose=args.verbose,
                             api_nproc=args.api_nproc,
                             ignore_failed=args.ignore,
-                            use_vllm=args.use_vllm)
+                            use_vllm=args.use_vllm,
+                            smolvlm_runtime=args.smolvlm_runtime)
 
                 # Set the judge kwargs first before evaluation or dumping
 

@@ -323,6 +323,27 @@ Tianqi Chen, Bing Xu, Chiyuan Zhang, and Carlos Guestrin.
 \newblock Hugging Face, 2025.
 \newblock Accessed: 2026-04-02.
 
+\bibitem{cui2024sinkhorn}
+Yifan Cui, Wei Wang, Yifei Wang, Yao Lu, Haoyu Wang, Fuzhen Zhuang, Qing He,
+  and Chuan Shi.
+\newblock Sinkhorn distance minimization for knowledge distillation.
+\newblock In {\em Findings of the Association for Computational Linguistics:
+  ACL 2024}, pages 11046--11060. Association for Computational Linguistics,
+  2024.
+
+\bibitem{williams1992simple}
+Ronald~J. Williams.
+\newblock Simple statistical gradient-following algorithms for connectionist
+  reinforcement learning.
+\newblock {\em Machine Learning}, 8(3):229--256, 1992.
+
+\bibitem{wen2023fdistill}
+Yuqiao Wen, Zichao Li, Wenyu Du, and Lili Mou.
+\newblock f-divergence minimization for sequence-level knowledge distillation.
+\newblock In {\em Proceedings of the 61st Annual Meeting of the Association for
+  Computational Linguistics (Volume 1: Long Papers)}, pages 10817--10834.
+  Association for Computational Linguistics, 2023.
+
 \bibitem{kornblith2019similarityrepresentations}
 Simon Kornblith, Mohammad Norouzi, Honglak Lee, and Geoffrey Hinton.
 \newblock Similarity of neural network representations revisited.

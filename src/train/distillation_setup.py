@@ -2,7 +2,6 @@ from dataclasses import dataclass, field
 
 from src.train.train_utils import rank0_print
 
-
 @dataclass
 class DistillationArguments:
     """Arguments for knowledge distillation."""
@@ -18,7 +17,14 @@ class DistillationArguments:
     teacher_logits_cache_dir: str | None = field(
         default=None,
         metadata={
-            "help": "Optional cache directory produced by scripts/analysis/cache_teacher_logits.py. This can be either one shared cache root or a parent directory containing one cache root per teacher. When provided, training reads cached teacher logits instead of running teacher forwards online."
+            "help": "Local teacher-logits cache root. Use /cache for mounted local caches, or a writable /tmp path when downloading remote teacher logits on demand."
+        },
+    )
+
+    teacher_logits_remote_uri: str | None = field(
+        default=None,
+        metadata={
+            "help": "Optional s3:// base prefix for remote raw teacher logits. Leave unset to read directly from a local cache root such as /cache."
         },
     )
 
@@ -192,6 +198,14 @@ class DistillationArguments:
 
 
 def validate_distillation_args(distillation_args) -> None:
+    if (
+        distillation_args.teacher_logits_cache_dir is None
+        and distillation_args.teacher_logits_remote_uri is None
+    ):
+        raise ValueError(
+            "Teacher logits require either --teacher_logits_cache_dir (for example /cache "
+            "or a writable /tmp path) or --teacher_logits_remote_uri (remote raw cache root)."
+        )
     if distillation_args.teacher_weighting_strategy not in {"routing", "uniform_mean", "gradient_optimal", "reinforced_selection"}:
         raise ValueError("--teacher_weighting_strategy must be `routing`, `uniform_mean`, `gradient_optimal`, or `reinforced_selection`.")
     if distillation_args.objective_conflict_strategy not in {"fixed", "pcgrad", "cagrad", "mgda"}:
@@ -265,6 +279,8 @@ def log_distillation_setup(
     rank0_print(f"Teacher Model(s): {teacher_ids}")
     if distillation_args.teacher_logits_cache_dir:
         rank0_print(f"Teacher Logits Cache: {distillation_args.teacher_logits_cache_dir}")
+    if distillation_args.teacher_logits_remote_uri:
+        rank0_print(f"Teacher Logits Remote URI: {distillation_args.teacher_logits_remote_uri}")
     rank0_print(
         "Teacher Weighting: learned deep gate + balancing + GRACE routing"
         if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing"

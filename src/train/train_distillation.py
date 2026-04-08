@@ -233,10 +233,13 @@ def train_distillation():
                     if training_args.bf16 and module.weight.dtype == torch.float32:
                         module = module.to(torch.bfloat16)
 
-    if distillation_args.teacher_logits_cache_dir is None:
+    if (
+        distillation_args.teacher_logits_cache_dir is None
+        and distillation_args.teacher_logits_remote_uri is None
+    ):
         raise ValueError(
-            "--teacher_logits_cache_dir must be set. Online teacher loading is disabled; "
-            "distillation always uses cached teacher logits."
+            "Teacher logits require either --teacher_logits_cache_dir (for example /cache "
+            "or a writable /tmp path) or --teacher_logits_remote_uri (remote raw cache root)."
         )
     rank0_print("\nUsing cached teacher logits; skipping online teacher model loading.")
     teacher_models, teacher_processors = [], []
@@ -248,6 +251,7 @@ def train_distillation():
         teacher_processors=teacher_processors,
         teacher_model_ids=teacher_ids,
         teacher_logits_cache_dir=distillation_args.teacher_logits_cache_dir,
+        teacher_logits_remote_uri=distillation_args.teacher_logits_remote_uri,
     )
     _init_primary_wandb_run(training_args)
 

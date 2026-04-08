@@ -219,7 +219,7 @@ heterogeneous multi-teacher baselines.
  \makecell[l]{Non-distillation\\references} & \makecell[l]{Original,\\full finetuning} & No teacher & \makecell[l]{Student-only\\reference points} \\
 \makecell[l]{Same-family\\baselines} & \makecell[l]{Forward KL, Reverse KL,\\Jensen-Shannon, HSM-CKA} & SmolVLM2-2.2B-Instruct & \makecell[l]{Standard single-teacher\\objectives within the\\SmolVLM family} \\
 \makecell[l]{Different-family\\single-teacher\\baselines} & \makecell[l]{ULD, layer-wise\\hidden-state loss} & \makecell[l]{Qwen2-VL-2B-Instruct\\or Gemma-4B} & \makecell[l]{Cross-family transfer\\without multi-teacher routing} \\
-\makecell[l]{Heterogeneous\\multi-teacher\\baselines} & \makecell[l]{Uniform averaging,\\\methodname{}} & \makecell[l]{Mixed teacher pool from\\multiple VLM families} & \makecell[l]{Static averaging vs.\\adaptive teacher assignment} \\
+\makecell[l]{Heterogeneous\\multi-teacher\\baselines} & \makecell[l]{Uniform averaging,\\reinforced selection,\\\methodname{}} & \makecell[l]{Mixed teacher pool from\\multiple VLM families} & \makecell[l]{Static averaging vs.\\stochastic policy selection\\vs. adaptive teacher assignment} \\
 \bottomrule
 \end{tabular}
 \caption{Baseline groups used in the evaluation chapter.}
@@ -228,9 +228,68 @@ heterogeneous multi-teacher baselines.
 
 \begin{itemize}
 \item \textbf{Non-distillation references.} The original student and the full-finetuning baseline provide the student-only reference points for each benchmark.
-\item \textbf{Same-family baselines.} Forward KL, reverse KL, Jensen-Shannon divergence, and HSM-CKA all use \textbf{SmolVLM2-2.2B-Instruct} as a same-family teacher \cite{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,dasgupta2025improving}. Their mathematical forms are standard and are cited rather than re-derived here.
-\item \textbf{Different-family single-teacher baselines.} This group uses one teacher outside the SmolVLM family. ULD follows the cross-tokenizer distillation formulation of Boizard et al. \cite{boizard2024towardscrosstokenizerdistillation}, while the layer-wise hidden-state baseline follows the representation-matching approach of Dasgupta and Cohn \cite{dasgupta2025improving}.
-\item \textbf{Heterogeneous multi-teacher baselines.} Uniform averaging and \methodname{} share the same heterogeneous teacher pool, but only \methodname{} applies sparse routing, capacity control, and post-routing alignment filtering \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
+\item \textbf{Same-family baselines.} Forward KL, reverse KL, Jensen-Shannon divergence, and HSM-CKA all use \textbf{SmolVLM2-2.2B-Instruct} as a same-family teacher \cite{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,dasgupta2025improving,cui2024sinkhorn}. They isolate standard teacher-student transfer when tokenizer, vocabulary, and output space are already matched.
+\item \textbf{Different-family single-teacher baselines.} This group uses one teacher outside the SmolVLM family. ULD is the main cross-tokenizer logits baseline \cite{boizard2024towardscrosstokenizerdistillation}, while the layer-wise hidden-state baseline tests whether direct internal matching remains useful across heterogeneous VLM families \cite{dasgupta2025improving}.
+\item \textbf{Heterogeneous multi-teacher baselines.} Uniform averaging, reinforced selection, and \methodname{} all use teacher pools drawn from different VLM families. Uniform averaging keeps fixed equal weights, reinforced selection learns a stochastic teacher policy with REINFORCE \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}, and \methodname{} uses sparse routing plus alignment-aware reweighting \cite{zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
+\end{itemize}
+
+For the trainable competitor methods, we use a shared supervised term
+\(\mathcal{L}_{CE}\) and vary only the distillation component. A convenient
+generic form is
+\begin{equation}
+\mathcal{L}_{\text{base}}=(1-\alpha)\mathcal{L}_{CE}+\alpha \mathcal{L}_{KD}.
+\end{equation}
+
+\noindent
+The compared objectives are:
+\begin{itemize}
+\item \textbf{Original}: direct evaluation of the released student, with no additional optimization. This measures the native capability of the compact model before any task adaptation or distillation.
+\item \textbf{Full finetuning}: \(\mathcal{L}=\mathcal{L}_{CE}\). This baseline uses only ground-truth supervision and no teacher, so it isolates the benefit of external teacher knowledge.
+\item \textbf{Forward KL}: this is the standard logits-based KD baseline, where the student matches the teacher soft distribution over the shared vocabulary \cite{hinton2015distillingknowledgeneuralnetwork}. It is appropriate for same-family transfer because both models use compatible token spaces:
+\[
+\mathcal{L}_{KD}=\mathrm{KL}(p_t\|p_s).
+\]
+\item \textbf{Reverse KL}: this baseline swaps the divergence direction and penalizes student probability mass that falls outside the teacher support. In KD studies, it is often treated as a sharper, more mode-seeking alternative to forward KL \cite{cui2024sinkhorn,wen2023fdistill}:
+\[
+\mathcal{L}_{KD}=\mathrm{KL}(p_s\|p_t).
+\]
+\item \textbf{Jensen-Shannon}: this baseline symmetrizes forward and reverse KL by comparing both distributions to their midpoint. It is a standard compromise when one wants a bounded and symmetric divergence on the same token space \cite{lin1991jensen,cui2024sinkhorn}:
+\[
+\mathcal{L}_{KD}=\tfrac{1}{2}\mathrm{KL}(p_s\|m)+\tfrac{1}{2}\mathrm{KL}(p_t\|m),\qquad
+m=\tfrac{1}{2}(p_s+p_t).
+\]
+\item \textbf{HSM-CKA}.\par
+This baseline adds linear-CKA hidden-state matching to same-family logits KD \cite{dasgupta2025improving,kornblith2019similarityrepresentations}:
+\[
+\mathcal{L}=(1-\alpha)\mathcal{L}_{CE}+\alpha \mathcal{L}_{\text{Fwd-KL}}+\lambda_H\!\left(1-\sqrt{\mathrm{CKA}(H_s,H_t)}\right).
+\]
+\item \textbf{ULD}: this is the main cross-family logits baseline. Rather than aligning token IDs directly, it sorts the probability mass and compares ranked distributions, which makes it suitable when the teacher and student have different vocabularies or tokenizers \cite{boizard2024towardscrosstokenizerdistillation}:
+\[
+\mathcal{L}_{KD}=\left\|\pi(p_s)-\pi(p_t)\right\|_1.
+\]
+\item \textbf{Layer-wise hidden-state loss}: this baseline extends hidden-state matching across multiple intermediate layers and tests whether explicit internal alignment is sufficient in the heterogeneous setting. It keeps the logits objective but adds representation terms over selected layers \cite{dasgupta2025improving}:
+\[
+\mathcal{L}
+=(1-\alpha)\mathcal{L}_{CE}
++\alpha \mathcal{L}_{KD}
++\lambda_H \sum_{\ell}\left(1-\sqrt{\mathrm{CKA}(H_s^{(\ell)},H_t^{(\ell)})}\right).
+\]
+\item \textbf{Uniform multi-teacher}: this baseline uses the same heterogeneous teacher pool as \methodname{}, but removes all adaptivity. Each teacher contributes equally, so it tests whether teacher diversity alone is sufficient without routing or selection \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}:
+\[
+\mathcal{L}_{KD}=\frac{1}{M}\sum_{i=1}^{M}\mathcal{L}_{KD}^{(i)}.
+\]
+\item \textbf{Reinforced selection}: this baseline keeps the multi-teacher setting but replaces deterministic routing with a stochastic teacher-selection policy. The selector predicts Bernoulli probabilities, samples a subset, normalizes the selected teachers, and is optimized with a REINFORCE-style reward signal \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}:
+\[
+\pi_i=\sigma(u_i),\qquad
+m_i\sim\mathrm{Bernoulli}(\pi_i),\qquad
+w_i=\frac{m_i}{\sum_j m_j},
+\]
+then uses
+\[
+\mathcal{L}_{KD}=\sum_{i=1}^{M} w_i \mathcal{L}_{KD}^{(i)}, \qquad
+\mathcal{L}=(1-\alpha)\mathcal{L}_{CE}+\alpha\mathcal{L}_{KD}+\lambda_{\text{pol}}\mathcal{L}_{\text{pol}},
+\]
+with a policy term \(\mathcal{L}_{\text{pol}}=-A\log p(m\mid \pi)\) and a fallback to the highest-probability teacher when \(\sum_i m_i=0\).
 \end{itemize}
 
 Unless noted otherwise, all baselines reuse the same data conversion pipeline,

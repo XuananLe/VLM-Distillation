@@ -7,6 +7,14 @@ from vlmeval.smp import *
 FAIL_MSG = 'Failed to obtain answer via API.'
 
 
+def is_smolvlm_model_name(model_name):
+    return (
+        isinstance(model_name, str)
+        and 'SmolVLM' in model_name
+        and 'SmolVLM2' not in model_name
+    )
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', type=str, nargs='+', required=True)
@@ -80,7 +88,17 @@ def infer_data_api(model, work_dir, model_name, dataset, index_set=None, api_npr
     return res
 
 
-def infer_data(model, model_name, work_dir, dataset, out_file, verbose=False, api_nproc=4, use_vllm=False):
+def infer_data(
+    model,
+    model_name,
+    work_dir,
+    dataset,
+    out_file,
+    verbose=False,
+    api_nproc=4,
+    use_vllm=False,
+    smolvlm_runtime='fast',
+):
     dataset_name = dataset.dataset_name
     prev_file = f'{work_dir}/{model_name}_{dataset_name}_PREV.pkl'
     res = load(prev_file) if osp.exists(prev_file) else {}
@@ -115,6 +133,8 @@ def infer_data(model, model_name, work_dir, dataset, out_file, verbose=False, ap
         or 'Qwen2.5-VL' in model_name
     ):
         kwargs = {'use_vllm': use_vllm}
+    if is_smolvlm_model_name(model_name):
+        kwargs['smolvlm_runtime'] = smolvlm_runtime
 
     # (25.06.05) In newer version of transformers (after 4.50), with device_map='auto' and torchrun launcher,
     # Transformers automatically adopt TP parallelism, which leads to compatibility problems with VLMEvalKit
@@ -186,7 +206,15 @@ def _is_structured_record(v):
 
 # A wrapper for infer_data, do the pre & post processing
 def infer_data_job(
-    model, work_dir, model_name, dataset, verbose=False, api_nproc=4, ignore_failed=False, use_vllm=False
+    model,
+    work_dir,
+    model_name,
+    dataset,
+    verbose=False,
+    api_nproc=4,
+    ignore_failed=False,
+    use_vllm=False,
+    smolvlm_runtime='fast',
 ):
     rank, world_size = get_rank_and_world_size()
     dataset_name = dataset.dataset_name
@@ -210,7 +238,8 @@ def infer_data_job(
 
     model = infer_data(
         model=model, work_dir=work_dir, model_name=model_name, dataset=dataset,
-        out_file=out_file, verbose=verbose, api_nproc=api_nproc, use_vllm=use_vllm)
+        out_file=out_file, verbose=verbose, api_nproc=api_nproc, use_vllm=use_vllm,
+        smolvlm_runtime=smolvlm_runtime)
     if world_size > 1:
         dist.barrier()
 

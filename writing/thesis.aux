@@ -292,14 +292,23 @@
 \citation{singh2019vqamodelsread}
 \citation{mathew2021docvqadatasetvqadocument}
 \citation{masry2022chartqabenchmarkquestionanswering}
-\citation{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,dasgupta2025improving}
+\citation{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,dasgupta2025improving,cui2024sinkhorn}
 \citation{boizard2024towardscrosstokenizerdistillation}
 \citation{dasgupta2025improving}
-\citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
+\citation{williams1992simple,yuan2020reinforcedmultiteacherselection}
+\citation{zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
 \@writefile{toc}{\contentsline {section}{\numberline {4.4}Evaluation Metrics}{35}{section.4.4}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {4.5}Baselines and Compared Methods}{35}{section.4.5}\protected@file@percent }
+\citation{hinton2015distillingknowledgeneuralnetwork}
+\citation{cui2024sinkhorn,wen2023fdistill}
+\citation{lin1991jensen,cui2024sinkhorn}
 \@writefile{lot}{\contentsline {table}{\numberline {4.3}{\ignorespaces Baseline groups used in the evaluation chapter.\relax }}{36}{table.caption.33}\protected@file@percent }
 \newlabel{tab:baseline-groups}{{4.3}{36}{Baseline groups used in the evaluation chapter.\relax }{table.caption.33}{}}
+\citation{dasgupta2025improving,kornblith2019similarityrepresentations}
+\citation{boizard2024towardscrosstokenizerdistillation}
+\citation{dasgupta2025improving}
+\citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}
+\citation{williams1992simple,yuan2020reinforcedmultiteacherselection}
 \citation{duan2024vlmevalkit}
 \citation{qwen2vl2b_modelcard,qwen25vl3b_modelcard}
 \citation{internvl3_blog,gemma3_technical_report}
@@ -307,41 +316,52 @@
 \citation{qwen2vl2b_modelcard,qwen25vl3b_modelcard}
 \citation{internvl3_blog,gemma3_technical_report}
 \citation{qwen25vl3b_quantized_card}
-\pp@pagectr{footnote}{5}{54}{37}
-\@writefile{toc}{\contentsline {chapter}{\numberline {5}Experiment Results}{37}{chapter.5}\protected@file@percent }
+\pp@pagectr{footnote}{5}{56}{39}
+\@writefile{toc}{\contentsline {chapter}{\numberline {5}Experiment Results}{39}{chapter.5}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:experiment-results}{{5}{37}{Experiment Results}{chapter.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.1}Main Comparison Results}{37}{section.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.1}Baseline Results}{37}{subsection.5.1.1}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {5.1}{\ignorespaces Original benchmark results of the two SmolVLM models evaluated with VLM-Eval-Kit.\relax }}{37}{table.caption.34}\protected@file@percent }
-\newlabel{tab:smolvlm-original-results}{{5.1}{37}{Original benchmark results of the two SmolVLM models evaluated with VLM-Eval-Kit.\relax }{table.caption.34}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.2}{\ignorespaces Original benchmark results of the teacher models used in the heterogeneous teacher pool, compiled from the official model releases \cite  {qwen2vl2b_modelcard,qwen25vl3b_modelcard} and \cite  {internvl3_blog,gemma3_technical_report} and, for the Qwen2.5-VL-3B ChartQA entry, from a model-comparison page that reports the base-model metric \cite  {qwen25vl3b_quantized_card}.\relax }}{37}{table.caption.35}\protected@file@percent }
-\newlabel{tab:teacher-original-results}{{5.2}{37}{Original benchmark results of the teacher models used in the heterogeneous teacher pool, compiled from the official model releases \cite {qwen2vl2b_modelcard,qwen25vl3b_modelcard} and \cite {internvl3_blog,gemma3_technical_report} and, for the Qwen2.5-VL-3B ChartQA entry, from a model-comparison page that reports the base-model metric \cite {qwen25vl3b_quantized_card}.\relax }{table.caption.35}{}}
+\newlabel{chap:experiment-results}{{5}{39}{Experiment Results}{chapter.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.1}Main Comparison Results}{39}{section.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.1}Baseline Results}{39}{subsection.5.1.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5.1}{\ignorespaces Original benchmark results of the two SmolVLM models evaluated with VLM-Eval-Kit.\relax }}{39}{table.caption.34}\protected@file@percent }
+\newlabel{tab:smolvlm-original-results}{{5.1}{39}{Original benchmark results of the two SmolVLM models evaluated with VLM-Eval-Kit.\relax }{table.caption.34}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.2}{\ignorespaces Original benchmark results of the teacher models used in the heterogeneous teacher pool, compiled from the official model releases \cite  {qwen2vl2b_modelcard,qwen25vl3b_modelcard} and \cite  {internvl3_blog,gemma3_technical_report} and, for the Qwen2.5-VL-3B ChartQA entry, from a model-comparison page that reports the base-model metric \cite  {qwen25vl3b_quantized_card}.\relax }}{39}{table.caption.35}\protected@file@percent }
+\newlabel{tab:teacher-original-results}{{5.2}{39}{Original benchmark results of the teacher models used in the heterogeneous teacher pool, compiled from the official model releases \cite {qwen2vl2b_modelcard,qwen25vl3b_modelcard} and \cite {internvl3_blog,gemma3_technical_report} and, for the Qwen2.5-VL-3B ChartQA entry, from a model-comparison page that reports the base-model metric \cite {qwen25vl3b_quantized_card}.\relax }{table.caption.35}{}}
 \citation{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge,dasgupta2025improving}
 \citation{boizard2024towardscrosstokenizerdistillation}
-\citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
+\citation{williams1992simple,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
 \citation{kornblith2019similarityrepresentations}
 \citation{zhou2024tinyllava}
 \citation{zhou2024tinyllava}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.2}Overall Comparison}{38}{subsection.5.1.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5.2}Representation Similarity Analysis}{38}{section.5.2}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {5.3}{\ignorespaces TextVQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }}{39}{table.caption.36}\protected@file@percent }
-\newlabel{tab:textvqa-comparison}{{5.3}{39}{TextVQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }{table.caption.36}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.4}{\ignorespaces DocVQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }}{40}{table.caption.37}\protected@file@percent }
-\newlabel{tab:docvqa-comparison}{{5.4}{40}{DocVQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }{table.caption.37}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.5}{\ignorespaces ChartQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }}{41}{table.caption.38}\protected@file@percent }
-\newlabel{tab:chartqa-comparison}{{5.5}{41}{ChartQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }{table.caption.38}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces Final-layer CKA heatmaps across two benchmarks.}}{42}{figure.caption.39}\protected@file@percent }
-\newlabel{fig:exp-cka-multi-dataset}{{5.1}{42}{Final-layer CKA heatmaps across two benchmarks}{figure.caption.39}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.3}Ablation Study}{42}{section.5.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5.4}Qualitative Analysis}{42}{section.5.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5.5}Discussion}{42}{section.5.5}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces Vision-layer CKA heatmaps across two benchmarks.}}{43}{figure.caption.40}\protected@file@percent }
-\newlabel{fig:exp-cka-vision-multi-dataset}{{5.2}{43}{Vision-layer CKA heatmaps across two benchmarks}{figure.caption.40}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces High CKA does not by itself imply that layer-wise transfer will close the downstream performance gap. Representation similarity and task transfer are related, but not equivalent.\relax }}{44}{figure.caption.41}\protected@file@percent }
-\newlabel{fig:exp-cka-vs-performance-gap}{{5.3}{44}{High CKA does not by itself imply that layer-wise transfer will close the downstream performance gap. Representation similarity and task transfer are related, but not equivalent.\relax }{figure.caption.41}{}}
-\@writefile{toc}{\contentsline {chapter}{Conclusion and Future Work}{45}{chapter*.42}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.2}Overall Comparison}{40}{subsection.5.1.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.2}Representation Similarity Analysis}{40}{section.5.2}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5.3}{\ignorespaces TextVQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }}{41}{table.caption.36}\protected@file@percent }
+\newlabel{tab:textvqa-comparison}{{5.3}{41}{TextVQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }{table.caption.36}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.4}{\ignorespaces DocVQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }}{42}{table.caption.37}\protected@file@percent }
+\newlabel{tab:docvqa-comparison}{{5.4}{42}{DocVQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }{table.caption.37}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.5}{\ignorespaces ChartQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }}{43}{table.caption.38}\protected@file@percent }
+\newlabel{tab:chartqa-comparison}{{5.5}{43}{ChartQA comparison across original models, fine-tuning, distillation baselines, and the proposed method.\relax }{table.caption.38}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces Final-layer CKA heatmaps across two benchmarks.}}{44}{figure.caption.39}\protected@file@percent }
+\newlabel{fig:exp-cka-multi-dataset}{{5.1}{44}{Final-layer CKA heatmaps across two benchmarks}{figure.caption.39}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.3}Ablation Study}{44}{section.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.4}Qualitative Analysis}{44}{section.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.5}Discussion}{44}{section.5.5}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces Vision-layer CKA heatmaps across two benchmarks.}}{45}{figure.caption.40}\protected@file@percent }
+\newlabel{fig:exp-cka-vision-multi-dataset}{{5.2}{45}{Vision-layer CKA heatmaps across two benchmarks}{figure.caption.40}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces High CKA does not by itself imply that layer-wise transfer will close the downstream performance gap. Representation similarity and task transfer are related, but not equivalent.\relax }}{46}{figure.caption.41}\protected@file@percent }
+\newlabel{fig:exp-cka-vs-performance-gap}{{5.3}{46}{High CKA does not by itself imply that layer-wise transfer will close the downstream performance gap. Representation similarity and task transfer are related, but not equivalent.\relax }{figure.caption.41}{}}
+\@writefile{toc}{\contentsline {chapter}{Conclusion and Future Work}{47}{chapter*.42}\protected@file@percent }
+\pp@pagectr{footnote}{6}{65}{48}
+\@writefile{toc}{\contentsline {chapter}{\numberline {A}PyTorch-Style GRACE{} Reference}{48}{appendix.A}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{app:grace-code}{{A}{48}{PyTorch-Style \methodname {} Reference}{appendix.A}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {A.1}Core Gate}{48}{section.A.1}\protected@file@percent }
+\newlabel{lst:grace-gate}{{A.1}{48}{Minimal PyTorch-style gate used by \methodname {}}{lstlisting.A.1}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {A.1}Minimal PyTorch-style gate used by GRACE{}.}{48}{lstlisting.A.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {A.2}Core Training Step}{48}{section.A.2}\protected@file@percent }
+\newlabel{lst:grace-step}{{A.2}{48}{Minimal PyTorch-style GRACE step}{lstlisting.A.2}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {A.2}Minimal PyTorch-style GRACE step.}{48}{lstlisting.A.2}\protected@file@percent }
 \bibdata{references}
 \bibcite{wikimedia_clip_pretraining_image}{{1}{}{{}}{{}}}
 \bibcite{radford2021learningtransferablevisualmodels}{{2}{}{{}}{{}}}
@@ -355,7 +375,7 @@
 \bibcite{wikimedia_knowledge_distillation_example}{{10}{}{{}}{{}}}
 \bibcite{hinton2015distillingknowledgeneuralnetwork}{{11}{}{{}}{{}}}
 \bibcite{wikimedia_optimal_transport_matrix_image}{{12}{}{{}}{{}}}
-\@writefile{toc}{\contentsline {chapter}{References}{46}{section*.43}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{References}{51}{section*.43}\protected@file@percent }
 \bibcite{peyre2019computationaloptimaltransport}{{13}{}{{}}{{}}}
 \bibcite{boizard2024towardscrosstokenizerdistillation}{{14}{}{{}}{{}}}
 \bibcite{wikimedia_stop_sign_image}{{15}{}{{}}{{}}}
@@ -400,6 +420,9 @@
 \bibcite{rajbhandari2020zero}{{54}{}{{}}{{}}}
 \bibcite{chen2016sublinear}{{55}{}{{}}{{}}}
 \bibcite{smolvlm2_modelcard}{{56}{}{{}}{{}}}
-\bibcite{kornblith2019similarityrepresentations}{{57}{}{{}}{{}}}
+\bibcite{cui2024sinkhorn}{{57}{}{{}}{{}}}
+\bibcite{williams1992simple}{{58}{}{{}}{{}}}
+\bibcite{wen2023fdistill}{{59}{}{{}}{{}}}
+\bibcite{kornblith2019similarityrepresentations}{{60}{}{{}}{{}}}
 \providecommand\NAT@force@numbers{}\NAT@force@numbers
-\gdef \@abspage@last{67}
+\gdef \@abspage@last{73}

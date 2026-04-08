@@ -4,9 +4,10 @@ export PYTHONPATH=src:$PYTHONPATH
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 # Models
-TEACHER_MODEL_1="Qwen/Qwen2-VL-2B-Instruct"
-TEACHER_MODEL_2="Qwen/Qwen2.5-VL-3B-Instruct"
-TEACHER_MODEL_IDS="[\"${TEACHER_MODEL_1}\", \"${TEACHER_MODEL_2}\"]"
+TEACHER_MODEL_1="Qwen/Qwen2.5-VL-3B-Instruct"
+TEACHER_MODEL_2="Qwen/Qwen2-VL-2B-Instruct"
+TEACHER_MODEL_3="google/gemma-3-4b-it"
+TEACHER_MODEL_IDS="[\"${TEACHER_MODEL_1}\", \"${TEACHER_MODEL_2}\", \"${TEACHER_MODEL_3}\"]"
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 
 # Distillation strategy
@@ -53,14 +54,21 @@ REINFORCED_SELECTION_REWARD_TYPE="${REINFORCED_SELECTION_REWARD_TYPE:-reward2}"
 REINFORCED_SELECTION_REWARD_EMA_DECAY="${REINFORCED_SELECTION_REWARD_EMA_DECAY:-0.9}"
 REINFORCED_SELECTION_POLICY_ALPHA="${REINFORCED_SELECTION_POLICY_ALPHA:-1.0}"
 
-# Optional cached teacher logits
-# Supports either a shared cache root or a parent directory containing one cache root per teacher.
-TEACHER_LOGITS_CACHE_DIR="${TEACHER_LOGITS_CACHE_DIR:-/cache}"
+# Teacher logits can be read either from a local cache root (for example /cache)
+# or directly from the remote raw .pt cache layout.
+# To force local mode, set TEACHER_LOGITS_REMOTE_URI="" and optionally
+# TEACHER_LOGITS_CACHE_DIR=/cache.
+TEACHER_LOGITS_REMOTE_URI="${TEACHER_LOGITS_REMOTE_URI-s3://google-drive-backup/1W9sUXnqNdR2qVHr8PrgVAtM6J2SXsJ-7}"
+if [[ -n "${TEACHER_LOGITS_REMOTE_URI}" ]]; then
+    TEACHER_LOGITS_CACHE_DIR="${TEACHER_LOGITS_CACHE_DIR:-/tmp/teacher-logits-streaming}"
+else
+    TEACHER_LOGITS_CACHE_DIR="${TEACHER_LOGITS_CACHE_DIR:-/cache}"
+fi
 
 # Dataset and runtime
-NUM_TEACHERS=2
+NUM_TEACHERS=3
 DATASET_NAME="docvqa"
-PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-50}"
+PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-20}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 LOGGING_STEPS="${LOGGING_STEPS:-5}"
 
@@ -68,12 +76,15 @@ LOGGING_STEPS="${LOGGING_STEPS:-5}"
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME_1="${TEACHER_MODEL_1##*/}"
 TEACHER_NAME_2="${TEACHER_MODEL_2##*/}"
+TEACHER_NAME_3="${TEACHER_MODEL_3##*/}"
 RUN_TAG="${RUN_TAG:-$(date +%Y%m%d_%H%M)}"
-OUTPUT_DIR="/output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
+OUTPUT_DIR="/output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${TEACHER_NAME_3}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
 
-EXTRA_ARGS=()
-if [[ -n "$TEACHER_LOGITS_CACHE_DIR" ]]; then
-    EXTRA_ARGS+=(--teacher_logits_cache_dir "$TEACHER_LOGITS_CACHE_DIR")
+EXTRA_ARGS=(
+    --teacher_logits_cache_dir "$TEACHER_LOGITS_CACHE_DIR"
+)
+if [[ -n "${TEACHER_LOGITS_REMOTE_URI}" ]]; then
+    EXTRA_ARGS+=(--teacher_logits_remote_uri "$TEACHER_LOGITS_REMOTE_URI")
 fi
 
 deepspeed src/train/train_distillation.py \

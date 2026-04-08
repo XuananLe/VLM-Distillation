@@ -1505,6 +1505,21 @@ INPUT chapters/conclusion.tex
 INPUT ./chapters/conclusion.tex
 INPUT ./chapters/conclusion.tex
 INPUT chapters/conclusion.tex
+INPUT ./chapters/appendix_grace_code.tex
+INPUT ./chapters/appendix_grace_code.tex
+INPUT ./chapters/appendix_grace_code.tex
+INPUT chapters/appendix_grace_code.tex
+INPUT ./chapters/appendix_grace_code.tex
+INPUT ./chapters/appendix_grace_code.tex
+INPUT chapters/appendix_grace_code.tex
+INPUT /usr/share/texlive/texmf-dist/tex/latex/listings/lstlang1.sty
+INPUT /usr/share/texlive/texmf-dist/tex/latex/listings/lstlang1.sty
+INPUT /usr/share/texlive/texmf-dist/tex/latex/listings/lstlang1.sty
+INPUT /usr/share/texlive/texmf-dist/tex/latex/listings/lstlang1.sty
+INPUT /usr/share/texlive/texmf-dist/tex/latex/listings/lstmisc.sty
+INPUT /usr/share/texlive/texmf-dist/tex/latex/listings/lstmisc.sty
+INPUT /usr/share/texlive/texmf-dist/tex/latex/listings/lstmisc.sty
+INPUT /usr/share/texlive/texmf-dist/tex/latex/listings/lstmisc.sty
 INPUT ./thesis.bbl
 INPUT thesis.bbl
 INPUT ./thesis.bbl
@@ -1538,3 +1553,4 @@ INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnr8.pfb
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnti12.pfb
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnti8.pfb
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vntt10.pfb
+INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vntt12.pfb
