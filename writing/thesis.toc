@@ -50,8 +50,10 @@
 \contentsline {subsection}{\numberline {4.2.1}Dataset Descriptions}{31}{subsection.4.2.1}%
 \contentsline {subsection}{\numberline {4.2.2}Dataset Size and Splits}{31}{subsection.4.2.2}%
 \contentsline {section}{\numberline {4.3}Training Configuration}{31}{section.4.3}%
-\contentsline {section}{\numberline {4.4}Evaluation Metrics}{35}{section.4.4}%
-\contentsline {section}{\numberline {4.5}Baselines and Compared Methods}{35}{section.4.5}%
+\contentsline {subsection}{\numberline {4.3.1}Offline Teacher-Logit Preparation}{33}{subsection.4.3.1}%
+\contentsline {subsection}{\numberline {4.3.2}Remote Logit Streaming During Training}{34}{subsection.4.3.2}%
+\contentsline {section}{\numberline {4.4}Evaluation Metrics}{34}{section.4.4}%
+\contentsline {section}{\numberline {4.5}Baselines and Compared Methods}{36}{section.4.5}%
 \contentsline {chapter}{\numberline {5}Experiment Results}{39}{chapter.5}%
 \contentsline {section}{\numberline {5.1}Main Comparison Results}{39}{section.5.1}%
 \contentsline {subsection}{\numberline {5.1.1}Baseline Results}{39}{subsection.5.1.1}%
@@ -60,8 +62,8 @@
 \contentsline {section}{\numberline {5.3}Ablation Study}{44}{section.5.3}%
 \contentsline {section}{\numberline {5.4}Qualitative Analysis}{44}{section.5.4}%
 \contentsline {section}{\numberline {5.5}Discussion}{44}{section.5.5}%
-\contentsline {chapter}{Conclusion and Future Work}{47}{chapter*.42}%
+\contentsline {chapter}{Conclusion and Future Work}{47}{chapter*.43}%
 \contentsline {chapter}{\numberline {A}PyTorch-Style GRACE{} Reference}{48}{appendix.A}%
 \contentsline {section}{\numberline {A.1}Core Gate}{48}{section.A.1}%
 \contentsline {section}{\numberline {A.2}Core Training Step}{48}{section.A.2}%
-\contentsline {chapter}{References}{51}{section*.43}%
+\contentsline {chapter}{References}{51}{section*.44}%

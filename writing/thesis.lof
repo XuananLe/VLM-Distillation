@@ -31,8 +31,9 @@
 \contentsline {figure}{\numberline {4.1}{\ignorespaces Example image for a TextVQA-style question \cite {wikimedia_stop_sign_image}.\relax }}{31}{figure.caption.28}%
 \contentsline {figure}{\numberline {4.2}{\ignorespaces Example document image for a DocVQA-style question \cite {wikimedia_receipt_swiss_image}.\relax }}{32}{figure.caption.29}%
 \contentsline {figure}{\numberline {4.3}{\ignorespaces Example chart image for a ChartQA-style question \cite {wikimedia_bar_chart_image}.\relax }}{32}{figure.caption.30}%
+\contentsline {figure}{\numberline {4.4}{\ignorespaces Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training, and kept in a bounded local cache with oldest-file eviction.\relax }}{34}{figure.caption.32}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {5.1}{\ignorespaces Final-layer CKA heatmaps across two benchmarks.}}{44}{figure.caption.39}%
-\contentsline {figure}{\numberline {5.2}{\ignorespaces Vision-layer CKA heatmaps across two benchmarks.}}{45}{figure.caption.40}%
-\contentsline {figure}{\numberline {5.3}{\ignorespaces High CKA does not by itself imply that layer-wise transfer will close the downstream performance gap. Representation similarity and task transfer are related, but not equivalent.\relax }}{46}{figure.caption.41}%
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Final-layer CKA heatmaps across two benchmarks.}}{44}{figure.caption.40}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces Vision-layer CKA heatmaps across two benchmarks.}}{45}{figure.caption.41}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces High CKA does not by itself imply that layer-wise transfer will close the downstream performance gap. Representation similarity and task transfer are related, but not equivalent.\relax }}{46}{figure.caption.42}%
 \addvspace {10\p@ }

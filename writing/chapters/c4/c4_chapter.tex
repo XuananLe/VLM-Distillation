@@ -108,11 +108,51 @@ pipeline.
 }
 \end{lstlisting}
 
-\noindent
-Table~\ref{tab:training-configuration} summarizes the \emph{current} main
-two-teacher training recipe used in the repository. Items marked as
-\textbf{N/A} are not fixed in the launch script and can be completed later in
-the final report.
+\subsection{Offline Teacher-Logit Preparation}
+Teacher logits are generated \emph{offline} before distillation. An offline
+caching script runs each frozen teacher on every training example, keeps only
+the supervised answer-token positions, and writes one \texttt{.pt} file per
+sample under a teacher-specific directory. Each record stores the sample index,
+the selected teacher logits, and the corresponding supervised labels. This
+keeps the online training loop simple: the student only reads precomputed
+teacher targets instead of running the teachers again.
+
+After generation, the teacher-logit directories are uploaded to a
+\textbf{Cloudflare R2} bucket using its S3-compatible object-storage interface
+\cite{cloudflare_r2_overview,cloudflare_r2_s3}. In our setup, the bucket
+already exceeds \textbf{1 TB}, so copying the whole cache to a rented GPU
+instance is impractical. This is especially relevant on services such as
+Vast.ai, where local NVMe space is usually much smaller than the full teacher
+logit store.
+
+\subsection{Remote Logit Streaming During Training}
+The current main training path does \emph{not} predownload the full cache. When
+an R2 root is provided to the launcher
+\texttt{distill\_multi\_teachers.sh}, the trainer switches to remote lazy
+loading. During training, \texttt{StreamingTeacherLogitsCache} resolves the
+teacher-specific remote path
+\[
+\texttt{remote\_root}/\texttt{<dataset>\_teacher\_logits\_<alias>}/\texttt{<teacher-slug>}/\texttt{<index>.pt},
+\]
+then fetches files lazily from R2 through \texttt{s3fs} and
+\texttt{WholeFileCacheFileSystem} \cite{fsspec_features,fsspec_api}. The
+repository also includes a repacking utility for MDS, but the current main
+training path reads the raw per-sample \texttt{.pt} cache directly.
+
+To keep disk usage bounded, the loader uses a \textbf{100 GB} local cache. Each
+file is cached only after first access. After a file is opened, the loader
+updates its access time. When the total cache size exceeds the limit, the
+oldest cached files are removed first. In effect, the local cache behaves as a
+small least-recently-used style buffer over the much larger R2 store. A
+per-teacher file lock is also used when cache metadata is updated, so
+concurrent dataloader workers do not corrupt the cache state.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.96\linewidth]{figures/r2_cache_training.png}
+\caption{Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training, and kept in a bounded local cache with oldest-file eviction.}
+\label{fig:r2-cache-training}
+\end{figure}
 
 \begin{table}[htbp]
 \centering
@@ -123,7 +163,7 @@ the final report.
 \textbf{Setting} & \textbf{Value} \\
 \midrule
 Student model & HuggingFaceTB/SmolVLM-500M-Instruct \\
-Teacher models & \makecell[l]{Qwen/Qwen2-VL-2B-Instruct\\Qwen/Qwen2.5-VL-3B-Instruct} \\
+Teacher models & \makecell[l]{Qwen/Qwen2.5-VL-3B-Instruct\\google/gemma-3-4b-it} \\
 Teacher weighting strategy & routing \\
 Distillation loss & ULD \\
 Training dataset & DocVQA \\
@@ -137,11 +177,15 @@ Weight decay & N/A \\
 Numerical precision & bf16 enabled, fp16 disabled, TF32 enabled \\
 FlashAttention-2 & Enabled \\
 Training data format & LLaVA-style multimodal instruction JSON \\
+Teacher-logit storage & Cloudflare R2 object storage \\
+Teacher-logit format & Raw per-sample \texttt{.pt} files \\
+Local cache directory & \texttt{/tmp/teacher-logits-streaming} \\
+Local cache limit & 100 GB \\
 Max sequence length & 16384 \\
 Training epochs & 1 \\
-Per-device batch size & 10 \\
+Per-device batch size & 20 \\
 Gradient accumulation steps & 1 \\
-Effective batch size & 10 \\
+Effective batch size & 20 \\
 Base learning rate & \(1\times 10^{-5}\) \\
 Vision learning rate & \(2\times 10^{-6}\) \\
 Connector learning rate & \(1\times 10^{-5}\) \\
@@ -149,13 +193,13 @@ Learning-rate schedule & Cosine decay with warmup ratio \(0.03\) \\
 Gradient checkpointing & Enabled \\
 Frozen modules & None \\
 Dataloader workers & 4 \\
-Logging and checkpointing & Log every 10 steps; save every 100 steps \\
+Logging and checkpointing & Log every 5 steps; save every 150 steps \\
 Student/teacher temperature & \(\tau_s=\tau_t=1.0\) \\
 KD weight & \(\alpha=0.5\) \\
-Top-\(k\) routing & \(k=1\) \\
-Capacity factor & \(\phi=4.0\) \\
-Balance weight & \(\lambda_{bal}=0.0\) \\
-Bias-update rate & \(\eta_b=0.0\) \\
+Top-\(k\) routing & \(k=2\) \\
+Capacity factor & \(\phi=1.25\) \\
+Balance weight & \(\lambda_{bal}=0.01\) \\
+Bias-update rate & \(\eta_b=5\times 10^{-4}\) \\
 Alignment warmup ratio & \(\rho=0.2\) \\
 Alignment threshold & \(\delta=-0.02\) \\
 Seed & N/A \\
@@ -165,14 +209,6 @@ Image resolution / visual token budget & N/A \\
 \caption[Training configuration for the current main distillation script.]{Training configuration for the current main two-teacher distillation script. The table mixes fixed launch-script values with a small number of placeholders that can be finalized later.}
 \label{tab:training-configuration}
 \end{table}
-
-The values above define the current main two-teacher GRACE recipe in the
-repository. Chapter~\ref{chap:experiment-results} also aggregates additional
-historical runs, including single-teacher baselines, uniform multi-teacher
-averaging, and a broader four-teacher GRACE setting when those results are
-available. Baselines that do not use routing or alignment keep the same
-hardware and core optimization setup, but omit the GRACE-specific terms that do
-not apply to them.
 
 \section{Evaluation Metrics}
 We report benchmark-specific official metrics for each dataset:

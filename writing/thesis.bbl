@@ -317,6 +317,30 @@ Samyam Rajbhandari, Jeff Rasley, Olatunji Ruwase, and Yuxiong He.
 Tianqi Chen, Bing Xu, Chiyuan Zhang, and Carlos Guestrin.
 \newblock Training deep nets with sublinear memory cost, 2016.
 
+\bibitem{cloudflare_r2_overview}
+{Cloudflare}.
+\newblock R2 object storage.
+\newblock Cloudflare developer documentation, 2026.
+\newblock Accessed: 2026-04-09.
+
+\bibitem{cloudflare_r2_s3}
+{Cloudflare}.
+\newblock Use the aws sdk for python (boto3) with r2.
+\newblock Cloudflare developer documentation, 2026.
+\newblock Accessed: 2026-04-09.
+
+\bibitem{fsspec_features}
+{fsspec developers}.
+\newblock Features.
+\newblock fsspec documentation, 2026.
+\newblock Accessed: 2026-04-09.
+
+\bibitem{fsspec_api}
+{fsspec developers}.
+\newblock fsspec.implementations.cached.
+\newblock fsspec documentation, 2026.
+\newblock Accessed: 2026-04-09.
+
 \bibitem{smolvlm2_modelcard}
 {Hugging Face TB}.
 \newblock Smolvlm2-2.2b-instruct model card.

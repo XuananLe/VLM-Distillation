@@ -79,6 +79,15 @@ def _init_primary_wandb_run(training_args) -> None:
             x_label="trainer",
         ),
     }
+    wandb_entity = os.getenv("WANDB_ENTITY")
+    wandb_run_id = os.getenv("WANDB_RUN_ID")
+    wandb_resume = os.getenv("WANDB_RESUME")
+    if wandb_entity:
+        init_kwargs["entity"] = wandb_entity
+    if wandb_run_id:
+        init_kwargs["id"] = wandb_run_id
+    if wandb_resume:
+        init_kwargs["resume"] = wandb_resume
     if training_args.run_name is not None:
         init_kwargs["name"] = training_args.run_name
     wandb.init(**init_kwargs)
