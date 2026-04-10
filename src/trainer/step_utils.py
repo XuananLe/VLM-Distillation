@@ -355,7 +355,11 @@ def compute_objective_conflict_state(
             )
         kd_grad_vector = (teacher_gradient_vectors * teacher_mix.unsqueeze(-1)).sum(dim=0)
 
-    base_kd_scale = max(1.0 - trainer.alpha, 0.0)
+    base_kd_scale = (
+        max(1.0 - trainer.alpha, 0.0)
+        if trainer.objective_conflict_strategy == "fixed"
+        else 1.0
+    )
     objective_weights, gradient_cosine = resolve_objective_conflict_weights(
         strategy=trainer.objective_conflict_strategy,
         ce_grad=ce_grad_vector,
@@ -390,7 +394,11 @@ def compute_total_loss(
     objective_ce_weight=None,
     objective_kd_weight=None,
 ):
-    base_kd_loss = (1.0 - trainer.alpha) * distillation_loss
+    base_kd_loss = (
+        (1.0 - trainer.alpha) * distillation_loss
+        if trainer.objective_conflict_strategy == "fixed"
+        else distillation_loss
+    )
     if objective_ce_weight is None or objective_kd_weight is None:
         loss = ce_loss + base_kd_loss
     else:

@@ -20,20 +20,21 @@
 \addvspace {10\p@ }
 \contentsline {figure}{\numberline {3.1}{\ignorespaces Overview of GRACE.}}{20}{figure.caption.19}%
 \contentsline {figure}{\numberline {3.2}{\ignorespaces ULD behavior in GRACE.}}{23}{figure.caption.20}%
-\contentsline {figure}{\numberline {3.3}{\ignorespaces Gate, sparsification, and optional balance update in GRACE.}}{24}{figure.caption.21}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Gate, sparsification, and optional balance update in GRACE.}}{25}{figure.caption.21}%
 \contentsline {figure}{\numberline {3.4}{\ignorespaces Bias-feedback behavior in GRACE.}}{25}{figure.caption.22}%
-\contentsline {figure}{\numberline {3.5}{\ignorespaces Routing dynamics in GRACE.}}{25}{figure.caption.23}%
-\contentsline {figure}{\numberline {3.6}{\ignorespaces Warmup schedule in GRACE.}}{27}{figure.caption.24}%
-\contentsline {figure}{\numberline {3.7}{\ignorespaces Gradient-alignment intuition in GRACE.}}{28}{figure.caption.25}%
-\contentsline {figure}{\numberline {3.8}{\ignorespaces Alignment cases in GRACE.}}{28}{figure.caption.26}%
-\contentsline {figure}{\numberline {3.9}{\ignorespaces Weight refinement in GRACE.}}{29}{figure.caption.27}%
+\contentsline {figure}{\numberline {3.5}{\ignorespaces Routing dynamics in GRACE.}}{26}{figure.caption.23}%
+\contentsline {figure}{\numberline {3.6}{\ignorespaces Directional view of gradient descent.}}{27}{figure.caption.24}%
+\contentsline {figure}{\numberline {3.7}{\ignorespaces Warmup schedule in GRACE.}}{28}{figure.caption.25}%
+\contentsline {figure}{\numberline {3.8}{\ignorespaces GRACE score refinement in GRACE{}.}}{29}{figure.caption.26}%
+\contentsline {figure}{\numberline {3.9}{\ignorespaces GRACE weighting cases.}}{30}{figure.caption.27}%
+\contentsline {figure}{\numberline {3.10}{\ignorespaces Weight refinement in GRACE.}}{30}{figure.caption.28}%
+\contentsline {figure}{\numberline {3.11}{\ignorespaces Sample-specific weighting in GRACE.}}{31}{figure.caption.29}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {4.1}{\ignorespaces Example image for a TextVQA-style question \cite {wikimedia_stop_sign_image}.\relax }}{31}{figure.caption.28}%
-\contentsline {figure}{\numberline {4.2}{\ignorespaces Example document image for a DocVQA-style question \cite {wikimedia_receipt_swiss_image}.\relax }}{32}{figure.caption.29}%
-\contentsline {figure}{\numberline {4.3}{\ignorespaces Example chart image for a ChartQA-style question \cite {wikimedia_bar_chart_image}.\relax }}{32}{figure.caption.30}%
-\contentsline {figure}{\numberline {4.4}{\ignorespaces Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training, and kept in a bounded local cache with oldest-file eviction.\relax }}{34}{figure.caption.32}%
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Example image for a TextVQA-style question \cite {wikimedia_stop_sign_image}.\relax }}{33}{figure.caption.30}%
+\contentsline {figure}{\numberline {4.2}{\ignorespaces Example document image for a DocVQA-style question \cite {wikimedia_receipt_swiss_image}.\relax }}{34}{figure.caption.31}%
+\contentsline {figure}{\numberline {4.3}{\ignorespaces Example chart image for a ChartQA-style question \cite {wikimedia_bar_chart_image}.\relax }}{34}{figure.caption.32}%
+\contentsline {figure}{\numberline {4.4}{\ignorespaces Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training, and kept in a bounded local cache with oldest-file eviction.\relax }}{36}{figure.caption.34}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {5.1}{\ignorespaces Final-layer CKA heatmaps across two benchmarks.}}{44}{figure.caption.40}%
-\contentsline {figure}{\numberline {5.2}{\ignorespaces Vision-layer CKA heatmaps across two benchmarks.}}{45}{figure.caption.41}%
-\contentsline {figure}{\numberline {5.3}{\ignorespaces High CKA does not by itself imply that layer-wise transfer will close the downstream performance gap. Representation similarity and task transfer are related, but not equivalent.\relax }}{46}{figure.caption.42}%
-\addvspace {10\p@ }
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Final-layer CKA heatmaps across two benchmarks.}}{47}{figure.caption.42}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces Vision-layer CKA heatmaps across two benchmarks.}}{48}{figure.caption.43}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces High CKA does not by itself imply that layer-wise transfer will close the downstream performance gap. Representation similarity and task transfer are related, but not equivalent.\relax }}{49}{figure.caption.44}%

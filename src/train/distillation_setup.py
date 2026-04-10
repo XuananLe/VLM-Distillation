@@ -295,10 +295,14 @@ def log_distillation_setup(
         )
     )
     rank0_print(f"Objective Conflict Strategy: {distillation_args.objective_conflict_strategy}")
-    rank0_print("Objective: CE + (1 - alpha) * KD")
+    if distillation_args.objective_conflict_strategy == "fixed":
+        rank0_print("Objective: CE + (1 - alpha) * KD")
+        rank0_print(f"KD Weight: {1.0 - distillation_args.alpha}")
+    else:
+        rank0_print("Objective: dynamic CE/KD combination with full KD loss")
+        rank0_print("KD Weight: conflict-strategy dependent")
     rank0_print(f"KD Function: {distillation_args.distillation_loss}")
     rank0_print(f"Alpha: {distillation_args.alpha}")
-    rank0_print(f"KD Weight: {1.0 - distillation_args.alpha}")
     rank0_print("CE Weight: 1.0")
     resolved_student_temperature = (
         distillation_args.temperature

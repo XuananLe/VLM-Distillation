@@ -213,6 +213,21 @@ Xiaohan Xu, Ming Li, Chongyang Tao, Tao Shen, Reynold Cheng, Jinyang Li, Can
   Xu, Dacheng Tao, and Tianyi Zhou.
 \newblock A survey on knowledge distillation of large language models, 2024.
 
+\bibitem{wang2021blackboxkd}
+Zi~Wang.
+\newblock Zero-shot knowledge distillation from a decision-based black-box
+  model.
+\newblock In {\em Proceedings of the 38th International Conference on Machine
+  Learning}, volume 139 of {\em Proceedings of Machine Learning Research},
+  pages 10675--10685. PMLR, 2021.
+
+\bibitem{ma2024blackboxkd}
+Wenhao Ma, Jie Li, Bo~Han, and Xiaojuan Qi.
+\newblock B2kd: A unified framework for knowledge distillation from black-box
+  models.
+\newblock In {\em Proceedings of the IEEE/CVF Conference on Computer Vision and
+  Pattern Recognition (CVPR)}, pages 15313--15323, 2024.
+
 \bibitem{dasgupta2025improving}
 Sayantan Dasgupta and Trevor Cohn.
 \newblock Improving language model distillation through hidden state matching.
@@ -242,6 +257,13 @@ Shiyao Li, Yingchun Hu, Xuefei Ning, Xihui Liu, Ke~Hong, Xiaotao Jia, Xiuhong
 \newblock Mbq: Modality-balanced quantization for large vision-language models.
 \newblock In {\em Proceedings of the IEEE/CVF Conference on Computer Vision and
   Pattern Recognition}, pages 4167--4177, 2025.
+
+\bibitem{fang2021compressingvlm}
+Zhiyuan Fang, Jianfeng Wang, Xiaowei Hu, Lijuan Wang, Yezhou Yang, and Zicheng
+  Liu.
+\newblock Compressing visual-linguistic model via knowledge distillation.
+\newblock In {\em Proceedings of the IEEE/CVF International Conference on
+  Computer Vision (ICCV)}, pages 1428--1438, 2021.
 
 \bibitem{yang2024clipcid}
 Kaicheng Yang, Tiancheng Gu, Xiang An, Haiqiang Jiang, Xiangzi Dai, Ziyong
@@ -302,6 +324,12 @@ Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le,
 \newblock File: Deepseek moe and mla (deepseek-v2).svg.
 \newblock Wikimedia Commons, 2025.
 \newblock MIT License. Accessed: 2026-03-06.
+
+\bibitem{wikimedia_gradient_descent_image}
+Zerodamage.
+\newblock File: Gradient descent.svg.
+\newblock Wikimedia Commons, 2012.
+\newblock Public domain. Accessed: 2026-03-31.
 
 \bibitem{duan2024vlmevalkit}
 Haodong Duan, Xinyu Fang, Junming Yang, et~al.

@@ -223,7 +223,10 @@ def log_distillation_trainer_setup(
     print(f"  - Skip student EOS: {skip_student_eos}")
     print(f"  - Skip teacher EOS: {skip_teacher_eos}")
     print(f"  - Alpha: {alpha}")
-    print(f"  - KD weight: {1.0 - alpha}")
+    if objective_conflict_strategy == "fixed":
+        print(f"  - KD weight: {1.0 - alpha}")
+    else:
+        print("  - KD weight: conflict-strategy dependent")
     print("  - CE weight: 1.0")
     if teacher_gate is not None:
         print(f"  - Teacher gate balance alpha: {teacher_gate_balance_alpha}")
@@ -264,7 +267,10 @@ def log_distillation_trainer_setup(
             "  - Objective conflict grid steps: "
             f"{objective_conflict_cagrad_grid_steps}"
         )
-    print("  - Loss weighting: CE + (1 - alpha) * KD")
+    if objective_conflict_strategy == "fixed":
+        print("  - Loss weighting: CE + (1 - alpha) * KD")
+    else:
+        print("  - Loss weighting: objective-conflict strategy with full KD")
 
 
 __all__ = [

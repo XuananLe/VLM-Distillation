@@ -198,9 +198,17 @@ Student/teacher temperature & \(\tau_s=\tau_t=1.0\) \\
 KD weight & \(\alpha=0.5\) \\
 Top-\(k\) routing & \(k=2\) \\
 Capacity factor & \(\phi=1.25\) \\
+Teacher-gate temperature & 1.5 \\
+Teacher-gate noise std & 0.01 \\
 Balance weight & \(\lambda_{bal}=0.01\) \\
+Gate entropy weight & \(\lambda_{ent}=10^{-3}\) \\
+Router \(z\)-loss weight & \(\lambda_{z}=10^{-3}\) \\
 Bias-update rate & \(\eta_b=5\times 10^{-4}\) \\
-Alignment warmup ratio & \(\rho=0.2\) \\
+Hard-routing warmup ratio & \(\rho_h=0.2\) \\
+GRACE warmup ratio & \(\rho_g=0.2\) \\
+GRACE softmax beta & \(\beta=20\) \\
+GRACE blend exponent & \(\lambda=0.5\) \\
+Score-spread fallback threshold & \(\epsilon=0.01\) \\
 Alignment threshold & \(\delta=-0.02\) \\
 Seed & N/A \\
 Image resolution / visual token budget & N/A \\
@@ -273,8 +281,11 @@ For the trainable competitor methods, we use a shared supervised term
 \(\mathcal{L}_{CE}\) and vary only the distillation component. A convenient
 generic form is
 \begin{equation}
-\mathcal{L}_{\text{base}}=(1-\alpha)\mathcal{L}_{CE}+\alpha \mathcal{L}_{KD}.
+\mathcal{L}_{\text{base}}=(1-\gamma)\mathcal{L}_{CE}+\gamma \mathcal{L}_{KD},
 \end{equation}
+where \(\gamma\) is a generic baseline KD mixing coefficient. We keep
+\(\alpha\) for the current repository training script in
+Table~\ref{tab:training-configuration}.
 
 \noindent
 The compared objectives are:
@@ -297,7 +308,7 @@ m=\tfrac{1}{2}(p_s+p_t).
 \item \textbf{HSM-CKA}.\par
 This baseline adds linear-CKA hidden-state matching to same-family logits KD \cite{dasgupta2025improving,kornblith2019similarityrepresentations}:
 \[
-\mathcal{L}=(1-\alpha)\mathcal{L}_{CE}+\alpha \mathcal{L}_{\text{Fwd-KL}}+\lambda_H\!\left(1-\sqrt{\mathrm{CKA}(H_s,H_t)}\right).
+\mathcal{L}=(1-\gamma)\mathcal{L}_{CE}+\gamma \mathcal{L}_{\text{Fwd-KL}}+\lambda_H\!\left(1-\sqrt{\mathrm{CKA}(H_s,H_t)}\right).
 \]
 \item \textbf{ULD}: this is the main cross-family logits baseline. Rather than aligning token IDs directly, it sorts the probability mass and compares ranked distributions, which makes it suitable when the teacher and student have different vocabularies or tokenizers \cite{boizard2024towardscrosstokenizerdistillation}:
 \[
@@ -306,8 +317,8 @@ This baseline adds linear-CKA hidden-state matching to same-family logits KD \ci
 \item \textbf{Layer-wise hidden-state loss}: this baseline extends hidden-state matching across multiple intermediate layers and tests whether explicit internal alignment is sufficient in the heterogeneous setting. It keeps the logits objective but adds representation terms over selected layers \cite{dasgupta2025improving}:
 \[
 \mathcal{L}
-=(1-\alpha)\mathcal{L}_{CE}
-+\alpha \mathcal{L}_{KD}
+=(1-\gamma)\mathcal{L}_{CE}
++\gamma \mathcal{L}_{KD}
 +\lambda_H \sum_{\ell}\left(1-\sqrt{\mathrm{CKA}(H_s^{(\ell)},H_t^{(\ell)})}\right).
 \]
 \item \textbf{Uniform multi-teacher}: this baseline uses the same heterogeneous teacher pool as \methodname{}, but removes all adaptivity. Each teacher contributes equally, so it tests whether teacher diversity alone is sufficient without routing or selection \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}:
@@ -323,7 +334,7 @@ w_i=\frac{m_i}{\sum_j m_j},
 then uses
 \[
 \mathcal{L}_{KD}=\sum_{i=1}^{M} w_i \mathcal{L}_{KD}^{(i)}, \qquad
-\mathcal{L}=(1-\alpha)\mathcal{L}_{CE}+\alpha\mathcal{L}_{KD}+\lambda_{\text{pol}}\mathcal{L}_{\text{pol}},
+\mathcal{L}=(1-\gamma)\mathcal{L}_{CE}+\gamma\mathcal{L}_{KD}+\lambda_{\text{pol}}\mathcal{L}_{\text{pol}},
 \]
 with a policy term \(\mathcal{L}_{\text{pol}}=-A\log p(m\mid \pi)\) and a fallback to the highest-probability teacher when \(\sum_i m_i=0\).
 \end{itemize}

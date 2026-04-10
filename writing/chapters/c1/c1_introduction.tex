@@ -81,10 +81,12 @@ Figure~\ref{fig:intro-closed-open-gap} sharpens this point. On these three
 benchmarks, the best open-source models are already close to the best
 proprietary models, and in two cases they are ahead.
 
-This makes white-box distillation especially attractive. Closed-source systems
-usually expose only API outputs, while open-source teachers expose logits,
-tokenizers, and hidden states. That extra access enables objectives such as ULD
-and hidden-state matching, which are not available in a pure black-box setting
+This makes white-box distillation especially attractive. In black-box KD, the
+teacher is treated as an inaccessible service and the student can rely only on
+returned predictions, whereas white-box settings permit direct use of logits
+and intermediate states \cite{wang2021blackboxkd,ma2024blackboxkd}. That extra
+access enables objectives such as ULD and hidden-state matching, which are not
+available in a pure black-box setting
 \cite{boizard2024towardscrosstokenizerdistillation,dasgupta2025improving,xu2024surveyknowledgedistillationlarge}.
 
 Another major competing compression path is quantization. Unlike distillation,
@@ -120,7 +122,12 @@ This observation is exactly why we focus on \textbf{SmolVLM-500M} and
 real, yet strong enough that improvements from better distillation remain
 meaningful \cite{marafioti2025smolvlm}.
 
-In the multimodal setting, recent work has shown that distillation can transfer reasoning or representation knowledge into more efficient VLMs \cite{hu2024visualprogramdistillation,yang2024clipcid}. This is especially relevant on text-rich benchmarks such as TextVQA, DocVQA, and ChartQA \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+In the multimodal setting, recent work has shown that distillation can transfer
+reasoning or representation knowledge into more efficient VLMs
+\cite{fang2021compressingvlm,hu2024visualprogramdistillation,yang2024clipcid}.
+This is especially relevant on text-rich benchmarks such as TextVQA, DocVQA,
+and ChartQA
+\cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
 \begin{figure}[htbp]
     \centering
@@ -166,7 +173,7 @@ This thesis addresses these requirements with \methodfull{} (\methodname).
 
 \methodname{} is a selective multi-teacher distillation framework.
 
-It uses tokenizer-agnostic Universal Logit Distillation (ULD), a deep student-conditioned teacher gate, top-\(k\) capacity-aware sparse routing, and gradient-alignment filtering with a least-negative fallback. The framework also supports balancing and expert-bias updates as optional routing regularizers \cite{boizard2024towardscrosstokenizerdistillation,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice,zhu2021studentcustomized}.
+It uses tokenizer-agnostic Universal Logit Distillation (ULD), a deep student-conditioned teacher gate, top-\(k\) capacity-aware sparse routing, and gradient-based GRACE score refinement. The framework also supports routing fallback after capacity pruning, uniform fallback when score spread is too small, and optional balancing and expert-bias updates \cite{boizard2024towardscrosstokenizerdistillation,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice,zhu2021studentcustomized}.
 
 We evaluate it on text-rich multimodal understanding tasks such as TextVQA, DocVQA, and ChartQA \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
@@ -181,18 +188,8 @@ Accordingly, this thesis has three main objectives:
 The main contributions are:
 \begin{enumerate}
 \item We formulate a practical multi-teacher distillation setting for compact VLMs with heterogeneous teacher vocabularies on text-rich multimodal benchmarks.
-\item We propose \methodfull{} (\methodname{}), a unified distillation framework for heterogeneous teachers. It combines Universal Logit Distillation, a deep student-conditioned routing gate, top-\(k\) capacity-aware sparse assignment, and gradient-alignment filtering, while also supporting optional balancing and expert-bias updates.
+\item We propose \methodfull{} (\methodname{}), a unified distillation framework for heterogeneous teachers. It uses Universal Logit Distillation, a deep student-conditioned routing gate, top-\(k\) capacity-aware sparse assignment, and GRACE score refinement, while also supporting optional balancing and expert-bias updates.
 \item We provide empirical evidence on TextVQA, DocVQA, and ChartQA that this design yields stronger transfer than standard fine-tuning and conventional logits-based distillation baselines for compact VLM students.
 \item We analyze representation similarity and layer-wise transfer, showing why high internal similarity alone is insufficient and why naive layer matching is a weak distillation bias in this setting.
 \item We complement the headline comparison with routing and ablation analysis, clarifying how selective teacher assignment contributes to the final gains.
-\end{enumerate}
-
-\section{Thesis Outline}
-The remainder of this thesis is organized as follows:
-\begin{enumerate}
-\item Chapter~\ref{chap:preliminaries} reviews the background on Transformers, VLMs, knowledge distillation, Universal Logit Distillation, sparse routing, gradient alignment, and CKA.
-\item Chapter~\ref{chap:proposed-method} presents \methodname, including the tokenizer-agnostic KD objective, deep teacher gate, top-\(k\) capacity-aware routing, alignment filtering, and the optional routing regularizers used in the full framework.
-\item Chapter~\ref{chap:evaluation-methodology} describes the experimental setup, datasets, evaluation metrics and compared methods.
-\item Chapter~\ref{chap:experiment-results} reports the baseline results, comparison results, ablation studies and discussion.
-\item The conclusion summarizes the main findings, highlights the limitations of the current study, and outlines directions for future work.
 \end{enumerate}

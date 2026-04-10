@@ -131,7 +131,7 @@ app = modal.App(
 )
 
 
-@app.function(gpu = "A100-40GB", timeout=60 * 60 * 24)
+@app.function(gpu = "L4", timeout=60 * 60 * 24)
 def exec_cmd(cmd: str) -> None:
     cmd = cmd.strip()
     if not cmd:
@@ -187,8 +187,71 @@ def exec_cmd(cmd: str) -> None:
 
 @app.local_entrypoint()
 def run(
-    cmd: str = """
-    CUDA_VISIBLE_DEVICES=0 cd /root/VLM-Distillation/src/eval && python run.py --data DocVQA_VAL --model SmolVLM-500M-Grace-Checkpoint-600 --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-600-Batch-Size-5
+cmd = r"""
+    cd /root/VLM-Distillation/src/eval
+
+    CUDA_VISIBLE_DEVICES=0 python run.py \
+    --data DocVQA_VAL \
+    --model SmolVLM-500M-Grace-Checkpoint-1482 \
+    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-1482 \
+    --smolvlm-runtime fast &
+
+    CUDA_VISIBLE_DEVICES=0 python run.py \
+    --data DocVQA_VAL \
+    --model SmolVLM-500M-Grace-Checkpoint-1350 \
+    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-1350 \
+    --smolvlm-runtime fast &
+
+    CUDA_VISIBLE_DEVICES=0 python run.py \
+    --data DocVQA_VAL \
+    --model SmolVLM-500M-Grace-Checkpoint-1200 \
+    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-1200 \
+    --smolvlm-runtime fast &
+
+    CUDA_VISIBLE_DEVICES=0 python run.py \
+    --data DocVQA_VAL \
+    --model SmolVLM-500M-Grace-Checkpoint-1050 \
+    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-1050 \
+    --smolvlm-runtime fast &
+
+    CUDA_VISIBLE_DEVICES=0 python run.py \
+    --data DocVQA_VAL \
+    --model SmolVLM-500M-Grace-Checkpoint-900 \
+    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-900 \
+    --smolvlm-runtime fast &
+
+    CUDA_VISIBLE_DEVICES=0 python run.py \
+    --data DocVQA_VAL \
+    --model SmolVLM-500M-Grace-Checkpoint-750 \
+    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-750 \
+    --smolvlm-runtime fast &
+
+    CUDA_VISIBLE_DEVICES=0 python run.py \
+    --data DocVQA_VAL \
+    --model SmolVLM-500M-Grace-Checkpoint-600 \
+    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-600 \
+    --smolvlm-runtime fast &   
+
+    CUDA_VISIBLE_DEVICES=0 python run.py \
+    --data DocVQA_VAL \
+    --model SmolVLM-500M-Grace-Checkpoint-450 \
+    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-450 \
+    --smolvlm-runtime fast &
+    
+
+    CUDA_VISIBLE_DEVICES=0 python run.py \
+    --data DocVQA_VAL \
+    --model SmolVLM-500M-Grace-Checkpoint-300 \
+    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-300 \
+    --smolvlm-runtime fast &
+
+    CUDA_VISIBLE_DEVICES=0 python run.py \
+    --data DocVQA_VAL \
+    --model SmolVLM-500M-Grace-Checkpoint-150 \
+    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-150 \
+    --smolvlm-runtime fast &
+
+    wait
     """
 ):
     exec_cmd.remote(cmd)

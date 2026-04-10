@@ -3,10 +3,6 @@
 export PYTHONPATH=src:$PYTHONPATH
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-# W&B resume support
-# Example:
-#   WANDB_RESUME_RUN_PATH=lexuanan18102004/huggingface/ou3199lh \
-#   bash scripts/train/distill_multi_teachers.sh
 WANDB_RESUME_RUN_PATH="${WANDB_RESUME_RUN_PATH:-}"
 WANDB_RESUME_MODE="${WANDB_RESUME_MODE:-allow}"
 if [[ -n "${WANDB_RESUME_RUN_PATH}" ]]; then
@@ -25,7 +21,9 @@ fi
 # Models
 TEACHER_MODEL_1="Qwen/Qwen2.5-VL-3B-Instruct"
 TEACHER_MODEL_2="google/gemma-3-4b-it"
-TEACHER_MODEL_IDS="[\"${TEACHER_MODEL_1}\", \"${TEACHER_MODEL_2}\"]"
+TEACHER_MODEL_3="OpenGVLab/InternVL2-1B"
+TEACHER_MODEL_4="Qwen/Qwen2-VL-2B-Instruct"
+TEACHER_MODEL_IDS="[\"${TEACHER_MODEL_1}\", \"${TEACHER_MODEL_2}\", \"${TEACHER_MODEL_3}\", \"${TEACHER_MODEL_4}\"]"
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 
 # Distillation strategy
@@ -44,7 +42,7 @@ TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-$TEMPERATURE}"
 ALPHA=0.5
 
 # Router-based weighting knobs
-TEACHER_GATE_TOP_K="${TEACHER_GATE_TOP_K:-2}"
+TEACHER_GATE_TOP_K="${TEACHER_GATE_TOP_K:-4}"
 TEACHER_GATE_BALANCE_ALPHA="${TEACHER_GATE_BALANCE_ALPHA:-0.01}"
 TEACHER_GATE_CAPACITY_FACTOR="${TEACHER_GATE_CAPACITY_FACTOR:-1.25}"
 TEACHER_GATE_BIAS_UPDATE_RATE="${TEACHER_GATE_BIAS_UPDATE_RATE:-5e-4}"
@@ -84,18 +82,22 @@ else
 fi
 
 # Dataset and runtime
-NUM_TEACHERS=2
+NUM_TEACHERS=4
 DATASET_NAME="docvqa"
+NUM_TRAIN_EPOCHS="${NUM_TRAIN_EPOCHS:-2}"
 PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-20}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 LOGGING_STEPS="${LOGGING_STEPS:-5}"
+AUTO_STOP_VAST_INSTANCE="${AUTO_STOP_VAST_INSTANCE:-1}"
 
 # Naming
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME_1="${TEACHER_MODEL_1##*/}"
 TEACHER_NAME_2="${TEACHER_MODEL_2##*/}"
+TEACHER_NAME_3="${TEACHER_MODEL_3##*/}"
+TEACHER_NAME_4="${TEACHER_MODEL_4##*/}"
 RUN_TAG="${RUN_TAG:-$(date +%Y%m%d_%H%M)}"
-OUTPUT_DIR="/output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
+OUTPUT_DIR="/output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${TEACHER_NAME_3}_${TEACHER_NAME_4}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
 
 EXTRA_ARGS=(
     --teacher_logits_cache_dir "$TEACHER_LOGITS_CACHE_DIR"
@@ -103,6 +105,39 @@ EXTRA_ARGS=(
 if [[ -n "${TEACHER_LOGITS_REMOTE_URI}" ]]; then
     EXTRA_ARGS+=(--teacher_logits_remote_uri "$TEACHER_LOGITS_REMOTE_URI")
 fi
+
+stop_vast_instance() {
+    if [[ "${AUTO_STOP_VAST_INSTANCE}" == "0" ]]; then
+        return 0
+    fi
+
+    local vast_instance_id="${VAST_INSTANCE_ID:-${CONTAINER_ID:-${VAST_CONTAINERLABEL:-}}}"
+    vast_instance_id="${vast_instance_id#C.}"
+
+    if [[ -z "${vast_instance_id}" ]]; then
+        echo "Skipping Vast.ai stop: instance id not found in VAST_CONTAINERLABEL/CONTAINER_ID/VAST_INSTANCE_ID." >&2
+        return 0
+    fi
+
+    if ! command -v vastai >/dev/null 2>&1; then
+        echo "Installing Vast.ai CLI before stopping instance ${vast_instance_id}..."
+        if ! python -m pip install --disable-pip-version-check -q vastai; then
+            echo "Failed to install Vast.ai CLI; instance ${vast_instance_id} was not stopped." >&2
+            return 1
+        fi
+    fi
+
+    local stop_args=()
+    if [[ -n "${CONTAINER_API_KEY:-}" ]]; then
+        stop_args+=(--api-key "${CONTAINER_API_KEY}")
+    fi
+
+    echo "Stopping Vast.ai instance ${vast_instance_id}..."
+    if ! vastai stop instance "${stop_args[@]}" "${vast_instance_id}"; then
+        echo "Failed to stop Vast.ai instance ${vast_instance_id}." >&2
+        return 1
+    fi
+}
 
 deepspeed src/train/train_distillation.py \
     --deepspeed scripts/deepspeed/zero2.json \
@@ -144,7 +179,7 @@ deepspeed src/train/train_distillation.py \
     --reinforced_selection_policy_alpha "$REINFORCED_SELECTION_POLICY_ALPHA" \
     --gradient_weight_cap "$GRADIENT_WEIGHT_CAP" \
     --gradient_weight_steps "$GRADIENT_WEIGHT_STEPS" \
-    --num_train_epochs 1 \
+    --num_train_epochs "$NUM_TRAIN_EPOCHS" \
     --per_device_train_batch_size "$PER_DEVICE_TRAIN_BATCH_SIZE" \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
     --learning_rate 1e-5 \
@@ -168,3 +203,7 @@ deepspeed src/train/train_distillation.py \
     --remove_unused_columns False \
     --report_to wandb \
     "${EXTRA_ARGS[@]}"
+
+TRAIN_EXIT_CODE=$?
+stop_vast_instance
+exit "${TRAIN_EXIT_CODE}"

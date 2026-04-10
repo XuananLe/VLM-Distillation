@@ -133,7 +133,8 @@ A generic distillation objective can be written as
 \lambda_{KD}\mathcal{L}_{KD},
 \end{equation}
 where \(\mathcal{L}_{KD}\) is a teacher-guided loss. In later chapters, GRACE
-uses the specific convex-mixing form \((1-\alpha)\mathcal{L}_{CE}+\alpha\mathcal{L}_{KD}\).
+instantiates this template with a routed ULD term plus small router
+regularizers.
 
 In token-level distillation, the teacher and student are compared on their output
 logits rather than only on hard labels. This allows the student to learn richer
@@ -326,8 +327,9 @@ the router so that different teachers remain usable during training.
 
 In \methodname, the router is implemented as a deep student-conditioned gate on
 top of pooled student hidden states. It is followed by softmax weights,
-top-\(k\) sparsification, and capacity filtering. The full framework also
-supports optional balancing and expert-bias updates.
+top-\(k\) sparsification, and capacity filtering, with a short dense warmup
+before sparse routing is activated. The full framework also supports optional
+balancing, entropy regularization, and expert-bias updates.
 
 When enabled, the expert bias term nudges the router toward under-used teachers
 in subsequent batches.
@@ -352,14 +354,13 @@ This makes the routing stage closer to sparse-expert training than to a static t
 
 Gradient similarity has been used in distillation as a signal for deciding
 whether teacher supervision helps or conflicts with the student objective
-\cite{zhu2021studentcustomized}.
-
-The high-level idea is simple. If the teacher-induced update points in a
+\cite{zhu2021studentcustomized}. If the teacher-induced update points in a
 similar direction to the supervised update, the teacher is more likely to be
 helpful. If the two directions conflict, teacher supervision may hurt learning
 on that sample \cite{zhu2021studentcustomized}.
 
-In this thesis, \methodname{} uses this idea only after routing. The
-GRACE-specific formulation of gradient proxies, cosine alignment, thresholding,
-and fallback is presented in Chapter~\ref{chap:proposed-method}, where it is
-part of the method rather than general background.
+In \methodname{}, this idea is applied only after routing. The router first
+decides which teachers remain available, and Chapter~\ref{chap:proposed-method}
+then refines those routed teachers with continuous gradient-based scores. The
+GRACE-specific details, including score smoothing, score softmax, router-score
+blending, and uniform fallback, are therefore deferred to Chapter~\ref{chap:proposed-method}.
