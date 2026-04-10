@@ -166,6 +166,8 @@ class SupervisedDataset(Dataset):
             data_dict[f"{prefix}_attention_mask"] = teacher_data["attention_mask"]
             data_dict[f"{prefix}_pixel_values"] = teacher_data["pixel_values"]
             data_dict[f"{prefix}_pixel_attention_mask"] = teacher_data["pixel_attention_mask"]
+            if teacher_data.get("image_sizes") is not None:
+                data_dict[f"{prefix}_image_sizes"] = teacher_data["image_sizes"]
             if teacher_data.get("image_grid_thw") is not None:
                 data_dict[f"{prefix}_image_grid_thw"] = teacher_data["image_grid_thw"]
             if teacher_data.get("image_flags") is not None:

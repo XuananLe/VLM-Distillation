@@ -117,6 +117,13 @@ class DataCollatorForSupervisedDataset(object):
                 dim=0,
             )
 
+        image_sizes_key = f"{prefix}_image_sizes"
+        if image_sizes_key in examples[0]:
+            batch_dict[image_sizes_key] = torch.cat(
+                [e[image_sizes_key] for e in examples],
+                dim=0,
+            )
+
         image_flags_key = f"{prefix}_image_flags"
         if image_flags_key in examples[0]:
             batch_dict[image_flags_key] = torch.cat(
