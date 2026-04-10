@@ -13,6 +13,9 @@ In this thesis, \textit{multimodal understanding} refers to practical capabiliti
     \label{fig:intro-vlm-pretraining}
 \end{figure}
 
+Figure~\ref{fig:intro-vlm-pretraining} illustrates the basic vision-text
+pretraining pattern that underlies many modern VLM families.
+
 However, high-performing VLMs are often large and expensive in memory, latency, and deployment cost \cite{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,chu2023mobilevlm,zhou2024tinyllava}. This limits their use in resource-constrained settings.
 
 This pressure is consistent with scaling-law results. Kaplan et al. show that
@@ -66,6 +69,11 @@ The issue is especially important for text-centric tasks such as scene-text read
     \label{fig:intro-small-vlm-tradeoff}
 \end{figure}
 
+Figures~\ref{fig:intro-scaling-laws}, \ref{fig:intro-smolvlm-memory},
+\ref{fig:intro-compact-vlm-scale}, and \ref{fig:intro-small-vlm-tradeoff}
+together motivate the same conclusion: strong teachers benefit from scale, but
+the deployment target is still a much smaller student.
+
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\linewidth]{figures/intro_open_vs_closed_gap.png}
@@ -95,27 +103,10 @@ precision. It can cut memory and improve inference speed substantially, so it
 is a serious practical alternative to KD
 \cite{frantar2022gptq,xiao2023smoothquant,lin2024awq}.
 
-The trade-off is not free. Low-bit deployment often needs calibration,
-quantization-aware packing, or custom kernels. In VLMs, the vision and
-language branches are not equally sensitive to quantization noise, so naive
-quantization can degrade task accuracy \cite{lin2024awq,li2025mbq}.
-
-\begin{figure}[htbp]
-    \centering
-    \includegraphics[width=0.84\linewidth]{figures/intro_quantization_drop_mbq.png}
-    \caption[Large accuracy drop from naive low-bit VLM quantization.]{SEED accuracy for LLaVA-onevision-7B under naive low-bit quantization baselines, reconstructed from Table 4 of MBQ. The W3A16 RTN baseline drops to 10.4, while other generic low-bit baselines also remain far below the full-precision result reported in the paper \cite{li2025mbq}.}
-    \label{fig:intro-mbq-quantization-drop}
-\end{figure}
-
-A stronger published example appears in the MBQ paper. On LLaVA-onevision-7B,
-the SEED score drops from 71.1 in FP16 to 10.4 under naive W3A16 RTN
-quantization, which is a 60.7-point absolute loss. Even stronger VLM-aware
-quantization methods are motivated by exactly this gap \cite{li2025mbq}.
-
-For this reason, distillation remains attractive in our setting. We want a
-compact student that is better \emph{before} any later deployment tricks are
-applied. Quantization can still be combined with the final student, but it does
-not replace the need for better knowledge transfer during training.
+In VLMs, however, naive low-bit quantization can hurt multimodal accuracy
+\cite{lin2024awq,li2025mbq}. For this reason, we treat quantization as a
+complementary deployment step rather than a substitute for better transfer
+during training.
 
 This observation is exactly why we focus on \textbf{SmolVLM-500M} and
 \textbf{SmolVLM-256M}. They are small enough to make the efficiency constraint
@@ -135,6 +126,10 @@ and ChartQA
     \caption[Teacher-student knowledge distillation.]{Knowledge distillation transfers information from a teacher model to a smaller student model \cite{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}.}
     \label{fig:intro-knowledge-distillation}
 \end{figure}
+
+Figure~\ref{fig:intro-knowledge-distillation} summarizes the teacher-student
+transfer pattern that this thesis extends to the heterogeneous multi-teacher
+setting.
 
 Since no single teacher excels across all multimodal tasks, \textit{multi-teacher distillation} can provide richer supervision than a single-teacher pipeline \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
 

@@ -179,6 +179,7 @@ class Qwen2VLChat(Qwen2VLPromptMixin, BaseModel):
     def __init__(
         self,
         model_path: str,
+        qwen2vl_runtime: str = "fast",
         min_pixels: int | None = None,
         max_pixels: int | None = None,
         total_pixels: int | None = None,
@@ -247,8 +248,16 @@ class Qwen2VLChat(Qwen2VLPromptMixin, BaseModel):
         self.use_lmdeploy = kwargs.get('use_lmdeploy', False)
         self.limit_mm_per_prompt = VLLM_MAX_IMAGE_INPUT_NUM
         assert self.use_vllm + self.use_lmdeploy <= 1, "You can only set one flag between `use_vllm` and `use_lmdeploy` to True"  # noqa: E501
+        if qwen2vl_runtime not in {"fast", "original"}:
+            raise ValueError(
+                f"Unsupported qwen2vl_runtime={qwen2vl_runtime}. Expected one of: fast, original."
+            )
 
         if self.use_vllm:
+            if qwen2vl_runtime != "fast":
+                warnings.warn(
+                    "qwen2vl_runtime is ignored when use_vllm=True; vLLM uses its own runtime path."
+                )
             from vllm import LLM
             gpu_count = torch.cuda.device_count()
             if gpu_count >= 8:
@@ -278,6 +287,10 @@ class Qwen2VLChat(Qwen2VLPromptMixin, BaseModel):
             )
 
         elif self.use_lmdeploy:
+            if qwen2vl_runtime != "fast":
+                warnings.warn(
+                    "qwen2vl_runtime is ignored when use_lmdeploy=True; lmdeploy uses its own runtime path."
+                )
             from lmdeploy import TurbomindEngineConfig, pipeline, ChatTemplateConfig
             num_gpus = torch.cuda.device_count()
             self.model = pipeline(
@@ -287,9 +300,31 @@ class Qwen2VLChat(Qwen2VLPromptMixin, BaseModel):
             torch.cuda.set_device(0)
             self.device = 'cuda'
         else:
-            self.model = MODEL_CLS.from_pretrained(
-                model_path, torch_dtype='auto', device_map="auto", attn_implementation='flash_attention_2'
-            )
+            if qwen2vl_runtime == "original":
+                self.model = MODEL_CLS.from_pretrained(
+                    model_path,
+                    device_map="auto",
+                )
+            else:
+                if torch.cuda.is_available():
+                    if torch.cuda.is_bf16_supported():
+                        model_dtype = torch.bfloat16
+                    else:
+                        model_dtype = torch.float16
+                    self.model = MODEL_CLS.from_pretrained(
+                        model_path,
+                        torch_dtype=model_dtype,
+                        device_map="auto",
+                        attn_implementation='flash_attention_2',
+                    )
+                else:
+                    warnings.warn(
+                        "Qwen2-VL fast runtime requested without CUDA; falling back to the original load path."
+                    )
+                    self.model = MODEL_CLS.from_pretrained(
+                        model_path,
+                        device_map="auto",
+                    )
             self.model.eval()
 
         torch.cuda.empty_cache()

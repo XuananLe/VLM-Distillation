@@ -66,6 +66,9 @@ This design is closer in spirit to selective gradient-based distillation \cite{z
 
 Here it is adapted to the multi-teacher multimodal setting with token-level logit distillation.
 
+Figure~\ref{fig:grace-overview} gives the full component view before the later
+sections define each stage more precisely.
+
 \begin{figure}[htbp]
     \centering
     \resizebox{\linewidth}{!}{%
@@ -114,33 +117,15 @@ Here it is adapted to the multi-teacher multimodal setting with token-level logi
 
 \subsection{Overall Training Flow}
 
-\begin{algorithm}[H]
-\caption[GRACE training procedure]{\methodfull{} (\methodname)}
-\label{alg:training_procedure}
-\begin{algorithmic}[1]
-\Require mini-batch \(\{(x_b, y_b)\}_{b=1}^B\), frozen teachers \(\{T_i\}_{i=1}^N\)
-\State Run \(S_\theta\) to obtain student logits, hidden states, and \(\mathcal{L}_{CE}\)
-\State Pool student hidden states and compute gate scores
-\State Apply dense routing during hard-routing warmup, otherwise apply top-\(k\), capacity control, and routing fallback
-\For{each routed teacher \(T_i\)}
-    \State Compute teacher logits and the per-teacher KD loss
-\EndFor
-\If{GRACE warmup is not finished}
-    \State Use uniform KD weights over the routed teachers
-\Else
-    \State Compute pooled CE and KD gradient proxies, then GRACE scores
-    \State Smooth scores with EMA and form a score softmax over routed teachers
-    \State Blend the score softmax with routed weights
-    \If{the score spread is below \(\epsilon\)}
-        \State Replace the blended weights with a uniform distribution over routed teachers
-    \EndIf
-\EndIf
-\State Aggregate routed KD, add optional router regularizers, and update \(\theta\)
-\end{algorithmic}
-\end{algorithm}
+The training step follows four stages:
+\begin{enumerate}
+\item Run the student to obtain \((\mathbf{z}_s,\mathbf{H}_s,\mathcal{L}_{CE})\).
+\item Compute gate logits \(\mathbf r\), soft routing weights \(\mathbf p\), then route teachers with \(k_t=N\) during hard-routing warmup and \(k_t=k\) afterward.
+\item Compute routed per-teacher ULD losses \(\mathcal{L}_{KD}^{(b,i)}\). Before GRACE warmup, use uniform weights over the routed set.
+\item After GRACE warmup, compute pooled cosine scores, smooth them with EMA, form \(q_i^{(b)}=\mathrm{softmax}(\beta \hat s_i^{(b)})\), blend \(q_i^{(b)}\) with \(\hat p_i^{(b)}\), and use uniform fallback when the score spread is below \(\epsilon\).
+\end{enumerate}
 
-Algorithm~\ref{alg:training_procedure} gives the full training flow before the
-sections below define each component in detail. In the current main
+The final KD loss is \(\mathcal{L}_{KD}=\sum_b\sum_{i\in\mathcal R_b} w_i^{(b)}\mathcal{L}_{KD}^{(b,i)}\), and the full objective remains the sum of CE, routed KD, and optional router regularizers. In the current main
 configuration reported in Chapter~\ref{chap:evaluation-methodology}, the key
 GRACE-specific hyperparameters are \(k=2\), capacity factor \(\phi=1.25\),
 balance weight \(\lambda_{bal}=0.01\), bias-update rate \(\eta_b=5\times10^{-4}\),
@@ -207,6 +192,9 @@ The per-sample, per-teacher KD loss is the mean over supervised answer tokens:
 ULD is particularly suitable here because it does not require the student and teacher to share the same vocabulary \cite{boizard2024towardscrosstokenizerdistillation}.
 
 This matters in our setting because the teacher pool may contain VLMs from different model families.
+
+Figure~\ref{fig:grace-uld-sort-pad} visualizes the sort-pad-compare pipeline
+behind Equation~\ref{eq:per_teacher_uld}.
 
 \begin{figure}[htbp]
     \centering
@@ -449,6 +437,9 @@ but the GRACE weight update itself uses the continuous scores \(s_i^{(b)}\).
     \label{fig:grace-directional-view}
 \end{figure}
 
+Figure~\ref{fig:grace-directional-view} gives the directional picture behind
+the cosine-based GRACE score.
+
 \subsection{Warmup, Score Smoothing, and Gradient Weights}
 
 GRACE refinement is enabled only after a warmup phase. Let \(\rho_g \in [0,1]\)
@@ -475,6 +466,17 @@ smoothed score is
 (1-\gamma) s_i^{(b)}.
 \end{equation}
 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.96\linewidth]{figures/grace_ema_smoothing.png}
+    \caption[EMA smoothing in GRACE.]{EMA smoothing in \methodname{}. The current batch score is blended with the running teacher score history before the GRACE softmax is applied. This damps batch-level noise and keeps the final gradient weights more stable.}
+    \label{fig:grace-ema-smoothing}
+\end{figure}
+
+Figure~\ref{fig:grace-ema-smoothing} explains why GRACE uses EMA before the
+score softmax: raw per-batch scores are noisy, while smoothed scores produce
+more stable teacher weights.
+
 Let \(\mathcal{R}_b=\{i \mid \hat{p}_i^{(b)} > 0\}\) be the routed teacher set.
 GRACE converts the smoothed scores into a gradient-weight vector
 \begin{equation}
@@ -496,6 +498,9 @@ where \(\beta\) controls how sharply the highest-scoring teacher is preferred.
     \caption[Warmup schedule in GRACE.]{Warmup stages in the current implementation of \methodname{}. The hard-routing warmup starts with all teachers available, then switches to sparse top-\(k\) routing. GRACE warmup starts with uniform KD over the routed teachers, then activates score-based refinement after \(\rho_g T\).}
     \label{fig:grace-warmup}
 \end{figure}
+
+Figure~\ref{fig:grace-warmup} summarizes when hard routing and GRACE weighting
+become active in the current implementation.
 
 \subsection{Router-Gradient Blend and Uniform Fallback}
 
@@ -544,6 +549,10 @@ GRACE scores.
     \label{fig:grace-alignment-behavior}
 \end{figure}
 
+Figure~\ref{fig:grace-alignment-behavior} presents the score update itself,
+while Figure~\ref{fig:grace-alignment-cases} shows the resulting weighting
+patterns.
+
 Figure~\ref{fig:grace-alignment-cases} shows the same rule from a weight-update
 view. The routed gate weights are first proposed by the student-conditioned
 router, then refined by GRACE scores, and finally converted into the
@@ -556,12 +565,19 @@ effective KD weights used in Equation~\ref{eq:sample_kd_average}.
     \label{fig:grace-alignment-cases}
 \end{figure}
 
+Figure~\ref{fig:grace-weight-refinement} compresses the same update into one
+sample-wise path, from gate softmax to routed weights, GRACE softmax, and final
+effective KD weights.
+
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{figures/grace_weight_refinement.png}
     \caption[Weight refinement in GRACE.]{A sample-wise view of weight refinement in \methodname{}. The gate first proposes dense soft weights, routing constraints make them sparse, GRACE converts smoothed gradient scores into a second weight vector, and the final KD weights blend both signals.}
     \label{fig:grace-weight-refinement}
 \end{figure}
+
+Figure~\ref{fig:grace-sample-specificity} then shows the practical implication:
+the same teacher pool can lead to different final weights on different samples.
 
 \begin{figure}[htbp]
     \centering

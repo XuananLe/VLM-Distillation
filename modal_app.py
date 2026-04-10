@@ -252,6 +252,6 @@ cmd = r"""
     --smolvlm-runtime fast &
 
     wait
-    """
+"""
 ):
     exec_cmd.remote(cmd)

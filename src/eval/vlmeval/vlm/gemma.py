@@ -52,7 +52,7 @@ class Gemma3(BaseModel):
     INSTALL_REQ = False
     INTERLEAVE = True
 
-    def __init__(self, model_path='google/gemma-3-4b-it', **kwargs):
+    def __init__(self, model_path='google/gemma-3-4b-it', gemma3_runtime='original', **kwargs):
         logging.info(
             "Please install transformers via \n"
             "pip install git+https://github.com/huggingface/transformers@v4.49.0-Gemma-3"
@@ -66,7 +66,15 @@ class Gemma3(BaseModel):
 
         self.use_vllm = kwargs.get('use_vllm', False)
         self.limit_mm_per_prompt = 24
+        if gemma3_runtime not in {'fast', 'original'}:
+            raise ValueError(
+                f"Unsupported gemma3_runtime={gemma3_runtime}. Expected one of: fast, original."
+            )
         if self.use_vllm:
+            if gemma3_runtime != 'fast':
+                logging.warning(
+                    'gemma3_runtime is ignored when use_vllm=True; vLLM uses its own runtime path.'
+                )
             from vllm import LLM, SamplingParams
             # Set tensor_parallel_size [8, 4, 2, 1] based on the number of available GPUs
             gpu_count = torch.cuda.device_count()
@@ -97,9 +105,18 @@ class Gemma3(BaseModel):
             )
             # export VLLM_WORKER_MULTIPROC_METHOD=spawn
         else:
-            self.model = Gemma3ForConditionalGeneration.from_pretrained(
-                model_path, device_map="cuda", attn_implementation="flash_attention_2", torch_dtype=torch.bfloat16
-            ).eval()
+            if gemma3_runtime == 'original':
+                self.model = Gemma3ForConditionalGeneration.from_pretrained(
+                    model_path,
+                    device_map="auto",
+                ).eval()
+            else:
+                self.model = Gemma3ForConditionalGeneration.from_pretrained(
+                    model_path,
+                    device_map="cuda",
+                    attn_implementation="flash_attention_2",
+                    torch_dtype=torch.bfloat16,
+                ).eval()
             self.device = self.model.device
 
         self.processor = AutoProcessor.from_pretrained(model_path)

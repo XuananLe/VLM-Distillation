@@ -7,7 +7,7 @@ from src.components.forward_utils import forward_with_kwarg_retry
 
 
 REQUIRED_TEACHER_INPUTS = ("input_ids", "attention_mask", "pixel_values")
-OPTIONAL_TEACHER_INPUTS = ("pixel_attention_mask", "image_grid_thw", "image_flags")
+OPTIONAL_TEACHER_INPUTS = ("pixel_attention_mask", "image_grid_thw", "image_flags", "image_sizes")
 
 
 def release_eval_memory() -> None:

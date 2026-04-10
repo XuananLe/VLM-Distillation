@@ -1330,16 +1330,16 @@ idefics_series = {
 smolvlm_series = {
     "SmolVLM-256M": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-256M-Instruct"),
 
-    "SmolVLM-500M-Grace-Checkpoint-1482": partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_InternVL2-1B_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260409_1512/checkpoint-1482"),
-    "SmolVLM-500M-Grace-Checkpoint-1350" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_InternVL2-1B_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260409_1512/checkpoint-1350"),
-    "SmolVLM-500M-Grace-Checkpoint-1200" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_InternVL2-1B_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260409_1512/checkpoint-1200"),
-    "SmolVLM-500M-Grace-Checkpoint-1050" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_InternVL2-1B_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260409_1512/checkpoint-1050"),
-    "SmolVLM-500M-Grace-Checkpoint-900" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_InternVL2-1B_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260409_1512/checkpoint-900"),
-    "SmolVLM-500M-Grace-Checkpoint-750" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_InternVL2-1B_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260409_1512/checkpoint-750"),
-    "SmolVLM-500M-Grace-Checkpoint-600" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_InternVL2-1B_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260409_1512/checkpoint-600"),
-    "SmolVLM-500M-Grace-Checkpoint-450" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_InternVL2-1B_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260409_1512/checkpoint-450"),
-    "SmolVLM-500M-Grace-Checkpoint-300" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_InternVL2-1B_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260409_1512/checkpoint-300"),
-    "SmolVLM-500M-Grace-Checkpoint-150" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_InternVL2-1B_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260409_1512/checkpoint-150"),
+    "SmolVLM-500M-Grace-Checkpoint-1482": partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260410_0908/checkpoint-1482"),
+    "SmolVLM-500M-Grace-Checkpoint-1350" : partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260410_0908/checkpoint-1350"),
+    "SmolVLM-500M-Grace-Checkpoint-1200" : partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260410_0908/checkpoint-1200"),
+    "SmolVLM-500M-Grace-Checkpoint-1050" : partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260410_0908/checkpoint-1050"),
+    "SmolVLM-500M-Grace-Checkpoint-900" : partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260410_0908/checkpoint-900"),
+    "SmolVLM-500M-Grace-Checkpoint-750" : partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260410_0908/checkpoint-750"),
+    "SmolVLM-500M-Grace-Checkpoint-600" : partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260410_0908/checkpoint-600"),
+    "SmolVLM-500M-Grace-Checkpoint-450" : partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260410_0908/checkpoint-450"),
+    "SmolVLM-500M-Grace-Checkpoint-300" : partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260410_0908/checkpoint-300"),
+    "SmolVLM-500M-Grace-Checkpoint-150" : partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_gemma-3-4b-it_Qwen2-VL-2B-Instruct_SmolVLM-500M-Instruct_docvqa_20260410_0908/checkpoint-150"),
 
 
     "SmolVLM": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-Instruct"),

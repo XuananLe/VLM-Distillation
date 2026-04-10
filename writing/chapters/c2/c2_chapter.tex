@@ -54,6 +54,9 @@ used for autoregressive answer generation.
     \label{fig:prelim-vit}
 \end{figure}
 
+Figures~\ref{fig:prelim-transformer-attention} and \ref{fig:prelim-vit} give
+the basic Transformer and ViT blocks that later multimodal systems build on.
+
 \begin{figure}[htbp]
     \centering
     \begin{subfigure}[t]{0.48\linewidth}
@@ -117,6 +120,10 @@ on OCR-sensitive recognition and token-level answer generation.
     \label{fig:prelim-benchmark-examples}
 \end{figure}
 
+Figure~\ref{fig:prelim-vlm-families} summarizes the main architecture families,
+while Figure~\ref{fig:prelim-benchmark-examples} shows the text-rich inputs
+used in this thesis.
+
 \section{Knowledge Distillation}
 
 \subsection{Teacher-Student Learning}
@@ -146,6 +153,9 @@ distributional structure, often called \emph{dark knowledge} \cite{hinton2015dis
     \caption{Generic teacher-student knowledge distillation setup with hard labels and soft targets \cite{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}.}
     \label{fig:prelim-kd-overview}
 \end{figure}
+
+Figure~\ref{fig:prelim-kd-overview} provides the generic teacher-student
+template before Chapter~\ref{chap:proposed-method} specializes it to GRACE.
 
 \subsection{Temperature-Scaled Output Distributions}
 
@@ -229,6 +239,9 @@ The sorted-probability surrogate in ULD is therefore an efficient tokenizer-agno
     \caption{Discrete transport plan matrix in optimal transport, showing how source and target marginals are coupled by a transport matrix \cite{wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}.}
     \label{fig:prelim-optimal-transport}
 \end{figure}
+
+Figure~\ref{fig:prelim-uld-schematic} translates that mass-matching view into
+the simplified ULD pipeline used later in \methodname{}.
 
 \begin{figure}[htbp]
     \centering
@@ -349,6 +362,9 @@ This makes the routing stage closer to sparse-expert training than to a static t
     \caption[Sparse routing and expert specialization in MoE.]{Example of sparse routing and expert specialization in a mixture-of-experts architecture \cite{wikimedia_deepseek_moe_mla_image,deepseekai2024deepseekv2strongeconomicalefficient}. Although our setting is multi-teacher distillation rather than token-level MoE language modeling, the same principles of learned routing, sparse activation, and load balancing are directly relevant.}
     \label{fig:prelim-sparse-routing}
 \end{figure}
+
+Figures~\ref{fig:prelim-switch-routing} and \ref{fig:prelim-sparse-routing}
+summarize the sparse-routing ideas that motivate the teacher gate in GRACE.
 
 \subsection{Gradient Alignment as a Routing Signal}
 

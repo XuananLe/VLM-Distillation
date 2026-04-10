@@ -97,37 +97,6 @@ Nicolas Boizard, Kevin~El Haddad, Pierre Colombo, and Chlo{\'e} Clavel.
 \newblock Wikimedia Commons, 2016.
 \newblock CC BY-SA 4.0. Accessed: 2026-03-06.
 
-\bibitem{qwen2vl2b_modelcard}
-{Qwen Team}.
-\newblock Qwen2-vl-2b-instruct model card.
-\newblock Hugging Face, 2024.
-\newblock Accessed: 2026-04-01.
-
-\bibitem{qwen25vl3b_modelcard}
-{Qwen Team}.
-\newblock Qwen2.5-vl-3b-instruct model card.
-\newblock Hugging Face, 2025.
-\newblock Accessed: 2026-04-01.
-
-\bibitem{internvl3_blog}
-{OpenGVLab}.
-\newblock Internvl 3.0.
-\newblock Project blog, 2025.
-\newblock Accessed: 2026-04-01.
-
-\bibitem{gemma3_technical_report}
-{Gemma Team} and {Google DeepMind}.
-\newblock Gemma 3 technical report.
-\newblock Technical report, 2025.
-\newblock Accessed: 2026-04-01.
-
-\bibitem{qwen25vl3b_quantized_card}
-{Red Hat AI}.
-\newblock Qwen2.5-vl-3b-instruct-quantized.w8a8 model card.
-\newblock Hugging Face, 2025.
-\newblock Reports the base-model comparison table including ChartQA. Accessed:
-  2026-04-01.
-
 \bibitem{alayrac2022flamingovisuallanguagemodel}
 Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech, Iain Barr,
   Yana Hasson, Karel Lenc, Arthur Mensch, Katie Millican, Malcolm Reynolds,

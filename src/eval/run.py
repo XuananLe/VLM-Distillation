@@ -53,8 +53,33 @@ from vlmeval.smp import *
 from vlmeval.utils.result_transfer import MMMU_result_transfer, MMTBench_result_transfer
 
 
+def is_smolvlm_model_name(model_name):
+    return (
+        isinstance(model_name, str)
+        and 'SmolVLM' in model_name
+        and 'SmolVLM2' not in model_name
+    )
+
+
+def is_qwen2vl_model_name(model_name):
+    return isinstance(model_name, str) and (
+        'Qwen2-VL' in model_name or 'Qwen2.5-VL' in model_name
+    )
+
+
+def is_gemma3_model_name(model_name):
+    return isinstance(model_name, str) and 'Gemma3-' in model_name
+
+
 # Make WORLD_SIZE invisible when build models
-def build_model_from_config(cfg, model_name, use_vllm=False, smolvlm_runtime='fast'):
+def build_model_from_config(
+    cfg,
+    model_name,
+    use_vllm=False,
+    smolvlm_runtime='fast',
+    qwen2vl_runtime='fast',
+    gemma3_runtime='original',
+):
     import vlmeval.api
     import vlmeval.vlm
     ws_bak = os.environ.pop('WORLD_SIZE', None)
@@ -62,11 +87,13 @@ def build_model_from_config(cfg, model_name, use_vllm=False, smolvlm_runtime='fa
     config = cp.deepcopy(cfg[model_name])
     if use_vllm:
         config['use_vllm'] = use_vllm
-    if (
-        config.get('class') == 'SmolVLM'
-        or ('class' not in config and 'SmolVLM' in model_name and 'SmolVLM2' not in model_name)
-    ):
+    model_class = config.get('class')
+    if model_class == 'SmolVLM' or (model_class is None and is_smolvlm_model_name(model_name)):
         config['smolvlm_runtime'] = smolvlm_runtime
+    if model_class == 'Qwen2VLChat' or (model_class is None and is_qwen2vl_model_name(model_name)):
+        config['qwen2vl_runtime'] = qwen2vl_runtime
+    if model_class == 'Gemma3' or (model_class is None and is_gemma3_model_name(model_name)):
+        config['gemma3_runtime'] = gemma3_runtime
     if 'class' not in config:
         return supported_VLM[model_name](**config)
     cls_name = config.pop('class')
@@ -213,6 +240,24 @@ You can launch the evaluation by setting either --data and --model or --config.
         help='SmolVLM loader mode: `fast` uses bf16 + flash_attention_2 when available; '
              '`original` uses float32 + eager attention.',
     )
+    parser.add_argument(
+        '--qwen2vl-runtime',
+        type=str,
+        default='fast',
+        choices=['fast', 'original'],
+        help='Qwen2-VL / Qwen2.5-VL loader mode: `fast` uses half precision with '
+             'FlashAttention-2 when available; `original` follows the documented '
+             'default HF load path without forcing FlashAttention-2.',
+    )
+    parser.add_argument(
+        '--gemma3-runtime',
+        type=str,
+        default='original',
+        choices=['fast', 'original'],
+        help='Gemma3 loader mode: `fast` uses the optimized repo path (bf16 + '
+             'FlashAttention-2 when available); `original` follows the documented '
+             'HF load path without forcing FlashAttention-2.',
+    )
 
     args = parser.parse_args()
     return args
@@ -326,6 +371,8 @@ def main():
                 model_name,
                 args.use_vllm,
                 args.smolvlm_runtime,
+                args.qwen2vl_runtime,
+                args.gemma3_runtime,
             )
 
         for _, dataset_name in enumerate(args.data):
@@ -389,7 +436,8 @@ def main():
                             result_file_name=result_file_base,
                             verbose=args.verbose,
                             api_nproc=args.api_nproc,
-                            use_vllm=args.use_vllm)
+                            use_vllm=args.use_vllm,
+                            qwen2vl_runtime=args.qwen2vl_runtime)
                     elif dataset.TYPE == 'MT':
                         model = infer_data_job_mt(
                             model,
@@ -400,7 +448,9 @@ def main():
                             api_nproc=args.api_nproc,
                             ignore_failed=args.ignore,
                             use_vllm=args.use_vllm,
-                            smolvlm_runtime=args.smolvlm_runtime)
+                            smolvlm_runtime=args.smolvlm_runtime,
+                            qwen2vl_runtime=args.qwen2vl_runtime,
+                            gemma3_runtime=args.gemma3_runtime)
                     else:
                         model = infer_data_job(
                             model,
@@ -411,7 +461,9 @@ def main():
                             api_nproc=args.api_nproc,
                             ignore_failed=args.ignore,
                             use_vllm=args.use_vllm,
-                            smolvlm_runtime=args.smolvlm_runtime)
+                            smolvlm_runtime=args.smolvlm_runtime,
+                            qwen2vl_runtime=args.qwen2vl_runtime,
+                            gemma3_runtime=args.gemma3_runtime)
 
                 # Set the judge kwargs first before evaluation or dumping
 

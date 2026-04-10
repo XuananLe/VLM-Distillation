@@ -7,6 +7,12 @@ from vlmeval.smp import *
 FAIL_MSG = 'Failed to obtain answer via API.'
 
 
+def is_qwen2vl_model_name(model_name):
+    return isinstance(model_name, str) and (
+        'Qwen2-VL' in model_name or 'Qwen2.5-VL' in model_name
+    )
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', type=str, nargs='+', required=True)
@@ -77,7 +83,17 @@ def infer_data_api(model, work_dir, model_name, dataset, samples_dict={}, api_np
     return res
 
 
-def infer_data(model, model_name, work_dir, dataset, out_file, verbose=False, api_nproc=4, use_vllm=False):
+def infer_data(
+    model,
+    model_name,
+    work_dir,
+    dataset,
+    out_file,
+    verbose=False,
+    api_nproc=4,
+    use_vllm=False,
+    qwen2vl_runtime='fast',
+):
     res = load(out_file) if osp.exists(out_file) else {}
     rank, world_size = get_rank_and_world_size()
     dataset_name = dataset.dataset_name
@@ -94,11 +110,12 @@ def infer_data(model, model_name, work_dir, dataset, out_file, verbose=False, ap
     kwargs = {}
     if model_name is not None and (
         'Llama-4' in model_name
-        or 'Qwen2-VL' in model_name
-        or 'Qwen2.5-VL' in model_name
+        or is_qwen2vl_model_name(model_name)
         or 'Qwen2.5-Omni' in model_name
     ):
         kwargs = {'use_vllm': use_vllm}
+    if is_qwen2vl_model_name(model_name):
+        kwargs['qwen2vl_runtime'] = qwen2vl_runtime
 
     # (25.06.05) In newer version of transformers (after 4.50), with device_map='auto' and torchrun launcher,
     # Transformers automatically adopt TP parallelism, which leads to compatibility problems with VLMEvalKit
@@ -212,7 +229,8 @@ def infer_data_job_video(
         result_file_name,
         verbose=False,
         api_nproc=4,
-        use_vllm=False):
+        use_vllm=False,
+        qwen2vl_runtime='fast'):
 
     dataset_name = dataset.dataset_name
     rank, world_size = get_rank_and_world_size()
@@ -232,7 +250,8 @@ def infer_data_job_video(
         out_file=out_file,
         verbose=verbose,
         api_nproc=api_nproc,
-        use_vllm=use_vllm)
+        use_vllm=use_vllm,
+        qwen2vl_runtime=qwen2vl_runtime)
 
     if world_size > 1:
         dist.barrier()

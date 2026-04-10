@@ -11,6 +11,7 @@ import torch
 from torch.utils.data import Dataset
 from transformers import (
     AutoModel,
+    AutoModelForImageTextToText,
     AutoModelForVision2Seq,
     AutoProcessor,
     AutoTokenizer,
@@ -171,6 +172,37 @@ def load_teachers_and_processors(teacher_ids: list[str], device: str):
             teacher_model = Gemma3ForConditionalGeneration.from_pretrained(
                 teacher_id,
                 attn_implementation=attn_impl,
+                torch_dtype=torch_dtype,
+                trust_remote_code=True,
+                device_map={"": device},
+            )
+            teacher_processors.append(
+                AutoProcessor.from_pretrained(
+                    teacher_id,
+                    padding_side="right",
+                    trust_remote_code=True,
+                )
+            )
+        elif "smolvlm2" in teacher_id.lower():
+            teacher_model = AutoModelForImageTextToText.from_pretrained(
+                teacher_id,
+                _attn_implementation=attn_impl,
+                torch_dtype=torch_dtype,
+                trust_remote_code=True,
+                device_map={"": device},
+            )
+            teacher_processors.append(
+                AutoProcessor.from_pretrained(
+                    teacher_id,
+                    padding_side="right",
+                    trust_remote_code=True,
+                )
+            )
+        elif "granite-vision" in teacher_id.lower():
+            granite_attn_impl = attn_impl if flash_attention_requested else None
+            teacher_model = AutoModelForVision2Seq.from_pretrained(
+                teacher_id,
+                _attn_implementation=granite_attn_impl,
                 torch_dtype=torch_dtype,
                 trust_remote_code=True,
                 device_map={"": device},

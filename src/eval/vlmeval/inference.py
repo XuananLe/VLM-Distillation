@@ -15,6 +15,16 @@ def is_smolvlm_model_name(model_name):
     )
 
 
+def is_qwen2vl_model_name(model_name):
+    return isinstance(model_name, str) and (
+        'Qwen2-VL' in model_name or 'Qwen2.5-VL' in model_name
+    )
+
+
+def is_gemma3_model_name(model_name):
+    return isinstance(model_name, str) and 'Gemma3-' in model_name
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', type=str, nargs='+', required=True)
@@ -98,6 +108,8 @@ def infer_data(
     api_nproc=4,
     use_vllm=False,
     smolvlm_runtime='fast',
+    qwen2vl_runtime='fast',
+    gemma3_runtime='original',
 ):
     dataset_name = dataset.dataset_name
     prev_file = f'{work_dir}/{model_name}_{dataset_name}_PREV.pkl'
@@ -127,14 +139,14 @@ def infer_data(
     lt = len(data)
 
     kwargs = {}
-    if model_name is not None and (
-        'Llama-4' in model_name
-        or 'Qwen2-VL' in model_name
-        or 'Qwen2.5-VL' in model_name
-    ):
+    if model_name is not None and ('Llama-4' in model_name or is_qwen2vl_model_name(model_name)):
         kwargs = {'use_vllm': use_vllm}
     if is_smolvlm_model_name(model_name):
         kwargs['smolvlm_runtime'] = smolvlm_runtime
+    if is_qwen2vl_model_name(model_name):
+        kwargs['qwen2vl_runtime'] = qwen2vl_runtime
+    if is_gemma3_model_name(model_name):
+        kwargs['gemma3_runtime'] = gemma3_runtime
 
     # (25.06.05) In newer version of transformers (after 4.50), with device_map='auto' and torchrun launcher,
     # Transformers automatically adopt TP parallelism, which leads to compatibility problems with VLMEvalKit
@@ -215,6 +227,8 @@ def infer_data_job(
     ignore_failed=False,
     use_vllm=False,
     smolvlm_runtime='fast',
+    qwen2vl_runtime='fast',
+    gemma3_runtime='original',
 ):
     rank, world_size = get_rank_and_world_size()
     dataset_name = dataset.dataset_name
@@ -239,7 +253,8 @@ def infer_data_job(
     model = infer_data(
         model=model, work_dir=work_dir, model_name=model_name, dataset=dataset,
         out_file=out_file, verbose=verbose, api_nproc=api_nproc, use_vllm=use_vllm,
-        smolvlm_runtime=smolvlm_runtime)
+        smolvlm_runtime=smolvlm_runtime, qwen2vl_runtime=qwen2vl_runtime,
+        gemma3_runtime=gemma3_runtime)
     if world_size > 1:
         dist.barrier()
 
