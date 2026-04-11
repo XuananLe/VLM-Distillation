@@ -79,24 +79,6 @@ Nicolas Boizard, Kevin~El Haddad, Pierre Colombo, and Chlo{\'e} Clavel.
 \newblock Towards cross-tokenizer distillation: The universal logit
   distillation loss for llms, 2024.
 
-\bibitem{wikimedia_stop_sign_image}
-{Wikimedia Commons contributors}.
-\newblock File: Stop sign.jpg.
-\newblock Wikimedia Commons, 2006.
-\newblock Public domain. Accessed: 2026-03-06.
-
-\bibitem{wikimedia_receipt_swiss_image}
-{Wikimedia Commons contributors}.
-\newblock File: Receiptswiss.jpg.
-\newblock Wikimedia Commons, 2015.
-\newblock CC BY-SA 3.0. Accessed: 2026-03-06.
-
-\bibitem{wikimedia_bar_chart_image}
-{Wikimedia Commons contributors}.
-\newblock File: Bar chart.svg.
-\newblock Wikimedia Commons, 2016.
-\newblock CC BY-SA 4.0. Accessed: 2026-03-06.
-
 \bibitem{alayrac2022flamingovisuallanguagemodel}
 Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech, Iain Barr,
   Yana Hasson, Karel Lenc, Arthur Mensch, Katie Millican, Malcolm Reynolds,
@@ -304,6 +286,24 @@ Zerodamage.
 Haodong Duan, Xinyu Fang, Junming Yang, et~al.
 \newblock Vlmevalkit: An open-source toolkit for evaluating large
   multi-modality models, 2024.
+
+\bibitem{wikimedia_stop_sign_image}
+{Wikimedia Commons contributors}.
+\newblock File: Stop sign.jpg.
+\newblock Wikimedia Commons, 2006.
+\newblock Public domain. Accessed: 2026-03-06.
+
+\bibitem{wikimedia_receipt_swiss_image}
+{Wikimedia Commons contributors}.
+\newblock File: Receiptswiss.jpg.
+\newblock Wikimedia Commons, 2015.
+\newblock CC BY-SA 3.0. Accessed: 2026-03-06.
+
+\bibitem{wikimedia_bar_chart_image}
+{Wikimedia Commons contributors}.
+\newblock File: Bar chart.svg.
+\newblock Wikimedia Commons, 2016.
+\newblock CC BY-SA 4.0. Accessed: 2026-03-06.
 
 \bibitem{rajbhandari2020zero}
 Samyam Rajbhandari, Jeff Rasley, Olatunji Ruwase, and Yuxiong He.

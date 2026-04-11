@@ -350,6 +350,10 @@ which keeps router logits numerically well behaved.
     \label{fig:grace-gate-balance}
 \end{figure}
 
+Figure~\ref{fig:grace-gate-balance} gives the full routing pipeline, from
+pooled student features to sparse teacher assignments and optional balance
+updates.
+
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.92\linewidth]{figures/grace_bias_feedback.png}
@@ -357,6 +361,7 @@ which keeps router logits numerically well behaved.
     \label{fig:grace-bias-feedback}
 \end{figure}
 
+Figure~\ref{fig:grace-bias-feedback} isolates the effect of the bias update.
 Figure~\ref{fig:grace-routing-dynamics} gives a routing example inspired by
 the routing-overflow and load-balancing behavior used in sparse expert models
 \cite{fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}.
@@ -455,9 +460,9 @@ u_i^{(b)}
 \end{equation}
 
 After warmup, GRACE refines the routed teachers with a score-smoothed gradient
-distribution. Let \(\bar{s}_i^{\mathrm{prev}}\) be the running EMA of past batch
-means for teacher \(T_i\), and let \(\gamma\) be the EMA decay. The per-sample
-smoothed score is
+distribution. Let \(\bar{s}_i^{\mathrm{prev}}\) be the running exponential
+moving average (EMA) of past batch means for teacher \(T_i\), and let \(\gamma\)
+be the EMA decay. The per-sample smoothed score is
 \begin{equation}
 \hat{s}_i^{(b)}
 =

@@ -2,14 +2,19 @@
 \label{chap:introduction}
 
 \section{Background and Motivation}
-Vision-Language Models (VLMs) jointly process images and text for tasks such as image captioning, visual question answering, document understanding and instruction following \cite{radford2021learningtransferablevisualmodels,alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning,hu2024visualprogramdistillation}.
+The core task in this thesis is to distill strong multimodal ability from large
+VLM teachers into \textbf{sub-billion} VLM students. The goal is to do so
+without losing performance on text-centric benchmarks. Vision-Language Models
+(VLMs) jointly process images and text for tasks such as image captioning,
+visual question answering, document understanding, and instruction following
+\cite{radford2021learningtransferablevisualmodels,alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning,hu2024visualprogramdistillation}.
 
-In this thesis, \textit{multimodal understanding} refers to practical capabilities such as reading text in images, understanding the input question and performing basic reasoning over visual and textual evidence, rather than broad general intelligence \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+In this thesis, \textit{multimodal understanding} refers to practical capabilities such as reading text in images, understanding the input question, and performing basic reasoning over visual and textual evidence, rather than broad general intelligence \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. Our focus is efficient transfer of this ability to compact students.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.82\linewidth]{figures/Contrastive_Language-Image_Pretraining.png}
-    \caption{CLIP-style vision-language pretraining aligns image and text representations in a shared embedding space \cite{wikimedia_clip_pretraining_image,radford2021learningtransferablevisualmodels}.}
+    \caption{CLIP-style vision-language pretraining aligns image and text representations in a shared embedding space \cite{wikimedia_clip_pretraining_image,radford2021learningtransferablevisualmodels}. This shared-space pretraining pattern is one of the main starting points for modern VLM families.}
     \label{fig:intro-vlm-pretraining}
 \end{figure}
 
@@ -49,9 +54,13 @@ useful multimodal performance \cite{chu2023mobilevlm,zhou2024tinyllava,marafioti
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.74\linewidth]{figures/smolvlm_memory_blog.png}
-    \caption[SmolVLM memory comparison from the Hugging Face release.]{Inference GPU memory usage reported in the SmolVLM release blog. The comparison shows that compact VLM design can reduce memory substantially relative to similarly capable models, especially when the visual token budget is controlled \cite{smolvlm_blog,marafioti2025smolvlm}.}
+    \caption[SmolVLM memory comparison from the Hugging Face release.]{Inference graphics processing unit (GPU) memory usage reported in the SmolVLM release blog. The comparison shows that compact VLM design can reduce memory substantially relative to similarly capable models, especially when the visual token budget is controlled \cite{smolvlm_blog,marafioti2025smolvlm}.}
     \label{fig:intro-smolvlm-memory}
 \end{figure}
+
+Figure~\ref{fig:intro-smolvlm-memory} highlights the deployment side of the
+problem, while the next figure places compact VLM families on the parameter
+scale itself.
 
 \begin{figure}[htbp]
     \centering
@@ -81,7 +90,9 @@ the deployment target is still a much smaller student.
     \label{fig:intro-closed-open-gap}
 \end{figure}
 
-Knowledge distillation transfers knowledge from a large teacher to a compact student, often preserving strong performance at lower cost \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
+Knowledge distillation (KD) transfers knowledge from a large teacher to a
+compact student, often preserving strong performance at lower cost
+\cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
 
 Figure \ref{fig:intro-small-vlm-tradeoff} shows why this direction matters. Compact multimodal models can already be competitive, but closing the gap to stronger models still requires better transfer of knowledge.
 
@@ -108,6 +119,13 @@ In VLMs, however, naive low-bit quantization can hurt multimodal accuracy
 complementary deployment step rather than a substitute for better transfer
 during training.
 
+\begin{figure}[htbp]
+    \centering
+    \includegraphics[width=0.74\linewidth]{figures/intro_quantization_drop_mbq.png}
+    \caption[Low-bit quantization can sharply reduce VLM accuracy.]{SEED accuracy for LLaVA-OneVision-7B under several low-bit quantization settings, reconstructed from MBQ Table 4 \cite{li2025mbq}. The naive W3A16 RTN baseline drops by 60.7 points, which is why we treat quantization as complementary to distillation rather than a replacement for it.}
+    \label{fig:intro-quantization-drop}
+\end{figure}
+
 This observation is exactly why we focus on \textbf{SmolVLM-500M} and
 \textbf{SmolVLM-256M}. They are small enough to make the efficiency constraint
 real, yet strong enough that improvements from better distillation remain
@@ -123,7 +141,7 @@ and ChartQA
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.70\linewidth]{figures/knowledge_distillation_example.png}
-    \caption[Teacher-student knowledge distillation.]{Knowledge distillation transfers information from a teacher model to a smaller student model \cite{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}.}
+    \caption[Teacher-student knowledge distillation.]{Knowledge distillation transfers information from a teacher model to a smaller student model \cite{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}. In this thesis, that basic pattern is extended to heterogeneous teachers and sample-dependent weighting.}
     \label{fig:intro-knowledge-distillation}
 \end{figure}
 
@@ -139,10 +157,12 @@ A naive uniform average can therefore mix teachers that help one sample but hurt
 
 This motivates a selective multi-teacher framework rather than static teacher averaging.
 
-The concrete problem and design requirements are stated in the next section.
+We introduce \methodfull{} (\methodname{}), a selective multi-teacher distillation framework that routes teachers per sample, applies tokenizer-agnostic ULD, and refines teacher weights with gradient-based alignment. The next section formalizes the problem and requirements.
 
 \section{Problem Statement and Research Objectives}
-The central problem addressed in this thesis is how to transfer multimodal understanding ability from large VLMs to compact student models without paying the full cost of large-scale deployment.
+The central problem addressed in this thesis is how to transfer multimodal
+understanding ability from large VLMs to compact students at much lower
+deployment cost.
 
 We focus on text-rich multimodal tasks where the student must read image text, understand the question, and perform basic reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
@@ -172,19 +192,14 @@ It uses tokenizer-agnostic Universal Logit Distillation (ULD), a deep student-co
 
 We evaluate it on text-rich multimodal understanding tasks such as TextVQA, DocVQA, and ChartQA \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
-Accordingly, this thesis has three main objectives:
-\begin{enumerate}
-\item formulate cross-tokenizer multimodal distillation for compact VLM students in a text-centric benchmark setting,
-\item design \methodname{} as a selective multi-teacher distillation framework with ULD, a deep student-conditioned gate, top-\(k\) capacity-aware routing, and gradient alignment, while supporting optional balancing and expert-bias updates,
-\item evaluate whether \methodname{} improves transfer for small VLMs on TextVQA, DocVQA and ChartQA, and analyze why simple layer-wise transfer is less effective in this setting.
-\end{enumerate}
+Accordingly, this thesis focuses on cross-tokenizer multimodal distillation for compact students and evaluates \methodname{} on TextVQA, DocVQA, and ChartQA, with analysis of routing behavior and representation matching.
 
 \section{Thesis Contributions}
 The main contributions are:
 \begin{enumerate}
-\item We formulate a practical multi-teacher distillation setting for compact VLMs with heterogeneous teacher vocabularies on text-rich multimodal benchmarks.
-\item We propose \methodfull{} (\methodname{}), a unified distillation framework for heterogeneous teachers. It uses Universal Logit Distillation, a deep student-conditioned routing gate, top-\(k\) capacity-aware sparse assignment, and GRACE score refinement, while also supporting optional balancing and expert-bias updates.
-\item We provide empirical evidence on TextVQA, DocVQA, and ChartQA that this design yields stronger transfer than standard fine-tuning and conventional logits-based distillation baselines for compact VLM students.
-\item We analyze representation similarity and layer-wise transfer, showing why high internal similarity alone is insufficient and why naive layer matching is a weak distillation bias in this setting.
-\item We complement the headline comparison with routing and ablation analysis, clarifying how selective teacher assignment contributes to the final gains.
+\item We define a heterogeneous multi-teacher distillation setting for compact VLMs on TextVQA, DocVQA, and ChartQA, with mismatched teacher and student vocabularies.
+\item We propose \methodfull{} (\methodname{}), a selective multi-teacher framework using ULD, a deep student-conditioned gate, top-\(k\) capacity-aware routing, and gradient-alignment score refinement, with optional balancing and expert-bias updates.
+\item We report quantitative gains over fine-tuning and standard logits-based baselines on the three benchmarks for SmolVLM-500M and SmolVLM-256M students.
+\item We present representation-similarity analysis and layer-wise transfer baselines to show why naive layer matching underperforms in this setting.
+\item We provide routing and ablation results that isolate the impact of teacher selection, score refinement, and fallback behavior.
 \end{enumerate}

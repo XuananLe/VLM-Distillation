@@ -1,39 +1,40 @@
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {1.1}{\ignorespaces CLIP-style vision-language pretraining aligns image and text representations in a shared embedding space \cite {wikimedia_clip_pretraining_image,radford2021learningtransferablevisualmodels}.\relax }}{1}{figure.caption.2}%
+\contentsline {figure}{\numberline {1.1}{\ignorespaces CLIP-style vision-language pretraining aligns image and text representations in a shared embedding space \cite {wikimedia_clip_pretraining_image,radford2021learningtransferablevisualmodels}. This shared-space pretraining pattern is one of the main starting points for modern VLM families.\relax }}{1}{figure.caption.2}%
 \contentsline {figure}{\numberline {1.2}{\ignorespaces Scaling-law trends from Kaplan et al.}}{2}{figure.caption.3}%
-\contentsline {figure}{\numberline {1.3}{\ignorespaces SmolVLM memory comparison from the Hugging Face release.}}{2}{figure.caption.4}%
+\contentsline {figure}{\numberline {1.3}{\ignorespaces SmolVLM memory comparison from the Hugging Face release.}}{3}{figure.caption.4}%
 \contentsline {figure}{\numberline {1.4}{\ignorespaces Representative compact VLM scales.}}{3}{figure.caption.5}%
 \contentsline {figure}{\numberline {1.5}{\ignorespaces TinyLLaVA vs. LLaVA-1.5-7B benchmark comparison.}}{4}{figure.caption.6}%
 \contentsline {figure}{\numberline {1.6}{\ignorespaces Best proprietary vs. open-source frontier results on three benchmarks.}}{4}{figure.caption.7}%
-\contentsline {figure}{\numberline {1.7}{\ignorespaces Teacher-student knowledge distillation.}}{5}{figure.caption.8}%
+\contentsline {figure}{\numberline {1.7}{\ignorespaces Low-bit quantization can sharply reduce VLM accuracy.}}{5}{figure.caption.8}%
+\contentsline {figure}{\numberline {1.8}{\ignorespaces Teacher-student knowledge distillation.}}{6}{figure.caption.9}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {2.1}{\ignorespaces Transformer attention block structure \cite {wikimedia_transformer_attention_block_image,vaswani2023attentionneed}.\relax }}{8}{figure.caption.9}%
-\contentsline {figure}{\numberline {2.2}{\ignorespaces Vision Transformer pipeline with patch embedding and Transformer encoder blocks \cite {wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}.\relax }}{9}{figure.caption.10}%
-\contentsline {figure}{\numberline {2.3}{\ignorespaces Representative architecture families of modern vision-language models.\relax }}{10}{figure.caption.11}%
-\contentsline {figure}{\numberline {2.4}{\ignorespaces Representative inputs from the text-rich multimodal benchmarks considered in this thesis \cite {singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.\relax }}{10}{figure.caption.12}%
-\contentsline {figure}{\numberline {2.5}{\ignorespaces Generic teacher-student knowledge distillation setup with hard labels and soft targets \cite {wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}.\relax }}{11}{figure.caption.13}%
-\contentsline {figure}{\numberline {2.6}{\ignorespaces Discrete transport plan matrix in optimal transport, showing how source and target marginals are coupled by a transport matrix \cite {wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}.\relax }}{13}{figure.caption.14}%
-\contentsline {figure}{\numberline {2.7}{\ignorespaces ULD compares ranked probability mass after temperature scaling, sorting, and zero-padding to a common vocabulary length \cite {boizard2024towardscrosstokenizerdistillation}.\relax }}{13}{figure.caption.15}%
-\contentsline {figure}{\numberline {2.8}{\ignorespaces Sparse routing with expert capacity constraints.}}{15}{figure.caption.16}%
-\contentsline {figure}{\numberline {2.9}{\ignorespaces Sparse routing and expert specialization in MoE.}}{16}{figure.caption.17}%
+\contentsline {figure}{\numberline {2.1}{\ignorespaces Transformer attention block structure \cite {wikimedia_transformer_attention_block_image,vaswani2023attentionneed}. The figure isolates the attention and feed-forward block that is later reused in both language and vision stacks.\relax }}{9}{figure.caption.10}%
+\contentsline {figure}{\numberline {2.2}{\ignorespaces Vision Transformer pipeline with patch embedding and Transformer encoder blocks \cite {wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}. It shows how an image becomes a token sequence before multimodal fusion.\relax }}{10}{figure.caption.11}%
+\contentsline {figure}{\numberline {2.3}{\ignorespaces Representative architecture families of modern vision-language models. Together they show the main fusion choices used in practice: dual encoders, cross-attention, query bottlenecks, and projector-based coupling to a language model.\relax }}{11}{figure.caption.12}%
+\contentsline {figure}{\numberline {2.4}{\ignorespaces Representative inputs from the text-rich multimodal benchmarks considered in this thesis \cite {singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. The three examples show why text reading, layout parsing, and visual reasoning all matter in this benchmark suite.\relax }}{11}{figure.caption.13}%
+\contentsline {figure}{\numberline {2.5}{\ignorespaces Generic teacher-student knowledge distillation setup with hard labels and soft targets \cite {wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}. It provides the basic supervision pattern before GRACE adds heterogeneous teachers and routing.\relax }}{12}{figure.caption.14}%
+\contentsline {figure}{\numberline {2.6}{\ignorespaces Discrete transport plan matrix in optimal transport, showing how source and target marginals are coupled by a transport matrix \cite {wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}. The key idea is geometric: mass is compared by how it can be rearranged, not by fixed token identity.\relax }}{14}{figure.caption.15}%
+\contentsline {figure}{\numberline {2.7}{\ignorespaces ULD compares ranked probability mass after temperature scaling, sorting, and zero-padding to a common vocabulary length \cite {boizard2024towardscrosstokenizerdistillation}. This is why the loss stays valid even when teacher and student vocabularies differ.\relax }}{14}{figure.caption.16}%
+\contentsline {figure}{\numberline {2.8}{\ignorespaces Sparse routing with expert capacity constraints.}}{16}{figure.caption.17}%
+\contentsline {figure}{\numberline {2.9}{\ignorespaces Sparse routing and expert specialization in MoE.}}{17}{figure.caption.18}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {3.1}{\ignorespaces Overview of GRACE.}}{19}{figure.caption.18}%
-\contentsline {figure}{\numberline {3.2}{\ignorespaces ULD behavior in GRACE.}}{21}{figure.caption.19}%
-\contentsline {figure}{\numberline {3.3}{\ignorespaces Gate, sparsification, and optional balance update in GRACE.}}{24}{figure.caption.20}%
-\contentsline {figure}{\numberline {3.4}{\ignorespaces Bias-feedback behavior in GRACE.}}{24}{figure.caption.21}%
-\contentsline {figure}{\numberline {3.5}{\ignorespaces Routing dynamics in GRACE.}}{24}{figure.caption.22}%
-\contentsline {figure}{\numberline {3.6}{\ignorespaces Directional view of gradient descent.}}{26}{figure.caption.23}%
-\contentsline {figure}{\numberline {3.7}{\ignorespaces EMA smoothing in GRACE.}}{27}{figure.caption.24}%
-\contentsline {figure}{\numberline {3.8}{\ignorespaces Warmup schedule in GRACE.}}{27}{figure.caption.25}%
-\contentsline {figure}{\numberline {3.9}{\ignorespaces GRACE score refinement in GRACE{}.}}{28}{figure.caption.26}%
-\contentsline {figure}{\numberline {3.10}{\ignorespaces GRACE weighting cases.}}{29}{figure.caption.27}%
-\contentsline {figure}{\numberline {3.11}{\ignorespaces Weight refinement in GRACE.}}{29}{figure.caption.28}%
-\contentsline {figure}{\numberline {3.12}{\ignorespaces Sample-specific weighting in GRACE.}}{30}{figure.caption.29}%
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Overview of GRACE.}}{19}{figure.caption.19}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces ULD behavior in GRACE.}}{21}{figure.caption.20}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Gate, sparsification, and optional balance update in GRACE.}}{24}{figure.caption.21}%
+\contentsline {figure}{\numberline {3.4}{\ignorespaces Bias-feedback behavior in GRACE.}}{24}{figure.caption.22}%
+\contentsline {figure}{\numberline {3.5}{\ignorespaces Routing dynamics in GRACE.}}{24}{figure.caption.23}%
+\contentsline {figure}{\numberline {3.6}{\ignorespaces Directional view of gradient descent.}}{26}{figure.caption.24}%
+\contentsline {figure}{\numberline {3.7}{\ignorespaces EMA smoothing in GRACE.}}{27}{figure.caption.25}%
+\contentsline {figure}{\numberline {3.8}{\ignorespaces Warmup schedule in GRACE.}}{27}{figure.caption.26}%
+\contentsline {figure}{\numberline {3.9}{\ignorespaces GRACE score refinement in GRACE{}.}}{28}{figure.caption.27}%
+\contentsline {figure}{\numberline {3.10}{\ignorespaces GRACE weighting cases.}}{29}{figure.caption.28}%
+\contentsline {figure}{\numberline {3.11}{\ignorespaces Weight refinement in GRACE.}}{29}{figure.caption.29}%
+\contentsline {figure}{\numberline {3.12}{\ignorespaces Sample-specific weighting in GRACE.}}{30}{figure.caption.30}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {4.1}{\ignorespaces Example image for a TextVQA-style question \cite {wikimedia_stop_sign_image}.\relax }}{33}{figure.caption.30}%
-\contentsline {figure}{\numberline {4.2}{\ignorespaces Example document image for a DocVQA-style question \cite {wikimedia_receipt_swiss_image}.\relax }}{34}{figure.caption.31}%
-\contentsline {figure}{\numberline {4.3}{\ignorespaces Example chart image for a ChartQA-style question \cite {wikimedia_bar_chart_image}.\relax }}{34}{figure.caption.32}%
-\contentsline {figure}{\numberline {4.4}{\ignorespaces Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training, and kept in a bounded local cache with oldest-file eviction.\relax }}{36}{figure.caption.34}%
+\contentsline {figure}{\numberline {4.1}{\ignorespaces TextVQA sample image.}}{33}{figure.caption.31}%
+\contentsline {figure}{\numberline {4.2}{\ignorespaces DocVQA sample image.}}{34}{figure.caption.32}%
+\contentsline {figure}{\numberline {4.3}{\ignorespaces ChartQA sample image.}}{34}{figure.caption.33}%
+\contentsline {figure}{\numberline {4.4}{\ignorespaces Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training, and kept in a bounded local cache with oldest-file eviction. This setup avoids copying a multi-terabyte teacher store onto each rented GPU instance.\relax }}{38}{figure.caption.35}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {5.1}{\ignorespaces Final-layer CKA heatmaps across two benchmarks.}}{46}{figure.caption.42}%
-\contentsline {figure}{\numberline {5.2}{\ignorespaces Vision-layer CKA heatmaps across two benchmarks.}}{47}{figure.caption.43}%
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Final-layer CKA heatmaps across two benchmarks.}}{46}{figure.caption.43}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces Vision-layer CKA heatmaps across two benchmarks.}}{47}{figure.caption.44}%

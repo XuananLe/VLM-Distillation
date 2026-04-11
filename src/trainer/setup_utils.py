@@ -32,8 +32,8 @@ def validate_distillation_trainer_args(
     loss_function: str,
     distillation_loss_module,
 ) -> None:
-    if not 0.0 <= alpha <= 1.0:
-        raise ValueError("DistillationTrainer requires `0 <= alpha <= 1`.")
+    if alpha < 0.0:
+        raise ValueError("DistillationTrainer requires `alpha >= 0`.")
     if teacher_gate_balance_alpha < 0.0:
         raise ValueError("DistillationTrainer requires `teacher_gate_balance_alpha >= 0`.")
     if teacher_gate_top_k < 1:
@@ -224,9 +224,9 @@ def log_distillation_trainer_setup(
     print(f"  - Skip teacher EOS: {skip_teacher_eos}")
     print(f"  - Alpha: {alpha}")
     if objective_conflict_strategy == "fixed":
-        print(f"  - KD weight: {1.0 - alpha}")
+        print(f"  - KD weight: {alpha}")
     else:
-        print("  - KD weight: conflict-strategy dependent")
+        print(f"  - Base KD weight: {alpha}")
     print("  - CE weight: 1.0")
     if teacher_gate is not None:
         print(f"  - Teacher gate balance alpha: {teacher_gate_balance_alpha}")
@@ -268,9 +268,9 @@ def log_distillation_trainer_setup(
             f"{objective_conflict_cagrad_grid_steps}"
         )
     if objective_conflict_strategy == "fixed":
-        print("  - Loss weighting: CE + (1 - alpha) * KD")
+        print("  - Loss weighting: CE + alpha * KD")
     else:
-        print("  - Loss weighting: objective-conflict strategy with full KD")
+        print("  - Loss weighting: objective-conflict strategy with alpha-scaled KD")
 
 
 __all__ = [

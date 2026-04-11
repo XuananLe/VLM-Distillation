@@ -214,7 +214,7 @@ is a poor fit for these compact multimodal students.
 
 \section{Representation Similarity Analysis}
 
-We use CKA as an analysis tool to examine whether teacher and student layers
+We use Centered Kernel Alignment (CKA) as an analysis tool to examine whether teacher and student layers
 exhibit clear correspondence. For centered hidden-state matrices
 \(\tilde{\mathbf{H}}_s\) and \(\tilde{\mathbf{H}}_t\), linear CKA is
 \begin{equation}
@@ -243,7 +243,7 @@ figures and tables below.
         \includegraphics[width=\linewidth]{figures/cka_last_docvqa_qwen2vl2b_smolvlm500m.png}
         \caption{DocVQA}
     \end{subfigure}
-    \caption[Final-layer CKA heatmaps across two benchmarks.]{Final-layer CKA heatmaps from our experiments for the teacher-student pair Qwen2-VL-2B and SmolVLM-500M on TextVQA and DocVQA. Brighter regions and values closer to \(1\) indicate stronger representation similarity.}
+    \caption[Final-layer CKA heatmaps across two benchmarks.]{Final-layer CKA heatmaps from our experiments for the teacher-student pair Qwen2-VL-2B and SmolVLM-500M on TextVQA and DocVQA. Brighter regions and values closer to \(1\) indicate stronger representation similarity, but they do not imply that direct layer matching is the best training signal.}
     \label{fig:exp-cka-multi-dataset}
 \end{figure}
 
@@ -263,7 +263,7 @@ arbitrarily far apart in representation space.
         \includegraphics[width=\linewidth]{figures/cka_vision_docvqa_qwen2vl2b_smolvlm500m.png}
         \caption{DocVQA}
     \end{subfigure}
-    \caption[Vision-layer CKA heatmaps across two benchmarks.]{Vision-layer CKA heatmaps for the same teacher-student pair on TextVQA and DocVQA. Again, brighter regions and values closer to \(1\) indicate stronger similarity.}
+    \caption[Vision-layer CKA heatmaps across two benchmarks.]{Vision-layer CKA heatmaps for the same teacher-student pair on TextVQA and DocVQA. Again, brighter regions and values closer to \(1\) indicate stronger similarity, while the benchmark gaps show that similar internal structure is still not enough by itself.}
     \label{fig:exp-cka-vision-multi-dataset}
 \end{figure}
 
@@ -298,7 +298,7 @@ Reinforced selection & 64.00 & 64.00 & N/A \\
 GRACE & \textbf{69.38} & \textbf{73.11} & \textbf{80.20} \\
 \bottomrule
 \end{tabular}
-\caption{Teacher-assignment study on SmolVLM-500M. Moving from one teacher to a heterogeneous pool already helps, but the strongest gains come from the GRACE weighting rule rather than from teacher count alone.}
+\caption{Teacher-assignment study on SmolVLM-500M. Moving from one teacher to a heterogeneous pool already helps, but the strongest gains come from the GRACE weighting rule rather than from teacher count alone. The table isolates teacher assignment from student size, so the difference is easier to attribute to the weighting strategy itself.}
 \label{tab:teacher-assignment-ablation}
 \end{table}
 

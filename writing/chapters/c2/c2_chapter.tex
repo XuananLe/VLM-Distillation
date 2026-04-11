@@ -25,7 +25,7 @@ the token-distribution level \cite{vaswani2023attentionneed,hinton2015distilling
 \begin{figure}[htbp]
     \centering
     \includegraphics[height=0.20\textheight,keepaspectratio]{figures/transformer_attention_block_wikimedia.png}
-    \caption{Transformer attention block structure \cite{wikimedia_transformer_attention_block_image,vaswani2023attentionneed}.}
+    \caption{Transformer attention block structure \cite{wikimedia_transformer_attention_block_image,vaswani2023attentionneed}. The figure isolates the attention and feed-forward block that is later reused in both language and vision stacks.}
     \label{fig:prelim-transformer-attention}
 \end{figure}
 
@@ -50,7 +50,7 @@ used for autoregressive answer generation.
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.68\linewidth]{figures/vit_wikimedia.png}
-    \caption{Vision Transformer pipeline with patch embedding and Transformer encoder blocks \cite{wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}.}
+    \caption{Vision Transformer pipeline with patch embedding and Transformer encoder blocks \cite{wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}. It shows how an image becomes a token sequence before multimodal fusion.}
     \label{fig:prelim-vit}
 \end{figure}
 
@@ -84,7 +84,7 @@ the basic Transformer and ViT blocks that later multimodal systems build on.
         \includegraphics[width=\linewidth]{figures/llava_architecture_family.png}
         \caption{LLaVA projector-based design \cite{liu2023visualinstructiontuning}.}
     \end{subfigure}
-    \caption{Representative architecture families of modern vision-language models.}
+    \caption{Representative architecture families of modern vision-language models. Together they show the main fusion choices used in practice: dual encoders, cross-attention, query bottlenecks, and projector-based coupling to a language model.}
     \label{fig:prelim-vlm-families}
 \end{figure}
 
@@ -95,7 +95,7 @@ the model to read text in images, understand the question, and perform basic
 reasoning over visual and textual evidence
 \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 This setting differs from generic image captioning because success depends strongly
-on OCR-sensitive recognition and token-level answer generation.
+on optical character recognition (OCR)-sensitive recognition and token-level answer generation.
 
 \begin{figure}[htbp]
     \centering
@@ -116,7 +116,7 @@ on OCR-sensitive recognition and token-level answer generation.
         \includegraphics[width=\linewidth,height=0.18\textheight,keepaspectratio]{figures/chartqa_sample_bar_chart.png}
         \caption{ChartQA}
     \end{subfigure}
-    \caption{Representative inputs from the text-rich multimodal benchmarks considered in this thesis \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.}
+    \caption{Representative inputs from the text-rich multimodal benchmarks considered in this thesis \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. The three examples show why text reading, layout parsing, and visual reasoning all matter in this benchmark suite.}
     \label{fig:prelim-benchmark-examples}
 \end{figure}
 
@@ -150,7 +150,7 @@ distributional structure, often called \emph{dark knowledge} \cite{hinton2015dis
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.78\linewidth]{figures/knowledge_distillation_example.png}
-    \caption{Generic teacher-student knowledge distillation setup with hard labels and soft targets \cite{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}.}
+    \caption{Generic teacher-student knowledge distillation setup with hard labels and soft targets \cite{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}. It provides the basic supervision pattern before GRACE adds heterogeneous teachers and routing.}
     \label{fig:prelim-kd-overview}
 \end{figure}
 
@@ -236,11 +236,12 @@ The sorted-probability surrogate in ULD is therefore an efficient tokenizer-agno
 \begin{figure}[htbp]
     \centering
     \includegraphics[height=0.26\textheight,keepaspectratio]{figures/optimal_transport_matrix_wikimedia.png}
-    \caption{Discrete transport plan matrix in optimal transport, showing how source and target marginals are coupled by a transport matrix \cite{wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}.}
+    \caption{Discrete transport plan matrix in optimal transport, showing how source and target marginals are coupled by a transport matrix \cite{wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}. The key idea is geometric: mass is compared by how it can be rearranged, not by fixed token identity.}
     \label{fig:prelim-optimal-transport}
 \end{figure}
 
-Figure~\ref{fig:prelim-uld-schematic} translates that mass-matching view into
+Figure~\ref{fig:prelim-optimal-transport} shows the transport-plan view behind
+mass matching. Figure~\ref{fig:prelim-uld-schematic} translates that view into
 the simplified ULD pipeline used later in \methodname{}.
 
 \begin{figure}[htbp]
@@ -271,7 +272,7 @@ the simplified ULD pipeline used later in \methodname{}.
         % \draw[arrow] (pis) to (l1);
         % \draw[arrow] (pit) to (l1);
     \end{tikzpicture}
-    \caption{ULD compares ranked probability mass after temperature scaling, sorting, and zero-padding to a common vocabulary length \cite{boizard2024towardscrosstokenizerdistillation}.}
+    \caption{ULD compares ranked probability mass after temperature scaling, sorting, and zero-padding to a common vocabulary length \cite{boizard2024towardscrosstokenizerdistillation}. This is why the loss stays valid even when teacher and student vocabularies differ.}
     \label{fig:prelim-uld-schematic}
 \end{figure}
 
@@ -355,6 +356,9 @@ This makes the routing stage closer to sparse-expert training than to a static t
     \caption[Sparse routing with expert capacity constraints.]{Illustration of sparse routing with expert capacity constraints, adapted from Switch Transformers \cite{fedus2022switchtransformersscalingtrillion}. Capacity factors control how many routed samples each expert can accept before overflow, which is directly analogous to the capacity-aware teacher routing used in \methodname.}
     \label{fig:prelim-switch-routing}
 \end{figure}
+
+The next figure adds the specialization view. Sparse routing does not only save
+compute, it also lets different experts focus on different inputs.
 
 \begin{figure}[htbp]
     \centering

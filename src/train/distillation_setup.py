@@ -72,7 +72,7 @@ class DistillationArguments:
 
     alpha: float = field(
         default=1.0,
-        metadata={"help": "KD attenuation factor in `ce_loss + (1 - alpha) * kd_loss`."},
+        metadata={"help": "KD scaling factor in `ce_loss + alpha * kd_loss`."},
     )
 
     teacher_gate_balance_alpha: float = field(
@@ -210,8 +210,8 @@ def validate_distillation_args(distillation_args) -> None:
         raise ValueError("--teacher_weighting_strategy must be `routing`, `uniform_mean`, `gradient_optimal`, or `reinforced_selection`.")
     if distillation_args.objective_conflict_strategy not in {"fixed", "pcgrad", "cagrad", "mgda"}:
         raise ValueError("--objective_conflict_strategy must be `fixed`, `pcgrad`, `cagrad`, or `mgda`.")
-    if not 0.0 <= distillation_args.alpha <= 1.0:
-        raise ValueError("--alpha must be between 0 and 1.")
+    if distillation_args.alpha < 0.0:
+        raise ValueError("--alpha must be >= 0.")
     if distillation_args.teacher_gate_balance_alpha < 0.0:
         raise ValueError("--teacher_gate_balance_alpha must be >= 0.")
     if distillation_args.teacher_gate_top_k < 1:
@@ -296,11 +296,11 @@ def log_distillation_setup(
     )
     rank0_print(f"Objective Conflict Strategy: {distillation_args.objective_conflict_strategy}")
     if distillation_args.objective_conflict_strategy == "fixed":
-        rank0_print("Objective: CE + (1 - alpha) * KD")
-        rank0_print(f"KD Weight: {1.0 - distillation_args.alpha}")
+        rank0_print("Objective: CE + alpha * KD")
+        rank0_print(f"KD Weight: {distillation_args.alpha}")
     else:
-        rank0_print("Objective: dynamic CE/KD combination with full KD loss")
-        rank0_print("KD Weight: conflict-strategy dependent")
+        rank0_print("Objective: dynamic CE/KD combination with alpha-scaled KD loss")
+        rank0_print(f"Base KD Weight: {distillation_args.alpha}")
     rank0_print(f"KD Function: {distillation_args.distillation_loss}")
     rank0_print(f"Alpha: {distillation_args.alpha}")
     rank0_print("CE Weight: 1.0")

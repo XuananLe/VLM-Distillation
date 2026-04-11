@@ -1297,6 +1297,11 @@ INPUT ./figures/intro_open_vs_closed_gap.png
 INPUT figures/intro_open_vs_closed_gap.png
 INPUT ./figures/intro_open_vs_closed_gap.png
 INPUT ./figures/intro_open_vs_closed_gap.png
+INPUT ./figures/intro_quantization_drop_mbq.png
+INPUT ./figures/intro_quantization_drop_mbq.png
+INPUT figures/intro_quantization_drop_mbq.png
+INPUT ./figures/intro_quantization_drop_mbq.png
+INPUT ./figures/intro_quantization_drop_mbq.png
 INPUT ./figures/knowledge_distillation_example.png
 INPUT ./figures/knowledge_distillation_example.png
 INPUT figures/knowledge_distillation_example.png

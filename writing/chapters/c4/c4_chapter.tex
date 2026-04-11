@@ -20,7 +20,7 @@ We evaluate three text-centric VQA benchmarks: \textbf{TextVQA}, \textbf{DocVQA}
 
 The goal is to measure whether the model can \textbf{read textual content in images, understand questions, and perform basic reasoning} across different visual domains \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
-These datasets are selected because they require OCR-heavy understanding, cover complementary visual domains, and include retrieval, layout understanding, and numerical reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+These datasets are selected because they require optical character recognition (OCR)-heavy understanding, cover complementary visual domains, and include retrieval, layout understanding, and numerical reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
 \subsection{Dataset Descriptions}
 \textbf{TextVQA} \cite{singh2019vqamodelsread}: evaluates question answering on natural images containing scene text.  
@@ -30,7 +30,7 @@ It focuses on reading text in-the-wild and combining it with question understand
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.32\linewidth]{figures/textvqa_sample_stop_sign.jpg}
-    \caption{Example image for a TextVQA-style question \cite{wikimedia_stop_sign_image}.}
+    \caption[TextVQA sample image.]{Example image for a TextVQA-style question \cite{wikimedia_stop_sign_image}. The task depends on reading scene text in a natural image and grounding the answer in that text.}
     \label{fig:textvqa-sample}
 \end{figure}
 
@@ -41,7 +41,7 @@ It emphasizes document structure understanding in addition to OCR.
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.40\linewidth]{figures/docvqa_sample_receipt.jpg}
-    \caption{Example document image for a DocVQA-style question \cite{wikimedia_receipt_swiss_image}.}
+    \caption[DocVQA sample image.]{Example document image for a DocVQA-style question \cite{wikimedia_receipt_swiss_image}. Unlike TextVQA, the answer depends on document layout, local text spans, and structured fields.}
     \label{fig:docvqa-sample}
 \end{figure}
 
@@ -52,7 +52,7 @@ It tests chart reading plus numerical and logical reasoning to derive the final 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.40\linewidth]{figures/chartqa_sample_bar_chart.png}
-    \caption{Example chart image for a ChartQA-style question \cite{wikimedia_bar_chart_image}.}
+    \caption[ChartQA sample image.]{Example chart image for a ChartQA-style question \cite{wikimedia_bar_chart_image}. This benchmark adds visual reading and numerical comparison on top of text extraction.}
     \label{fig:chartqa-sample}
 \end{figure}
 
@@ -78,7 +78,7 @@ ChartQA (H+M, combined) & 28,299 & 1,920 & 2,500 & 32,719 \\
 \bottomrule
 \end{tabular}
 }
-\caption[Dataset split sizes for the three benchmarks.]{Dataset split sizes (number of QA pairs) for TextVQA, DocVQA and ChartQA \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.}
+\caption[Dataset split sizes for the three benchmarks.]{Dataset split sizes (number of QA pairs) for TextVQA, DocVQA and ChartQA \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. The table shows that DocVQA is the largest single benchmark, while ChartQA combines human and machine-generated subsets.}
 \label{tab:dataset-sizes}
 \end{table}
 
@@ -88,9 +88,10 @@ Unless otherwise stated, the main distillation experiments use a shared training
 configuration so that differences in performance can be attributed to the
 distillation strategy rather than unrelated optimization choices.
 
-All training runs are executed on a single \textbf{NVIDIA A100 80GB} GPU using
-the \textbf{Modal} runtime environment. Distillation training uses
-\textbf{DeepSpeed ZeRO Stage 2}, \textbf{bf16} mixed precision, \textbf{TF32}
+All training runs are executed on a single \textbf{NVIDIA A100 80GB}
+graphics processing unit (GPU) using the \textbf{Modal} runtime environment.
+Distillation training uses \textbf{DeepSpeed ZeRO Stage 2}, \textbf{Brain
+Floating Point 16 (bf16)} mixed precision, \textbf{TensorFloat-32 (TF32)}
 matrix multiplication, and gradient checkpointing to control memory use while
 keeping the student fully trainable and all teachers frozen
 \cite{rajbhandari2020zero,chen2016sublinear}.
@@ -156,7 +157,7 @@ concurrent dataloader workers do not corrupt the cache state.
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.96\linewidth]{figures/r2_cache_training.png}
-\caption{Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training, and kept in a bounded local cache with oldest-file eviction.}
+\caption{Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training, and kept in a bounded local cache with oldest-file eviction. This setup avoids copying a multi-terabyte teacher store onto each rented GPU instance.}
 \label{fig:r2-cache-training}
 \end{figure}
 
@@ -183,7 +184,7 @@ Optimizer & adamw\_torch \\
 Adam betas & \((0.9, 0.98)\) \\
 Adam epsilon & \(1\times 10^{-7}\) \\
 Weight decay & N/A \\
-Numerical precision & bf16 enabled, fp16 disabled, TF32 enabled \\
+Numerical precision & bf16 enabled, half precision (fp16) disabled, TF32 enabled \\
 FlashAttention-2 & Enabled \\
 Training data format & LLaVA-style multimodal instruction JSON \\
 Teacher-logit storage & Cloudflare R2 object storage \\
@@ -275,7 +276,7 @@ heterogeneous multi-teacher baselines.
 \makecell[l]{Heterogeneous\\multi-teacher\\baselines} & \makecell[l]{Uniform averaging,\\SHM-CKA, reinforced\\selection, \methodname{}} & \makecell[l]{Mixed teacher pool from\\multiple VLM families} & \makecell[l]{Static averaging vs.\\hidden-state matching\\vs. adaptive teacher assignment} \\
 \bottomrule
 \end{tabular}
-\caption{Baseline groups used in the evaluation chapter. The grouping clarifies whether a method tests matched-token KD, cross-tokenizer transfer, or adaptive multi-teacher weighting.}
+\caption[Baseline groups used in the evaluation chapter.]{Baseline groups used in the evaluation chapter. The grouping clarifies whether a method tests matched-token KD, cross-tokenizer transfer, or adaptive multi-teacher weighting. This makes the comparison chapter easier to read because each result block has a clear experimental role.}
 \label{tab:baseline-groups}
 \end{table}
 
@@ -284,9 +285,9 @@ before the method-specific descriptions below.
 
 \begin{itemize}
 \item \textbf{Non-distillation references.} The original student and the full-finetuning baseline provide the student-only reference points for each benchmark.
-\item \textbf{Same-family baselines.} Forward KL, reverse KL, and Jensen-Shannon divergence all use \textbf{SmolVLM2-2.2B-Instruct} as a same-family teacher \cite{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,cui2024sinkhorn}. They isolate standard teacher-student transfer when tokenizer, vocabulary, and output space are already matched.
+\item \textbf{Same-family baselines.} Forward Kullback-Leibler (KL), reverse KL, and Jensen-Shannon divergence all use \textbf{SmolVLM2-2.2B-Instruct} as a same-family teacher \cite{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,cui2024sinkhorn}. They isolate standard teacher-student transfer when tokenizer, vocabulary, and output space are already matched.
 \item \textbf{Different-family single-teacher baselines.} This group uses one teacher outside the SmolVLM family. ULD is the main cross-tokenizer logits baseline \cite{boizard2024towardscrosstokenizerdistillation}.
-\item \textbf{Heterogeneous multi-teacher baselines.} Uniform averaging, SHM-CKA, reinforced selection, and \methodname{} all use teacher pools drawn from different VLM families. Uniform averaging keeps fixed equal weights, SHM-CKA adds direct hidden-state matching over the shared teacher pool, reinforced selection learns a stochastic teacher policy with REINFORCE \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}, and \methodname{} uses sparse routing plus alignment-aware reweighting \cite{zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}.
+\item \textbf{Heterogeneous multi-teacher baselines.} This group uses teacher pools drawn from different VLM families. Uniform averaging keeps fixed equal weights. SHM-CKA adds hidden-state matching over the same pool. Reinforced selection learns a stochastic teacher policy with REINFORCE \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}. \methodname{} adds sparse routing and alignment-aware reweighting \cite{zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}.
 \end{itemize}
 
 For the trainable competitor methods, we keep the same supervised term
