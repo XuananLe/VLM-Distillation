@@ -114,14 +114,11 @@ def resolve_model_type(model_id: str) -> str | None:
 
 def build_processor_load_kwargs(
     *,
-    model_type: str | None,
     padding_side: str | None = None,
 ) -> dict:
     processor_kwargs = {"trust_remote_code": True}
     if padding_side is not None:
         processor_kwargs["padding_side"] = padding_side
-    if model_type == "lfm2_vl":
-        processor_kwargs["max_image_tokens"] = 256
     return processor_kwargs
 
 
@@ -133,7 +130,6 @@ def load_processor_and_tokenizer_backend(
 ):
     model_type = resolve_model_type(model_id)
     processor_kwargs = build_processor_load_kwargs(
-        model_type=model_type,
         padding_side=padding_side,
     )
     if cache_dir is not None:
@@ -163,7 +159,7 @@ def load_processor_and_tokenizer_backend(
 
 
 def resolve_vision_language_model_loader(model_type: str | None):
-    if model_type in {"lfm2_vl", "smolvlm", "smolvlm2"}:
+    if model_type in {"smolvlm", "smolvlm2"}:
         return AutoModelForImageTextToText
     if AutoModelForVision2Seq is not None:
         return AutoModelForVision2Seq

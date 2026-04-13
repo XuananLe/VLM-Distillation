@@ -106,7 +106,7 @@ base_image = (
     )
     .run_commands(
         "python -c \"import flash_attn, transformers; "
-        "symbols = ('AutoModelForImageTextToText', 'AutoProcessor', 'Lfm2VlForConditionalGeneration', 'Lfm2VlProcessor'); "
+        "symbols = ('AutoModelForImageTextToText', 'AutoProcessor'); "
         "missing = [symbol for symbol in symbols if not hasattr(transformers, symbol)]; "
         f"assert transformers.__version__ == '{MODAL_TRANSFORMERS_VERSION}'; "
         "assert not missing, f'Missing transformers symbols: {missing}'; "
@@ -242,26 +242,8 @@ def exec_cmd(cmd: str) -> None:
 @app.local_entrypoint()
 def run(
 cmd = r"""
-cd /root/VLM-Distillation/src/eval
-
-CUDA_VISIBLE_DEVICES=0 python run.py \
---data DocVQA_VAL \
---model LFM2.5-VL-450M \
---work-dir /output/vlmeval/LFM2.5-VL-450M \
---lfm2vl-runtime fast &
-
-CUDA_VISIBLE_DEVICES=0 python run.py \
---data DocVQA_VAL \
---model LFM2.5-VL-450M-Checkpoint-600 \
---work-dir /output/vlmeval/LFM2.5-VL-450M-Checkpoint-600 \
---lfm2vl-runtime fast &
-
-CUDA_VISIBLE_DEVICES=0 python run.py \
---data DocVQA_VAL \
---model LFM2.5-VL-450M-Checkpoint-750 \
---work-dir /output/vlmeval/LFM2.5-VL-450M-Checkpoint-750 \
---lfm2vl-runtime fast &
-
+cd /root/VLM-Distillation
+python -c "print('Pass a command via --cmd to run a workload.')"
 wait
 """
 

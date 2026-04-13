@@ -71,12 +71,6 @@ def is_gemma3_model_name(model_name):
     return isinstance(model_name, str) and 'Gemma3-' in model_name
 
 
-def is_lfm2vl_model_name(model_name):
-    return isinstance(model_name, str) and (
-        'LFM2-VL' in model_name or 'LFM2.5-VL' in model_name
-    )
-
-
 # Make WORLD_SIZE invisible when build models
 def build_model_from_config(
     cfg,
@@ -85,7 +79,6 @@ def build_model_from_config(
     smolvlm_runtime='fast',
     qwen2vl_runtime='fast',
     gemma3_runtime='original',
-    lfm2vl_runtime='fast',
 ):
     import vlmeval.api
     import vlmeval.vlm
@@ -101,8 +94,6 @@ def build_model_from_config(
         config['qwen2vl_runtime'] = qwen2vl_runtime
     if model_class == 'Gemma3' or (model_class is None and is_gemma3_model_name(model_name)):
         config['gemma3_runtime'] = gemma3_runtime
-    if model_class == 'LFM2VL' or (model_class is None and is_lfm2vl_model_name(model_name)):
-        config['lfm2vl_runtime'] = lfm2vl_runtime
     if 'class' not in config:
         return supported_VLM[model_name](**config)
     cls_name = config.pop('class')
@@ -267,15 +258,6 @@ You can launch the evaluation by setting either --data and --model or --config.
              'FlashAttention-2 when available); `original` follows the documented '
              'HF load path without forcing FlashAttention-2.',
     )
-    parser.add_argument(
-        '--lfm2vl-runtime',
-        type=str,
-        default='fast',
-        choices=['fast', 'original'],
-        help='LFM2-VL / LFM2.5-VL loader mode: `fast` uses bf16 + FlashAttention-2 '
-             'when available; `original` uses float32 + eager attention.',
-    )
-
     args = parser.parse_args()
     return args
 
@@ -390,7 +372,6 @@ def main():
                 args.smolvlm_runtime,
                 args.qwen2vl_runtime,
                 args.gemma3_runtime,
-                args.lfm2vl_runtime,
             )
 
         for _, dataset_name in enumerate(args.data):
@@ -468,8 +449,7 @@ def main():
                             use_vllm=args.use_vllm,
                             smolvlm_runtime=args.smolvlm_runtime,
                             qwen2vl_runtime=args.qwen2vl_runtime,
-                            gemma3_runtime=args.gemma3_runtime,
-                            lfm2vl_runtime=args.lfm2vl_runtime)
+                            gemma3_runtime=args.gemma3_runtime)
                     else:
                         model = infer_data_job(
                             model,
@@ -482,8 +462,7 @@ def main():
                             use_vllm=args.use_vllm,
                             smolvlm_runtime=args.smolvlm_runtime,
                             qwen2vl_runtime=args.qwen2vl_runtime,
-                            gemma3_runtime=args.gemma3_runtime,
-                            lfm2vl_runtime=args.lfm2vl_runtime)
+                            gemma3_runtime=args.gemma3_runtime)
 
                 # Set the judge kwargs first before evaluation or dumping
 

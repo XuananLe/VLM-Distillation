@@ -24,7 +24,7 @@ TEACHER_MODEL_2="Qwen/Qwen2-VL-2B-Instruct"
 TEACHER_MODEL_3="google/gemma-3-4b-it"
 TEACHER_MODEL_4="ibm-granite/granite-vision-3.1-2b-preview"
 TEACHER_MODEL_IDS="[\"${TEACHER_MODEL_1}\", \"${TEACHER_MODEL_2}\", \"${TEACHER_MODEL_3}\", \"${TEACHER_MODEL_4}\"]"
-STUDENT_MODEL="LiquidAI/LFM2.5-VL-450M"
+STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 
 # Distillation strategy
 # Available strategies: uniform_mean, routing, gradient_optimal, reinforced_selection
@@ -207,5 +207,11 @@ deepspeed src/train/train_distillation.py \
     "${EXTRA_ARGS[@]}"
 
 TRAIN_EXIT_CODE=$?
+if [[ "${TRAIN_EXIT_CODE}" -eq 1 ]]; then
+    echo "Training exited with code 1; leaving the instance running for inspection." >&2
+    while true; do
+        sleep 600
+    done
+fi
 stop_vast_instance
 exit "${TRAIN_EXIT_CODE}"

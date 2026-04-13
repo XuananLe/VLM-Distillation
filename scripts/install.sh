@@ -246,7 +246,7 @@ main() {
     "modal==${MODAL_VERSION}" \
     "mosaicml-streaming==${STREAMING_VERSION}"
 
-  log "Installing Transformers ${TRANSFORMERS_VERSION} for LFM2.5-VL support."
+  log "Installing Transformers ${TRANSFORMERS_VERSION}."
   "${uv_exec}" pip install --python "${VENV_DIR}/bin/python" --upgrade "transformers==${TRANSFORMERS_VERSION}"
 
   log "Installing FlashAttention ${FLASH_ATTN_VERSION}."
@@ -272,8 +272,6 @@ for name in required_modules:
 required_symbols = [
     "AutoModelForImageTextToText",
     "AutoProcessor",
-    "Lfm2VlForConditionalGeneration",
-    "Lfm2VlProcessor",
 ]
 missing = [name for name in required_symbols if not hasattr(transformers, name)]
 if missing:
