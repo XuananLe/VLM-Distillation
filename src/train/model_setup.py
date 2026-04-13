@@ -19,6 +19,11 @@ except Exception:
 
 from src.train.log_utils import rank0_print
 
+try:
+    from transformers import AutoModelForVision2Seq
+except ImportError:
+    AutoModelForVision2Seq = None
+
 
 COMPONENT_ATTRIBUTE_ALIASES = {
     "vision": ("vision_model", "vision_tower"),
@@ -158,6 +163,10 @@ def load_processor_and_tokenizer_backend(
 
 
 def resolve_vision_language_model_loader(model_type: str | None):
+    if model_type in {"lfm2_vl", "smolvlm", "smolvlm2"}:
+        return AutoModelForImageTextToText
+    if AutoModelForVision2Seq is not None:
+        return AutoModelForVision2Seq
     return AutoModelForImageTextToText
 
 
