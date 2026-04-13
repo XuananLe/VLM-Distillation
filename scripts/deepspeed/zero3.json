@@ -10,6 +10,16 @@
   "bf16": {
     "enabled": "auto"
   },
+  "scheduler": {
+    "type": "WarmupCosineLR",
+    "params": {
+      "warmup_min_ratio": 0.0,
+      "warmup_num_steps": "auto",
+      "cos_min_ratio": 0.0,
+      "warmup_type": "linear",
+      "total_num_steps": "auto"
+    }
+  },
   "train_micro_batch_size_per_gpu": "auto",
   "train_batch_size": "auto",
   "gradient_accumulation_steps": "auto",

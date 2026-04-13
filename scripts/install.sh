@@ -256,6 +256,15 @@ main() {
     "deepspeed==${DEEPSPEED_VERSION}" \
     "transformers==${TRANSFORMERS_VERSION}"
 
+  # Some runtime packages may resolve a newer upstream torch build; restore the
+  # CUDA-matched PyTorch wheels before building FlashAttention.
+  log "Reinstalling PyTorch ${TORCH_VERSION} (${TORCH_CUDA_TAG}) after runtime pins."
+  "${uv_exec}" pip install --python "${VENV_DIR}/bin/python" \
+    --index-url "${TORCH_INDEX_URL}" \
+    "torch==${TORCH_VERSION}+${TORCH_CUDA_TAG}" \
+    "torchvision==${TORCHVISION_VERSION}+${TORCH_CUDA_TAG}" \
+    "torchaudio==${TORCHAUDIO_VERSION}+${TORCH_CUDA_TAG}"
+
   log "Installing FlashAttention ${FLASH_ATTN_VERSION}."
   "${uv_exec}" pip install --python "${VENV_DIR}/bin/python" --no-build-isolation "flash-attn==${FLASH_ATTN_VERSION}"
 

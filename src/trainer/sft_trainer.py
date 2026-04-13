@@ -1,4 +1,5 @@
 import os
+from collections import deque
 from typing import override
 
 import torch
@@ -21,6 +22,17 @@ from src.train.train_utils import (
 )
 
 class VisionLanguageSFTTrainer(Trainer):
+    _DEEPSPEED_CANDIDATE_ATTRS = (
+        "deepspeed",
+        "deepspeed_engine",
+        "deepspeed_engine_wrapped",
+        "engine",
+        "module",
+        "model",
+        "model_wrapped",
+        "wrapped_model",
+    )
+
     def has_broken_deepspeed_wrapper(self) -> bool:
         accelerator = getattr(self, "accelerator", None)
         if accelerator is None:
@@ -30,19 +42,67 @@ class VisionLanguageSFTTrainer(Trainer):
         distributed_type = getattr(accelerator, "distributed_type", None)
         return str(distributed_type).endswith("DEEPSPEED")
 
-    def resolve_deepspeed_engine(self, model):
+    def _iter_deepspeed_candidates(self, model):
         accelerator = getattr(self, "accelerator", None)
-        for candidate in (
-            model,
-            getattr(self, "model_wrapped", None),
-            getattr(accelerator, "deepspeed_engine", None) if accelerator is not None else None,
-            getattr(self, "model", None),
-        ):
-            if candidate is not None and hasattr(candidate, "backward") and hasattr(candidate, "step"):
+        queue = deque(
+            (
+                model,
+                getattr(self, "model_wrapped", None),
+                getattr(self, "deepspeed", None),
+                getattr(accelerator, "deepspeed_engine", None) if accelerator is not None else None,
+                getattr(accelerator, "deepspeed_engine_wrapped", None) if accelerator is not None else None,
+                getattr(accelerator, "_models", None) if accelerator is not None else None,
+                getattr(self, "model", None),
+            )
+        )
+        seen: set[int] = set()
+
+        while queue:
+            candidate = queue.popleft()
+            if candidate is None:
+                continue
+
+            if isinstance(candidate, dict):
+                queue.extend(candidate.values())
+                continue
+            if isinstance(candidate, (list, tuple, set)):
+                queue.extend(candidate)
+                continue
+
+            candidate_id = id(candidate)
+            if candidate_id in seen:
+                continue
+            seen.add(candidate_id)
+            yield candidate
+
+            for attr_name in self._DEEPSPEED_CANDIDATE_ATTRS:
+                nested_candidate = getattr(candidate, attr_name, None)
+                if nested_candidate is not None:
+                    queue.append(nested_candidate)
+
+    def _restore_deepspeed_wrapper(self, engine) -> None:
+        accelerator = getattr(self, "accelerator", None)
+        if accelerator is None or getattr(accelerator, "deepspeed_engine_wrapped", None) is not None:
+            return
+
+        try:
+            from accelerate.utils.deepspeed import DeepSpeedEngineWrapper
+        except Exception:
+            return
+
+        accelerator.deepspeed_engine_wrapped = DeepSpeedEngineWrapper(engine)
+
+    def resolve_deepspeed_engine(self, model):
+        checked_candidates: list[str] = []
+        for candidate in self._iter_deepspeed_candidates(model):
+            checked_candidates.append(type(candidate).__name__)
+            if hasattr(candidate, "backward") and hasattr(candidate, "step"):
+                self._restore_deepspeed_wrapper(candidate)
                 return candidate
         raise RuntimeError(
             "DeepSpeed training is enabled, but no engine exposing backward()/step() "
-            "could be resolved from the trainer state."
+            "could be resolved from the trainer state. "
+            f"Checked candidates: {checked_candidates}"
         )
 
     def manual_deepspeed_training_step(self, model, inputs, num_items_in_batch=None) -> torch.Tensor:
@@ -59,12 +119,22 @@ class VisionLanguageSFTTrainer(Trainer):
             loss = loss.mean()
 
         deepspeed_engine = self.resolve_deepspeed_engine(model)
-        deepspeed_engine.backward(
-            loss,
-            sync_gradients=getattr(self, "sync_gradients", True),
-            scale_wrt_gas=False,
-        )
-        deepspeed_engine.step()
+        accelerator = getattr(self, "accelerator", None)
+        sync_gradients = getattr(accelerator, "sync_gradients", getattr(self, "sync_gradients", True))
+
+        if hasattr(deepspeed_engine, "set_gradient_accumulation_boundary"):
+            deepspeed_engine.set_gradient_accumulation_boundary(is_boundary=sync_gradients)
+            deepspeed_engine.backward(loss, scale_wrt_gas=False)
+            if sync_gradients:
+                deepspeed_engine.step()
+        else:
+            deepspeed_engine.backward(
+                loss,
+                sync_gradients=sync_gradients,
+                scale_wrt_gas=False,
+            )
+            if sync_gradients and hasattr(deepspeed_engine, "step"):
+                deepspeed_engine.step()
 
         gradient_accumulation_steps = getattr(
             self,
