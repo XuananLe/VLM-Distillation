@@ -14,6 +14,8 @@ TORCH_CUDA_TAG="${TORCH_CUDA_TAG:-cu126}"
 TORCH_INDEX_URL="${TORCH_INDEX_URL:-https://download.pytorch.org/whl/${TORCH_CUDA_TAG}}"
 
 FLASH_ATTN_VERSION="${FLASH_ATTN_VERSION:-2.8.3}"
+ACCELERATE_VERSION="${ACCELERATE_VERSION:-1.13.0}"
+DEEPSPEED_VERSION="${DEEPSPEED_VERSION:-0.18.8}"
 TRANSFORMERS_VERSION="${TRANSFORMERS_VERSION:-5.1.0}"
 MODAL_VERSION="${MODAL_VERSION:-1.3.2}"
 STREAMING_VERSION="${STREAMING_VERSION:-0.13.0}"
@@ -182,6 +184,8 @@ blocked_prefixes = (
     "torchvision==",
     "torchaudio==",
     "nvidia-",
+    "accelerate==",
+    "deepspeed==",
     "transformers==",
     "flash_attn==",
     "flash-attn==",
@@ -246,8 +250,11 @@ main() {
     "modal==${MODAL_VERSION}" \
     "mosaicml-streaming==${STREAMING_VERSION}"
 
-  log "Installing Transformers ${TRANSFORMERS_VERSION}."
-  "${uv_exec}" pip install --python "${VENV_DIR}/bin/python" --upgrade "transformers==${TRANSFORMERS_VERSION}"
+  log "Installing training runtime pins."
+  "${uv_exec}" pip install --python "${VENV_DIR}/bin/python" --upgrade \
+    "accelerate==${ACCELERATE_VERSION}" \
+    "deepspeed==${DEEPSPEED_VERSION}" \
+    "transformers==${TRANSFORMERS_VERSION}"
 
   log "Installing FlashAttention ${FLASH_ATTN_VERSION}."
   "${uv_exec}" pip install --python "${VENV_DIR}/bin/python" --no-build-isolation "flash-attn==${FLASH_ATTN_VERSION}"
@@ -257,11 +264,13 @@ main() {
 import importlib
 import sys
 
+import accelerate
+import deepspeed
 import torch
 import transformers
 
 required_modules = [
-    "deepspeed",
+    "accelerate",
     "flash_attn",
     "modal",
     "streaming",
@@ -280,6 +289,8 @@ if missing:
 print("python:", sys.version)
 print("torch:", torch.__version__)
 print("cuda_available:", torch.cuda.is_available())
+print("accelerate:", accelerate.__version__)
+print("deepspeed:", deepspeed.__version__)
 print("transformers:", transformers.__version__)
 PY
 
