@@ -69,6 +69,16 @@ class FunctionalDistillationLoss:
             teacher_temperature=teacher_temperature,
         )
 
+    def prepare_teacher_batch(
+        self,
+        *,
+        student_logits: torch.Tensor,
+        teacher_logits: torch.Tensor,
+        teacher_labels: torch.Tensor | None = None,
+        teacher_index: int | None = None,
+    ) -> None:
+        del student_logits, teacher_logits, teacher_labels, teacher_index
+
 
 class TrieWassersteinDistillationLoss:
     def __init__(
@@ -98,6 +108,20 @@ class TrieWassersteinDistillationLoss:
             raise ValueError("Trie Wasserstein loss requires a teacher index.")
         return self.loss_modules[teacher_index]
 
+    def prepare_teacher_batch(
+        self,
+        *,
+        student_logits: torch.Tensor,
+        teacher_logits: torch.Tensor,
+        teacher_labels: torch.Tensor | None = None,
+        teacher_index: int | None = None,
+    ) -> None:
+        self._select_loss_module(teacher_index).prepare_runtime_state(
+            student_vocab_size=student_logits.size(-1),
+            teacher_vocab_size=teacher_logits.size(-1),
+            teacher_labels=teacher_labels,
+        )
+
     def compute_loss(
         self,
         *,
@@ -108,7 +132,12 @@ class TrieWassersteinDistillationLoss:
         teacher_temperature: float | None = None,
         teacher_index: int | None = None,
     ) -> torch.Tensor:
-        return self._select_loss_module(teacher_index)(
+        loss_module = self._select_loss_module(teacher_index)
+        loss_module.prepare_runtime_state(
+            student_vocab_size=student_logits.size(-1),
+            teacher_vocab_size=teacher_logits.size(-1),
+        )
+        return loss_module(
             student_logits=student_logits,
             teacher_logits=teacher_logits,
             temperature=temperature,
@@ -128,7 +157,12 @@ class TrieWassersteinDistillationLoss:
         loss_function: str | None = None,
     ) -> torch.Tensor:
         del loss_function
-        return self._select_loss_module(teacher_index).compute_logit_grad(
+        loss_module = self._select_loss_module(teacher_index)
+        loss_module.prepare_runtime_state(
+            student_vocab_size=student_logits.size(-1),
+            teacher_vocab_size=teacher_logits.size(-1),
+        )
+        return loss_module.compute_logit_grad(
             student_logits=student_logits,
             teacher_logits=teacher_logits,
             temperature=temperature,

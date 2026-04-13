@@ -100,8 +100,10 @@ class TrieWassersteinLoss(nn.Module):
 
         self.student_tokenizer = extract_tokenizer_backend(student_tokenizer)
         self.teacher_tokenizer = extract_tokenizer_backend(teacher_tokenizer)
-        self.student_vocab_size = resolve_vocab_size(self.student_tokenizer)
-        self.teacher_vocab_size = resolve_vocab_size(self.teacher_tokenizer)
+        self.student_tokenizer_vocab_size = resolve_vocab_size(self.student_tokenizer)
+        self.teacher_tokenizer_vocab_size = resolve_vocab_size(self.teacher_tokenizer)
+        self.student_vocab_size = self.student_tokenizer_vocab_size
+        self.teacher_vocab_size = self.teacher_tokenizer_vocab_size
         self.rho = float(rho)
         self.topk = int(topk)
 
@@ -157,6 +159,60 @@ class TrieWassersteinLoss(nn.Module):
         self._teacher_path_flat_device: torch.Tensor | None = None
         self._teacher_path_offsets_device: torch.Tensor | None = None
         self._teacher_ignored_mask_device: torch.Tensor | None = None
+
+    def invalidate_device_cache(self) -> None:
+        self._cached_device = None
+        self._edge_weights_device = None
+        self._student_path_flat_device = None
+        self._student_path_offsets_device = None
+        self._student_ignored_mask_device = None
+        self._teacher_path_flat_device = None
+        self._teacher_path_offsets_device = None
+        self._teacher_ignored_mask_device = None
+
+    def extend_vocab_state_with_ignored_tokens(
+        self,
+        *,
+        side: str,
+        target_vocab_size: int,
+    ) -> None:
+        if side == "student":
+            current_vocab_size = self.student_vocab_size
+            if target_vocab_size <= current_vocab_size:
+                return
+            path_flat = self.student_path_flat_cpu
+            path_offsets = self.student_path_offsets_cpu
+            ignored_mask = self.student_ignored_mask_cpu
+        elif side == "teacher":
+            current_vocab_size = self.teacher_vocab_size
+            if target_vocab_size <= current_vocab_size:
+                return
+            path_flat = self.teacher_path_flat_cpu
+            path_offsets = self.teacher_path_offsets_cpu
+            ignored_mask = self.teacher_ignored_mask_cpu
+        else:
+            raise ValueError(f"Unknown trie side: {side!r}")
+
+        extra_tokens = target_vocab_size - current_vocab_size
+        repeated_offset = path_offsets[-1].repeat(extra_tokens)
+        extended_offsets = torch.cat([path_offsets[:-1], repeated_offset, path_offsets[-1:]], dim=0)
+        extended_ignored_mask = torch.cat(
+            [ignored_mask, torch.ones(extra_tokens, dtype=torch.bool)],
+            dim=0,
+        )
+
+        if side == "student":
+            self.student_vocab_size = target_vocab_size
+            self.student_path_flat_cpu = path_flat
+            self.student_path_offsets_cpu = extended_offsets
+            self.student_ignored_mask_cpu = extended_ignored_mask
+        else:
+            self.teacher_vocab_size = target_vocab_size
+            self.teacher_path_flat_cpu = path_flat
+            self.teacher_path_offsets_cpu = extended_offsets
+            self.teacher_ignored_mask_cpu = extended_ignored_mask
+
+        self.invalidate_device_cache()
 
     def build_paths(
         self,
@@ -233,22 +289,21 @@ class TrieWassersteinLoss(nn.Module):
         path_offsets: torch.Tensor,
         ignored_mask: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        k = min(self.topk, probs.size(0))
-        values, token_ids = torch.topk(probs, k=k, dim=-1)
+        valid_mask = ~ignored_mask
+        num_valid = int(valid_mask.sum().item())
+        tail_edge = torch.tensor([self.tail_edge_id], device=probs.device, dtype=torch.long)
 
-        selected_mass = values.sum()
-        remainder_tail_mass = (1.0 - selected_mass).clamp_min(0.0)
-        tail_mass = remainder_tail_mass
+        if num_valid == 0:
+            tail_mass = probs.sum().unsqueeze(0)
+            return tail_edge, tail_mass
+
+        k = min(self.topk, num_valid)
+        masked_probs = probs.masked_fill(ignored_mask, float("-inf"))
+        kept_values, kept_token_ids = torch.topk(masked_probs, k=k, dim=-1)
+        tail_mass = (1.0 - kept_values.sum()).clamp_min(0.0)
 
         edge_chunks: list[torch.Tensor] = []
         mass_chunks: list[torch.Tensor] = []
-        ignored_selected = ignored_mask.index_select(0, token_ids)
-
-        if ignored_selected.any():
-            tail_mass = tail_mass + values.masked_select(ignored_selected).sum()
-
-        kept_token_ids = token_ids.masked_select(~ignored_selected)
-        kept_values = values.masked_select(~ignored_selected)
 
         for token_id, prob in zip(kept_token_ids.tolist(), kept_values.unbind(0)):
             start = int(path_offsets[token_id].item())
@@ -261,7 +316,6 @@ class TrieWassersteinLoss(nn.Module):
             edge_chunks.append(token_edge_ids)
             mass_chunks.append(prob.expand(token_edge_ids.numel()))
 
-        tail_edge = torch.tensor([self.tail_edge_id], device=probs.device, dtype=torch.long)
         tail_mass_tensor = tail_mass.unsqueeze(0)
 
         if edge_chunks:
@@ -270,6 +324,49 @@ class TrieWassersteinLoss(nn.Module):
                 torch.cat([*mass_chunks, tail_mass_tensor], dim=0),
             )
         return tail_edge, tail_mass_tensor
+
+    def prepare_runtime_state(
+        self,
+        *,
+        student_vocab_size: int,
+        teacher_vocab_size: int,
+        teacher_labels: torch.Tensor | None = None,
+    ) -> None:
+        if student_vocab_size > self.student_vocab_size:
+            self.extend_vocab_state_with_ignored_tokens(
+                side="student",
+                target_vocab_size=student_vocab_size,
+            )
+        elif student_vocab_size < self.student_vocab_size:
+            raise ValueError(
+                "student logits vocab size does not match the trie state: "
+                f"{student_vocab_size} != {self.student_vocab_size}"
+            )
+
+        if teacher_vocab_size > self.teacher_vocab_size:
+            self.extend_vocab_state_with_ignored_tokens(
+                side="teacher",
+                target_vocab_size=teacher_vocab_size,
+            )
+        elif teacher_vocab_size < self.teacher_vocab_size:
+            raise ValueError(
+                "teacher logits vocab size does not match the trie state: "
+                f"{teacher_vocab_size} != {self.teacher_vocab_size}"
+            )
+
+        if teacher_labels is None:
+            return
+
+        valid_labels = teacher_labels[teacher_labels != -100]
+        if valid_labels.numel() == 0:
+            return
+
+        max_label = int(valid_labels.max().item())
+        if max_label >= self.teacher_tokenizer_vocab_size:
+            raise ValueError(
+                "teacher labels contain ids outside tokenizer space: "
+                f"max label {max_label} >= tokenizer vocab {self.teacher_tokenizer_vocab_size}"
+            )
 
     def single_step_loss(
         self,
@@ -359,6 +456,10 @@ class TrieWassersteinLoss(nn.Module):
         student_temperature: float | None = None,
         teacher_temperature: float | None = None,
     ) -> torch.Tensor:
+        self.prepare_runtime_state(
+            student_vocab_size=student_logits.size(-1),
+            teacher_vocab_size=teacher_logits.size(-1),
+        )
         with torch.enable_grad():
             detached_student_logits = student_logits.detach().clone().requires_grad_(True)
             loss = self.forward(

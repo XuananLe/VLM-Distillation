@@ -169,6 +169,7 @@ def compute_teacher_losses_and_grace(
         ),
         collect_teacher_target_batches=trainer.teacher_weighting_strategy == "reinforced_selection",
         grace_threshold=trainer.grace_threshold,
+        distillation_prepare_batch_fn=trainer.distillation_prepare_batch_fn,
         distillation_loss_fn=trainer.distillation_loss_fn,
         distillation_logit_grad_fn=trainer.distillation_logit_grad_fn,
         loss_function=trainer.loss_function,

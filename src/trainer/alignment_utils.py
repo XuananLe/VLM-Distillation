@@ -27,6 +27,7 @@ def compute_teacher_loss_matrix(
     collect_teacher_gradient_vectors: bool,
     collect_teacher_target_batches: bool,
     grace_threshold: float,
+    distillation_prepare_batch_fn: Callable,
     distillation_loss_fn: Callable,
     distillation_logit_grad_fn: Callable,
     loss_function: str,
@@ -67,6 +68,12 @@ def compute_teacher_loss_matrix(
             if collect_teacher_target_batches:
                 teacher_logit_batches.append(prepared_teacher_logits)
                 teacher_label_batches.append(prepared_teacher_labels)
+            distillation_prepare_batch_fn(
+                student_logits=student_logits,
+                teacher_logits=prepared_teacher_logits,
+                teacher_labels=prepared_teacher_labels,
+                teacher_index=teacher_index,
+            )
             teacher_losses.append(
                 compute_single_teacher_loss(
                     student_logits=student_logits,
@@ -165,6 +172,12 @@ def compute_teacher_loss_matrix(
         if collect_teacher_target_batches:
             teacher_logit_batches.append(teacher_logits)
             teacher_label_batches.append(effective_teacher_labels)
+        distillation_prepare_batch_fn(
+            student_logits=student_logits,
+            teacher_logits=teacher_logits,
+            teacher_labels=effective_teacher_labels,
+            teacher_index=teacher_index,
+        )
         teacher_losses.append(
             compute_single_teacher_loss(
                 student_logits=student_logits,

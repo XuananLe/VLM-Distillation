@@ -119,6 +119,7 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
             trie_wasserstein_rho=trie_wasserstein_rho,
             trie_wasserstein_topk=trie_wasserstein_topk,
         )
+        self.distillation_prepare_batch_fn = self.distillation_loss.prepare_teacher_batch
         self.distillation_loss_fn = self.distillation_loss.compute_loss
         self.distillation_logit_grad_fn = self.distillation_loss.compute_logit_grad
         self.teacher_weighting_strategy = teacher_weighting_strategy
