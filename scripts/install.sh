@@ -4,6 +4,8 @@ set -euo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 VENV_DIR="${VENV_DIR:-$ROOT_DIR/.venv}"
 PYTHON_BIN="${PYTHON_BIN:-}"
+UV_BIN="${UV_BIN:-}"
+UV_INSTALL_DIR="${UV_INSTALL_DIR:-$ROOT_DIR/.uv-bin}"
 
 TORCH_VERSION="${TORCH_VERSION:-2.8.0}"
 TORCHVISION_VERSION="${TORCHVISION_VERSION:-0.23.0}"
@@ -18,6 +20,7 @@ STREAMING_VERSION="${STREAMING_VERSION:-0.13.0}"
 
 INSTALL_SYSTEM_DEPS="${INSTALL_SYSTEM_DEPS:-1}"
 INSTALL_WRITING_DEPS="${INSTALL_WRITING_DEPS:-0}"
+FILTERED_REQUIREMENTS_PATH=""
 
 log() {
   printf '[install] %s\n' "$*"
@@ -30,6 +33,47 @@ die() {
 
 command_exists() {
   command -v "$1" >/dev/null 2>&1
+}
+
+cleanup() {
+  if [[ -n "${FILTERED_REQUIREMENTS_PATH:-}" ]]; then
+    rm -f "${FILTERED_REQUIREMENTS_PATH}"
+  fi
+}
+
+trap cleanup EXIT
+
+pick_uv() {
+  if [[ -n "${UV_BIN}" ]]; then
+    command_exists "${UV_BIN}" || die "UV_BIN=${UV_BIN} was not found."
+    printf '%s\n' "${UV_BIN}"
+    return
+  fi
+
+  if command_exists uv; then
+    printf '%s\n' "uv"
+    return
+  fi
+
+  mkdir -p "${UV_INSTALL_DIR}"
+  export PATH="${UV_INSTALL_DIR}:${PATH}"
+
+  if command_exists uv; then
+    printf '%s\n' "uv"
+    return
+  fi
+
+  log "Installing uv via the official standalone installer."
+  if command_exists curl; then
+    curl -LsSf https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL="${UV_INSTALL_DIR}" sh
+  elif command_exists wget; then
+    wget -qO- https://astral.sh/uv/install.sh | env UV_UNMANAGED_INSTALL="${UV_INSTALL_DIR}" sh
+  else
+    die "Neither curl nor wget is available to install uv."
+  fi
+
+  command_exists uv || die "uv installation succeeded but uv is still not on PATH."
+  printf '%s\n' "uv"
 }
 
 pick_python() {
@@ -165,45 +209,48 @@ main() {
   python_exec="$(pick_python)"
   log "Using ${python_exec}."
 
+  local uv_exec
+  uv_exec="$(pick_uv)"
+  log "Using $(${uv_exec} --version)."
+
   if [[ ! -d "${VENV_DIR}" ]]; then
     log "Creating virtual environment at ${VENV_DIR}."
-    "${python_exec}" -m venv "${VENV_DIR}"
+    "${uv_exec}" venv "${VENV_DIR}" --python "${python_exec}" --seed
   fi
 
   # shellcheck disable=SC1090
   source "${VENV_DIR}/bin/activate"
 
-  export PIP_DISABLE_PIP_VERSION_CHECK=1
   export PYTHONNOUSERSITE=1
+  export UV_PROJECT_ENVIRONMENT="${VENV_DIR}"
+  log "Using virtualenv interpreter ${VENV_DIR}/bin/python."
 
-  log "Upgrading pip tooling."
-  python -m pip install --upgrade pip setuptools wheel packaging
+  log "Upgrading seed packaging tooling."
+  "${uv_exec}" pip install --python "${VENV_DIR}/bin/python" --upgrade pip setuptools wheel packaging
 
   log "Installing PyTorch ${TORCH_VERSION} (${TORCH_CUDA_TAG})."
-  python -m pip install \
+  "${uv_exec}" pip install --python "${VENV_DIR}/bin/python" \
     --index-url "${TORCH_INDEX_URL}" \
     "torch==${TORCH_VERSION}+${TORCH_CUDA_TAG}" \
     "torchvision==${TORCHVISION_VERSION}+${TORCH_CUDA_TAG}" \
     "torchaudio==${TORCHAUDIO_VERSION}+${TORCH_CUDA_TAG}"
 
-  local filtered_requirements
-  filtered_requirements="$(mktemp)"
-  trap 'rm -f "${filtered_requirements}"' EXIT
-  build_filtered_requirements "${ROOT_DIR}/requirements.txt" "${filtered_requirements}"
+  FILTERED_REQUIREMENTS_PATH="$(mktemp)"
+  build_filtered_requirements "${ROOT_DIR}/requirements.txt" "${FILTERED_REQUIREMENTS_PATH}"
 
   log "Installing Python dependencies from requirements.txt."
-  python -m pip install -r "${filtered_requirements}"
+  "${uv_exec}" pip install --python "${VENV_DIR}/bin/python" -r "${FILTERED_REQUIREMENTS_PATH}"
 
   log "Installing Modal and streaming cache support."
-  python -m pip install \
+  "${uv_exec}" pip install --python "${VENV_DIR}/bin/python" \
     "modal==${MODAL_VERSION}" \
     "mosaicml-streaming==${STREAMING_VERSION}"
 
   log "Installing Transformers ${TRANSFORMERS_VERSION} for LFM2.5-VL support."
-  python -m pip install --upgrade "transformers==${TRANSFORMERS_VERSION}"
+  "${uv_exec}" pip install --python "${VENV_DIR}/bin/python" --upgrade "transformers==${TRANSFORMERS_VERSION}"
 
   log "Installing FlashAttention ${FLASH_ATTN_VERSION}."
-  python -m pip install --no-build-isolation "flash-attn==${FLASH_ATTN_VERSION}"
+  "${uv_exec}" pip install --python "${VENV_DIR}/bin/python" --no-build-isolation "flash-attn==${FLASH_ATTN_VERSION}"
 
   log "Verifying core imports."
   python - <<'PY'
@@ -245,8 +292,8 @@ PY
   source "${VENV_DIR}/bin/activate"
 
 [install] common next steps:
-  python src/load_data.py --dataset docvqa --output-root data
-  bash scripts/train/distill_multi_teachers.sh
+  "${VENV_DIR}/bin/python" src/load_data.py --dataset docvqa --output-root data
+  bash "${ROOT_DIR}/scripts/train/distill_multi_teachers.sh"
 
 EOF
 }
