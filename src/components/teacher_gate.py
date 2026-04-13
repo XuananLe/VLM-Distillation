@@ -117,6 +117,17 @@ class Gate(nn.Module):
         self.hidden_state = None
         return pooled_features
 
+    def prepare_router_module(self, reference: torch.Tensor) -> None:
+        target_dtype = reference.dtype if reference.is_floating_point() else None
+        router_param = next(self.router.parameters(), None)
+        if router_param is None:
+            return
+
+        if router_param.device != reference.device or (
+            target_dtype is not None and router_param.dtype != target_dtype
+        ):
+            self.router.to(device=reference.device, dtype=target_dtype)
+
     def compute_router_logits(
         self,
         *,
@@ -124,6 +135,7 @@ class Gate(nn.Module):
         attention_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         pooled_features = self.pool_features(labels=labels, attention_mask=attention_mask)
+        self.prepare_router_module(pooled_features)
         return self.router(pooled_features)
 
     def apply_expert_bias(self, router_logits: torch.Tensor) -> torch.Tensor:
