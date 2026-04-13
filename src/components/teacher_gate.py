@@ -3,12 +3,6 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 
-SUPPORTED_SMOLVLM_HIDDEN_SIZES = {
-    "huggingfacetb/smolvlm-500m-instruct": 960,
-    "huggingfacetb/smolvlm-256m-instruct": 576,
-}
-
-
 class DeepRouter(nn.Module):
     def __init__(self, input_size: int, num_experts: int):
         super().__init__()
@@ -62,40 +56,20 @@ class Gate(nn.Module):
 
     @staticmethod
     def resolve_gate_source(model: nn.Module) -> tuple[int, nn.Module]:
-        smolvlm_source = Gate.resolve_smolvlm_gate_source(model)
-        if smolvlm_source is not None:
-            return smolvlm_source
-        raise ValueError(
-            "Gate currently supports only SmolVLM-500M and SmolVLM-256M checkpoints."
-        )
-
-    @staticmethod
-    def resolve_smolvlm_gate_source(model: nn.Module) -> tuple[int, nn.Module] | None:
-        config = getattr(model, "config", None)
-        model_name = str(getattr(config, "_name_or_path", "")).lower().strip()
-        if model_name not in SUPPORTED_SMOLVLM_HIDDEN_SIZES:
-            return None
-
-        model_type = getattr(config, "model_type", None)
-        architectures = getattr(config, "architectures", None) or []
-        if model_type != "idefics3" or "Idefics3ForConditionalGeneration" not in architectures:
-            raise ValueError(
-                f"Expected {model_name} to be an Idefics3ForConditionalGeneration checkpoint, "
-                f"got model_type={model_type!r}, architectures={architectures!r}."
-            )
-
-        text_config = getattr(config, "text_config", None)
-        hidden_size = getattr(text_config, "hidden_size", None)
-        expected_hidden_size = SUPPORTED_SMOLVLM_HIDDEN_SIZES[model_name]
-        if hidden_size != expected_hidden_size:
-            raise ValueError(
-                f"Expected {model_name} text hidden size {expected_hidden_size}, got {hidden_size}."
-            )
-
         lm_head = getattr(model, "lm_head", None)
         if lm_head is None:
-            raise ValueError(f"Expected {model_name} to expose `lm_head` for learned teacher gating.")
-        return hidden_size, lm_head
+            raise ValueError("Teacher gate requires the model to expose `lm_head`.")
+
+        config = getattr(model, "config", None)
+        text_config = getattr(config, "text_config", None) if config is not None else None
+        hidden_size = (
+            getattr(text_config, "hidden_size", None)
+            or getattr(config, "hidden_size", None)
+            or getattr(lm_head, "in_features", None)
+        )
+        if hidden_size is None:
+            raise ValueError("Teacher gate could not infer the student hidden size from config or lm_head.")
+        return int(hidden_size), lm_head
 
     def capture_hidden_state(self, _module, args):
         if args:

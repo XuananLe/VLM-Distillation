@@ -29,6 +29,8 @@ def validate_distillation_trainer_args(
     objective_conflict_strategy: str,
     objective_conflict_cagrad_c: float,
     objective_conflict_cagrad_grid_steps: int,
+    trie_wasserstein_rho: float,
+    trie_wasserstein_topk: int,
     loss_function: str,
     distillation_loss_module,
 ) -> None:
@@ -89,7 +91,11 @@ def validate_distillation_trainer_args(
         raise ValueError("DistillationTrainer requires `objective_conflict_cagrad_c >= 0`.")
     if objective_conflict_cagrad_grid_steps < 2:
         raise ValueError("DistillationTrainer requires `objective_conflict_cagrad_grid_steps >= 2`.")
-    if not hasattr(distillation_loss_module, loss_function):
+    if trie_wasserstein_rho <= 0.0 or trie_wasserstein_rho >= 1.0:
+        raise ValueError("DistillationTrainer requires `0 < trie_wasserstein_rho < 1`.")
+    if trie_wasserstein_topk < 1:
+        raise ValueError("DistillationTrainer requires `trie_wasserstein_topk >= 1`.")
+    if loss_function != "trie_wasserstein_loss" and not hasattr(distillation_loss_module, loss_function):
         raise ValueError(f"Unknown distillation loss: {loss_function!r}")
     if teacher_weighting_strategy not in {"routing", "uniform_mean", "gradient_optimal", "reinforced_selection"}:
         raise ValueError(
@@ -205,6 +211,8 @@ def log_distillation_trainer_setup(
     objective_conflict_strategy: str,
     objective_conflict_cagrad_c: float,
     objective_conflict_cagrad_grid_steps: int,
+    trie_wasserstein_rho: float,
+    trie_wasserstein_topk: int,
 ) -> None:
     print("Distillation Trainer initialized:")
     print(f"  - Teachers: {num_teachers}")
@@ -218,6 +226,9 @@ def log_distillation_trainer_setup(
         print("  - Teacher weighting: uniform mean")
     print(f"  - Objective conflict strategy: {objective_conflict_strategy}")
     print(f"  - Loss function: {loss_function}")
+    if loss_function == "trie_wasserstein_loss":
+        print(f"  - Trie Wasserstein rho: {trie_wasserstein_rho}")
+        print(f"  - Trie Wasserstein top-k: {trie_wasserstein_topk}")
     print(f"  - Student temperature: {student_temperature}")
     print(f"  - Teacher temperature: {teacher_temperature}")
     print(f"  - Skip student EOS: {skip_student_eos}")

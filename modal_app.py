@@ -10,6 +10,9 @@ MODEL_DIR = Path("/models")
 DATASET_DIR = Path("/data")
 OUTPUT_DIR = Path("/output")
 CACHE_DIR = Path("/cache")
+MODAL_TRANSFORMERS_VERSION = os.environ.get("MODAL_TRANSFORMERS_VERSION", "5.1.0")
+MODAL_FLASH_ATTN_VERSION = os.environ.get("MODAL_FLASH_ATTN_VERSION", "2.8.3")
+MODAL_IMAGE_BUILD_GPU = os.environ.get("MODAL_IMAGE_BUILD_GPU", "L4")
 R2_SECRET_NAME = os.environ.get("MODAL_R2_SECRET_NAME", "cloudflare-r2-secret")
 R2_ENDPOINT_URL = os.environ.get(
     "MODAL_R2_ENDPOINT_URL",
@@ -47,29 +50,46 @@ base_image = (
         copy=True,
         ignore=modal.FilePatternMatcher.from_file(".gitignore"),
     )
-    .uv_pip_install(
+    .pip_install(
         "wheel==0.46.3",
         "setuptools==69.0.3",
         "packaging==26.0",
         "ninja==1.13.0",
         "psutil==7.2.2",
     )
-    .uv_pip_install(
+    .pip_install(
         "torch==2.8.0+cu126",
         "torchvision==0.23.0+cu126",
         "torchaudio==2.8.0+cu126",
         extra_index_url="https://download.pytorch.org/whl/cu126",
     )
+    .pip_install(
+        f"flash-attn=={MODAL_FLASH_ATTN_VERSION}",
+        extra_options="--no-build-isolation",
+        gpu=MODAL_IMAGE_BUILD_GPU,
+    )
     .run_commands(
         "python -c \"from pathlib import Path; src = Path('/root/VLM-Distillation/requirements.txt'); "
-        "dst = Path('/tmp/modal-requirements.txt'); blocked_prefixes = ('torch==', 'torchvision==', 'torchaudio==', 'nvidia-'); "
+        "dst = Path('/tmp/modal-requirements.txt'); blocked_prefixes = ('torch==', 'torchvision==', 'torchaudio==', 'nvidia-', 'transformers==', 'flash_attn==', 'flash-attn=='); "
         "filtered_lines = [line for line in src.read_text().splitlines() if line.strip() and not line.lstrip().startswith(blocked_prefixes)]; "
         "dst.write_text('\\\\n'.join(filtered_lines) + '\\\\n'); print(f'Filtered requirements written to {dst}')\"",
         "python -m pip install -r /tmp/modal-requirements.txt --no-build-isolation",
     )
-    .uv_pip_install(
+    .pip_install(
         "numpy<2.2",
         "mosaicml-streaming==0.13.0",
+    )
+    .pip_install(
+        f"transformers=={MODAL_TRANSFORMERS_VERSION}",
+    )
+    .run_commands(
+        "python -c \"import flash_attn, transformers; "
+        "symbols = ('AutoModelForImageTextToText', 'AutoProcessor', 'Lfm2VlForConditionalGeneration', 'Lfm2VlProcessor'); "
+        "missing = [symbol for symbol in symbols if not hasattr(transformers, symbol)]; "
+        f"assert transformers.__version__ == '{MODAL_TRANSFORMERS_VERSION}'; "
+        "assert not missing, f'Missing transformers symbols: {missing}'; "
+        "print('flash_attn import OK'); "
+        "print('transformers', transformers.__version__)\""
     )
     .env(
         {
@@ -131,14 +151,8 @@ app = modal.App(
 )
 
 
-@app.function(gpu = "L4", timeout=60 * 60 * 24)
-def exec_cmd(cmd: str) -> None:
-    cmd = cmd.strip()
-    if not cmd:
-        raise ValueError("cmd must be non-empty")
-
+def _prepare_modal_runtime_env() -> dict[str, str]:
     env = os.environ.copy()
-    print(f"WANDB_API_KEY set: {'WANDB_API_KEY' in env}")
     env.setdefault("PYTHONUNBUFFERED", "1")
     env.setdefault("WANDB_MODE", "online")
     env.setdefault("PYTORCH_CUDA_ALLOC_CONF", "expandable_segments:True")
@@ -157,6 +171,17 @@ def exec_cmd(cmd: str) -> None:
     os.makedirs(OUTPUT_DIR, exist_ok=True)
     os.makedirs(DATASET_DIR / ".hf_cache" / "datasets", exist_ok=True)
     os.makedirs(MODEL_DIR / ".hf_cache" / "hub", exist_ok=True)
+    return env
+
+
+@app.function(gpu = "L4", timeout=60 * 60 * 24)
+def exec_cmd(cmd: str) -> None:
+    cmd = cmd.strip()
+    if not cmd:
+        raise ValueError("cmd must be non-empty")
+
+    env = _prepare_modal_runtime_env()
+    print(f"WANDB_API_KEY set: {'WANDB_API_KEY' in env}")
 
     print("[exec] Command:")
     print(cmd)
@@ -184,6 +209,7 @@ def exec_cmd(cmd: str) -> None:
 
     if returncode != 0:
         raise subprocess.CalledProcessError(returncode, cmd)
+
 
 @app.local_entrypoint()
 def run(

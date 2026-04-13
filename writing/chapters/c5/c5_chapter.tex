@@ -2,7 +2,7 @@
 \label{chap:experiment-results}
 
 \section{Main Comparison Results}
-This section compares the proposed method with the baselines on TextVQA, DocVQA, and ChartQA.
+This section compares the proposed method with the baselines on TextVQA, DocVQA and ChartQA.
 
 \subsection{Baseline Results}
 Before applying adaptation or distillation, we report the original performance of the two student models, \textbf{SmolVLM-500M} and \textbf{SmolVLM-256M}.
@@ -52,7 +52,7 @@ reference.
 
 \subsection{Overall Comparison}
 
-Tables~\ref{tab:textvqa-comparison}, \ref{tab:docvqa-comparison}, and \ref{tab:chartqa-comparison} summarize the main comparison results across original models, direct fine-tuning, standard logits distillation baselines, and \methodname.
+Tables~\ref{tab:textvqa-comparison}, \ref{tab:docvqa-comparison} and \ref{tab:chartqa-comparison} summarize the main comparison results across original models, direct fine-tuning, standard logits distillation baselines and \methodname.
 
 Missing entries are marked as `N/A' when a run was not completed or not reported in the current experiment set.
 
@@ -60,10 +60,10 @@ We report the baselines in four groups.
 
 \begin{itemize}
 \item The \textbf{non-distillation references} are the original student and the full-finetuning baseline.
-\item The \textbf{same-family baselines} use \textbf{SmolVLM2-2.2B-Instruct} as teacher for forward KL, reverse KL, and Jensen-Shannon divergence \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge,dasgupta2025improving}.
+\item The \textbf{same-family baselines} use \textbf{SmolVLM2-2.2B-Instruct} as teacher for forward KL, reverse KL and Jensen-Shannon divergence \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge,dasgupta2025improving}.
 \item The \textbf{different-family single-teacher baselines}\\
 use a teacher outside the SmolVLM family. This group includes the ULD baseline \cite{boizard2024towardscrosstokenizerdistillation}.
-\item The \textbf{heterogeneous multi-teacher baselines} use teacher pools drawn from different VLM families, including uniform averaging, reinforced selection, and \methodname{} \cite{williams1992simple,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
+\item The \textbf{heterogeneous multi-teacher baselines} use teacher pools drawn from different VLM families, including uniform averaging, reinforced selection and \methodname{} \cite{williams1992simple,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
 \end{itemize}
 
 Each configuration is reported as a single run. Multi-teacher training is
@@ -110,7 +110,7 @@ Cross-family & ULD & Qwen2-VL-2B-Instruct & \makecell[c]{SmolVLM-500M\\SmolVLM-2
 & GRACE & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct\\InternVL3-1B\\Gemma-3-4B-it} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{69.38\\56.75} \\
 \bottomrule
 \end{tabular}
-\caption{TextVQA comparison across original models, fine-tuning, distillation baselines, and \methodname. The main question here is whether adaptive multi-teacher weighting improves over same-family KD and over static multi-teacher baselines.}
+\caption{TextVQA comparison across original models, fine-tuning, distillation baselines and \methodname. The main question here is whether adaptive multi-teacher weighting improves over same-family KD and over static multi-teacher baselines.}
 \label{tab:textvqa-comparison}
 \end{table}
 
@@ -157,7 +157,7 @@ Cross-family & ULD & Qwen2-VL-2B-Instruct & \makecell[c]{SmolVLM-500M\\SmolVLM-2
 & GRACE & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct\\InternVL3-1B\\Gemma-3-4B-it} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{73.11\\N/A} \\
 \bottomrule
 \end{tabular}
-\caption{DocVQA comparison across original models, fine-tuning, distillation baselines, and \methodname. The table is most useful for checking whether the same teacher pool helps more when document layout and OCR quality matter strongly.}
+\caption{DocVQA comparison across original models, fine-tuning, distillation baselines and \methodname. The table is most useful for checking whether the same teacher pool helps more when document layout and OCR quality matter strongly.}
 \label{tab:docvqa-comparison}
 \end{table}
 
@@ -204,9 +204,103 @@ Cross-family & ULD & Qwen2-VL-2B-Instruct & \makecell[c]{SmolVLM-500M\\SmolVLM-2
 & GRACE & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct\\InternVL3-1B\\Gemma-3-4B-it} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{\textbf{80.20}\\N/A} \\
 \bottomrule
 \end{tabular}
-\caption{ChartQA comparison across original models, fine-tuning, distillation baselines, and \methodname. The strongest gain appears here, which suggests that adaptive teacher weighting is especially useful when numerical reasoning and chart reading are combined.}
+\caption{ChartQA comparison across original models, fine-tuning, distillation baselines and \methodname. The strongest gain appears here, which suggests that adaptive teacher weighting is especially useful when numerical reasoning and chart reading are combined.}
 \label{tab:chartqa-comparison}
 \end{table}
+
+The tables above show the end-point accuracy. The optimization path is also
+different: \methodname{} is visibly more stable than static uniform averaging.
+
+\begin{figure}[htbp]
+    \centering
+    \begin{subfigure}[t]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/uniform.png}
+        \caption{Uniform multi-teacher baseline}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/GRACE.png}
+        \caption{\methodname}
+    \end{subfigure}
+    \caption[Training-curve comparison for uniform weighting and GRACE.]{Representative training curves for the uniform multi-teacher baseline and \methodname. The \methodname{} curve is smoother and shows smaller oscillations, which is consistent with the claim that routing plus GRACE score refinement makes optimization more stable than static averaging.}
+    \label{fig:training-curve-comparison}
+\end{figure}
+
+Figure~\ref{fig:training-curve-comparison} complements the final benchmark
+tables by showing that the gain is not only at convergence. \methodname{}
+also follows a more stable training trajectory.
+
+Table~\ref{tab:grace-relative-gains} makes the same point numerically for the
+SmolVLM-500M student. Relative gain is computed as
+\((\text{\methodname} - \text{baseline}) / \text{baseline}\).
+
+\begin{table}[htbp]
+\centering
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.02}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Benchmark} & \textbf{vs Original} & \textbf{vs Finetuning} & \textbf{vs Uniform} & \makecell[c]{\textbf{vs Best}\\\textbf{non-\methodname{}}} \\
+\midrule
+TextVQA & +12.63 (+22.26\%) & +12.42 (+21.80\%) & +5.50 (+8.61\%) & +5.38 (+8.41\%) \\
+DocVQA & +13.59 (+22.83\%) & +11.15 (+18.00\%) & +3.52 (+5.06\%) & +3.52 (+5.06\%) \\
+ChartQA & +17.40 (+27.71\%) & +17.20 (+27.30\%) & +4.60 (+6.08\%) & +3.32 (+4.32\%) \\
+\bottomrule
+\end{tabular}
+\caption{Absolute and relative gains of \methodname{} on SmolVLM-500M. The strongest non-\methodname{} competitor is reinforced selection on TextVQA, uniform multi-teacher weighting on DocVQA and SHM-CKA on ChartQA. The gains over direct finetuning remain large, which shows that the improvement does not come from extra optimization alone but from the distillation and weighting strategy itself.}
+\label{tab:grace-relative-gains}
+\end{table}
+
+The gains against the original student are large: +22.26\% on TextVQA,
++22.83\% on DocVQA and +27.71\% on ChartQA. The gains over direct finetuning
+are almost as large: +21.80\%, +18.00\% and +27.30\%, respectively. The gain
+over static uniform averaging is smaller, but it remains consistent across all
+three tasks. This is important because it isolates the value of adaptive
+teacher weighting from the value of simply using more than one teacher.
+
+For the smaller SmolVLM-256M student, the complete \methodname{} runs are not
+available on every benchmark. On TextVQA, however, \methodname{} still improves
+from 47.17 to 56.75, which is a +9.58 point gain or +20.31\% relative
+improvement. It also stays ahead of the uniform baseline by +2.18 points
+(+4.00\%).
+
+The same trend appears if the reference point is the strongest teacher in the
+\methodname{} pool. Let \(g_{\mathrm{orig}} = y_T - y_{\mathrm{orig}}\) and
+\(g_{\mathrm{grace}} = y_T - y_{\mathrm{grace}}\). The fraction of the gap
+closed is \(1 - g_{\mathrm{grace}} / g_{\mathrm{orig}}\).
+
+\begin{table}[htbp]
+\centering
+\small
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.02}
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Benchmark} & \textbf{Best teacher} & \textbf{Original gap} & \textbf{GRACE gap} & \textbf{Gap closed} \\
+\midrule
+TextVQA & 79.70 & 22.95 & 10.32 & 55.03\% \\
+DocVQA & 93.90 & 34.38 & 20.79 & 39.53\% \\
+ChartQA & 94.24 & 31.44 & 14.04 & 55.34\% \\
+\bottomrule
+\end{tabular}
+\caption{Gap-to-teacher analysis for SmolVLM-500M under \methodname. The teacher reference is the strongest model inside the four-teacher GRACE pool for each benchmark. \methodname{} closes about half of the original gap on TextVQA and ChartQA, and about 40\% on DocVQA, which shows that the student is not only better in absolute terms but also materially closer to teacher-level performance.}
+\label{tab:grace-gap-to-teacher}
+\end{table}
+
+This matters because the gain is not just a small increment over a weak
+baseline. On two benchmarks, \methodname{} removes about half of the original
+teacher-student gap. Even on DocVQA, where the teacher ceiling is highest, it
+still closes almost 40\% of the gap.
+
+The student also outperforms some individual teachers in the pool. On TextVQA,
+\methodname{} reaches 69.38 and exceeds Gemma-3-4B-it at 57.80 by +11.58 points
+(+20.03\%). On ChartQA, it exceeds InternVL3-1B at 75.30 by +4.90 points
+(+6.51\%) and Gemma-3-4B-it at 63.60 by +16.60 points (+26.10\%). This shows
+that the final student is not simply bounded by the weaker teachers it learns
+from.
 
 One negative result is consistent across the three benchmarks: reverse KL is
 much weaker than forward KL. This suggests that the more mode-seeking objective
@@ -310,4 +404,4 @@ part of the gain.
 This section presents representative examples to inspect how distillation affects text reading and basic reasoning behavior.
 
 \section{Discussion}
-This section discusses the trade-off between model size, teacher supervision, and transfer performance across the evaluated benchmarks.
+This section discusses the trade-off between model size, teacher supervision and transfer performance across the evaluated benchmarks.

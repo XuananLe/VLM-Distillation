@@ -18,7 +18,6 @@ if str(ROOT_DIR) not in sys.path:
 import torch
 import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
-from transformers import AutoModelForVision2Seq, AutoProcessor
 
 from src.components.loss import uld_loss
 from src.components.forward_utils import forward_with_kwarg_retry
@@ -32,6 +31,10 @@ from src.dataset.vqa_loading import (
     pick_first_text,
 )
 from src.params import DataArguments
+from src.train.train_utils import (
+    load_processor_and_tokenizer_backend,
+    load_vision_language_model,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -204,20 +207,26 @@ def load_model_and_processor(
     attn_implementation: str,
     cache_dir: str | None,
 ):
-    processor = AutoProcessor.from_pretrained(
+    processor, _, model_type = load_processor_and_tokenizer_backend(
         model_id,
         cache_dir=cache_dir,
         padding_side="right",
-        trust_remote_code=True,
     )
-    model = AutoModelForVision2Seq.from_pretrained(
-        model_id,
+    if processor is None:
+        raise ValueError(
+            f"Could not load an AutoProcessor for multimodal model {model_id!r}."
+        )
+    model = load_vision_language_model(
+        model_id=model_id,
+        model_type=model_type,
         cache_dir=cache_dir,
         attn_implementation=attn_implementation,
-        torch_dtype=dtype,
+        compute_dtype=dtype,
         trust_remote_code=True,
-        device_map={"": device},
-        low_cpu_mem_usage=True,
+        model_kwargs={
+            "device_map": {"": device},
+            "low_cpu_mem_usage": True,
+        },
     )
     if hasattr(model.config, "use_cache"):
         model.config.use_cache = False

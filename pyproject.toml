@@ -204,7 +204,7 @@ dependencies = [
   "torchvision==0.23.0",
   "tqdm==4.67.3",
   "traitlets==5.14.3",
-  "transformers==4.57.6",
+  "transformers==5.1.0",
   "triton==3.4.0",
   "trl==0.24.0",
   "typeguard==4.4.4",

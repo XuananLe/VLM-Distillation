@@ -16,11 +16,11 @@ All model evaluations are conducted using \textbf{VLM-Eval-Kit} \cite{duan2024vl
 This unified pipeline ensures a consistent evaluation procedure across all compared models.
 
 \section{Datasets}
-We evaluate three text-centric VQA benchmarks: \textbf{TextVQA}, \textbf{DocVQA}, and \textbf{ChartQA}.
+We evaluate three text-centric VQA benchmarks: \textbf{TextVQA}, \textbf{DocVQA} and \textbf{ChartQA}.
 
-The goal is to measure whether the model can \textbf{read textual content in images, understand questions, and perform basic reasoning} across different visual domains \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+The goal is to measure whether the model can \textbf{read textual content in images, understand questions and perform basic reasoning} across different visual domains \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
-These datasets are selected because they require optical character recognition (OCR)-heavy understanding, cover complementary visual domains, and include retrieval, layout understanding, and numerical reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+These datasets are selected because they require optical character recognition (OCR)-heavy understanding, cover complementary visual domains and include retrieval, layout understanding and numerical reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
 \subsection{Dataset Descriptions}
 \textbf{TextVQA} \cite{singh2019vqamodelsread}: evaluates question answering on natural images containing scene text.  
@@ -41,7 +41,7 @@ It emphasizes document structure understanding in addition to OCR.
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.40\linewidth]{figures/docvqa_sample_receipt.jpg}
-    \caption[DocVQA sample image.]{Example document image for a DocVQA-style question \cite{wikimedia_receipt_swiss_image}. Unlike TextVQA, the answer depends on document layout, local text spans, and structured fields.}
+    \caption[DocVQA sample image.]{Example document image for a DocVQA-style question \cite{wikimedia_receipt_swiss_image}. Unlike TextVQA, the answer depends on document layout, local text spans and structured fields.}
     \label{fig:docvqa-sample}
 \end{figure}
 
@@ -88,19 +88,20 @@ Unless otherwise stated, the main distillation experiments use a shared training
 configuration so that differences in performance can be attributed to the
 distillation strategy rather than unrelated optimization choices.
 
-All training runs are executed on a single \textbf{NVIDIA A100 80GB}
-graphics processing unit (GPU) using the \textbf{Modal} runtime environment.
+All training runs are executed on a single high-memory \textbf{NVIDIA H200}
+graphics processing unit (GPU) on \textbf{Modal} or on comparable single-GPU
+\textbf{Vast.ai} instances, depending on availability.
 Distillation training uses \textbf{DeepSpeed ZeRO Stage 2}, \textbf{Brain
 Floating Point 16 (bf16)} mixed precision, \textbf{TensorFloat-32 (TF32)}
-matrix multiplication, and gradient checkpointing to control memory use while
+matrix multiplication and gradient checkpointing to control memory use while
 keeping the student fully trainable and all teachers frozen
 \cite{rajbhandari2020zero,chen2016sublinear}.
 
 Before training, all benchmark samples are converted into a unified
 \textbf{LLaVA-style multimodal instruction format}
 \cite{liu2023visualinstructiontuning}. Each example is stored as an image plus
-a short user-assistant dialogue, so TextVQA, DocVQA, and ChartQA can share the
-same data loader, prompt template, and answer supervision interface.
+a short user-assistant dialogue, so TextVQA, DocVQA and ChartQA can share the
+same data loader, prompt template and answer supervision interface.
 
 Listing~\ref{lst:llava-format} shows the structure used in our preprocessing
 pipeline.
@@ -118,9 +119,9 @@ pipeline.
 \subsection{Offline Teacher-Logit Preparation}
 Teacher logits are generated \emph{offline} before distillation. An offline
 caching script runs each frozen teacher on every training example, keeps only
-the supervised answer-token positions, and writes one \texttt{.pt} file per
+the supervised answer-token positions and writes one \texttt{.pt} file per
 sample under a teacher-specific directory. Each record stores the sample index,
-the selected teacher logits, and the corresponding supervised labels. This
+the selected teacher logits and the corresponding supervised labels. This
 keeps the online training loop simple: the student only reads precomputed
 teacher targets instead of running the teachers again.
 
@@ -131,6 +132,16 @@ already exceeds \textbf{1 TB}, so copying the whole cache to a rented GPU
 instance is impractical. This is especially relevant on services such as
 Vast.ai, where local NVMe space is usually much smaller than the full teacher
 logit store.
+
+\begin{figure}[htbp]
+\centering
+\includegraphics[width=0.82\linewidth]{figures/r2-storage.png}
+\caption[R2 bucket used for teacher-logit storage.]{Cloudflare R2 bucket used for offline teacher-logit storage. The screenshot shows the large bucket footprint and the dataset-specific teacher-logit prefixes, which motivates remote streaming instead of copying the full cache onto each training instance.}
+\label{fig:r2-storage}
+\end{figure}
+
+Figure~\ref{fig:r2-storage} shows the remote bucket layout used to store the
+offline teacher caches.
 
 \subsection{Remote Logit Streaming During Training}
 The current main training path does \emph{not} predownload the full cache. When
@@ -157,7 +168,7 @@ concurrent dataloader workers do not corrupt the cache state.
 \begin{figure}[htbp]
 \centering
 \includegraphics[width=0.96\linewidth]{figures/r2_cache_training.png}
-\caption{Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training, and kept in a bounded local cache with oldest-file eviction. This setup avoids copying a multi-terabyte teacher store onto each rented GPU instance.}
+\caption{Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training and kept in a bounded local cache with oldest-file eviction. This setup avoids copying a multi-terabyte teacher store onto each rented GPU instance.}
 \label{fig:r2-cache-training}
 \end{figure}
 
@@ -178,7 +189,7 @@ Teacher weighting strategy & routing \\
 Distillation loss & ULD \\
 Training dataset & DocVQA \\
 Validation split & validation \\
-Hardware and runtime & 1$\times$ NVIDIA A100 80GB GPU on Modal \\
+Hardware and runtime & Single-GPU runs on Modal (H200) or Vast.ai \\
 Distributed training & DeepSpeed ZeRO-2 \\
 Optimizer & adamw\_torch \\
 Adam betas & \((0.9, 0.98)\) \\
@@ -285,7 +296,7 @@ before the method-specific descriptions below.
 
 \begin{itemize}
 \item \textbf{Non-distillation references.} The original student and the full-finetuning baseline provide the student-only reference points for each benchmark.
-\item \textbf{Same-family baselines.} Forward Kullback-Leibler (KL), reverse KL, and Jensen-Shannon divergence all use \textbf{SmolVLM2-2.2B-Instruct} as a same-family teacher \cite{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,cui2024sinkhorn}. They isolate standard teacher-student transfer when tokenizer, vocabulary, and output space are already matched.
+\item \textbf{Same-family baselines.} Forward Kullback-Leibler (KL), reverse KL and Jensen-Shannon divergence all use \textbf{SmolVLM2-2.2B-Instruct} as a same-family teacher \cite{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,cui2024sinkhorn}. They isolate standard teacher-student transfer when tokenizer, vocabulary and output space are already matched.
 \item \textbf{Different-family single-teacher baselines.} This group uses one teacher outside the SmolVLM family. ULD is the main cross-tokenizer logits baseline \cite{boizard2024towardscrosstokenizerdistillation}.
 \item \textbf{Heterogeneous multi-teacher baselines.} This group uses teacher pools drawn from different VLM families. Uniform averaging keeps fixed equal weights. SHM-CKA adds hidden-state matching over the same pool. Reinforced selection learns a stochastic teacher policy with REINFORCE \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}. \methodname{} adds sparse routing and alignment-aware reweighting \cite{zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}.
 \end{itemize}
@@ -310,7 +321,7 @@ The compared methods are:
 \end{itemize}
 
 Unless noted otherwise, all baselines reuse the same data conversion pipeline,
-hardware, optimizer family, and checkpointing protocol described earlier in
+hardware, optimizer family and checkpointing protocol described earlier in
 this chapter. Methods that do not use routing simply omit the GRACE-specific
 terms and retain the corresponding single-teacher or uniform multi-teacher
 objective from the cited source.

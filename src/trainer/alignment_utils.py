@@ -59,7 +59,7 @@ def compute_teacher_loss_matrix(
             )
 
     if cached_teacher_batches is not None:
-        for cached_teacher_logits, cached_teacher_labels in cached_teacher_batches:
+        for teacher_index, (cached_teacher_logits, cached_teacher_labels) in enumerate(cached_teacher_batches):
             prepared_teacher_logits = prepare_input_fn(cached_teacher_logits).to(
                 dtype=student_logits.dtype
             )
@@ -79,6 +79,7 @@ def compute_teacher_loss_matrix(
                     teacher_temperature=teacher_temperature,
                     skip_student_eos=skip_student_eos,
                     skip_teacher_eos=skip_teacher_eos,
+                    teacher_index=teacher_index,
                 )
             )
             if pooled_ce_grace_grad is not None or collect_teacher_gradient_vectors:
@@ -95,6 +96,7 @@ def compute_teacher_loss_matrix(
                         teacher_temperature=teacher_temperature,
                         skip_student_eos=skip_student_eos,
                         skip_teacher_eos=skip_teacher_eos,
+                        teacher_index=teacher_index,
                     )
                     if pooled_ce_grace_grad is not None:
                         agreement = F.cosine_similarity(pooled_ce_grace_grad, pooled_kd_grad, dim=-1, eps=1e-8)
@@ -127,7 +129,7 @@ def compute_teacher_loss_matrix(
             teacher_label_batches,
         )
 
-    for teacher_model, (teacher_inputs, teacher_labels) in zip(teacher_models, teacher_batches):
+    for teacher_index, (teacher_model, (teacher_inputs, teacher_labels)) in enumerate(zip(teacher_models, teacher_batches)):
         prepared_teacher_labels = prepare_input_fn(teacher_labels)
         teacher_logit_positions = select_supervised_logit_positions(prepared_teacher_labels)
         if teacher_logit_positions is None and not prepared_teacher_labels.ne(-100).any():
@@ -175,6 +177,7 @@ def compute_teacher_loss_matrix(
                 teacher_temperature=teacher_temperature,
                 skip_student_eos=skip_student_eos,
                 skip_teacher_eos=skip_teacher_eos,
+                teacher_index=teacher_index,
             )
         )
         if pooled_ce_grace_grad is not None or collect_teacher_gradient_vectors:
@@ -191,6 +194,7 @@ def compute_teacher_loss_matrix(
                     teacher_temperature=teacher_temperature,
                     skip_student_eos=skip_student_eos,
                     skip_teacher_eos=skip_teacher_eos,
+                    teacher_index=teacher_index,
                 )
                 if pooled_ce_grace_grad is not None:
                     agreement = F.cosine_similarity(pooled_ce_grace_grad, pooled_kd_grad, dim=-1, eps=1e-8)

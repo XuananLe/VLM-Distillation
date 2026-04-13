@@ -1,8 +1,14 @@
 from peft import PeftModel
 import torch
-from transformers import BitsAndBytesConfig, AutoModelForVision2Seq, AutoProcessor, AutoConfig
+from transformers import AutoConfig, BitsAndBytesConfig
 import warnings
 import os
+
+from src.train.model_setup import (
+    load_processor_and_tokenizer_backend,
+    load_vision_language_model,
+    resolve_model_type,
+)
 
 def disable_torch_init():
     """
@@ -36,7 +42,8 @@ def create_quantization_config(load_4bit=True, compute_dtype=torch.float16,
 # This code is borrowed from LLaVA
 def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, load_4bit=False, 
                           device_map="auto", device="cuda", use_flash_attn=False, **kwargs):
-    kwargs = {"device_map": device_map}
+    kwargs = dict(kwargs)
+    kwargs["device_map"] = device_map
     
     if device != "cuda":
         kwargs['device_map'] = {"":device}
@@ -48,8 +55,17 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
     else:
         kwargs['torch_dtype'] = torch.float16
 
-    if use_flash_attn:
-        kwargs['_attn_implementation'] = 'flash_attention_2'
+    attn_implementation = 'flash_attention_2' if use_flash_attn else 'eager'
+    cache_dir = kwargs.pop("cache_dir", None)
+    processor_source = model_base or model_path
+    processor, _, _ = load_processor_and_tokenizer_backend(
+        processor_source,
+        cache_dir=cache_dir,
+    )
+    if processor is None:
+        raise ValueError(
+            f"Could not load an AutoProcessor for multimodal model {processor_source!r}."
+        )
 
     if 'lora' in model_name.lower() and model_base is None:
         warnings.warn('There is `lora` in model name but no `model_base` is provided. If you are loading a LoRA model, please provide the `model_base` argument.')
@@ -57,15 +73,26 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         lora_cfg_pretrained = AutoConfig.from_pretrained(model_path)
         if hasattr(lora_cfg_pretrained, 'quantization_config'):
             del lora_cfg_pretrained.quantization_config
-        processor = AutoProcessor.from_pretrained(model_base)
-        print('Loading SmolVLM from base model...')
-        model = AutoModelForVision2Seq.from_pretrained(model_base, low_cpu_mem_usage=True, config=lora_cfg_pretrained, **kwargs)
+        print('Loading base vision-language model...')
+        model = load_vision_language_model(
+            model_id=model_base,
+            model_type=resolve_model_type(model_base),
+            cache_dir=cache_dir,
+            attn_implementation=attn_implementation,
+            compute_dtype=kwargs.get("torch_dtype", torch.float16),
+            trust_remote_code=True,
+            model_kwargs={
+                **kwargs,
+                "low_cpu_mem_usage": True,
+                "config": lora_cfg_pretrained,
+            },
+        )
         token_num, tokem_dim = model.lm_head.out_features, model.lm_head.in_features
         if model.lm_head.weight.shape[0] != token_num:
             model.lm_head.weight = torch.nn.Parameter(torch.empty(token_num, tokem_dim, device=model.device, dtype=model.dtype))
             model.model.embed_tokens.weight = torch.nn.Parameter(torch.empty(token_num, tokem_dim, device=model.device, dtype=model.dtype))
 
-        print('Loading additional SmolVLM weights...')
+        print('Loading additional non-LoRA weights...')
         non_lora_trainables = torch.load(os.path.join(model_path, 'non_lora_state_dict.bin'), map_location='cpu')
         non_lora_trainables = {(k[11:] if k.startswith('base_model.') else k): v for k, v in non_lora_trainables.items()}
         if any(k.startswith('model.model.') for k in non_lora_trainables):
@@ -81,8 +108,18 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
         print('Model Loaded!!!')
 
     else:
-        processor = AutoProcessor.from_pretrained(model_base)
-        model = AutoModelForVision2Seq.from_pretrained(model_path, low_cpu_mem_usage=True, **kwargs)
+        model = load_vision_language_model(
+            model_id=model_path,
+            model_type=resolve_model_type(model_path),
+            cache_dir=cache_dir,
+            attn_implementation=attn_implementation,
+            compute_dtype=kwargs.get("torch_dtype", torch.float16),
+            trust_remote_code=True,
+            model_kwargs={
+                **kwargs,
+                "low_cpu_mem_usage": True,
+            },
+        )
 
     return processor, model
 

@@ -11,9 +11,6 @@ import torch
 from torch.utils.data import Dataset
 from transformers import (
     AutoModel,
-    AutoModelForImageTextToText,
-    AutoModelForVision2Seq,
-    AutoProcessor,
     AutoTokenizer,
     Gemma3ForConditionalGeneration,
 )
@@ -30,7 +27,11 @@ from src.train.distillation_runtime import (
     ensure_flash_attention_available,
     require_flash_attention_support,
 )
-from src.train.train_utils import parse_model_id_list
+from src.train.train_utils import (
+    load_processor_and_tokenizer_backend,
+    load_vision_language_model,
+    parse_model_id_list,
+)
 
 
 def parse_args() -> argparse.Namespace:
@@ -99,11 +100,15 @@ def make_dataset_and_collator(
     teacher_ids: list[str],
     teacher_processors,
 ):
-    student_processor = AutoProcessor.from_pretrained(
+    student_processor, _, _ = load_processor_and_tokenizer_backend(
         args.student_model_id,
         padding_side="right",
-        trust_remote_code=True,
     )
+    if student_processor is None:
+        raise ValueError(
+            "Teacher-logit caching requires an AutoProcessor for the student dataset path, "
+            f"but processor loading failed for {args.student_model_id!r}."
+        )
 
     data_args = DataArguments(
         data_path=args.data_path,
@@ -168,67 +173,36 @@ def load_teachers_and_processors(teacher_ids: list[str], device: str):
                     "img_context_token": "<IMG_CONTEXT>",
                 }
             )
-        elif "gemma-3" in teacher_id.lower():
-            teacher_model = Gemma3ForConditionalGeneration.from_pretrained(
-                teacher_id,
-                attn_implementation=attn_impl,
-                torch_dtype=torch_dtype,
-                trust_remote_code=True,
-                device_map={"": device},
-            )
-            teacher_processors.append(
-                AutoProcessor.from_pretrained(
-                    teacher_id,
-                    padding_side="right",
-                    trust_remote_code=True,
-                )
-            )
-        elif "smolvlm2" in teacher_id.lower():
-            teacher_model = AutoModelForImageTextToText.from_pretrained(
-                teacher_id,
-                _attn_implementation=attn_impl,
-                torch_dtype=torch_dtype,
-                trust_remote_code=True,
-                device_map={"": device},
-            )
-            teacher_processors.append(
-                AutoProcessor.from_pretrained(
-                    teacher_id,
-                    padding_side="right",
-                    trust_remote_code=True,
-                )
-            )
-        elif "granite-vision" in teacher_id.lower():
-            granite_attn_impl = attn_impl if flash_attention_requested else None
-            teacher_model = AutoModelForVision2Seq.from_pretrained(
-                teacher_id,
-                _attn_implementation=granite_attn_impl,
-                torch_dtype=torch_dtype,
-                trust_remote_code=True,
-                device_map={"": device},
-            )
-            teacher_processors.append(
-                AutoProcessor.from_pretrained(
-                    teacher_id,
-                    padding_side="right",
-                    trust_remote_code=True,
-                )
-            )
         else:
-            teacher_model = AutoModelForVision2Seq.from_pretrained(
+            teacher_processor, _, teacher_model_type = load_processor_and_tokenizer_backend(
                 teacher_id,
-                attn_implementation=attn_impl,
-                torch_dtype=torch_dtype,
-                trust_remote_code=True,
-                device_map={"": device},
+                padding_side="right",
             )
-            teacher_processors.append(
-                AutoProcessor.from_pretrained(
-                    teacher_id,
-                    padding_side="right",
-                    trust_remote_code=True,
+            if teacher_processor is None:
+                raise ValueError(
+                    f"Could not load an AutoProcessor for teacher model {teacher_id!r}."
                 )
-            )
+            if "gemma-3" in teacher_id.lower():
+                teacher_model = Gemma3ForConditionalGeneration.from_pretrained(
+                    teacher_id,
+                    attn_implementation=attn_impl,
+                    torch_dtype=torch_dtype,
+                    trust_remote_code=True,
+                    device_map={"": device},
+                )
+            else:
+                teacher_model = load_vision_language_model(
+                    model_id=teacher_id,
+                    model_type=teacher_model_type,
+                    cache_dir=None,
+                    attn_implementation=attn_impl,
+                    compute_dtype=torch_dtype,
+                    trust_remote_code=True,
+                    model_kwargs={
+                        "device_map": {"": device},
+                    },
+                )
+            teacher_processors.append(teacher_processor)
         if hasattr(teacher_model.config, "use_cache"):
             teacher_model.config.use_cache = False
         if flash_attention_requested:

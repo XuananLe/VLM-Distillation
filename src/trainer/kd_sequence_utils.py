@@ -65,6 +65,7 @@ def compute_single_teacher_loss(
     teacher_temperature: float,
     skip_student_eos: bool,
     skip_teacher_eos: bool,
+    teacher_index: int | None = None,
 ) -> torch.Tensor:
     sample_losses = []
     for sample_index in range(student_logits.size(0)):
@@ -84,6 +85,7 @@ def compute_single_teacher_loss(
                     temperature=temperature,
                     student_temperature=student_temperature,
                     teacher_temperature=teacher_temperature,
+                    teacher_index=teacher_index,
                 )
             )
         else:

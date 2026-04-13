@@ -84,14 +84,14 @@ the basic Transformer and ViT blocks that later multimodal systems build on.
         \includegraphics[width=\linewidth]{figures/llava_architecture_family.png}
         \caption{LLaVA projector-based design \cite{liu2023visualinstructiontuning}.}
     \end{subfigure}
-    \caption{Representative architecture families of modern vision-language models. Together they show the main fusion choices used in practice: dual encoders, cross-attention, query bottlenecks, and projector-based coupling to a language model.}
+    \caption{Representative architecture families of modern vision-language models. Together they show the main fusion choices used in practice: dual encoders, cross-attention, query bottlenecks and projector-based coupling to a language model.}
     \label{fig:prelim-vlm-families}
 \end{figure}
 
 \subsection{Text-Rich Multimodal Understanding}
 
-The tasks considered in this thesis, namely TextVQA, DocVQA, and ChartQA, require
-the model to read text in images, understand the question, and perform basic
+The tasks considered in this thesis, namely TextVQA, DocVQA and ChartQA, require
+the model to read text in images, understand the question and perform basic
 reasoning over visual and textual evidence
 \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 This setting differs from generic image captioning because success depends strongly
@@ -116,7 +116,7 @@ on optical character recognition (OCR)-sensitive recognition and token-level ans
         \includegraphics[width=\linewidth,height=0.18\textheight,keepaspectratio]{figures/chartqa_sample_bar_chart.png}
         \caption{ChartQA}
     \end{subfigure}
-    \caption{Representative inputs from the text-rich multimodal benchmarks considered in this thesis \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. The three examples show why text reading, layout parsing, and visual reasoning all matter in this benchmark suite.}
+    \caption{Representative inputs from the text-rich multimodal benchmarks considered in this thesis \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. The three examples show why text reading, layout parsing and visual reasoning all matter in this benchmark suite.}
     \label{fig:prelim-benchmark-examples}
 \end{figure}
 
@@ -186,7 +186,7 @@ space is too restrictive. To address this, we use Universal Logit Distillation
 Given student logits \(\mathbf{z}_s \in \mathbb{R}^{V_s}\) and teacher logits
 \(\mathbf{z}_t \in \mathbb{R}^{V_t}\), we first compute their temperature-scaled
 probability distributions \(\mathbf{p}_s\) and \(\mathbf{p}_t\). We then sort both
-vectors in descending order, pad the smaller vocabulary with zeros, and compare
+vectors in descending order, pad the smaller vocabulary with zeros and compare
 the sorted masses with an \(L_1\) distance:
 \begin{equation}
 \mathcal{L}_{ULD}(\mathbf{z}_s,\mathbf{z}_t)
@@ -206,7 +206,7 @@ to cross-tokenizer teacher-student distillation \cite{boizard2024towardscrosstok
 Optimal transport compares two probability measures by the minimum cost required
 to move mass from one distribution to the other
 \cite{peyre2019computationaloptimaltransport}. For discrete source weights
-\(\mathbf{a}\), target weights \(\mathbf{b}\), and transport cost matrix
+\(\mathbf{a}\), target weights \(\mathbf{b}\) and transport cost matrix
 \(\mathbf{C}\), the corresponding optimization problem can be written as
 \begin{equation}
 W(\mathbf{a},\mathbf{b})
@@ -272,7 +272,7 @@ the simplified ULD pipeline used later in \methodname{}.
         % \draw[arrow] (pis) to (l1);
         % \draw[arrow] (pit) to (l1);
     \end{tikzpicture}
-    \caption{ULD compares ranked probability mass after temperature scaling, sorting, and zero-padding to a common vocabulary length \cite{boizard2024towardscrosstokenizerdistillation}. This is why the loss stays valid even when teacher and student vocabularies differ.}
+    \caption{ULD compares ranked probability mass after temperature scaling, sorting and zero-padding to a common vocabulary length \cite{boizard2024towardscrosstokenizerdistillation}. This is why the loss stays valid even when teacher and student vocabularies differ.}
     \label{fig:prelim-uld-schematic}
 \end{figure}
 
@@ -280,7 +280,7 @@ the simplified ULD pipeline used later in \methodname{}.
 
 For multimodal question answering, distillation should focus on answer tokens rather than prompt tokens \cite{liu2023visualinstructiontuning}.
 
-In our implementation, KD is computed only on supervised answer positions after masking ignored tokens, optionally removing EOS, and truncating student and teacher answer spans to a common length.
+In our implementation, KD is computed only on supervised answer positions after masking ignored tokens, optionally removing EOS and truncating student and teacher answer spans to a common length.
 
 In Chapter~\ref{chap:proposed-method}, this supervised answer-position set is denoted by \(\Omega_b\).
 
@@ -323,13 +323,13 @@ where \(p_i^{(b)}\) is the initial routing weight for teacher \(T_i\).
 
 In sparse routing, these weights are typically refined by additional constraints:
 \begin{enumerate}
-\item \textbf{top-\(k\) routing}, which keeps only the highest-scoring teachers,
-\item \textbf{capacity constraints}, which prevent one teacher from receiving too many assignments,
-\item \textbf{load balancing}, which discourages routing collapse onto a small subset of teachers.
+\item \textbf{Top-\(k\) routing}, which keeps only the highest-scoring teachers.
+\item \textbf{Capacity constraints}, which prevent one teacher from receiving too many assignments.
+\item \textbf{Load balancing}, which discourages routing collapse onto a small subset of teachers.
 \end{enumerate}
 
 Following the general MoE literature, one can summarize the balancing signal by a
-soft load \(\bar{p}_i\) and a hard assignment load \(\bar{q}_i\), and define an
+soft load \(\bar{p}_i\) and a hard assignment load \(\bar{q}_i\) and define an
 auxiliary balancing objective of the form
 \begin{equation}
 \mathcal{L}_{bal}
@@ -341,9 +341,9 @@ the router so that different teachers remain usable during training.
 
 In \methodname, the router is implemented as a deep student-conditioned gate on
 top of pooled student hidden states. It is followed by softmax weights,
-top-\(k\) sparsification, and capacity filtering, with a short dense warmup
+top-\(k\) sparsification and capacity filtering, with a short dense warmup
 before sparse routing is activated. The full framework also supports optional
-balancing, entropy regularization, and expert-bias updates.
+balancing, entropy regularization and expert-bias updates.
 
 When enabled, the expert bias term nudges the router toward under-used teachers
 in subsequent batches.
@@ -363,7 +363,7 @@ compute, it also lets different experts focus on different inputs.
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.78\linewidth]{figures/deepseek_moe_wikimedia.png}
-    \caption[Sparse routing and expert specialization in MoE.]{Example of sparse routing and expert specialization in a mixture-of-experts architecture \cite{wikimedia_deepseek_moe_mla_image,deepseekai2024deepseekv2strongeconomicalefficient}. Although our setting is multi-teacher distillation rather than token-level MoE language modeling, the same principles of learned routing, sparse activation, and load balancing are directly relevant.}
+    \caption[Sparse routing and expert specialization in MoE.]{Example of sparse routing and expert specialization in a mixture-of-experts architecture \cite{wikimedia_deepseek_moe_mla_image,deepseekai2024deepseekv2strongeconomicalefficient}. Although our setting is multi-teacher distillation rather than token-level MoE language modeling, the same principles of learned routing, sparse activation and load balancing are directly relevant.}
     \label{fig:prelim-sparse-routing}
 \end{figure}
 
@@ -380,7 +380,7 @@ helpful. If the two directions conflict, teacher supervision may hurt learning
 on that sample \cite{zhu2021studentcustomized}.
 
 In \methodname{}, this idea is applied only after routing. The router first
-decides which teachers remain available, and Chapter~\ref{chap:proposed-method}
+decides which teachers remain available and Chapter~\ref{chap:proposed-method}
 then refines those routed teachers with continuous gradient-based scores. The
 GRACE-specific details, including score smoothing, score softmax, router-score
-blending, and uniform fallback, are therefore deferred to Chapter~\ref{chap:proposed-method}.
+blending and uniform fallback, are therefore deferred to Chapter~\ref{chap:proposed-method}.

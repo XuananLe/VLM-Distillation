@@ -1,6 +1,8 @@
 import torch
 import torch.nn.functional as F
 
+from src.components.trie_wasserstein import TrieWassersteinLoss
+
 
 def resolve_temperatures(
     *,
@@ -20,6 +22,139 @@ def resolve_temperatures(
         else max(float(teacher_temperature), torch.finfo(torch.float32).eps)
     )
     return resolved_student_temperature, resolved_teacher_temperature
+
+
+class FunctionalDistillationLoss:
+    def __init__(self, loss_function: str):
+        self.loss_function = loss_function
+        self.loss_fn = globals()[loss_function]
+
+    def compute_loss(
+        self,
+        *,
+        student_logits: torch.Tensor,
+        teacher_logits: torch.Tensor,
+        temperature: float = 1.0,
+        student_temperature: float | None = None,
+        teacher_temperature: float | None = None,
+        teacher_index: int | None = None,
+    ) -> torch.Tensor:
+        del teacher_index
+        return self.loss_fn(
+            student_logits=student_logits,
+            teacher_logits=teacher_logits,
+            temperature=temperature,
+            student_temperature=student_temperature,
+            teacher_temperature=teacher_temperature,
+        )
+
+    def compute_logit_grad(
+        self,
+        *,
+        student_logits: torch.Tensor,
+        teacher_logits: torch.Tensor,
+        temperature: float = 1.0,
+        student_temperature: float | None = None,
+        teacher_temperature: float | None = None,
+        teacher_index: int | None = None,
+        loss_function: str | None = None,
+    ) -> torch.Tensor:
+        del teacher_index, loss_function
+        return distillation_logit_grad(
+            self.loss_function,
+            student_logits=student_logits,
+            teacher_logits=teacher_logits,
+            temperature=temperature,
+            student_temperature=student_temperature,
+            teacher_temperature=teacher_temperature,
+        )
+
+
+class TrieWassersteinDistillationLoss:
+    def __init__(
+        self,
+        *,
+        student_tokenizer,
+        teacher_tokenizers,
+        trie_wasserstein_rho: float,
+        trie_wasserstein_topk: int,
+    ):
+        if student_tokenizer is None:
+            raise ValueError("Trie Wasserstein loss requires a student tokenizer.")
+        if not teacher_tokenizers:
+            raise ValueError("Trie Wasserstein loss requires teacher tokenizers.")
+        self.loss_modules = [
+            TrieWassersteinLoss(
+                student_tokenizer=student_tokenizer,
+                teacher_tokenizer=teacher_tokenizer,
+                rho=trie_wasserstein_rho,
+                topk=trie_wasserstein_topk,
+            )
+            for teacher_tokenizer in teacher_tokenizers
+        ]
+
+    def _select_loss_module(self, teacher_index: int | None) -> TrieWassersteinLoss:
+        if teacher_index is None:
+            raise ValueError("Trie Wasserstein loss requires a teacher index.")
+        return self.loss_modules[teacher_index]
+
+    def compute_loss(
+        self,
+        *,
+        student_logits: torch.Tensor,
+        teacher_logits: torch.Tensor,
+        temperature: float = 1.0,
+        student_temperature: float | None = None,
+        teacher_temperature: float | None = None,
+        teacher_index: int | None = None,
+    ) -> torch.Tensor:
+        return self._select_loss_module(teacher_index)(
+            student_logits=student_logits,
+            teacher_logits=teacher_logits,
+            temperature=temperature,
+            student_temperature=student_temperature,
+            teacher_temperature=teacher_temperature,
+        )
+
+    def compute_logit_grad(
+        self,
+        *,
+        student_logits: torch.Tensor,
+        teacher_logits: torch.Tensor,
+        temperature: float = 1.0,
+        student_temperature: float | None = None,
+        teacher_temperature: float | None = None,
+        teacher_index: int | None = None,
+        loss_function: str | None = None,
+    ) -> torch.Tensor:
+        del loss_function
+        return self._select_loss_module(teacher_index).compute_logit_grad(
+            student_logits=student_logits,
+            teacher_logits=teacher_logits,
+            temperature=temperature,
+            student_temperature=student_temperature,
+            teacher_temperature=teacher_temperature,
+        )
+
+
+def build_distillation_loss(
+    *,
+    loss_function: str,
+    student_tokenizer=None,
+    teacher_tokenizers=None,
+    trie_wasserstein_rho: float = 0.7,
+    trie_wasserstein_topk: int = 64,
+):
+    if loss_function == "trie_wasserstein_loss":
+        return TrieWassersteinDistillationLoss(
+            student_tokenizer=student_tokenizer,
+            teacher_tokenizers=teacher_tokenizers,
+            trie_wasserstein_rho=trie_wasserstein_rho,
+            trie_wasserstein_topk=trie_wasserstein_topk,
+        )
+    if loss_function not in globals():
+        raise ValueError(f"Unknown distillation loss: {loss_function!r}")
+    return FunctionalDistillationLoss(loss_function)
 
 
 def distillation_logit_grad(
@@ -166,3 +301,9 @@ def jensen_shannon_divergence(
         F.kl_div(s.log(), m, reduction='batchmean') +
         F.kl_div(t.log(), m, reduction='batchmean')
     ) * student_temperature ** 2
+
+
+def trie_wasserstein_loss(*args, **kwargs):
+    raise RuntimeError(
+        "trie_wasserstein_loss is stateful and must be constructed via build_distillation_loss()."
+    )

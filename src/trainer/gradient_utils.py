@@ -44,6 +44,7 @@ def compute_pooled_kd_grace_grad(
     teacher_temperature: float,
     skip_student_eos: bool,
     skip_teacher_eos: bool,
+    teacher_index: int | None = None,
 ) -> torch.Tensor:
     pooled_grads = []
     vocab_size = student_logits.size(-1)
@@ -72,15 +73,16 @@ def compute_pooled_kd_grace_grad(
         student_positions = student_positions[:matched_tokens]
         teacher_positions = teacher_positions[:matched_tokens]
         sample_kd_grad = distillation_logit_grad_fn(
-            loss_function,
-            student_logits[sample_index, student_positions],
-            teacher_logits[sample_index, teacher_positions].to(
+            student_logits=student_logits[sample_index, student_positions],
+            teacher_logits=teacher_logits[sample_index, teacher_positions].to(
                 device=student_logits.device,
                 dtype=student_logits.dtype,
             ),
             temperature=temperature,
             student_temperature=student_temperature,
             teacher_temperature=teacher_temperature,
+            teacher_index=teacher_index,
+            loss_function=loss_function,
         )
         pooled_grads.append(sample_kd_grad.sum(dim=0) / supervised_student_count)
 

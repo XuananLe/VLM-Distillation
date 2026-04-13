@@ -16,7 +16,7 @@ from src.trainer.setup_utils import (
     normalize_teacher_models,
     validate_distillation_trainer_args,
 )
-from src.trainer.sft_trainer import SmolVLMSFTTrainer
+from src.trainer.sft_trainer import VisionLanguageSFTTrainer
 from src.trainer.distillation_utils import release_eval_memory
 from src.trainer.step_utils import (
     apply_grace_and_compute_distillation_loss,
@@ -31,11 +31,13 @@ from src.trainer.step_utils import (
 )
 
 
-class DistillationTrainer(SmolVLMSFTTrainer):
+class DistillationTrainer(VisionLanguageSFTTrainer):
     def __init__(
         self,
         teacher_model: PreTrainedModel = None,
         teacher_count: int | None = None,
+        student_tokenizer=None,
+        teacher_tokenizers=None,
         teacher_weighting_strategy: str = "routing",
         objective_conflict_strategy: str = "fixed",
         loss_function: str = "uld_loss",
@@ -68,6 +70,8 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         gradient_weight_steps: int = 50,
         objective_conflict_cagrad_c: float = 0.5,
         objective_conflict_cagrad_grid_steps: int = 257,
+        trie_wasserstein_rho: float = 0.7,
+        trie_wasserstein_topk: int = 64,
         *args,
         **kwargs
     ):
@@ -101,13 +105,22 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             objective_conflict_strategy=objective_conflict_strategy,
             objective_conflict_cagrad_c=objective_conflict_cagrad_c,
             objective_conflict_cagrad_grid_steps=objective_conflict_cagrad_grid_steps,
+            trie_wasserstein_rho=trie_wasserstein_rho,
+            trie_wasserstein_topk=trie_wasserstein_topk,
             loss_function=loss_function,
             distillation_loss_module=distillation_loss_module,
         )
 
         self.loss_function = loss_function
-        self.distillation_loss_fn = getattr(distillation_loss_module, loss_function)
-        self.distillation_logit_grad_fn = distillation_loss_module.distillation_logit_grad
+        self.distillation_loss = distillation_loss_module.build_distillation_loss(
+            loss_function=loss_function,
+            student_tokenizer=student_tokenizer,
+            teacher_tokenizers=teacher_tokenizers,
+            trie_wasserstein_rho=trie_wasserstein_rho,
+            trie_wasserstein_topk=trie_wasserstein_topk,
+        )
+        self.distillation_loss_fn = self.distillation_loss.compute_loss
+        self.distillation_logit_grad_fn = self.distillation_loss.compute_logit_grad
         self.teacher_weighting_strategy = teacher_weighting_strategy
         self.objective_conflict_strategy = objective_conflict_strategy
 
@@ -162,6 +175,8 @@ class DistillationTrainer(SmolVLMSFTTrainer):
         self.gradient_weight_steps = gradient_weight_steps
         self.objective_conflict_cagrad_c = objective_conflict_cagrad_c
         self.objective_conflict_cagrad_grid_steps = objective_conflict_cagrad_grid_steps
+        self.trie_wasserstein_rho = trie_wasserstein_rho
+        self.trie_wasserstein_topk = trie_wasserstein_topk
         self.non_lora_require_grad_only = True
         self.eval_ce_loss_sum = 0.0
         self.eval_ce_loss_count = 0
@@ -204,6 +219,8 @@ class DistillationTrainer(SmolVLMSFTTrainer):
             objective_conflict_strategy=objective_conflict_strategy,
             objective_conflict_cagrad_c=objective_conflict_cagrad_c,
             objective_conflict_cagrad_grid_steps=objective_conflict_cagrad_grid_steps,
+            trie_wasserstein_rho=trie_wasserstein_rho,
+            trie_wasserstein_topk=trie_wasserstein_topk,
         )
 
     def tracks_best_checkpoint_by_train_ce(self) -> bool:

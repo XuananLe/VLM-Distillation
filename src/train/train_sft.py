@@ -1,23 +1,22 @@
 import os
 import torch
-from peft import LoraConfig, get_peft_model
-import ast
-from transformers import AutoProcessor, HfArgumentParser, AutoModelForVision2Seq
-from src.trainer.sft_trainer import SmolVLMSFTTrainer
+from transformers import HfArgumentParser
+from src.trainer.sft_trainer import VisionLanguageSFTTrainer
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, ModelArguments, TrainingArguments
 from src.train.train_utils import (
+    configure_training_model,
+    finalize_quantized_trainable_modules,
     get_peft_state_maybe_zero_3,
     get_peft_state_non_lora_maybe_zero_3,
     safe_save_model_for_hf_trainer,
     get_compute_dtype,
+    load_training_model_bundle,
+    maybe_apply_lora,
+    normalize_lora_namespan_exclude,
+    prepare_model_for_low_bit_training,
     set_local_rank,
     rank0_print,
-    find_target_linear_names,
-    configure_vision_tower,
-    configure_llm,
-    unfreeze_topk_layers,
-    build_model_from_pretrained_args,
 )
 import pathlib
 
@@ -71,6 +70,9 @@ def train():
     if data_args.image_folder:
         validate_image_files(data_args)
 
+    if not model_args.model_id:
+        raise ValueError("`model_id` must be provided explicitly for SFT training.")
+
     if training_args.lora_enable and not training_args.freeze_llm:
         raise ValueError("If `lora_enable` is True, `freeze_llm` must also be True.")
 
@@ -81,105 +83,49 @@ def train():
     if training_args.vision_lora and not training_args.freeze_vision_tower:
         raise ValueError("If `vision_lora` is True, `freeze_vision_tower` must also be True.")
 
-    if training_args.lora_enable:
-        if training_args.lora_namespan_exclude is not None:
-            training_args.lora_namespan_exclude = ast.literal_eval(training_args.lora_namespan_exclude)
-        else:
-            training_args.lora_namespan_exclude = []
-
-        if not training_args.vision_lora:
-            training_args.lora_namespan_exclude += ["vision_model"]
+    normalize_lora_namespan_exclude(training_args)
 
     local_rank = training_args.local_rank
     set_local_rank(local_rank)
     compute_dtype = get_compute_dtype(training_args)
 
-    processor = AutoProcessor.from_pretrained(model_args.model_id,
-                                            padding_side="right")
-
-    model_from_pretrained_args = build_model_from_pretrained_args(
-        training_args,
-        compute_dtype,
-        llm_int8_skip_modules=["vision_model", "connector"],
+    processor, model, _ = load_training_model_bundle(
+        model_id=model_args.model_id,
+        training_args=training_args,
+        compute_dtype=compute_dtype,
+        include_load_flags=False,
     )
 
-    model = AutoModelForVision2Seq.from_pretrained(
-        model_args.model_id,
-        torch_dtype=compute_dtype,
-        attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "eager",
-        **model_from_pretrained_args
+    configure_training_model(
+        model=model,
+        processor=processor,
+        training_args=training_args,
+        compute_dtype=compute_dtype,
     )
 
-    configure_llm(model, training_args)
-    configure_vision_tower(model, processor, training_args, compute_dtype, training_args.device)
-
-    unfreeze_topk_layers(
-        model,
-        k_llm=getattr(training_args, "unfreeze_topk_llm", 0),
-        k_vis=getattr(training_args, "unfreeze_topk_vision", 0),
+    model = prepare_model_for_low_bit_training(
+        model=model,
+        training_args=training_args,
+        gradient_checkpointing_kwargs={"use_reentrant": True},
     )
-
-    model.config.use_cache = False
-
-    if training_args.bits in [4,8]:
-        model.config.torch_dtype = (torch.float32 if training_args.fp16 else (torch.bfloat16 if training_args.bf16 else torch.float32))
-        from peft import prepare_model_for_kbit_training
-        model = prepare_model_for_kbit_training(model, use_gradient_checkpointing=training_args.gradient_checkpointing, gradient_checkpointing_kwargs={"use_reentrant": True})
-    
-    if training_args.gradient_checkpointing:
-        model.enable_input_require_grads()
-        training_args.gradient_checkpointing_kwargs = {"use_reentrant": True}
-
-    if training_args.lora_enable:
-        lora_namespan_exclude = training_args.lora_namespan_exclude
-        peft_config = LoraConfig(
-            r=training_args.lora_rank,
-            lora_alpha=training_args.lora_alpha,
-            target_modules=find_target_linear_names(model, lora_namespan_exclude=lora_namespan_exclude, num_lora_modules=training_args.num_lora_modules),
-            lora_dropout=training_args.lora_dropout,
-            bias=training_args.lora_bias
-        )
-        if training_args.bits == 16:
-            if training_args.bf16:
-                model.to(torch.bfloat16)
-            if training_args.fp16:
-                model.to(torch.float16)
-        rank0_print("Adding LoRA to the model...")
-        model = get_peft_model(model, peft_config)
-
-        
-        if not training_args.freeze_vision_tower:
-            for name, param in model.named_parameters():
-                if "vision_model" in name:
-                    param.requires_grad = True
-
-        if not training_args.freeze_connector:
-            for name, param in model.named_parameters():
-                if "connector" in name:
-                    param.requires_grad = True
+    model = maybe_apply_lora(
+        model=model,
+        training_args=training_args,
+    )
 
     # model.config.tokenizer_model_max_length = processor.tokenizer.model_max_length
     model.config.tokenizer_padding_side = processor.tokenizer.padding_side
     model.config.vision_lr = training_args.vision_lr
 
-    if training_args.bits in [4, 8]:
-        from peft.tuners.lora import LoraLayer
-        for name, module in model.named_modules():
-            if isinstance(module, LoraLayer):
-                if training_args.bf16:
-                    module = module.to(torch.bfloat16)
-            if 'norm' in name:
-                module = module.to(torch.float32)
-            
-            if 'lm_head' in name or 'embed_token' in name:
-                if hasattr(module, 'weight'):
-                    if training_args.bf16 and module.weight.dtype == torch.float32:
-                        module = module.to(torch.bfloat16)
+    finalize_quantized_trainable_modules(
+        model=model,
+        training_args=training_args,
+    )
 
     data_module = make_supervised_data_module(processor=processor,
                                               data_args=data_args)
 
-    trainer = SmolVLMSFTTrainer(
+    trainer = VisionLanguageSFTTrainer(
         model=model,
         args=training_args,
         **data_module

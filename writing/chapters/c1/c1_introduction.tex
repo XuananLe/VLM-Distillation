@@ -6,10 +6,10 @@ The core task in this thesis is to distill strong multimodal ability from large
 VLM teachers into \textbf{sub-billion} VLM students. The goal is to do so
 without losing performance on text-centric benchmarks. Vision-Language Models
 (VLMs) jointly process images and text for tasks such as image captioning,
-visual question answering, document understanding, and instruction following
+visual question answering, document understanding and instruction following
 \cite{radford2021learningtransferablevisualmodels,alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning,hu2024visualprogramdistillation}.
 
-In this thesis, \textit{multimodal understanding} refers to practical capabilities such as reading text in images, understanding the input question, and performing basic reasoning over visual and textual evidence, rather than broad general intelligence \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. Our focus is efficient transfer of this ability to compact students.
+In this thesis, \textit{multimodal understanding} refers to practical capabilities such as reading text in images, understanding the input question and performing basic reasoning over visual and textual evidence, rather than broad general intelligence \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. Our focus is efficient transfer of this ability to compact students.
 
 \begin{figure}[htbp]
     \centering
@@ -21,7 +21,7 @@ In this thesis, \textit{multimodal understanding} refers to practical capabiliti
 Figure~\ref{fig:intro-vlm-pretraining} illustrates the basic vision-text
 pretraining pattern that underlies many modern VLM families.
 
-However, high-performing VLMs are often large and expensive in memory, latency, and deployment cost \cite{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,chu2023mobilevlm,zhou2024tinyllava}. This limits their use in resource-constrained settings.
+However, high-performing VLMs are often large and expensive in memory, latency and deployment cost \cite{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,chu2023mobilevlm,zhou2024tinyllava}. This limits their use in resource-constrained settings.
 
 This pressure is consistent with scaling-law results. Kaplan et al. show that
 model quality improves predictably with scale, while Hoffmann et al. show that
@@ -33,7 +33,7 @@ to train or deploy.
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.84\linewidth]{figures/kaplan_scaling_law_chart.png}
-    \caption[Scaling-law trends from Kaplan et al.]{Scaling-law trends from Figure 1 of Kaplan et al. The reported loss decreases smoothly as compute, dataset size, and parameter count increase, which explains why larger teachers remain attractive even when deployment favors smaller students \cite{kaplan2020scalinglaws}.}
+    \caption[Scaling-law trends from Kaplan et al.]{Scaling-law trends from Figure 1 of Kaplan et al. The reported loss decreases smoothly as compute, dataset size and parameter count increase, which explains why larger teachers remain attractive even when deployment favors smaller students \cite{kaplan2020scalinglaws}.}
     \label{fig:intro-scaling-laws}
 \end{figure}
 
@@ -69,7 +69,7 @@ scale itself.
     \label{fig:intro-compact-vlm-scale}
 \end{figure}
 
-The issue is especially important for text-centric tasks such as scene-text reading, document understanding, and chart reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+The issue is especially important for text-centric tasks such as scene-text reading, document understanding and chart reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
 \begin{figure}[htbp]
     \centering
@@ -79,14 +79,14 @@ The issue is especially important for text-centric tasks such as scene-text read
 \end{figure}
 
 Figures~\ref{fig:intro-scaling-laws}, \ref{fig:intro-smolvlm-memory},
-\ref{fig:intro-compact-vlm-scale}, and \ref{fig:intro-small-vlm-tradeoff}
+\ref{fig:intro-compact-vlm-scale} and \ref{fig:intro-small-vlm-tradeoff}
 together motivate the same conclusion: strong teachers benefit from scale, but
 the deployment target is still a much smaller student.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.9\linewidth]{figures/intro_open_vs_closed_gap.png}
-    \caption[Best proprietary vs. open-source frontier results on three benchmarks.]{Representative proprietary and open-source frontier results on TextVQA, DocVQA, and ChartQA. The gap is already small, and the best open-source model is ahead on TextVQA and DocVQA. The right panel shows the benchmark gap computed as open-source score minus proprietary score from snapshots accessed on April 2, 2026 \cite{airank_textvqa_2026,airank_docvqa_2026,airank_chartqa_2026}.}
+    \caption[Best proprietary vs. open-source frontier results on three benchmarks.]{Representative proprietary and open-source frontier results on TextVQA, DocVQA and ChartQA. The gap is already small and the best open-source model is ahead on TextVQA and DocVQA. The right panel shows the benchmark gap computed as open-source score minus proprietary score from snapshots accessed on April 2, 2026 \cite{airank_textvqa_2026,airank_docvqa_2026,airank_chartqa_2026}.}
     \label{fig:intro-closed-open-gap}
 \end{figure}
 
@@ -98,7 +98,7 @@ Figure \ref{fig:intro-small-vlm-tradeoff} shows why this direction matters. Comp
 
 Figure~\ref{fig:intro-closed-open-gap} sharpens this point. On these three
 benchmarks, the best open-source models are already close to the best
-proprietary models, and in two cases they are ahead.
+proprietary models and in two cases they are ahead.
 
 This makes white-box distillation especially attractive. In black-box KD, the
 teacher is treated as an inaccessible service and the student can rely only on
@@ -126,10 +126,10 @@ during training.
     \label{fig:intro-quantization-drop}
 \end{figure}
 
-This observation is exactly why we focus on \textbf{SmolVLM-500M} and
-\textbf{SmolVLM-256M}. They are small enough to make the efficiency constraint
-real, yet strong enough that improvements from better distillation remain
-meaningful \cite{marafioti2025smolvlm}.
+This observation is exactly why we focus on \textbf{sub-billion vision-language
+models}. They are small enough to make the efficiency constraint real, yet
+strong enough that improvements from better distillation remain meaningful
+\cite{marafioti2025smolvlm}.
 
 In the multimodal setting, recent work has shown that distillation can transfer
 reasoning or representation knowledge into more efficient VLMs
@@ -151,20 +151,20 @@ setting.
 
 Since no single teacher excels across all multimodal tasks, \textit{multi-teacher distillation} can provide richer supervision than a single-teacher pipeline \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
 
-In our setting, this is not just a matter of picking several strong teachers. The teacher pool contains heterogeneous VLMs with different tokenizers, different output vocabularies, and different sample-level strengths \cite{boizard2024towardscrosstokenizerdistillation,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}.
+In our setting, this is not just a matter of picking several strong teachers. The teacher pool contains heterogeneous VLMs with different tokenizers, different output vocabularies and different sample-level strengths \cite{boizard2024towardscrosstokenizerdistillation,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}.
 
 A naive uniform average can therefore mix teachers that help one sample but hurt another \cite{xu2024surveyknowledgedistillationlarge,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}.
 
 This motivates a selective multi-teacher framework rather than static teacher averaging.
 
-We introduce \methodfull{} (\methodname{}), a selective multi-teacher distillation framework that routes teachers per sample, applies tokenizer-agnostic ULD, and refines teacher weights with gradient-based alignment. The next section formalizes the problem and requirements.
+We introduce \methodfull{} (\methodname{}), a selective multi-teacher distillation framework that routes teachers per sample, applies tokenizer-agnostic ULD and refines teacher weights with gradient-based alignment. The next section formalizes the problem and requirements.
 
 \section{Problem Statement and Research Objectives}
 The central problem addressed in this thesis is how to transfer multimodal
 understanding ability from large VLMs to compact students at much lower
 deployment cost.
 
-We focus on text-rich multimodal tasks where the student must read image text, understand the question, and perform basic reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+We focus on text-rich multimodal tasks where the student must read image text, understand the question and perform basic reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
 In this setting, existing distillation pipelines often assume a single teacher, a shared tokenizer, or a fixed averaging rule across teachers. These assumptions are restrictive for heterogeneous multi-teacher VLM distillation \cite{hinton2015distillingknowledgeneuralnetwork,boizard2024towardscrosstokenizerdistillation,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}.
 
@@ -178,28 +178,26 @@ More specifically, the method should satisfy three requirements.
 
 Given a pool of \(N\) frozen teacher VLMs and a compact student, the goal is therefore to learn a distillation strategy that:
 \begin{enumerate}
-\item remains valid across mismatched teacher and student vocabularies,
-\item routes teachers adaptively from student-side features through a learned deep gate,
-\item retains sparse top-\(k\) computation under capacity constraints,
-\item and filters routed teachers when their KD update direction conflicts with the supervised objective, while keeping a fallback teacher when necessary.
+\item Remains valid across mismatched teacher and student vocabularies.
+\item Routes teachers adaptively from student-side features through a learned deep gate.
+\item Retains sparse top-\(k\) computation under capacity constraints.
+\item Filters routed teachers when their KD update direction conflicts with the supervised objective, while keeping a fallback teacher when necessary.
 \end{enumerate}
 
 This thesis addresses these requirements with \methodfull{} (\methodname).
 
 \methodname{} is a selective multi-teacher distillation framework.
 
-It uses tokenizer-agnostic Universal Logit Distillation (ULD), a deep student-conditioned teacher gate, top-\(k\) capacity-aware sparse routing, and gradient-based GRACE score refinement. The framework also supports routing fallback after capacity pruning, uniform fallback when score spread is too small, and optional balancing and expert-bias updates \cite{boizard2024towardscrosstokenizerdistillation,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice,zhu2021studentcustomized}.
+It uses tokenizer-agnostic Universal Logit Distillation (ULD), a deep student-conditioned teacher gate, top-\(k\) capacity-aware sparse routing and gradient-based GRACE score refinement. The framework also supports routing fallback after capacity pruning, uniform fallback when score spread is too small and balancing and expert-bias updates \cite{boizard2024towardscrosstokenizerdistillation,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice,zhu2021studentcustomized}.
 
-We evaluate it on text-rich multimodal understanding tasks such as TextVQA, DocVQA, and ChartQA \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+We evaluate it on text-rich multimodal understanding tasks such as TextVQA, DocVQA and ChartQA \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
-Accordingly, this thesis focuses on cross-tokenizer multimodal distillation for compact students and evaluates \methodname{} on TextVQA, DocVQA, and ChartQA, with analysis of routing behavior and representation matching.
+Accordingly, this thesis focuses on cross-tokenizer multimodal distillation for compact students and evaluates \methodname{} on TextVQA, DocVQA and ChartQA, with analysis of routing behavior and representation matching.
 
 \section{Thesis Contributions}
 The main contributions are:
 \begin{enumerate}
-\item We define a heterogeneous multi-teacher distillation setting for compact VLMs on TextVQA, DocVQA, and ChartQA, with mismatched teacher and student vocabularies.
-\item We propose \methodfull{} (\methodname{}), a selective multi-teacher framework using ULD, a deep student-conditioned gate, top-\(k\) capacity-aware routing, and gradient-alignment score refinement, with optional balancing and expert-bias updates.
-\item We report quantitative gains over fine-tuning and standard logits-based baselines on the three benchmarks for SmolVLM-500M and SmolVLM-256M students.
-\item We present representation-similarity analysis and layer-wise transfer baselines to show why naive layer matching underperforms in this setting.
-\item We provide routing and ablation results that isolate the impact of teacher selection, score refinement, and fallback behavior.
+\item We define a heterogeneous multi-teacher distillation setting for compact VLMs with mismatched teacher and student vocabularies on TextVQA, DocVQA and ChartQA.
+\item We propose \methodfull{} (\methodname{}), a selective multi-teacher distillation framework that combines ULD, a student-conditioned gate, sparse top-\(k\) routing and GRACE score refinement.
+\item We report consistent gains over fine-tuning and logits-based baselines, supported by routing, ablation and representation analyses.
 \end{enumerate}

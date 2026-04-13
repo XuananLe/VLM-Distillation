@@ -1,4 +1,4 @@
 from .distillation_trainer import DistillationTrainer
-from .sft_trainer import SmolVLMSFTTrainer
+from .sft_trainer import VisionLanguageSFTTrainer
 
-__all__ = ["DistillationTrainer", "SmolVLMSFTTrainer"]
+__all__ = ["DistillationTrainer", "VisionLanguageSFTTrainer"]

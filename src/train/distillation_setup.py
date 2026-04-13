@@ -41,8 +41,18 @@ class DistillationArguments:
     distillation_loss: str = field(
         default="uld_loss",
         metadata={
-            "help": "KD loss to use. Supported by src/components/loss.py, e.g. uld_loss, forward_kl, reverse_kl, jensen_shannon_divergence."
+            "help": "KD loss to use. Supported by src/components/loss.py, e.g. uld_loss, trie_wasserstein_loss, forward_kl, reverse_kl, jensen_shannon_divergence."
         },
+    )
+
+    trie_wasserstein_rho: float = field(
+        default=0.7,
+        metadata={"help": "Edge-decay factor rho used by trie_wasserstein_loss."},
+    )
+
+    trie_wasserstein_topk: int = field(
+        default=64,
+        metadata={"help": "Sparse top-k used by trie_wasserstein_loss before routing leftover mass to the TAIL edge."},
     )
 
     temperature: float = field(
@@ -210,6 +220,10 @@ def validate_distillation_args(distillation_args) -> None:
         raise ValueError("--teacher_weighting_strategy must be `routing`, `uniform_mean`, `gradient_optimal`, or `reinforced_selection`.")
     if distillation_args.objective_conflict_strategy not in {"fixed", "pcgrad", "cagrad", "mgda"}:
         raise ValueError("--objective_conflict_strategy must be `fixed`, `pcgrad`, `cagrad`, or `mgda`.")
+    if not 0.0 < distillation_args.trie_wasserstein_rho < 1.0:
+        raise ValueError("--trie_wasserstein_rho must be in (0, 1).")
+    if distillation_args.trie_wasserstein_topk < 1:
+        raise ValueError("--trie_wasserstein_topk must be >= 1.")
     if distillation_args.alpha < 0.0:
         raise ValueError("--alpha must be >= 0.")
     if distillation_args.teacher_gate_balance_alpha < 0.0:
@@ -302,6 +316,9 @@ def log_distillation_setup(
         rank0_print("Objective: dynamic CE/KD combination with alpha-scaled KD loss")
         rank0_print(f"Base KD Weight: {distillation_args.alpha}")
     rank0_print(f"KD Function: {distillation_args.distillation_loss}")
+    if distillation_args.distillation_loss == "trie_wasserstein_loss":
+        rank0_print(f"Trie Wasserstein Rho: {distillation_args.trie_wasserstein_rho}")
+        rank0_print(f"Trie Wasserstein Top-k: {distillation_args.trie_wasserstein_topk}")
     rank0_print(f"Alpha: {distillation_args.alpha}")
     rank0_print("CE Weight: 1.0")
     resolved_student_temperature = (

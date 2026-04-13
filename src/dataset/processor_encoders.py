@@ -18,6 +18,7 @@ LLAVA_NEXT_PROCESSOR = getattr(transformers, "LlavaNextProcessor", None)
 QWEN2_VL_PROCESSOR = getattr(transformers, "Qwen2VLProcessor", None)
 QWEN2_5_VL_PROCESSOR = getattr(transformers, "Qwen2_5_VLProcessor", None)
 QWEN3_VL_PROCESSOR = getattr(transformers, "Qwen3VLProcessor", None)
+LFM2_VL_PROCESSOR = getattr(transformers, "Lfm2VlProcessor", None)
 
 
 def is_internvl_teacher_model_id(model_id: str | None) -> bool:
@@ -347,6 +348,100 @@ def llava_next_encode_conversation(
     )
 
 
+def lfm2_vl_encode_conversation(
+    sources,
+    images,
+    processor: transformers.ProcessorMixin,
+) -> Dict[str, torch.Tensor]:
+    all_input_ids = []
+    all_labels = []
+    pixel_values = None
+    pixel_attention_mask = None
+    image_sizes = None
+    image_idx = 0
+
+    for j in range(0, len(sources), 2):
+        user_input = sources[j]
+        gpt_response = sources[j + 1]
+
+        user_text = user_input["content"]
+        has_image = LLAVA_IMAGE_TOKEN in user_text and images is not None
+        n_images = user_text.count(LLAVA_IMAGE_TOKEN)
+        clean_text = user_text.replace(LLAVA_IMAGE_TOKEN, "").strip()
+
+        user_content = []
+        if has_image:
+            turn_images = images[image_idx:image_idx + n_images]
+            image_idx += n_images
+            user_content.extend({"type": "image", "image": image} for image in turn_images)
+
+        if clean_text:
+            user_content.append({"type": "text", "text": clean_text})
+        if not user_content:
+            user_content = [{"type": "text", "text": ""}]
+
+        prompt_messages = [{"role": "user", "content": user_content}]
+        full_messages = [
+            {"role": "user", "content": user_content},
+            {"role": "assistant", "content": [{"type": "text", "text": gpt_response["content"]}]},
+        ]
+
+        prompt_enc = processor.apply_chat_template(
+            prompt_messages,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+            add_generation_prompt=True,
+        )
+        full_enc = processor.apply_chat_template(
+            full_messages,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+            add_generation_prompt=False,
+        )
+
+        prompt_ids = prompt_enc["input_ids"]
+        full_ids = full_enc["input_ids"]
+        if prompt_ids.size(1) > full_ids.size(1):
+            raise ValueError("LFM2-VL prompt encoding is longer than full conversation encoding.")
+
+        response_ids = full_ids[:, prompt_ids.size(1):]
+        input_ids = full_ids.squeeze(0)
+        labels = torch.cat(
+            [
+                torch.full((prompt_ids.size(1),), IGNORE_INDEX, dtype=torch.long),
+                response_ids.squeeze(0).to(torch.long),
+            ],
+            dim=0,
+        )
+
+        all_input_ids.append(input_ids.to(torch.long))
+        all_labels.append(labels)
+        if pixel_values is None:
+            pixel_values = full_enc.get("pixel_values", prompt_enc.get("pixel_values"))
+        if pixel_attention_mask is None:
+            pixel_attention_mask = full_enc.get(
+                "pixel_attention_mask",
+                prompt_enc.get("pixel_attention_mask"),
+            )
+        if image_sizes is None:
+            image_sizes = full_enc.get("image_sizes", prompt_enc.get("image_sizes"))
+
+    input_ids = torch.cat(all_input_ids, dim=0).to(torch.long)
+    labels = torch.cat(all_labels, dim=0).to(torch.long)
+    attention_mask = torch.ones_like(input_ids)
+
+    return dict(
+        input_ids=input_ids,
+        labels=labels,
+        attention_mask=attention_mask,
+        pixel_values=pixel_values,
+        pixel_attention_mask=pixel_attention_mask,
+        image_sizes=image_sizes,
+    )
+
+
 def internvl3_encode_conversation(
     sources,
     images,
@@ -436,6 +531,7 @@ PROCESSOR_ENCODERS = {
         (SMOLVLM_PROCESSOR, smolvlm_encode_conversation),
         (GEMMA3_PROCESSOR, gemma3_encode_conversation),
         (LLAVA_NEXT_PROCESSOR, llava_next_encode_conversation),
+        (LFM2_VL_PROCESSOR, lfm2_vl_encode_conversation),
         (QWEN2_VL_PROCESSOR, qwen_encode_conversation),
         (QWEN2_5_VL_PROCESSOR, qwen_encode_conversation),
         (QWEN3_VL_PROCESSOR, qwen_encode_conversation),
@@ -466,6 +562,7 @@ __all__ = [
     "QWEN_PROCESSORS",
     "gemma3_encode_conversation",
     "llava_next_encode_conversation",
+    "lfm2_vl_encode_conversation",
     "internvl3_encode_conversation",
     "is_internvl_teacher_model_id",
     "qwen_encode_conversation",

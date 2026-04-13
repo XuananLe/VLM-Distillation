@@ -3,7 +3,7 @@
 
 \section{Method Overview and Problem Formulation}
 
-We consider text-rich multimodal understanding tasks such as TextVQA, DocVQA, and ChartQA
+We consider text-rich multimodal understanding tasks such as TextVQA, DocVQA and ChartQA
 \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 The training set is
 \begin{equation}
@@ -11,12 +11,12 @@ The training set is
 \end{equation}
 where \(x_b\) is a multimodal input and \(y_b\) is the target answer sequence.
 
-Let \(S_{\theta}\) denote the student VLM with trainable parameters \(\theta\), and let
+Let \(S_{\theta}\) denote the student VLM with trainable parameters \(\theta\) and let
 \begin{equation}
 \mathcal{T}=\{T_1,T_2,\ldots,T_N\}
 \end{equation}
 be a pool of frozen teacher VLMs. For each sample \(b\), the student produces logits
-\(\mathbf{z}_s^{(b)}\), and teacher \(T_i\) produces teacher logits
+\(\mathbf{z}_s^{(b)}\) and teacher \(T_i\) produces teacher logits
 \(\mathbf{z}_t^{(b,i)}\).
 
 The goal of this thesis is not to pre-select a fixed teacher subset before
@@ -26,10 +26,10 @@ framework that refines sparse teacher assignments with gradient-based scores.
 
 \methodname{} has five components:
 \begin{enumerate}
-\item a supervised student objective \(\mathcal{L}_{CE}\),
-\item a per-teacher ULD objective \(\mathcal{L}_{KD}^{(b,i)}\),
-\item a deep student-conditioned gate,
-\item top-\(k\) routing, capacity control, and optional router regularization,
+\item A supervised student objective \(\mathcal{L}_{CE}\).
+\item A per-teacher ULD objective \(\mathcal{L}_{KD}^{(b,i)}\).
+\item A deep student-conditioned gate.
+\item Top-\(k\) routing, capacity control and router regularization.
 \item GRACE score refinement based on pooled gradient cosine similarity.
 \end{enumerate}
 
@@ -41,7 +41,7 @@ score that measures directional agreement with the supervised CE update.
 
 Before GRACE warmup, the method uses uniform KD weights over the teachers that
 remain after routing. After warmup, the GRACE scores are smoothed with an EMA,
-converted to a score softmax, blended with the routed weights, and replaced by
+converted to a score softmax, blended with the routed weights and replaced by
 a uniform distribution only when the score spread is too small to justify a
 strong preference.
 
@@ -59,7 +59,7 @@ The current repository objective is
 +
 \lambda_{z}\mathcal{L}_{z},
 \end{equation}
-where \(\lambda_{bal}\), \(\lambda_{ent}\), and \(\lambda_{z}\) are optional
+where \(\lambda_{bal}\), \(\lambda_{ent}\) and \(\lambda_{z}\) are
 router regularization weights.
 
 This design is closer in spirit to selective gradient-based distillation \cite{zhu2021studentcustomized} and sparse expert routing \cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion} than to static teacher averaging.
@@ -71,47 +71,8 @@ sections define each stage more precisely.
 
 \begin{figure}[htbp]
     \centering
-    \resizebox{\linewidth}{!}{%
-    \begin{tikzpicture}[
-        x=1cm, y=1cm,
-        every node/.style={font=\small},
-        box/.style={draw, rounded corners=2pt, align=center, minimum height=0.95cm, text width=2.45cm, fill=blue!8},
-        teach/.style={draw, rounded corners=2pt, align=center, minimum height=0.95cm, text width=2.45cm, fill=orange!12},
-        route/.style={draw, rounded corners=2pt, align=center, minimum height=0.95cm, text width=2.55cm, fill=yellow!15},
-        greenbox/.style={draw, rounded corners=2pt, align=center, minimum height=0.95cm, text width=2.45cm, fill=green!12},
-        loss/.style={draw, rounded corners=2pt, align=center, minimum height=0.95cm, text width=2.6cm, fill=red!8},
-        arrow/.style={-latex, thick}
-    ]
-        \node[draw, rounded corners=2pt, fill=gray!10, text width=1.7cm, minimum height=0.95cm, align=center] (input) at (0,0) {$x_b, y_b$};
-
-        \node[box] (student) at (3.2,-1.3) {Student\\$S_{\theta}$};
-        \node[box] (router) at (6.4,-1.3) {Pool$(\mathbf{H}_s)$\\Deep gate $G(\cdot)$};
-        \node[route] (sparse) at (9.7,-1.3) {Top-$k$ + capacity\\bias-adjusted routing};
-
-        \node[teach] (teachers) at (3.2,1.3) {Teacher pool\\$\{T_i\}_{i=1}^N$};
-        \node[teach] (kd) at (6.4,1.3) {Per-teacher KD\\$\mathcal{L}_{KD}^{(b,i)}$};
-
-        \node[route] (align) at (9.7,1.3) {GRACE scores\\EMA + softmax + blend};
-        \node[greenbox] (agg) at (12.9,0.0) {Routed KD\\$\mathcal{L}_{KD}$};
-        \node[greenbox] (bal) at (12.9,-1.7) {Router regularizers\\$\mathcal{L}_{bal}, \mathcal{L}_{ent}, \mathcal{L}_{z}$};
-        \node[loss] (final) at (16.0,0.0) {$\mathcal{L}_{CE} + (1-\alpha)\mathcal{L}_{KD} + \cdots$};
-
-        % \draw[arrow] (input) to (student);
-        % \draw[arrow] (input) to (teachers);
-        % \draw[arrow] (student) to (router);
-        % \draw[arrow] (router) to (sparse);
-        % \draw[arrow] (teachers) to (kd);
-        % \draw[arrow] (kd) to (align);
-        % \draw[arrow] (student.north east) to ++(0.55,0.8) |- (align.south west);
-        % \draw[arrow] (sparse) to (align);
-        % \draw[arrow] (align) to (agg);
-        % \draw[arrow] (sparse.east) to ++(1.0,0) |- (bal.west);
-        % \draw[arrow] (student.east) to ++(1.0,0) |- (final.west);
-        % \draw[arrow] (agg) to (final);
-        % \draw[arrow] (bal) to (final);
-    \end{tikzpicture}
-    }
-    \caption[Overview of GRACE.]{Overview of \methodname{}. The student produces both supervised learning signals and routing features. The gate proposes sparse teacher assignments, GRACE converts pooled gradient agreement into score-based weights, and the final KD term combines both routing and GRACE refinement. The full framework can additionally enable balancing, entropy, and router \(z\)-loss regularization.}
+    \includegraphics[height=0.72\textheight,keepaspectratio]{figures/architecture.jpg}
+    \caption[Overview of GRACE.]{Overview of \methodname{}. The student produces both supervised learning signals and routing features. The gate proposes sparse teacher assignments, GRACE converts pooled gradient agreement into score-based weights and the final KD term combines both routing and GRACE refinement. The full framework includes balancing, entropy and router \(z\)-loss regularization.}
     \label{fig:grace-overview}
 \end{figure}
 
@@ -120,19 +81,12 @@ sections define each stage more precisely.
 The training step follows four stages:
 \begin{enumerate}
 \item Run the student to obtain \((\mathbf{z}_s,\mathbf{H}_s,\mathcal{L}_{CE})\).
-\item Compute gate logits \(\mathbf r\), soft routing weights \(\mathbf p\), then route teachers with \(k_t=N\) during hard-routing warmup and \(k_t=k\) afterward.
-\item Compute routed per-teacher ULD losses \(\mathcal{L}_{KD}^{(b,i)}\). Before GRACE warmup, use uniform weights over the routed set.
-\item After GRACE warmup, compute pooled cosine scores, smooth them with EMA, form \(q_i^{(b)}=\mathrm{softmax}(\beta \hat s_i^{(b)})\), blend \(q_i^{(b)}\) with \(\hat p_i^{(b)}\), and use uniform fallback when the score spread is below \(\epsilon\).
+\item Compute gate logits \(\mathbf r\), soft routing weights \(\mathbf p\) and route teachers under top-\(k\) and capacity constraints.
+\item Compute routed per-teacher ULD losses \(\mathcal{L}_{KD}^{(b,i)}\).
+\item Compute pooled gradient-alignment scores, smooth them over time, blend them with the routed weights and apply fallback when needed.
 \end{enumerate}
 
-The final KD loss is \(\mathcal{L}_{KD}=\sum_b\sum_{i\in\mathcal R_b} w_i^{(b)}\mathcal{L}_{KD}^{(b,i)}\), and the full objective remains the sum of CE, routed KD, and optional router regularizers. In the current main
-configuration reported in Chapter~\ref{chap:evaluation-methodology}, the key
-GRACE-specific hyperparameters are \(k=2\), capacity factor \(\phi=1.25\),
-balance weight \(\lambda_{bal}=0.01\), bias-update rate \(\eta_b=5\times10^{-4}\),
-hard-routing warmup ratio \(\rho_h=0.2\), GRACE warmup ratio \(\rho_g=0.2\),
-GRACE score softmax temperature \(\beta=20\), router-blend exponent
-\(\lambda=0.5\), score-spread fallback threshold \(\epsilon=0.01\), logged
-alignment threshold \(\delta=-0.02\), and KD coefficient \(\alpha=0.5\).
+The final KD loss is \(\mathcal{L}_{KD}=\sum_b\sum_{i\in\mathcal R_b} w_i^{(b)}\mathcal{L}_{KD}^{(b,i)}\) and the full objective remains the sum of CE, routed KD and router regularizers.
 
 \section{Token-Level Distillation with ULD}
 
@@ -141,9 +95,9 @@ alignment threshold \(\delta=-0.02\), and KD coefficient \(\alpha=0.5\).
 Distillation is applied only on supervised answer tokens, not on prompt tokens.
 For sample \(b\), let \(\Omega_b\) denote the set of supervised token positions after:
 \begin{enumerate}
-\item masking ignored labels,
-\item optionally removing the EOS token from both student and teacher answer spans,
-\item truncating student and teacher answer spans to a common length.
+\item Masking ignored labels.
+\item Optionally removing the EOS token from both student and teacher answer spans.
+\item Truncating student and teacher answer spans to a common length.
 \end{enumerate}
 
 This produces aligned token sequences for the student and each teacher. The alignment is important because
@@ -151,7 +105,7 @@ teacher and student models may differ in tokenizer and vocabulary size.
 
 \subsection{Universal Logit Distillation}
 
-For each sample \(b\), token position \(j \in \Omega_b\), and teacher \(T_i\), let
+For each sample \(b\), token position \(j \in \Omega_b\) and teacher \(T_i\), let
 \(\mathbf{z}_{s,j}^{(b)} \in \mathbb{R}^{V_s}\) be the student logits and
 \(\mathbf{z}_{t,j}^{(b,i)} \in \mathbb{R}^{V_i}\) be the teacher logits.
 The student and teacher probability distributions are
@@ -225,7 +179,7 @@ where \(p_i^{(b)}\) is the initial gate weight for teacher \(T_i\).
 
 
 
-\subsection{Top-k, Capacity, and Fallback}
+\subsection{Top-k, Capacity and Fallback}
 
 The router is made sparse by applying top-\(k\) routing to bias-adjusted scores
 \begin{equation}
@@ -255,7 +209,7 @@ If capacity pruning leaves a sample without any assigned teacher, the algorithm 
 This ensures that at least one teacher remains available before GRACE refinement.
 
 The current implementation also uses a short hard-routing warmup. Let
-\(k_t\) denote the effective top-\(k\) value at training step \(t\), and let
+\(k_t\) denote the effective top-\(k\) value at training step \(t\) and let
 \(\rho_h\) be the hard-routing warmup ratio. During the first \(\rho_h T\)
 steps, the router uses
 \begin{equation}
@@ -266,7 +220,7 @@ configured sparse value \(k_t = k\).
 
 \subsection{Balancing Loss and Expert Bias Update}
 
-The full GRACE framework can optionally regularize the gate with a balancing
+The full GRACE framework regularizes the gate with a balancing
 loss that uses both soft routing weights and hard assignments.
 
 Define the soft load
@@ -290,14 +244,14 @@ N\sum_{i=1}^{N}\bar{p}_i\bar{q}_i.
 \label{eq:balance_loss}
 \end{equation}
 
-When enabled, the expert bias is updated from the per-batch assignment load
+The expert bias is updated from the per-batch assignment load
 \(\ell_i\) to discourage teacher overuse:
 \begin{equation}
 b_i \leftarrow b_i - \eta_b \left(\ell_i - \frac{1}{N}\sum_{j=1}^{N}\ell_j\right),
 \end{equation}
 where \(\eta_b\) is a small bias-update rate.
 
-Two small auxiliary router penalties can also be enabled in the current code.
+Two small auxiliary router penalties are also included in the current code.
 The first is a negative-entropy term
 \begin{equation}
 \mathcal{L}_{ent}
@@ -346,18 +300,18 @@ which keeps router logits numerically well behaved.
         % \draw[arrow] (balance) to (bias);
     \end{tikzpicture}
     }
-\caption[Gate, sparsification, and optional balance update in GRACE.]{Student-conditioned routing in \methodname{}. Pooled student features are transformed into gate logits, converted into routing weights, and sparsified by top-$k$ and capacity constraints. The full framework can additionally apply a balance term and expert-bias updates.}
+\caption[Gate, sparsification and balance update in GRACE.]{Student-conditioned routing in \methodname{}. Pooled student features are transformed into gate logits, converted into routing weights and sparsified by top-$k$ and capacity constraints. The full framework includes a balance term and expert-bias updates.}
     \label{fig:grace-gate-balance}
 \end{figure}
 
 Figure~\ref{fig:grace-gate-balance} gives the full routing pipeline, from
-pooled student features to sparse teacher assignments and optional balance
+pooled student features to sparse teacher assignments and balance
 updates.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=0.92\linewidth]{figures/grace_bias_feedback.png}
-    \caption[Bias-feedback behavior in GRACE.]{Bias-feedback behavior in \methodname{} when expert-bias updates are enabled. If one teacher receives too many assignments, its bias is reduced, while underused teachers receive higher bias. This shifts future routing toward a more balanced load.}
+    \caption[Bias-feedback behavior in GRACE.]{Bias-feedback behavior in \methodname{} under expert-bias updates. If one teacher receives too many assignments, its bias is reduced, while underused teachers receive higher bias. This shifts future routing toward a more balanced load.}
     \label{fig:grace-bias-feedback}
 \end{figure}
 
@@ -366,13 +320,13 @@ Figure~\ref{fig:grace-routing-dynamics} gives a routing example inspired by
 the routing-overflow and load-balancing behavior used in sparse expert models
 \cite{fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}.
 The dense gate may prefer a small subset of teachers, but top-$k$ selection,
-capacity constraints, and fallback convert these scores into a sparse assignment
+capacity constraints and fallback convert these scores into a sparse assignment
 pattern with explicit load statistics.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{figures/grace_routing_dynamics.png}
-    \caption[Routing dynamics in GRACE.]{Routing dynamics in \methodname{}. Left to right: dense gate scores, top-$k$ routed weights, and the final assignment pattern after capacity control and fallback. The rightmost panel compares average soft load and normalized hard load, illustrating why balancing terms and expert-bias updates are needed.}
+    \caption[Routing dynamics in GRACE.]{Routing dynamics in \methodname{}. Left to right: dense gate scores, top-$k$ routed weights and the final assignment pattern after capacity control and fallback. The rightmost panel compares average soft load and normalized hard load, illustrating why balancing terms and expert-bias updates are needed.}
     \label{fig:grace-routing-dynamics}
 \end{figure}
 
@@ -445,7 +399,7 @@ but the GRACE weight update itself uses the continuous scores \(s_i^{(b)}\).
 Figure~\ref{fig:grace-directional-view} gives the directional picture behind
 the cosine-based GRACE score.
 
-\subsection{Warmup, Score Smoothing, and Gradient Weights}
+\subsection{Warmup, Score Smoothing and Gradient Weights}
 
 GRACE refinement is enabled only after a warmup phase. Let \(\rho_g \in [0,1]\)
 denote the GRACE warmup ratio with respect to the total number of training
@@ -461,7 +415,7 @@ u_i^{(b)}
 
 After warmup, GRACE refines the routed teachers with a score-smoothed gradient
 distribution. Let \(\bar{s}_i^{\mathrm{prev}}\) be the running exponential
-moving average (EMA) of past batch means for teacher \(T_i\), and let \(\gamma\)
+moving average (EMA) of past batch means for teacher \(T_i\) and let \(\gamma\)
 be the EMA decay. The per-sample smoothed score is
 \begin{equation}
 \hat{s}_i^{(b)}
@@ -560,7 +514,7 @@ patterns.
 
 Figure~\ref{fig:grace-alignment-cases} shows the same rule from a weight-update
 view. The routed gate weights are first proposed by the student-conditioned
-router, then refined by GRACE scores, and finally converted into the
+router, then refined by GRACE scores and finally converted into the
 effective KD weights used in Equation~\ref{eq:sample_kd_average}.
 
 \begin{figure}[htbp]
@@ -571,13 +525,13 @@ effective KD weights used in Equation~\ref{eq:sample_kd_average}.
 \end{figure}
 
 Figure~\ref{fig:grace-weight-refinement} compresses the same update into one
-sample-wise path, from gate softmax to routed weights, GRACE softmax, and final
+sample-wise path, from gate softmax to routed weights, GRACE softmax and final
 effective KD weights.
 
 \begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{figures/grace_weight_refinement.png}
-    \caption[Weight refinement in GRACE.]{A sample-wise view of weight refinement in \methodname{}. The gate first proposes dense soft weights, routing constraints make them sparse, GRACE converts smoothed gradient scores into a second weight vector, and the final KD weights blend both signals.}
+    \caption[Weight refinement in GRACE.]{A sample-wise view of weight refinement in \methodname{}. The gate first proposes dense soft weights, routing constraints make them sparse, GRACE converts smoothed gradient scores into a second weight vector and the final KD weights blend both signals.}
     \label{fig:grace-weight-refinement}
 \end{figure}
 
@@ -609,7 +563,7 @@ The batch-level KD loss is then the mean over samples:
 \label{eq:batch_kd}
 \end{equation}
 
-This rule has two stages: the gate defines the routed teacher set, and GRACE
+This rule has two stages: the gate defines the routed teacher set and GRACE
 refines those routed teachers into the final KD weights.
 
 \section{Final Objective}
@@ -633,7 +587,7 @@ where \(\mathcal{L}_{CE}\) is the standard supervised next-token cross-entropy l
 \(\mathcal{L}_{KD}\) is defined in Equation~\ref{eq:batch_kd}. The balance term
 \(\mathcal{L}_{bal}\) is defined in Equation~\ref{eq:balance_loss}; the entropy
 term \(\mathcal{L}_{ent}\) and router \(z\)-loss \(\mathcal{L}_{z}\) are small
-optional penalties on the teacher gate.
+penalties on the teacher gate.
 
 Equation~\ref{eq:final_objective} keeps the student anchored to ground-truth
 supervision while adding routed KD and small router regularizers. Compared with

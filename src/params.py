@@ -17,7 +17,7 @@ from transformers import TrainingArguments as HFTrainingArguments
 
 @dataclass
 class ModelArguments:
-    model_id: Optional[str] = field(default="HuggingFaceTB/SmolVLM-Instruct")
+    model_id: Optional[str] = field(default=None)
 
 
 @dataclass
@@ -38,7 +38,7 @@ class TrainingArguments(HFTrainingArguments):
     unfreeze_topk_vision: int = 0
 
     max_seq_length: int = field(
-        default=16384, # This is the default value of the SmolVLM model
+        default=16384,
         metadata={
             "help":
                 "Maximum sequence length. Sequences will be right padded (and possibly truncated)."
