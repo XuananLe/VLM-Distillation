@@ -1992,6 +1992,12 @@ lfm2vl_series = {
     "LFM2-VL-1.6B": partial(LFM2VL, model_path="LiquidAI/LFM2-VL-1.6B"),
     "LFM2-VL-3B": partial(LFM2VL, model_path="LiquidAI/LFM2-VL-3B"),
     "LFM2.5-VL-450M": partial(LFM2VL, model_path="LiquidAI/LFM2.5-VL-450M"),
+    "LFM2.5-VL-450M-Checkpoint-150": partial(LFM2VL, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_LFM2.5-VL-450M_docvqa_20260413_0705/checkpoint-150"),
+    "LFM2.5-VL-450M-Checkpoint-300": partial(LFM2VL, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_LFM2.5-VL-450M_docvqa_20260413_0705/checkpoint-300"),
+    "LFM2.5-VL-450M-Checkpoint-450": partial(LFM2VL, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_LFM2.5-VL-450M_docvqa_20260413_0705/checkpoint-450"),
+    "LFM2.5-VL-450M-Checkpoint-600": partial(LFM2VL, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_LFM2.5-VL-450M_docvqa_20260413_0705/checkpoint-600"),
+    "LFM2.5-VL-450M-Checkpoint-750": partial(LFM2VL, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_LFM2.5-VL-450M_docvqa_20260413_0705/checkpoint-750"),
+    "LFM2.5-VL-450M-Checkpoint-900": partial(LFM2VL, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_LFM2.5-VL-450M_docvqa_20260413_0705/checkpoint-900"),
     "LFM2.5-VL-1.6B": partial(LFM2VL, model_path="LiquidAI/LFM2.5-VL-1.6B"),
 }
 

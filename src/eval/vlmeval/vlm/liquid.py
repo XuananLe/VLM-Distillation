@@ -1,5 +1,6 @@
 from .base import BaseModel
 import torch
+import warnings
 from PIL import Image
 from transformers import AutoProcessor, AutoModelForImageTextToText
 
@@ -7,14 +8,37 @@ from transformers import AutoProcessor, AutoModelForImageTextToText
 class LFM2VL(BaseModel):
     INTERLEAVE = True
 
-    def __init__(self, model_path, **kwargs):
+    def __init__(self, model_path, lfm2vl_runtime='fast', **kwargs):
         self.default_instruction_prompt = (
             "\nPlease answer directly with only the final answer, "
             "do not give any explanation."
         )
+        if lfm2vl_runtime not in {"fast", "original"}:
+            raise ValueError(
+                f"Unsupported lfm2vl_runtime={lfm2vl_runtime}. Expected one of: fast, original."
+            )
         self.device = "cuda" if torch.cuda.is_available() else "cpu"
-        attn_implementation = "flash_attention_2" if self.device == "cuda" else "eager"
-        torch_dtype = torch.bfloat16 if self.device == "cuda" else torch.float32
+        attn_implementation = "eager"
+        torch_dtype = torch.float32
+
+        if lfm2vl_runtime == "fast":
+            if self.device == "cuda":
+                if torch.cuda.is_bf16_supported():
+                    torch_dtype = torch.bfloat16
+                    attn_implementation = "flash_attention_2"
+                else:
+                    warnings.warn(
+                        "LFM2VL fast runtime requested bf16 + FlashAttention-2, but bf16 "
+                        "is not supported on this GPU. Falling back to float32 + eager attention."
+                    )
+            else:
+                warnings.warn(
+                    "LFM2VL fast runtime requested on CPU. Falling back to float32 + eager attention."
+                )
+        else:
+            warnings.warn(
+                "Using LFM2VL original runtime: float32 weights with eager attention."
+            )
 
         self.processor = AutoProcessor.from_pretrained(
             model_path,

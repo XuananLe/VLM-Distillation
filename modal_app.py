@@ -4,6 +4,7 @@ from pathlib import Path
 
 import modal
 
+LOCAL_ROOT_DIR = Path(__file__).resolve().parent
 ROOT_DIR = Path("/root/VLM-Distillation")
 WANDB_PROJECT = "VLM-Distillation"
 MODEL_DIR = Path("/models")
@@ -23,9 +24,41 @@ R2_CACHE_PREFIX = os.environ.get(
     "MODAL_R2_CACHE_PREFIX",
     "1W9sUXnqNdR2qVHr8PrgVAtM6J2SXsJ-7",
 )
+MODAL_REQUIREMENTS_PATH = Path("/tmp/vlm-distillation-modal-requirements.txt")
+MODAL_REQUIREMENTS_BLOCKLIST = (
+    "torch==",
+    "torchvision==",
+    "torchaudio==",
+    "nvidia-",
+    "transformers==",
+    "flash_attn==",
+    "flash-attn==",
+)
 model_volume = modal.Volume.from_name("model-weights-vol", create_if_missing=True)
 dataset_volume = modal.Volume.from_name("vlm-distillation-data", create_if_missing=True)
 output_volume = modal.Volume.from_name("output-vol", create_if_missing=True)
+
+
+def build_modal_requirements_file() -> Path:
+    source_path = LOCAL_ROOT_DIR / "requirements.txt"
+    if not source_path.exists():
+        source_path = ROOT_DIR / "requirements.txt"
+    filtered_lines = []
+    for raw_line in source_path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            continue
+        if line.lower().startswith(MODAL_REQUIREMENTS_BLOCKLIST):
+            continue
+        filtered_lines.append(line)
+    MODAL_REQUIREMENTS_PATH.write_text(
+        "\n".join(filtered_lines) + "\n",
+        encoding="utf-8",
+    )
+    return MODAL_REQUIREMENTS_PATH
+
+
+build_modal_requirements_file()
 
 base_image = (
     modal.Image.from_registry(
@@ -44,42 +77,31 @@ base_image = (
         "libgl1",
         "libglib2.0-0",
     )
-    .add_local_dir(
-        ".",
-        remote_path=ROOT_DIR,
-        copy=True,
-        ignore=modal.FilePatternMatcher.from_file(".gitignore"),
-    )
-    .pip_install(
+    .uv_pip_install(
         "wheel==0.46.3",
         "setuptools==69.0.3",
         "packaging==26.0",
         "ninja==1.13.0",
         "psutil==7.2.2",
+        "numpy<2.2",
+        "mosaicml-streaming==0.13.0",
     )
-    .pip_install(
+    .uv_pip_install(
         "torch==2.8.0+cu126",
         "torchvision==0.23.0+cu126",
         "torchaudio==2.8.0+cu126",
         extra_index_url="https://download.pytorch.org/whl/cu126",
     )
-    .pip_install(
+    .uv_pip_install(
         f"flash-attn=={MODAL_FLASH_ATTN_VERSION}",
         extra_options="--no-build-isolation",
         gpu=MODAL_IMAGE_BUILD_GPU,
     )
-    .run_commands(
-        "python -c \"from pathlib import Path; src = Path('/root/VLM-Distillation/requirements.txt'); "
-        "dst = Path('/tmp/modal-requirements.txt'); blocked_prefixes = ('torch==', 'torchvision==', 'torchaudio==', 'nvidia-', 'transformers==', 'flash_attn==', 'flash-attn=='); "
-        "filtered_lines = [line for line in src.read_text().splitlines() if line.strip() and not line.lstrip().startswith(blocked_prefixes)]; "
-        "dst.write_text('\\\\n'.join(filtered_lines) + '\\\\n'); print(f'Filtered requirements written to {dst}')\"",
-        "python -m pip install -r /tmp/modal-requirements.txt --no-build-isolation",
+    .pip_install_from_requirements(
+        MODAL_REQUIREMENTS_PATH,
+        extra_options="--no-build-isolation",
     )
-    .pip_install(
-        "numpy<2.2",
-        "mosaicml-streaming==0.13.0",
-    )
-    .pip_install(
+    .uv_pip_install(
         f"transformers=={MODAL_TRANSFORMERS_VERSION}",
     )
     .run_commands(
@@ -90,6 +112,12 @@ base_image = (
         "assert not missing, f'Missing transformers symbols: {missing}'; "
         "print('flash_attn import OK'); "
         "print('transformers', transformers.__version__)\""
+    )
+    .add_local_dir(
+        ".",
+        remote_path=ROOT_DIR,
+        copy=True,
+        ignore=modal.FilePatternMatcher.from_file(".gitignore"),
     )
     .env(
         {
@@ -214,70 +242,28 @@ def exec_cmd(cmd: str) -> None:
 @app.local_entrypoint()
 def run(
 cmd = r"""
-    cd /root/VLM-Distillation/src/eval
+cd /root/VLM-Distillation/src/eval
 
-    CUDA_VISIBLE_DEVICES=0 python run.py \
-    --data DocVQA_VAL \
-    --model SmolVLM-500M-Grace-Checkpoint-1482 \
-    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-1482 \
-    --smolvlm-runtime fast &
+CUDA_VISIBLE_DEVICES=0 python run.py \
+--data DocVQA_VAL \
+--model LFM2.5-VL-450M \
+--work-dir /output/vlmeval/LFM2.5-VL-450M \
+--lfm2vl-runtime fast &
 
-    CUDA_VISIBLE_DEVICES=0 python run.py \
-    --data DocVQA_VAL \
-    --model SmolVLM-500M-Grace-Checkpoint-1350 \
-    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-1350 \
-    --smolvlm-runtime fast &
+CUDA_VISIBLE_DEVICES=0 python run.py \
+--data DocVQA_VAL \
+--model LFM2.5-VL-450M-Checkpoint-600 \
+--work-dir /output/vlmeval/LFM2.5-VL-450M-Checkpoint-600 \
+--lfm2vl-runtime fast &
 
-    CUDA_VISIBLE_DEVICES=0 python run.py \
-    --data DocVQA_VAL \
-    --model SmolVLM-500M-Grace-Checkpoint-1200 \
-    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-1200 \
-    --smolvlm-runtime fast &
+CUDA_VISIBLE_DEVICES=0 python run.py \
+--data DocVQA_VAL \
+--model LFM2.5-VL-450M-Checkpoint-750 \
+--work-dir /output/vlmeval/LFM2.5-VL-450M-Checkpoint-750 \
+--lfm2vl-runtime fast &
 
-    CUDA_VISIBLE_DEVICES=0 python run.py \
-    --data DocVQA_VAL \
-    --model SmolVLM-500M-Grace-Checkpoint-1050 \
-    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-1050 \
-    --smolvlm-runtime fast &
-
-    CUDA_VISIBLE_DEVICES=0 python run.py \
-    --data DocVQA_VAL \
-    --model SmolVLM-500M-Grace-Checkpoint-900 \
-    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-900 \
-    --smolvlm-runtime fast &
-
-    CUDA_VISIBLE_DEVICES=0 python run.py \
-    --data DocVQA_VAL \
-    --model SmolVLM-500M-Grace-Checkpoint-750 \
-    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-750 \
-    --smolvlm-runtime fast &
-
-    CUDA_VISIBLE_DEVICES=0 python run.py \
-    --data DocVQA_VAL \
-    --model SmolVLM-500M-Grace-Checkpoint-600 \
-    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-600 \
-    --smolvlm-runtime fast &   
-
-    CUDA_VISIBLE_DEVICES=0 python run.py \
-    --data DocVQA_VAL \
-    --model SmolVLM-500M-Grace-Checkpoint-450 \
-    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-450 \
-    --smolvlm-runtime fast &
-    
-
-    CUDA_VISIBLE_DEVICES=0 python run.py \
-    --data DocVQA_VAL \
-    --model SmolVLM-500M-Grace-Checkpoint-300 \
-    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-300 \
-    --smolvlm-runtime fast &
-
-    CUDA_VISIBLE_DEVICES=0 python run.py \
-    --data DocVQA_VAL \
-    --model SmolVLM-500M-Grace-Checkpoint-150 \
-    --work-dir /output/vlmeval/SmolVLM-500M-Grace-Checkpoint-150 \
-    --smolvlm-runtime fast &
-
-    wait
+wait
 """
+
 ):
     exec_cmd.remote(cmd)

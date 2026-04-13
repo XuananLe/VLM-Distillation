@@ -25,6 +25,12 @@ def is_gemma3_model_name(model_name):
     return isinstance(model_name, str) and 'Gemma3-' in model_name
 
 
+def is_lfm2vl_model_name(model_name):
+    return isinstance(model_name, str) and (
+        'LFM2-VL' in model_name or 'LFM2.5-VL' in model_name
+    )
+
+
 def parse_args():
     parser = argparse.ArgumentParser()
     parser.add_argument('--data', type=str, nargs='+', required=True)
@@ -104,6 +110,7 @@ def infer_data(
     smolvlm_runtime='fast',
     qwen2vl_runtime='fast',
     gemma3_runtime='original',
+    lfm2vl_runtime='fast',
 ):
     dataset_name = dataset.dataset_name
     res = {}
@@ -140,6 +147,8 @@ def infer_data(
         kwargs['qwen2vl_runtime'] = qwen2vl_runtime
     if is_gemma3_model_name(model_name):
         kwargs['gemma3_runtime'] = gemma3_runtime
+    if is_lfm2vl_model_name(model_name):
+        kwargs['lfm2vl_runtime'] = lfm2vl_runtime
 
     # (25.06.05) In newer version of transformers (after 4.50), with device_map='auto' and torchrun launcher,
     # Transformers automatically adopt TP parallelism, which leads to compatibility problems with VLMEvalKit
@@ -208,6 +217,7 @@ def infer_data_job_mt(
     smolvlm_runtime='fast',
     qwen2vl_runtime='fast',
     gemma3_runtime='original',
+    lfm2vl_runtime='fast',
 ):
     rank, world_size = get_rank_and_world_size()
     dataset_name = dataset.dataset_name
@@ -220,7 +230,7 @@ def infer_data_job_mt(
         model=model, work_dir=work_dir, model_name=model_name, dataset=dataset,
         out_file=out_file, verbose=verbose, api_nproc=api_nproc, use_vllm=use_vllm,
         smolvlm_runtime=smolvlm_runtime, qwen2vl_runtime=qwen2vl_runtime,
-        gemma3_runtime=gemma3_runtime)
+        gemma3_runtime=gemma3_runtime, lfm2vl_runtime=lfm2vl_runtime)
     if world_size > 1:
         dist.barrier()
 

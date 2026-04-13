@@ -8,7 +8,7 @@ from ...smp import *
 from ...dataset import DATASET_TYPE, DATASET_MODALITY
 import copy
 import requests
-from transformers import AutoModelForVision2Seq, AutoProcessor
+from transformers import AutoProcessor, LlavaNextForConditionalGeneration
 
 flash_attn_flag = False
 try:
@@ -30,11 +30,11 @@ class GraniteVision3(BaseModel):
         self.model_path = model_path
         self.processor = AutoProcessor.from_pretrained(self.model_path)
         attn_impl = "flash_attention_2" if flash_attn_flag else "eager"
-        model = AutoModelForVision2Seq.from_pretrained(
+        model = LlavaNextForConditionalGeneration.from_pretrained(
             self.model_path,
             torch_dtype=torch.bfloat16,
             low_cpu_mem_usage=True,
-            attn_implementation=attn_impl
+            attn_implementation=attn_impl,
         )
 
         model = model.eval()
@@ -179,6 +179,6 @@ class GraniteVision3(BaseModel):
             "cuda", torch.float16
         )
         output = self.model.generate(**inputs, **self.kwargs)
-        answer = self.processor.decode(output[0], skip_special_token=True)
+        answer = self.processor.decode(output[0], skip_special_tokens=True)
         answer = self.output_process(answer, dataset)
         return answer

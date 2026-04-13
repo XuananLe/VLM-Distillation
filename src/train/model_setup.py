@@ -5,7 +5,6 @@ import torch
 from transformers import (
     AutoConfig,
     AutoModelForImageTextToText,
-    AutoModelForVision2Seq,
     AutoProcessor,
     AutoTokenizer,
     BitsAndBytesConfig,
@@ -159,9 +158,7 @@ def load_processor_and_tokenizer_backend(
 
 
 def resolve_vision_language_model_loader(model_type: str | None):
-    if model_type in {"lfm2_vl", "smolvlm", "smolvlm2"}:
-        return AutoModelForImageTextToText
-    return AutoModelForVision2Seq
+    return AutoModelForImageTextToText
 
 
 def load_vision_language_model(
