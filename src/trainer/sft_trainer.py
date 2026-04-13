@@ -21,6 +21,81 @@ from src.train.train_utils import (
 )
 
 class VisionLanguageSFTTrainer(Trainer):
+    def has_broken_deepspeed_wrapper(self) -> bool:
+        accelerator = getattr(self, "accelerator", None)
+        if accelerator is None:
+            return False
+        if getattr(accelerator, "deepspeed_engine_wrapped", None) is not None:
+            return False
+        distributed_type = getattr(accelerator, "distributed_type", None)
+        return str(distributed_type).endswith("DEEPSPEED")
+
+    def resolve_deepspeed_engine(self, model):
+        accelerator = getattr(self, "accelerator", None)
+        for candidate in (
+            model,
+            getattr(self, "model_wrapped", None),
+            getattr(accelerator, "deepspeed_engine", None) if accelerator is not None else None,
+            getattr(self, "model", None),
+        ):
+            if candidate is not None and hasattr(candidate, "backward") and hasattr(candidate, "step"):
+                return candidate
+        raise RuntimeError(
+            "DeepSpeed training is enabled, but no engine exposing backward()/step() "
+            "could be resolved from the trainer state."
+        )
+
+    def manual_deepspeed_training_step(self, model, inputs, num_items_in_batch=None) -> torch.Tensor:
+        model.train()
+        if hasattr(self.optimizer, "train"):
+            self.optimizer.train()
+
+        inputs = self._prepare_inputs(inputs)
+        with self.compute_loss_context_manager():
+            loss = self.compute_loss(model, inputs, num_items_in_batch=num_items_in_batch)
+        del inputs
+
+        if self.args.n_gpu > 1:
+            loss = loss.mean()
+
+        deepspeed_engine = self.resolve_deepspeed_engine(model)
+        deepspeed_engine.backward(
+            loss,
+            sync_gradients=getattr(self, "sync_gradients", True),
+            scale_wrt_gas=False,
+        )
+        deepspeed_engine.step()
+
+        gradient_accumulation_steps = getattr(
+            self,
+            "current_gradient_accumulation_steps",
+            self.args.gradient_accumulation_steps,
+        )
+        return loss.detach() / gradient_accumulation_steps
+
+    @override
+    def training_step(self, model, inputs, num_items_in_batch=None) -> torch.Tensor:
+        try:
+            return super().training_step(
+                model,
+                inputs,
+                num_items_in_batch=num_items_in_batch,
+            )
+        except AttributeError as exc:
+            if (
+                not self.has_broken_deepspeed_wrapper()
+                or "'NoneType' object has no attribute 'backward'" not in str(exc)
+            ):
+                raise
+            logger.warning(
+                "Accelerate reported a missing DeepSpeed engine wrapper during backward; "
+                "falling back to manual DeepSpeed engine.backward()/step()."
+            )
+            return self.manual_deepspeed_training_step(
+                model,
+                inputs,
+                num_items_in_batch=num_items_in_batch,
+            )
 
     def _save_non_lora_weights(self, output_dir: str, *, require_grad_only: bool) -> None:
         if not self.args.lora_enable:
