@@ -73,21 +73,17 @@ def apply_teacher_gate_constraints(
             sample_indices = sample_indices[keep_indices]
         assignment_mask[sample_indices, teacher_index] = True
 
+    missing_indices = (~assignment_mask.any(dim=-1)).nonzero(as_tuple=True)[0]
+    fallback_rate = teacher_gate_weights.new_tensor(missing_indices.numel() / max(batch_size, 1))
+    if missing_indices.numel() > 0:
+        fallback_indices = routing_scores.argmax(dim=-1)
+        assignment_mask[missing_indices, fallback_indices[missing_indices]] = True
+
     routed_weights = torch.where(
         assignment_mask,
         teacher_gate_weights,
         torch.zeros_like(teacher_gate_weights),
     )
-
-    missing_indices = (routed_weights.sum(dim=-1) == 0).nonzero(as_tuple=True)[0]
-    fallback_rate = teacher_gate_weights.new_tensor(missing_indices.numel() / max(batch_size, 1))
-    if missing_indices.numel() > 0:
-        fallback_indices = routing_scores.argmax(dim=-1)
-        routed_weights[missing_indices, fallback_indices[missing_indices]] = teacher_gate_weights[
-            missing_indices,
-            fallback_indices[missing_indices],
-        ]
-        assignment_mask[missing_indices, fallback_indices[missing_indices]] = True
 
     routed_weights = routed_weights / routed_weights.sum(dim=-1, keepdim=True).clamp(
         min=torch.finfo(routed_weights.dtype).eps
