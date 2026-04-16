@@ -10,9 +10,9 @@ The current distillation stack supports:
 - single-teacher and multi-teacher KD
 - cached teacher-logit training, so teacher weights do not need to be loaded during training
 - router-based teacher weighting
+- reinforced teacher selection
 - `GRACE` routing refinement on top of the router
-- direct gradient-based teacher weighting
-- CE vs KD conflict handling with `fixed`, `pcgrad`, `mgda`, and `cagrad`
+- standard `CE + alpha * KD` optimization
 
 ## What This Repo Is For
 
@@ -23,7 +23,7 @@ The main research workflow in this repo is:
 3. train a smaller student VLM with:
    - `uniform_mean`
    - `routing`
-   - `gradient_optimal`
+   - `reinforced_selection`
 4. optionally evaluate checkpoints in the separate `src/eval/` stack
 
 If you only care about the current training code, the important entrypoint is:
@@ -154,15 +154,12 @@ When `teacher_logits_cache_dir` is set:
 - `routing`
   - learned teacher gate over pooled student hidden states
   - optional soft routing, capacity control, entropy regularization, and `GRACE`
-- `gradient_optimal`
-  - direct gradient-based teacher mixing without a learned router
+- `reinforced_selection`
+  - policy-based teacher selection driven by CE and KD reward signals
 
 ### CE vs KD objective combination
 
 - `fixed`
-- `pcgrad`
-- `mgda`
-- `cagrad`
 
 ## Repository Guide
 
@@ -189,13 +186,9 @@ The sections below describe what each important file is responsible for.
 - [loss.py](/home/automl/VLM-Distillation/src/components/loss.py)
   - KD loss implementations and logit-gradient formulas.
   - includes `uld_loss` and the helper used for KD-gradient computations.
-- [objective_conflict.py](/home/automl/VLM-Distillation/src/components/objective_conflict.py)
-  - combines CE and KD objectives using `fixed`, `pcgrad`, `mgda`, or `cagrad`.
 - [teacher_gate.py](/home/automl/VLM-Distillation/src/components/teacher_gate.py)
   - learned router for the `routing` strategy.
   - captures pooled student hidden states and outputs teacher scores.
-- [teacher_weighting.py](/home/automl/VLM-Distillation/src/components/teacher_weighting.py)
-  - direct gradient-based teacher weighting solver used by `gradient_optimal`.
 
 ### `src/dataset`
 
@@ -318,14 +311,11 @@ The distillation path is:
 5. [alignment_utils.py](/home/automl/VLM-Distillation/src/trainer/alignment_utils.py)
 6. one of:
    - [teacher_gate.py](/home/automl/VLM-Distillation/src/components/teacher_gate.py) + [grace.py](/home/automl/VLM-Distillation/src/components/grace.py)
-   - [teacher_weighting.py](/home/automl/VLM-Distillation/src/components/teacher_weighting.py)
-7. [objective_conflict.py](/home/automl/VLM-Distillation/src/components/objective_conflict.py)
 
 ## Notes
 
 - Cached-logit training is the cleanest way to reduce GPU memory when all distillation methods are logits-only.
 - `GRACE` belongs to the `routing` strategy. It refines router weights; it is not a separate teacher-weighting strategy.
-- `gradient_optimal` does not use the learned teacher gate.
 - Training-time eval is optional and the current distillation workflow is designed to run without online teacher loading when cached logits are available.
 
 ## License

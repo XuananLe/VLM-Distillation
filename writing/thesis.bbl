@@ -64,20 +64,34 @@ Ahmed Masry, Do~Xuan Long, Jia~Qing Tan, Shafiq Joty, and Enamul Hoque.
 Geoffrey Hinton, Oriol Vinyals, and Jeff Dean.
 \newblock Distilling the knowledge in a neural network, 2015.
 
-\bibitem{wikimedia_optimal_transport_matrix_image}
-{Wikimedia Commons contributors}.
-\newblock File: Optimal transport matrix.png.
+\bibitem{boizard2024towardscrosstokenizerdistillation}
+Nicolas Boizard, Kevin~El Haddad, Pierre Colombo, and Chlo{\'e} Clavel.
+\newblock Towards cross-tokenizer distillation: The universal logit
+  distillation loss for llms, 2024.
+
+\bibitem{wikimedia_continuous_optimal_transport_image}
+Nicolas Papadakis.
+\newblock File: Continuous optimal transport.png.
 \newblock Wikimedia Commons, 2018.
-\newblock CC BY-SA 4.0. Accessed: 2026-03-31.
+\newblock CC BY-SA 4.0. Source image from N. Papadakis, \emph{Optimal Transport
+  for Image Processing}, 2015. Accessed: 2026-04-15.
 
 \bibitem{peyre2019computationaloptimaltransport}
 Gabriel Peyr{\'e} and Marco Cuturi.
 \newblock Computational optimal transport, 2019.
 
-\bibitem{boizard2024towardscrosstokenizerdistillation}
-Nicolas Boizard, Kevin~El Haddad, Pierre Colombo, and Chlo{\'e} Clavel.
-\newblock Towards cross-tokenizer distillation: The universal logit
-  distillation loss for llms, 2024.
+\bibitem{takezawa2021supervisedtreewasserstein}
+Yuki Takezawa, Ryoma Sato, and Makoto Yamada.
+\newblock Supervised tree-wasserstein distance.
+\newblock In {\em Proceedings of the 38th International Conference on Machine
+  Learning}, volume 139 of {\em Proceedings of Machine Learning Research},
+  pages 10086--10095. PMLR, 2021.
+
+\bibitem{wikimedia_optimal_transport_matrix_image}
+{Wikimedia Commons contributors}.
+\newblock File: Optimal transport matrix.png.
+\newblock Wikimedia Commons, 2018.
+\newblock CC BY-SA 4.0. Accessed: 2026-03-31.
 
 \bibitem{alayrac2022flamingovisuallanguagemodel}
 Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech, Iain Barr,
@@ -259,6 +273,12 @@ Jianhua Lin.
 \newblock Divergence measures based on the shannon entropy.
 \newblock {\em IEEE Transactions on Information Theory}, 37(1), 1991.
 
+\bibitem{leyamadafukumizucuturi2019treesliced}
+Tuan Le, Makoto Yamada, Kenji Fukumizu, and Marco Cuturi.
+\newblock Tree-sliced variants of wasserstein distances.
+\newblock In {\em Advances in Neural Information Processing Systems},
+  volume~32, 2019.
+
 \bibitem{shazeer2017outrageouslylargeneuralnetworks}
 Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le,
   Geoffrey Hinton, and Jeff Dean.
@@ -358,18 +378,18 @@ Ronald~J. Williams.
   reinforcement learning.
 \newblock {\em Machine Learning}, 8(3):229--256, 1992.
 
-\bibitem{wen2023fdistill}
-Yuqiao Wen, Zichao Li, Wenyu Du, and Lili Mou.
-\newblock f-divergence minimization for sequence-level knowledge distillation.
-\newblock In {\em Proceedings of the 61st Annual Meeting of the Association for
-  Computational Linguistics (Volume 1: Long Papers)}, pages 10817--10834.
-  Association for Computational Linguistics, 2023.
-
 \bibitem{kornblith2019similarityrepresentations}
 Simon Kornblith, Mohammad Norouzi, Honglak Lee, and Geoffrey Hinton.
 \newblock Similarity of neural network representations revisited.
 \newblock In {\em Proceedings of the 36th International Conference on Machine
   Learning}, volume~97 of {\em Proceedings of Machine Learning Research}, pages
   3519--3529. PMLR, 2019.
+
+\bibitem{wen2023fdistill}
+Yuqiao Wen, Zichao Li, Wenyu Du, and Lili Mou.
+\newblock f-divergence minimization for sequence-level knowledge distillation.
+\newblock In {\em Proceedings of the 61st Annual Meeting of the Association for
+  Computational Linguistics (Volume 1: Long Papers)}, pages 10817--10834.
+  Association for Computational Linguistics, 2023.
 
 \end{thebibliography}

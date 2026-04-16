@@ -21,7 +21,6 @@ from src.trainer.distillation_utils import release_eval_memory
 from src.trainer.step_utils import (
     apply_grace_and_compute_distillation_loss,
     apply_teacher_gate_routing,
-    compute_objective_conflict_state,
     compute_teacher_losses_and_grace,
     compute_total_loss,
     move_teacher_models_to_device,
@@ -39,7 +38,6 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
         student_tokenizer=None,
         teacher_tokenizers=None,
         teacher_weighting_strategy: str = "routing",
-        objective_conflict_strategy: str = "fixed",
         loss_function: str = "uld_loss",
         temperature: float = 2.0,
         student_temperature: float | None = None,
@@ -66,10 +64,6 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
         reinforced_selection_reward_type: str = "reward2",
         reinforced_selection_reward_ema_decay: float = 0.9,
         reinforced_selection_policy_alpha: float = 1.0,
-        gradient_weight_cap: float = 1.0,
-        gradient_weight_steps: int = 50,
-        objective_conflict_cagrad_c: float = 0.5,
-        objective_conflict_cagrad_grid_steps: int = 257,
         trie_wasserstein_rho: float = 0.7,
         trie_wasserstein_topk: int = 64,
         *args,
@@ -99,12 +93,7 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
             reinforced_selection_reward_type=reinforced_selection_reward_type,
             reinforced_selection_reward_ema_decay=reinforced_selection_reward_ema_decay,
             reinforced_selection_policy_alpha=reinforced_selection_policy_alpha,
-            gradient_weight_cap=gradient_weight_cap,
-            gradient_weight_steps=gradient_weight_steps,
             teacher_weighting_strategy=teacher_weighting_strategy,
-            objective_conflict_strategy=objective_conflict_strategy,
-            objective_conflict_cagrad_c=objective_conflict_cagrad_c,
-            objective_conflict_cagrad_grid_steps=objective_conflict_cagrad_grid_steps,
             trie_wasserstein_rho=trie_wasserstein_rho,
             trie_wasserstein_topk=trie_wasserstein_topk,
             loss_function=loss_function,
@@ -123,7 +112,6 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
         self.distillation_loss_fn = self.distillation_loss.compute_loss
         self.distillation_logit_grad_fn = self.distillation_loss.compute_logit_grad
         self.teacher_weighting_strategy = teacher_weighting_strategy
-        self.objective_conflict_strategy = objective_conflict_strategy
 
         self.teacher_models, self.num_teachers = normalize_teacher_models(
             teacher_model,
@@ -172,10 +160,6 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
         self.reinforced_selection_reward_type = reinforced_selection_reward_type
         self.reinforced_selection_reward_ema_decay = reinforced_selection_reward_ema_decay
         self.reinforced_selection_policy_alpha = reinforced_selection_policy_alpha
-        self.gradient_weight_cap = gradient_weight_cap
-        self.gradient_weight_steps = gradient_weight_steps
-        self.objective_conflict_cagrad_c = objective_conflict_cagrad_c
-        self.objective_conflict_cagrad_grid_steps = objective_conflict_cagrad_grid_steps
         self.trie_wasserstein_rho = trie_wasserstein_rho
         self.trie_wasserstein_topk = trie_wasserstein_topk
         self.non_lora_require_grad_only = True
@@ -215,11 +199,6 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
             reinforced_selection_reward_type=reinforced_selection_reward_type,
             reinforced_selection_reward_ema_decay=reinforced_selection_reward_ema_decay,
             reinforced_selection_policy_alpha=reinforced_selection_policy_alpha,
-            gradient_weight_cap=gradient_weight_cap,
-            gradient_weight_steps=gradient_weight_steps,
-            objective_conflict_strategy=objective_conflict_strategy,
-            objective_conflict_cagrad_c=objective_conflict_cagrad_c,
-            objective_conflict_cagrad_grid_steps=objective_conflict_cagrad_grid_steps,
             trie_wasserstein_rho=trie_wasserstein_rho,
             trie_wasserstein_topk=trie_wasserstein_topk,
         )
@@ -332,22 +311,12 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
             routed_teacher_gate_weights=gate_routing["routed_teacher_gate_weights"],
             teacher_grace_scores=teacher_losses["teacher_grace_scores"],
             teacher_grace_active=teacher_losses["teacher_grace_active"],
-            teacher_gradient_vectors=teacher_losses["teacher_gradient_vectors"],
             teacher_loss_matrix=teacher_losses["teacher_loss_matrix"],
             teacher_logits_batches=teacher_losses["teacher_logit_batches"],
             teacher_label_batches=teacher_losses["teacher_label_batches"],
             labels=student_inputs["labels"],
             attention_mask=student_inputs.get("attention_mask"),
             ce_loss=ce_loss,
-        )
-        objective_conflict_state = compute_objective_conflict_state(
-            trainer=self,
-            student_logits=student_and_gate["student_logits"],
-            student_labels=student_inputs["labels"],
-            distillation_loss=grace_and_loss["distillation_loss"],
-            effective_teacher_gate_weights=grace_and_loss["effective_teacher_gate_weights"],
-            routed_teacher_gate_weights=gate_routing["routed_teacher_gate_weights"],
-            teacher_gradient_vectors=teacher_losses["teacher_gradient_vectors"],
         )
 
         update_eval_ce_stats(
@@ -363,8 +332,6 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
             teacher_gate_entropy_loss=gate_routing["teacher_gate_entropy_loss"],
             teacher_gate_z_loss=gate_routing["teacher_gate_z_loss"],
             teacher_selection_policy_loss=grace_and_loss["teacher_selection_policy_loss"],
-            objective_ce_weight=objective_conflict_state["objective_ce_weight"],
-            objective_kd_weight=objective_conflict_state["objective_kd_weight"],
         )
 
         compute_loss_time = time.perf_counter() - compute_loss_start_time
@@ -404,10 +371,6 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
                 teacher_grace_fallback_rate=grace_and_loss["teacher_grace_fallback_rate"],
                 reinforced_selection_metrics=grace_and_loss["reinforced_selection_metrics"],
                 grace_warmup_active=self.should_apply_grace_routing(),
-                objective_conflict_strategy=self.objective_conflict_strategy,
-                objective_ce_weight=objective_conflict_state["objective_ce_weight"],
-                objective_kd_weight=objective_conflict_state["objective_kd_weight"],
-                objective_gradient_cosine=objective_conflict_state["objective_gradient_cosine"],
             )
             self.log(metrics)
 

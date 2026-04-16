@@ -1330,16 +1330,15 @@ idefics_series = {
 smolvlm_series = {
     "SmolVLM-256M": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-256M-Instruct"),
 
-    "SmolVLM-500M-Grace-Checkpoint-1482": partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260411_1541/checkpoint-1482"),
-    "SmolVLM-500M-Grace-Checkpoint-1350" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260411_1541/checkpoint-1350"),
-    "SmolVLM-500M-Grace-Checkpoint-1200" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260411_1541/checkpoint-1200"),
-    "SmolVLM-500M-Grace-Checkpoint-1050" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260411_1541/checkpoint-1050"),
-    "SmolVLM-500M-Grace-Checkpoint-900" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260411_1541/checkpoint-900"),
-    "SmolVLM-500M-Grace-Checkpoint-750" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260411_1541/checkpoint-750"),
-    "SmolVLM-500M-Grace-Checkpoint-600" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260411_1541/checkpoint-600"),
-    "SmolVLM-500M-Grace-Checkpoint-450" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260411_1541/checkpoint-450"),
-    "SmolVLM-500M-Grace-Checkpoint-300" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260411_1541/checkpoint-300"),
-    "SmolVLM-500M-Grace-Checkpoint-150" : partial(SmolVLM, model_path="/output/uld_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260411_1541/checkpoint-150"),
+    "SmolVLM-500M-Grace-Checkpoint-600" : partial(SmolVLM, model_path="/output/trie_wasserstein_loss_3_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260414_0812/checkpoint-600"),
+    "SmolVLM-500M-Grace-Checkpoint-750" : partial(SmolVLM, model_path="/output/trie_wasserstein_loss_3_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260414_0812/checkpoint-750"),
+    "SmolVLM-500M-Grace-Checkpoint-900" : partial(SmolVLM, model_path="/output/trie_wasserstein_loss_3_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260414_0812/checkpoint-900"),
+    "SmolVLM-500M-Grace-Checkpoint-988" : partial(SmolVLM, model_path="/output/trie_wasserstein_loss_3_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260414_0812/checkpoint-988"),
+
+
+    "SmolVLM-500M-Reinforce-Checkpoint-150" : partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_SmolVLM-500M-Instruct_textvqa_20260415_0715/checkpoint-150"),
+    "SmolVLM-500M-Reinforce-Checkpoint-217" : partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_SmolVLM-500M-Instruct_textvqa_20260415_0715/checkpoint-750"),
+
 
 
     "SmolVLM": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-Instruct"),

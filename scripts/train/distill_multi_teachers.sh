@@ -21,18 +21,14 @@ fi
 # Models
 TEACHER_MODEL_1="Qwen/Qwen2.5-VL-3B-Instruct"
 TEACHER_MODEL_2="Qwen/Qwen2-VL-2B-Instruct"
-TEACHER_MODEL_3="google/gemma-3-4b-it"
-TEACHER_MODEL_4="ibm-granite/granite-vision-3.1-2b-preview"
-TEACHER_MODEL_IDS="[\"${TEACHER_MODEL_1}\", \"${TEACHER_MODEL_2}\", \"${TEACHER_MODEL_3}\", \"${TEACHER_MODEL_4}\"]"
-STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
+TEACHER_MODEL_3="ibm-granite/granite-vision-3.1-2b-preview"
+TEACHER_MODEL_IDS="[\"${TEACHER_MODEL_1}\", \"${TEACHER_MODEL_2}\", \"${TEACHER_MODEL_3}\"]"
+STUDENT_MODEL="HuggingFaceTB/SmolVLM-256M-Instruct"
 
 # Distillation strategy
-# Available strategies: uniform_mean, routing, gradient_optimal, reinforced_selection
+# Available strategies: uniform_mean, routing, reinforced_selection
 TEACHER_WEIGHTING_STRATEGY="${TEACHER_WEIGHTING_STRATEGY:-routing}"
-# Objective conflict strategies: fixed, pcgrad, cagrad, mgda
-OBJECTIVE_CONFLICT_STRATEGY="${OBJECTIVE_CONFLICT_STRATEGY:-fixed}"
-OBJECTIVE_CONFLICT_CAGRAD_C="${OBJECTIVE_CONFLICT_CAGRAD_C:-0.5}"
-OBJECTIVE_CONFLICT_CAGRAD_GRID_STEPS="${OBJECTIVE_CONFLICT_CAGRAD_GRID_STEPS:-257}"
+
 DISTILLATION_LOSS="trie_wasserstein_loss"
 TEMPERATURE=1.0
 STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-$TEMPERATURE}"
@@ -41,7 +37,7 @@ TRIE_WASSERSTEIN_RHO="${TRIE_WASSERSTEIN_RHO:-0.7}"
 TRIE_WASSERSTEIN_TOPK="${TRIE_WASSERSTEIN_TOPK:-64}"
 
 # For fixed weighting strategy and as a base alpha for other strategies
-ALPHA=1.0
+ALPHA=0.5
 
 # Router-based weighting knobs
 TEACHER_GATE_TOP_K="${TEACHER_GATE_TOP_K:-2}"
@@ -55,16 +51,12 @@ TEACHER_GATE_ROUTER_Z_LOSS_ALPHA="${TEACHER_GATE_ROUTER_Z_LOSS_ALPHA:-1e-3}"
 TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO="${TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO:-0.2}"
 
 # GRACE weighting knobs
-GRACE_THRESHOLD="${GRACE_THRESHOLD:--0.01}"
+GRACE_THRESHOLD="${GRACE_THRESHOLD:--0.005}"
 GRACE_WARMUP_RATIO="${GRACE_WARMUP_RATIO:-0.01}"
 GRACE_EPSILON="${GRACE_EPSILON:-0.001}"
 GRACE_SOFTMAX_BETA="${GRACE_SOFTMAX_BETA:-10.0}"
 GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.4}"
 GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.9}"
-
-# Gradient-optimized weighting knobs
-GRADIENT_WEIGHT_CAP="${GRADIENT_WEIGHT_CAP:-1.0}"
-GRADIENT_WEIGHT_STEPS="${GRADIENT_WEIGHT_STEPS:-50}"
 
 # Reinforced teacher-selection knobs
 REINFORCED_SELECTION_WARMUP_RATIO="${REINFORCED_SELECTION_WARMUP_RATIO:-0.1}"
@@ -84,9 +76,9 @@ else
 fi
 
 # Dataset and runtime
-NUM_TEACHERS=4
+NUM_TEACHERS=3
 DATASET_NAME="docvqa"
-NUM_TRAIN_EPOCHS="${NUM_TRAIN_EPOCHS:-3}"
+NUM_TRAIN_EPOCHS="${NUM_TRAIN_EPOCHS:-1.0}"
 PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-80}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 LOGGING_STEPS="${LOGGING_STEPS:-5}"
@@ -97,9 +89,8 @@ STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME_1="${TEACHER_MODEL_1##*/}"
 TEACHER_NAME_2="${TEACHER_MODEL_2##*/}"
 TEACHER_NAME_3="${TEACHER_MODEL_3##*/}"
-TEACHER_NAME_4="${TEACHER_MODEL_4##*/}"
 RUN_TAG="${RUN_TAG:-$(date +%Y%m%d_%H%M)}"
-OUTPUT_DIR="output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${TEACHER_NAME_3}_${TEACHER_NAME_4}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
+OUTPUT_DIR="output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${TEACHER_NAME_3}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
 
 EXTRA_ARGS=(
     --teacher_logits_cache_dir "$TEACHER_LOGITS_CACHE_DIR"
@@ -146,12 +137,11 @@ deepspeed src/train/train_distillation.py \
     --student_model_id "$STUDENT_MODEL" \
     --teacher_model_ids "$TEACHER_MODEL_IDS" \
     --teacher_weighting_strategy "$TEACHER_WEIGHTING_STRATEGY" \
-    --objective_conflict_strategy "$OBJECTIVE_CONFLICT_STRATEGY" \
-    --objective_conflict_cagrad_c "$OBJECTIVE_CONFLICT_CAGRAD_C" \
-    --objective_conflict_cagrad_grid_steps "$OBJECTIVE_CONFLICT_CAGRAD_GRID_STEPS" \
     --data_path data/${DATASET_NAME}/train_llava.json \
     --image_folder data/${DATASET_NAME}/images \
     --distillation_loss "$DISTILLATION_LOSS" \
+    --trie_wasserstein_rho "$TRIE_WASSERSTEIN_RHO" \
+    --trie_wasserstein_topk "$TRIE_WASSERSTEIN_TOPK" \
     --bf16 True \
     --fp16 False \
     --disable_flash_attn2 False \
@@ -179,8 +169,6 @@ deepspeed src/train/train_distillation.py \
     --reinforced_selection_reward_type "$REINFORCED_SELECTION_REWARD_TYPE" \
     --reinforced_selection_reward_ema_decay "$REINFORCED_SELECTION_REWARD_EMA_DECAY" \
     --reinforced_selection_policy_alpha "$REINFORCED_SELECTION_POLICY_ALPHA" \
-    --gradient_weight_cap "$GRADIENT_WEIGHT_CAP" \
-    --gradient_weight_steps "$GRADIENT_WEIGHT_STEPS" \
     --num_train_epochs "$NUM_TRAIN_EPOCHS" \
     --per_device_train_batch_size "$PER_DEVICE_TRAIN_BATCH_SIZE" \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
@@ -210,7 +198,7 @@ TRAIN_EXIT_CODE=$?
 if [[ "${TRAIN_EXIT_CODE}" -eq 1 ]]; then
     echo "Training exited with code 1; leaving the instance running for inspection." >&2
     while true; do
-        sleep 600
+        sleep 60000
     done
 fi
 stop_vast_instance

@@ -23,12 +23,7 @@ def validate_distillation_trainer_args(
     reinforced_selection_reward_type: str,
     reinforced_selection_reward_ema_decay: float,
     reinforced_selection_policy_alpha: float,
-    gradient_weight_cap: float,
-    gradient_weight_steps: int,
     teacher_weighting_strategy: str,
-    objective_conflict_strategy: str,
-    objective_conflict_cagrad_c: float,
-    objective_conflict_cagrad_grid_steps: int,
     trie_wasserstein_rho: float,
     trie_wasserstein_topk: int,
     loss_function: str,
@@ -83,29 +78,16 @@ def validate_distillation_trainer_args(
         )
     if reinforced_selection_policy_alpha < 0.0:
         raise ValueError("DistillationTrainer requires `reinforced_selection_policy_alpha >= 0`.")
-    if gradient_weight_cap <= 0.0:
-        raise ValueError("DistillationTrainer requires `gradient_weight_cap > 0`.")
-    if gradient_weight_steps < 1:
-        raise ValueError("DistillationTrainer requires `gradient_weight_steps >= 1`.")
-    if objective_conflict_cagrad_c < 0.0:
-        raise ValueError("DistillationTrainer requires `objective_conflict_cagrad_c >= 0`.")
-    if objective_conflict_cagrad_grid_steps < 2:
-        raise ValueError("DistillationTrainer requires `objective_conflict_cagrad_grid_steps >= 2`.")
     if trie_wasserstein_rho <= 0.0 or trie_wasserstein_rho >= 1.0:
         raise ValueError("DistillationTrainer requires `0 < trie_wasserstein_rho < 1`.")
     if trie_wasserstein_topk < 1:
         raise ValueError("DistillationTrainer requires `trie_wasserstein_topk >= 1`.")
     if loss_function != "trie_wasserstein_loss" and not hasattr(distillation_loss_module, loss_function):
         raise ValueError(f"Unknown distillation loss: {loss_function!r}")
-    if teacher_weighting_strategy not in {"routing", "uniform_mean", "gradient_optimal", "reinforced_selection"}:
+    if teacher_weighting_strategy not in {"routing", "uniform_mean", "reinforced_selection"}:
         raise ValueError(
             "DistillationTrainer requires `teacher_weighting_strategy` to be "
-            "`routing`, `uniform_mean`, `gradient_optimal`, or `reinforced_selection`."
-        )
-    if objective_conflict_strategy not in {"fixed", "pcgrad", "cagrad", "mgda"}:
-        raise ValueError(
-            "DistillationTrainer requires `objective_conflict_strategy` to be "
-            "`fixed`, `pcgrad`, `cagrad`, or `mgda`."
+            "`routing`, `uniform_mean`, or `reinforced_selection`."
         )
 
 
@@ -206,11 +188,6 @@ def log_distillation_trainer_setup(
     reinforced_selection_reward_type: str,
     reinforced_selection_reward_ema_decay: float,
     reinforced_selection_policy_alpha: float,
-    gradient_weight_cap: float,
-    gradient_weight_steps: int,
-    objective_conflict_strategy: str,
-    objective_conflict_cagrad_c: float,
-    objective_conflict_cagrad_grid_steps: int,
     trie_wasserstein_rho: float,
     trie_wasserstein_topk: int,
 ) -> None:
@@ -218,13 +195,10 @@ def log_distillation_trainer_setup(
     print(f"  - Teachers: {num_teachers}")
     if num_teachers > 1 and teacher_weighting_strategy == "routing":
         print("  - Teacher weighting: learned deep gate + balancing + GRACE routing")
-    elif num_teachers > 1 and teacher_weighting_strategy == "gradient_optimal":
-        print("  - Teacher weighting: gradient-optimized mixing")
     elif num_teachers > 1 and teacher_weighting_strategy == "reinforced_selection":
         print("  - Teacher weighting: reinforced teacher selection")
     else:
         print("  - Teacher weighting: uniform mean")
-    print(f"  - Objective conflict strategy: {objective_conflict_strategy}")
     print(f"  - Loss function: {loss_function}")
     if loss_function == "trie_wasserstein_loss":
         print(f"  - Trie Wasserstein rho: {trie_wasserstein_rho}")
@@ -234,10 +208,7 @@ def log_distillation_trainer_setup(
     print(f"  - Skip student EOS: {skip_student_eos}")
     print(f"  - Skip teacher EOS: {skip_teacher_eos}")
     print(f"  - Alpha: {alpha}")
-    if objective_conflict_strategy == "fixed":
-        print(f"  - KD weight: {alpha}")
-    else:
-        print(f"  - Base KD weight: {alpha}")
+    print(f"  - KD weight: {alpha}")
     print("  - CE weight: 1.0")
     if teacher_gate is not None:
         print(f"  - Teacher gate balance alpha: {teacher_gate_balance_alpha}")
@@ -261,9 +232,6 @@ def log_distillation_trainer_setup(
             f"{grace_router_blend_lambda}"
         )
         print(f"  - GRACE EMA decay: {grace_ema_decay}")
-    elif num_teachers > 1 and teacher_weighting_strategy == "gradient_optimal":
-        print(f"  - Gradient weight cap: {gradient_weight_cap}")
-        print(f"  - Gradient weight steps: {gradient_weight_steps}")
     elif num_teachers > 1 and teacher_weighting_strategy == "reinforced_selection":
         print(f"  - Reinforced selection warmup ratio: {reinforced_selection_warmup_ratio}")
         print(f"  - Reinforced selection reward type: {reinforced_selection_reward_type}")
@@ -272,16 +240,7 @@ def log_distillation_trainer_setup(
             f"{reinforced_selection_reward_ema_decay}"
         )
         print(f"  - Reinforced selection policy alpha: {reinforced_selection_policy_alpha}")
-    if objective_conflict_strategy == "cagrad":
-        print(f"  - Objective conflict c: {objective_conflict_cagrad_c}")
-        print(
-            "  - Objective conflict grid steps: "
-            f"{objective_conflict_cagrad_grid_steps}"
-        )
-    if objective_conflict_strategy == "fixed":
-        print("  - Loss weighting: CE + alpha * KD")
-    else:
-        print("  - Loss weighting: objective-conflict strategy with alpha-scaled KD")
+    print("  - Loss weighting: CE + alpha * KD")
 
 
 __all__ = [

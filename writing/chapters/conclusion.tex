@@ -1,2 +1,29 @@
 \chapter*{Conclusion and Future Work}
 \addcontentsline{toc}{chapter}{Conclusion and Future Work}
+
+This thesis addressed compact visual language model distillation under
+heterogeneous teachers. The student is much smaller than the teacher pool, the
+teachers do not help every sample equally and their tokenizers do not match.
+This thesis presents \methodname{}, a routed multi-teacher
+framework with trie-Wasserstein cross-tokenizer distillation, capacity-aware
+selection and EMA-smoothed GRACE weighting. The code follows the same order:
+route teachers first, refine their weights with GRACE scores, then aggregate
+the routed trie-Wasserstein KD loss
+\cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}.
+
+Empirically, \methodname{} is the strongest method in the main comparison. For
+SmolVLM-500M, it reaches 69.38 on TextVQA, 73.11 on DocVQA and 80.20 on
+ChartQA. For SmolVLM-256M, it reaches 60.73, 60.48 and 72.32. These results
+improve over the original students, direct finetuning and the best competing
+baselines in Chapter~\ref{chap:experiment-results}. On SmolVLM-500M,
+\methodname{} closes about 55\% of the original teacher-student gap on TextVQA
+and ChartQA and about 40\% on DocVQA. Taken together, these results establish that
+selective routing plus post-routing score refinement is a strong recipe for
+compact text-rich VLM distillation.
+
+\section*{Future Work}
+\begin{itemize}
+\item stronger evaluation. Repeated runs would make the comparison more rigorous, especially for the smaller gaps between the stronger multi-teacher baselines.
+\item better systems efficiency. The current pipeline still relies on large offline teacher-logit caches, so reducing storage and I/O cost would make the method easier to scale to more datasets and larger teacher pools.
+\item broader method extensions. The current recipe is still answer-token centric, so one important next step is explicit visual distillation: visual-token alignment, cross-attention transfer, or region-level matching. The method can also study richer router inputs, stronger objective-conflict handling and teacher pools that mix specialized document, chart and general VLM experts \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
+\end{itemize}

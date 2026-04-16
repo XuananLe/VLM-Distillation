@@ -30,10 +30,13 @@
 \citation{wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}
 \citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
 \citation{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}
-\citation{wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}
+\citation{boizard2024towardscrosstokenizerdistillation}
 \citation{boizard2024towardscrosstokenizerdistillation}
 \@writefile{toc}{\contentsline {chapter}{List of Figures}{vii}{Doc-Start}\protected@file@percent }
-\@writefile{toc}{\contentsline {chapter}{List of Tables}{ix}{Doc-Start}\protected@file@percent }
+\citation{wikimedia_continuous_optimal_transport_image,peyre2019computationaloptimaltransport}
+\citation{takezawa2021supervisedtreewasserstein}
+\citation{wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}
+\@writefile{toc}{\contentsline {chapter}{List of Tables}{x}{Doc-Start}\protected@file@percent }
 \gdef \LT@i {\LT@entry 
     {1}{72.55093pt}\LT@entry 
     {1}{177.42606pt}\LT@entry 
@@ -48,18 +51,20 @@
 \citation{kaplan2020scalinglaws}
 \citation{kaplan2020scalinglaws}
 \citation{vaswani2023attentionneed,liu2023visualinstructiontuning,marafioti2025smolvlm}
+\citation{chu2023mobilevlm,zhou2024tinyllava,marafioti2025smolvlm}
+\citation{smolvlm_blog,marafioti2025smolvlm}
+\citation{smolvlm_blog,marafioti2025smolvlm}
 \pp@pagectr{footnote}{1}{19}{1}
 \@writefile{toc}{\contentsline {chapter}{\numberline {1}Introduction}{1}{chapter.1}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
 \newlabel{chap:introduction}{{1}{1}{Introduction}{chapter.1}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {1.1}Background and Motivation}{1}{section.1.1}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {1.1}{\ignorespaces CLIP-style vision-language pretraining aligns image and text representations in a shared embedding space \cite  {wikimedia_clip_pretraining_image,radford2021learningtransferablevisualmodels}. This shared-space pretraining pattern is one of the main starting points for modern VLM families.\relax }}{1}{figure.caption.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {1.1}{\ignorespaces CLIP-style vision-language pretraining aligns image and text representations in a shared embedding space \cite  {wikimedia_clip_pretraining_image,radford2021learningtransferablevisualmodels}. This shared-space pretraining pattern is one of the main starting points for modern VLM families.\relax }}{2}{figure.caption.2}\protected@file@percent }
 \providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
-\newlabel{fig:intro-vlm-pretraining}{{1.1}{1}{CLIP-style vision-language pretraining aligns image and text representations in a shared embedding space \cite {wikimedia_clip_pretraining_image,radford2021learningtransferablevisualmodels}. This shared-space pretraining pattern is one of the main starting points for modern VLM families.\relax }{figure.caption.2}{}}
-\citation{chu2023mobilevlm,zhou2024tinyllava,marafioti2025smolvlm}
-\citation{smolvlm_blog,marafioti2025smolvlm}
-\citation{smolvlm_blog,marafioti2025smolvlm}
+\newlabel{fig:intro-vlm-pretraining}{{1.1}{2}{CLIP-style vision-language pretraining aligns image and text representations in a shared embedding space \cite {wikimedia_clip_pretraining_image,radford2021learningtransferablevisualmodels}. This shared-space pretraining pattern is one of the main starting points for modern VLM families.\relax }{figure.caption.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1.2}{\ignorespaces Scaling-law trends from Kaplan et al.}}{2}{figure.caption.3}\protected@file@percent }
+\newlabel{fig:intro-scaling-laws}{{1.2}{2}{Scaling-law trends from Kaplan et al}{figure.caption.3}{}}
 \citation{chu2023mobilevlm,zhou2024tinyllava,marafioti2025smolvlm}
 \citation{chu2023mobilevlm,zhou2024tinyllava,marafioti2025smolvlm}
 \citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
@@ -68,19 +73,15 @@
 \citation{airank_textvqa_2026,airank_docvqa_2026,airank_chartqa_2026}
 \citation{airank_textvqa_2026,airank_docvqa_2026,airank_chartqa_2026}
 \citation{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}
-\@writefile{lof}{\contentsline {figure}{\numberline {1.2}{\ignorespaces Scaling-law trends from Kaplan et al.}}{2}{figure.caption.3}\protected@file@percent }
-\newlabel{fig:intro-scaling-laws}{{1.2}{2}{Scaling-law trends from Kaplan et al}{figure.caption.3}{}}
+\citation{wang2021blackboxkd,ma2024blackboxkd}
+\citation{boizard2024towardscrosstokenizerdistillation,takezawa2021supervisedtreewasserstein,dasgupta2025improving,xu2024surveyknowledgedistillationlarge}
+\citation{frantar2022gptq,xiao2023smoothquant,lin2024awq}
 \@writefile{lof}{\contentsline {figure}{\numberline {1.3}{\ignorespaces SmolVLM memory comparison from the Hugging Face release.}}{3}{figure.caption.4}\protected@file@percent }
 \newlabel{fig:intro-smolvlm-memory}{{1.3}{3}{SmolVLM memory comparison from the Hugging Face release}{figure.caption.4}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {1.4}{\ignorespaces Representative compact VLM scales.}}{3}{figure.caption.5}\protected@file@percent }
-\newlabel{fig:intro-compact-vlm-scale}{{1.4}{3}{Representative compact VLM scales}{figure.caption.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1.4}{\ignorespaces Representative compact VLM scales.}}{4}{figure.caption.5}\protected@file@percent }
+\newlabel{fig:intro-compact-vlm-scale}{{1.4}{4}{Representative compact VLM scales}{figure.caption.5}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {1.5}{\ignorespaces TinyLLaVA vs. LLaVA-1.5-7B benchmark comparison.}}{4}{figure.caption.6}\protected@file@percent }
 \newlabel{fig:intro-small-vlm-tradeoff}{{1.5}{4}{TinyLLaVA vs. LLaVA-1.5-7B benchmark comparison}{figure.caption.6}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {1.6}{\ignorespaces Best proprietary vs. open-source frontier results on three benchmarks.}}{4}{figure.caption.7}\protected@file@percent }
-\newlabel{fig:intro-closed-open-gap}{{1.6}{4}{Best proprietary vs. open-source frontier results on three benchmarks}{figure.caption.7}{}}
-\citation{wang2021blackboxkd,ma2024blackboxkd}
-\citation{boizard2024towardscrosstokenizerdistillation,dasgupta2025improving,xu2024surveyknowledgedistillationlarge}
-\citation{frantar2022gptq,xiao2023smoothquant,lin2024awq}
 \citation{lin2024awq,li2025mbq}
 \citation{li2025mbq}
 \citation{li2025mbq}
@@ -89,17 +90,19 @@
 \citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
 \citation{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}
 \citation{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}
-\@writefile{lof}{\contentsline {figure}{\numberline {1.7}{\ignorespaces Low-bit quantization can sharply reduce VLM accuracy.}}{5}{figure.caption.8}\protected@file@percent }
-\newlabel{fig:intro-quantization-drop}{{1.7}{5}{Low-bit quantization can sharply reduce VLM accuracy}{figure.caption.8}{}}
 \citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
 \citation{boizard2024towardscrosstokenizerdistillation,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}
 \citation{xu2024surveyknowledgedistillationlarge,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}
-\citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
+\@writefile{lof}{\contentsline {figure}{\numberline {1.6}{\ignorespaces Best proprietary vs. open-source frontier results on three benchmarks.}}{5}{figure.caption.7}\protected@file@percent }
+\newlabel{fig:intro-closed-open-gap}{{1.6}{5}{Best proprietary vs. open-source frontier results on three benchmarks}{figure.caption.7}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {1.7}{\ignorespaces Low-bit quantization can sharply reduce VLM accuracy.}}{6}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:intro-quantization-drop}{{1.7}{6}{Low-bit quantization can sharply reduce VLM accuracy}{figure.caption.8}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {1.8}{\ignorespaces Teacher-student knowledge distillation.}}{6}{figure.caption.9}\protected@file@percent }
 \newlabel{fig:intro-knowledge-distillation}{{1.8}{6}{Teacher-student knowledge distillation}{figure.caption.9}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {1.2}Problem Statement and Research Objectives}{6}{section.1.2}\protected@file@percent }
+\citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
 \citation{hinton2015distillingknowledgeneuralnetwork,boizard2024towardscrosstokenizerdistillation,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}
-\citation{boizard2024towardscrosstokenizerdistillation,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice,zhu2021studentcustomized}
+\@writefile{toc}{\contentsline {section}{\numberline {1.2}Problem Statement and Research Objectives}{7}{section.1.2}\protected@file@percent }
+\citation{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice,zhu2021studentcustomized}
 \citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
 \@writefile{toc}{\contentsline {section}{\numberline {1.3}Thesis Contributions}{8}{section.1.3}\protected@file@percent }
 \citation{vaswani2023attentionneed}
@@ -108,6 +111,17 @@
 \citation{wikimedia_transformer_attention_block_image,vaswani2023attentionneed}
 \citation{dosovitskiy2021imageworth16x16words}
 \citation{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning}
+\citation{wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}
+\citation{wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}
+\citation{radford2021learningtransferablevisualmodels}
+\citation{radford2021learningtransferablevisualmodels}
+\citation{alayrac2022flamingovisuallanguagemodel}
+\citation{alayrac2022flamingovisuallanguagemodel}
+\citation{li2023blip2bootstrappinglanguageimagepretraining}
+\citation{li2023blip2bootstrappinglanguageimagepretraining}
+\citation{liu2023visualinstructiontuning}
+\citation{liu2023visualinstructiontuning}
+\citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
 \pp@pagectr{footnote}{2}{27}{9}
 \@writefile{toc}{\contentsline {chapter}{\numberline {2}Preliminaries}{9}{chapter.2}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
@@ -115,142 +129,169 @@
 \newlabel{chap:preliminaries}{{2}{9}{Preliminaries}{chapter.2}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {2.1}Transformer-Based Vision-Language Models}{9}{section.2.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.1.1}Transformer Basics}{9}{subsection.2.1.1}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {2.1}{\ignorespaces Transformer attention block structure \cite  {wikimedia_transformer_attention_block_image,vaswani2023attentionneed}. The figure isolates the attention and feed-forward block that is later reused in both language and vision stacks.\relax }}{9}{figure.caption.10}\protected@file@percent }
-\newlabel{fig:prelim-transformer-attention}{{2.1}{9}{Transformer attention block structure \cite {wikimedia_transformer_attention_block_image,vaswani2023attentionneed}. The figure isolates the attention and feed-forward block that is later reused in both language and vision stacks.\relax }{figure.caption.10}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.1.2}Vision Encoder and Multimodal Fusion}{9}{subsection.2.1.2}\protected@file@percent }
-\citation{wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}
-\citation{wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}
-\citation{radford2021learningtransferablevisualmodels}
-\citation{radford2021learningtransferablevisualmodels}
-\citation{alayrac2022flamingovisuallanguagemodel}
-\citation{alayrac2022flamingovisuallanguagemodel}
-\citation{li2023blip2bootstrappinglanguageimagepretraining}
-\citation{li2023blip2bootstrappinglanguageimagepretraining}
-\citation{liu2023visualinstructiontuning}
-\citation{liu2023visualinstructiontuning}
-\citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
+\@writefile{lof}{\contentsline {figure}{\numberline {2.1}{\ignorespaces Transformer attention block structure \cite  {wikimedia_transformer_attention_block_image,vaswani2023attentionneed}. The figure isolates the attention and feed-forward block that is later reused in both language and vision stacks.\relax }}{10}{figure.caption.10}\protected@file@percent }
+\newlabel{fig:prelim-transformer-attention}{{2.1}{10}{Transformer attention block structure \cite {wikimedia_transformer_attention_block_image,vaswani2023attentionneed}. The figure isolates the attention and feed-forward block that is later reused in both language and vision stacks.\relax }{figure.caption.10}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2.2}{\ignorespaces Vision Transformer pipeline with patch embedding and Transformer encoder blocks \cite  {wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}. It shows how an image becomes a token sequence before multimodal fusion.\relax }}{10}{figure.caption.11}\protected@file@percent }
+\newlabel{fig:prelim-vit}{{2.2}{10}{Vision Transformer pipeline with patch embedding and Transformer encoder blocks \cite {wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}. It shows how an image becomes a token sequence before multimodal fusion.\relax }{figure.caption.11}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2.3}{\ignorespaces Representative architecture families of modern vision-language models. Together they show the main fusion choices used in practice: dual encoders, cross-attention, query bottlenecks and projector-based coupling to a language model.\relax }}{11}{figure.caption.12}\protected@file@percent }
+\newlabel{fig:prelim-vlm-families}{{2.3}{11}{Representative architecture families of modern vision-language models. Together they show the main fusion choices used in practice: dual encoders, cross-attention, query bottlenecks and projector-based coupling to a language model.\relax }{figure.caption.12}{}}
 \citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
 \citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
 \citation{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}
-\@writefile{lof}{\contentsline {figure}{\numberline {2.2}{\ignorespaces Vision Transformer pipeline with patch embedding and Transformer encoder blocks \cite  {wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}. It shows how an image becomes a token sequence before multimodal fusion.\relax }}{10}{figure.caption.11}\protected@file@percent }
-\newlabel{fig:prelim-vit}{{2.2}{10}{Vision Transformer pipeline with patch embedding and Transformer encoder blocks \cite {wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}. It shows how an image becomes a token sequence before multimodal fusion.\relax }{figure.caption.11}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.1.3}Text-Rich Multimodal Understanding}{10}{subsection.2.1.3}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {2.3}{\ignorespaces Representative architecture families of modern vision-language models. Together they show the main fusion choices used in practice: dual encoders, cross-attention, query bottlenecks and projector-based coupling to a language model.\relax }}{11}{figure.caption.12}\protected@file@percent }
-\newlabel{fig:prelim-vlm-families}{{2.3}{11}{Representative architecture families of modern vision-language models. Together they show the main fusion choices used in practice: dual encoders, cross-attention, query bottlenecks and projector-based coupling to a language model.\relax }{figure.caption.12}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {2.4}{\ignorespaces Representative inputs from the text-rich multimodal benchmarks considered in this thesis \cite  {singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. The three examples show why text reading, layout parsing and visual reasoning all matter in this benchmark suite.\relax }}{11}{figure.caption.13}\protected@file@percent }
-\newlabel{fig:prelim-benchmark-examples}{{2.4}{11}{Representative inputs from the text-rich multimodal benchmarks considered in this thesis \cite {singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. The three examples show why text reading, layout parsing and visual reasoning all matter in this benchmark suite.\relax }{figure.caption.13}{}}
 \citation{hinton2015distillingknowledgeneuralnetwork}
 \citation{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}
 \citation{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}
-\citation{hinton2015distillingknowledgeneuralnetwork,lin1991jensen,boizard2024towardscrosstokenizerdistillation}
+\@writefile{lof}{\contentsline {figure}{\numberline {2.4}{\ignorespaces Representative inputs from the text-rich multimodal benchmarks considered in this thesis \cite  {singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. The three examples show why text reading, layout parsing and visual reasoning all matter in this benchmark suite.\relax }}{12}{figure.caption.13}\protected@file@percent }
+\newlabel{fig:prelim-benchmark-examples}{{2.4}{12}{Representative inputs from the text-rich multimodal benchmarks considered in this thesis \cite {singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. The three examples show why text reading, layout parsing and visual reasoning all matter in this benchmark suite.\relax }{figure.caption.13}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.1.3}Text-Rich Multimodal Understanding}{12}{subsection.2.1.3}\protected@file@percent }
 \@writefile{toc}{\contentsline {section}{\numberline {2.2}Knowledge Distillation}{12}{section.2.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.2.1}Teacher-Student Learning}{12}{subsection.2.2.1}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {2.5}{\ignorespaces Generic teacher-student knowledge distillation setup with hard labels and soft targets \cite  {wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}. It provides the basic supervision pattern before GRACE adds heterogeneous teachers and routing.\relax }}{12}{figure.caption.14}\protected@file@percent }
-\newlabel{fig:prelim-kd-overview}{{2.5}{12}{Generic teacher-student knowledge distillation setup with hard labels and soft targets \cite {wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}. It provides the basic supervision pattern before GRACE adds heterogeneous teachers and routing.\relax }{figure.caption.14}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.2.2}Temperature-Scaled Output Distributions}{12}{subsection.2.2.2}\protected@file@percent }
+\citation{hinton2015distillingknowledgeneuralnetwork,lin1991jensen,boizard2024towardscrosstokenizerdistillation}
+\citation{boizard2024towardscrosstokenizerdistillation}
+\citation{boizard2024towardscrosstokenizerdistillation}
+\citation{boizard2024towardscrosstokenizerdistillation}
+\@writefile{lof}{\contentsline {figure}{\numberline {2.5}{\ignorespaces Generic teacher-student knowledge distillation setup with hard labels and soft targets \cite  {wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}. It provides the basic supervision pattern before GRACE adds heterogeneous teachers and routing.\relax }}{13}{figure.caption.14}\protected@file@percent }
+\newlabel{fig:prelim-kd-overview}{{2.5}{13}{Generic teacher-student knowledge distillation setup with hard labels and soft targets \cite {wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}. It provides the basic supervision pattern before GRACE adds heterogeneous teachers and routing.\relax }{figure.caption.14}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.2.2}Temperature-Scaled Output Distributions}{13}{subsection.2.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.3}Cross-Tokenizer Distillation Background}{13}{section.2.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3.1}Motivation}{13}{subsection.2.3.1}\protected@file@percent }
+\citation{boizard2024towardscrosstokenizerdistillation}
 \citation{boizard2024towardscrosstokenizerdistillation}
 \citation{boizard2024towardscrosstokenizerdistillation}
 \citation{peyre2019computationaloptimaltransport}
+\citation{wikimedia_continuous_optimal_transport_image,peyre2019computationaloptimaltransport}
+\citation{wikimedia_continuous_optimal_transport_image,peyre2019computationaloptimaltransport}
+\@writefile{lof}{\contentsline {figure}{\numberline {2.6}{\ignorespaces Vocabulary-overlap ratios between teacher and student tokenizers from the ULD paper \cite  {boizard2024towardscrosstokenizerdistillation}. The overlap is far from complete, which makes direct token-ID KD unreliable across model families.\relax }}{14}{figure.caption.15}\protected@file@percent }
+\newlabel{fig:prelim-uld-overlap}{{2.6}{14}{Vocabulary-overlap ratios between teacher and student tokenizers from the ULD paper \cite {boizard2024towardscrosstokenizerdistillation}. The overlap is far from complete, which makes direct token-ID KD unreliable across model families.\relax }{figure.caption.15}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3.2}ULD as a Prior Baseline}{14}{subsection.2.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3.3}Optimal Transport and Tree-Structured Mass Matching}{14}{subsection.2.3.3}\protected@file@percent }
 \citation{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport}
-\@writefile{toc}{\contentsline {section}{\numberline {2.3}Universal Logit Distillation}{13}{section.2.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.3.1}Motivation}{13}{subsection.2.3.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.3.2}ULD Formulation}{13}{subsection.2.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.3.3}Optimal Transport Perspective}{13}{subsection.2.3.3}\protected@file@percent }
-\citation{boizard2024towardscrosstokenizerdistillation}
-\citation{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport}
+\citation{takezawa2021supervisedtreewasserstein,peyre2019computationaloptimaltransport}
+\citation{takezawa2021supervisedtreewasserstein,leyamadafukumizucuturi2019treesliced}
+\citation{takezawa2021supervisedtreewasserstein}
+\citation{takezawa2021supervisedtreewasserstein}
+\citation{leyamadafukumizucuturi2019treesliced}
+\@writefile{lof}{\contentsline {figure}{\numberline {2.7}{\ignorespaces ULD pipeline from the original paper \cite  {boizard2024towardscrosstokenizerdistillation}. Teacher and student probabilities are sorted and zero-padded before the ranked masses are compared, which removes the need for direct vocabulary alignment.\relax }}{15}{figure.caption.16}\protected@file@percent }
+\newlabel{fig:prelim-uld-pipeline}{{2.7}{15}{ULD pipeline from the original paper \cite {boizard2024towardscrosstokenizerdistillation}. Teacher and student probabilities are sorted and zero-padded before the ranked masses are compared, which removes the need for direct vocabulary alignment.\relax }{figure.caption.16}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2.8}{\ignorespaces Continuous displacement view of optimal transport \cite  {wikimedia_continuous_optimal_transport_image,peyre2019computationaloptimaltransport}. The figure emphasizes the geometric side of OT: mass is moved through space with a transport map, not compared by fixed bin identity alone.\relax }}{16}{figure.caption.17}\protected@file@percent }
+\newlabel{fig:prelim-continuous-ot}{{2.8}{16}{Continuous displacement view of optimal transport \cite {wikimedia_continuous_optimal_transport_image,peyre2019computationaloptimaltransport}. The figure emphasizes the geometric side of OT: mass is moved through space with a transport map, not compared by fixed bin identity alone.\relax }{figure.caption.17}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2.9}{\ignorespaces Example tree metrics from Quadtree, tree-sliced Wasserstein (TSW) and supervised tree-Wasserstein (STW) on a synthetic dataset \cite  {takezawa2021supervisedtreewasserstein}. The comparison is not a VLM result, but it makes the tree-transport idea explicit: mass is organized along branches of a hierarchy instead of through one dense transport matrix.\relax }}{16}{figure.caption.18}\protected@file@percent }
+\newlabel{fig:prelim-tree-ot}{{2.9}{16}{Example tree metrics from Quadtree, tree-sliced Wasserstein (TSW) and supervised tree-Wasserstein (STW) on a synthetic dataset \cite {takezawa2021supervisedtreewasserstein}. The comparison is not a VLM result, but it makes the tree-transport idea explicit: mass is organized along branches of a hierarchy instead of through one dense transport matrix.\relax }{figure.caption.18}{}}
 \citation{wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}
 \citation{wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}
-\citation{boizard2024towardscrosstokenizerdistillation}
-\citation{boizard2024towardscrosstokenizerdistillation}
 \citation{liu2023visualinstructiontuning}
-\@writefile{lof}{\contentsline {figure}{\numberline {2.6}{\ignorespaces Discrete transport plan matrix in optimal transport, showing how source and target marginals are coupled by a transport matrix \cite  {wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}. The key idea is geometric: mass is compared by how it can be rearranged, not by fixed token identity.\relax }}{14}{figure.caption.15}\protected@file@percent }
-\newlabel{fig:prelim-optimal-transport}{{2.6}{14}{Discrete transport plan matrix in optimal transport, showing how source and target marginals are coupled by a transport matrix \cite {wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}. The key idea is geometric: mass is compared by how it can be rearranged, not by fixed token identity.\relax }{figure.caption.15}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {2.7}{\ignorespaces ULD compares ranked probability mass after temperature scaling, sorting and zero-padding to a common vocabulary length \cite  {boizard2024towardscrosstokenizerdistillation}. This is why the loss stays valid even when teacher and student vocabularies differ.\relax }}{14}{figure.caption.16}\protected@file@percent }
-\newlabel{fig:prelim-uld-schematic}{{2.7}{14}{ULD compares ranked probability mass after temperature scaling, sorting and zero-padding to a common vocabulary length \cite {boizard2024towardscrosstokenizerdistillation}. This is why the loss stays valid even when teacher and student vocabularies differ.\relax }{figure.caption.16}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2.10}{\ignorespaces Discrete transport plan matrix in optimal transport, showing how source and target marginals are coupled by a transport matrix \cite  {wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}. The key idea is geometric: mass is compared by how it can be rearranged, not by fixed token identity.\relax }}{17}{figure.caption.19}\protected@file@percent }
+\newlabel{fig:prelim-optimal-transport}{{2.10}{17}{Discrete transport plan matrix in optimal transport, showing how source and target marginals are coupled by a transport matrix \cite {wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}. The key idea is geometric: mass is compared by how it can be rearranged, not by fixed token identity.\relax }{figure.caption.19}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.3.4}Answer-Token Distillation}{17}{subsection.2.3.4}\protected@file@percent }
 \citation{zhu2021studentcustomized}
 \citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,deepseekai2024deepseekv2strongeconomicalefficient}
 \citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.3.4}Answer-Token Distillation}{15}{subsection.2.3.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {2.4}Multi-Teacher Distillation}{15}{section.2.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.4.1}Per-Teacher KD Loss}{15}{subsection.2.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.4.2}Learned Routing and Load Balancing}{15}{subsection.2.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.4}Multi-Teacher Distillation}{18}{section.2.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.4.1}Per-Teacher KD Loss}{18}{subsection.2.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.4.2}Learned Routing and Load Balancing}{18}{subsection.2.4.2}\protected@file@percent }
 \citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}
 \citation{fedus2022switchtransformersscalingtrillion}
 \citation{fedus2022switchtransformersscalingtrillion}
 \citation{wikimedia_deepseek_moe_mla_image,deepseekai2024deepseekv2strongeconomicalefficient}
 \citation{wikimedia_deepseek_moe_mla_image,deepseekai2024deepseekv2strongeconomicalefficient}
-\@writefile{lof}{\contentsline {figure}{\numberline {2.8}{\ignorespaces Sparse routing with expert capacity constraints.}}{16}{figure.caption.17}\protected@file@percent }
-\newlabel{fig:prelim-switch-routing}{{2.8}{16}{Sparse routing with expert capacity constraints}{figure.caption.17}{}}
 \citation{zhu2021studentcustomized}
 \citation{zhu2021studentcustomized}
-\@writefile{lof}{\contentsline {figure}{\numberline {2.9}{\ignorespaces Sparse routing and expert specialization in MoE.}}{17}{figure.caption.18}\protected@file@percent }
-\newlabel{fig:prelim-sparse-routing}{{2.9}{17}{Sparse routing and expert specialization in MoE}{figure.caption.18}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.4.3}Gradient Alignment as a Routing Signal}{17}{subsection.2.4.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {2.11}{\ignorespaces Sparse routing with expert capacity constraints.}}{19}{figure.caption.20}\protected@file@percent }
+\newlabel{fig:prelim-switch-routing}{{2.11}{19}{Sparse routing with expert capacity constraints}{figure.caption.20}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {2.12}{\ignorespaces Sparse routing and expert specialization in MoE.}}{20}{figure.caption.21}\protected@file@percent }
+\newlabel{fig:prelim-sparse-routing}{{2.12}{20}{Sparse routing and expert specialization in MoE}{figure.caption.21}{}}
+\citation{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}
+\citation{fang2021compressingvlm,hu2024visualprogramdistillation,yang2024clipcid}
+\citation{frantar2022gptq,xiao2023smoothquant,lin2024awq,li2025mbq}
+\citation{boizard2024towardscrosstokenizerdistillation}
+\citation{takezawa2021supervisedtreewasserstein,leyamadafukumizucuturi2019treesliced,dasgupta2025improving}
+\citation{takezawa2021supervisedtreewasserstein,peyre2019computationaloptimaltransport}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.4.3}Gradient Alignment as a Routing Signal}{21}{subsection.2.4.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {2.5}Related Work}{21}{section.2.5}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.5.1}Compact VLM Distillation and Compression}{21}{subsection.2.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.5.2}Cross-Tokenizer Distillation}{21}{subsection.2.5.2}\protected@file@percent }
+\citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
+\citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}
+\citation{zhu2021studentcustomized}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.5.3}Multi-Teacher Distillation and Adaptive Routing}{22}{subsection.2.5.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.5.4}Relation to This Thesis}{22}{subsection.2.5.4}\protected@file@percent }
 \citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
-\pp@pagectr{footnote}{3}{36}{18}
-\@writefile{toc}{\contentsline {chapter}{\numberline {3}Proposed Method}{18}{chapter.3}\protected@file@percent }
+\pp@pagectr{footnote}{3}{41}{23}
+\@writefile{toc}{\contentsline {chapter}{\numberline {3}Proposed Method}{23}{chapter.3}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:proposed-method}{{3}{18}{Proposed Method}{chapter.3}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {3.1}Method Overview and Problem Formulation}{18}{section.3.1}\protected@file@percent }
+\newlabel{chap:proposed-method}{{3}{23}{Proposed Method}{chapter.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.1}Method Overview and Problem Formulation}{23}{section.3.1}\protected@file@percent }
 \citation{zhu2021studentcustomized}
-\citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1.1}Overall Training Flow}{19}{subsection.3.1.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {3.2}Token-Level Distillation with ULD}{19}{section.3.2}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.2.1}Supervised Answer Tokens}{19}{subsection.3.2.1}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3.1}{\ignorespaces Overview of GRACE.}}{20}{figure.caption.19}\protected@file@percent }
-\newlabel{fig:grace-overview}{{3.1}{20}{Overview of GRACE}{figure.caption.19}{}}
-\citation{boizard2024towardscrosstokenizerdistillation}
-\citation{boizard2024towardscrosstokenizerdistillation}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.2.2}Universal Logit Distillation}{21}{subsection.3.2.2}\protected@file@percent }
-\newlabel{eq:per_teacher_uld}{{3.6}{21}{Universal Logit Distillation}{equation.3.2.6}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.2}{\ignorespaces ULD behavior in GRACE.}}{22}{figure.caption.20}\protected@file@percent }
-\newlabel{fig:grace-uld-sort-pad}{{3.2}{22}{ULD behavior in GRACE}{figure.caption.20}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {3.3}Learned Teacher Gate and Load Balancing}{22}{section.3.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.3.1}Student-Conditioned Router}{22}{subsection.3.3.1}\protected@file@percent }
-\newlabel{eq:router-softmax}{{3.8}{22}{Student-Conditioned Router}{equation.3.3.8}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.3.2}Top-k, Capacity and Fallback}{22}{subsection.3.3.2}\protected@file@percent }
-\newlabel{eq:constrained_gate_weights}{{3.11}{23}{Top-k, Capacity and Fallback}{equation.3.3.11}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.3.3}Balancing Loss and Expert Bias Update}{23}{subsection.3.3.3}\protected@file@percent }
-\newlabel{eq:balance_loss}{{3.15}{23}{Balancing Loss and Expert Bias Update}{equation.3.3.15}{}}
+\citation{shazeer2017outrageouslylargeneuralnetworks}
+\citation{fedus2022switchtransformersscalingtrillion}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1.1}Overall Training Flow}{24}{subsection.3.1.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.1}{\ignorespaces Architecture view of GRACE{}. The student produces hidden states and logits, the gate routes each sample to a sparse teacher subset, routed teachers contribute candidate KD losses and score refinement converts those teacher signals into the final weighted KD term added to \(\mathcal  {L}_{CE}\).\relax }}{25}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:grace-architecture-photo}{{3.1}{25}{Architecture view of \methodname {}. The student produces hidden states and logits, the gate routes each sample to a sparse teacher subset, routed teachers contribute candidate KD losses and score refinement converts those teacher signals into the final weighted KD term added to \(\mathcal {L}_{CE}\).\relax }{figure.caption.22}{}}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces One training step of GRACE{}\relax }}{26}{algorithm.1}\protected@file@percent }
+\newlabel{alg:grace-step}{{1}{26}{One training step of \methodname {}\relax }{algorithm.1}{}}
+\citation{takezawa2021supervisedtreewasserstein,peyre2019computationaloptimaltransport}
+\@writefile{toc}{\contentsline {section}{\numberline {3.2}Trie-Wasserstein Cross-Tokenizer Distillation}{27}{section.3.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2.1}Supervised Answer Tokens}{27}{subsection.3.2.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2.2}Shared Byte Trie}{27}{subsection.3.2.2}\protected@file@percent }
+\newlabel{eq:tw_edge_weight}{{3.5}{27}{Shared Byte Trie}{equation.3.2.5}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.2}{\ignorespaces Shared-trie view of cross-tokenizer matching for \texttt  {document}/\texttt  {receipt} and \texttt  {doc}/\texttt  {rece}. Shared byte prefixes occupy common edges, while shorter teacher pieces terminate earlier at EOS.\relax }}{28}{figure.caption.23}\protected@file@percent }
+\newlabel{fig:grace-trie-shared}{{3.2}{28}{Shared-trie view of cross-tokenizer matching for \texttt {document}/\texttt {receipt} and \texttt {doc}/\texttt {rece}. Shared byte prefixes occupy common edges, while shorter teacher pieces terminate earlier at EOS.\relax }{figure.caption.23}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2.3}Sparse Top-\(k\) Support and Tail Edge}{28}{subsection.3.2.3}\protected@file@percent }
+\newlabel{eq:token_tw}{{3.9}{28}{Sparse \texorpdfstring {Top-\(k\)}{Top-k} Support and Tail Edge}{equation.3.2.9}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.3}{\ignorespaces Sparse trie-Wasserstein support in the current implementation. The loss keeps only the top-\(k_{TW}\) student and teacher tokens at each supervised position, maps them to the shared trie and sends the remaining mass to one TAIL edge. This makes the computation depend on the active support, not the full vocabulary.\relax }}{29}{figure.caption.24}\protected@file@percent }
+\newlabel{fig:grace-trie-sparse-tail}{{3.3}{29}{Sparse trie-Wasserstein support in the current implementation. The loss keeps only the top-\(k_{TW}\) student and teacher tokens at each supervised position, maps them to the shared trie and sends the remaining mass to one TAIL edge. This makes the computation depend on the active support, not the full vocabulary.\relax }{figure.caption.24}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.4}{\ignorespaces Trie split for \texttt  {document} and \texttt  {doc}. The shared prefix ends at \(c\), where the teacher terminates at EOS and the student continues deeper in the trie.\relax }}{29}{figure.caption.25}\protected@file@percent }
+\newlabel{fig:grace-trie-edge-mass}{{3.4}{29}{Trie split for \texttt {document} and \texttt {doc}. The shared prefix ends at \(c\), where the teacher terminates at EOS and the student continues deeper in the trie.\relax }{figure.caption.25}{}}
+\newlabel{eq:per_teacher_tw}{{3.10}{29}{Sparse \texorpdfstring {Top-\(k\)}{Top-k} Support and Tail Edge}{equation.3.2.10}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3.1}{\ignorespaces Illustrative ULD and trie-Wasserstein comparison.}}{30}{table.caption.26}\protected@file@percent }
+\newlabel{tab:tw-vs-uld-toy}{{3.1}{30}{Illustrative ULD and trie-Wasserstein comparison}{table.caption.26}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.3}Learned Teacher Gate and Load Balancing}{30}{section.3.3}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3.1}Student-Conditioned Router}{30}{subsection.3.3.1}\protected@file@percent }
+\newlabel{eq:router-softmax}{{3.13}{30}{Student-Conditioned Router}{equation.3.3.13}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3.2}Top-k, Capacity and Fallback}{31}{subsection.3.3.2}\protected@file@percent }
+\newlabel{eq:constrained_gate_weights}{{3.15}{31}{Top-k, Capacity and Fallback}{equation.3.3.15}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.3.3}Balancing Loss and Expert Bias Update}{31}{subsection.3.3.3}\protected@file@percent }
 \citation{fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.3}{\ignorespaces Gate, sparsification and balance update in GRACE.}}{24}{figure.caption.21}\protected@file@percent }
-\newlabel{fig:grace-gate-balance}{{3.3}{24}{Gate, sparsification and balance update in GRACE}{figure.caption.21}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.4}{\ignorespaces Bias-feedback behavior in GRACE.}}{25}{figure.caption.22}\protected@file@percent }
-\newlabel{fig:grace-bias-feedback}{{3.4}{25}{Bias-feedback behavior in GRACE}{figure.caption.22}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.5}{\ignorespaces Routing dynamics in GRACE.}}{25}{figure.caption.23}\protected@file@percent }
-\newlabel{fig:grace-routing-dynamics}{{3.5}{25}{Routing dynamics in GRACE}{figure.caption.23}{}}
+\newlabel{eq:balance_loss}{{3.19}{32}{Balancing Loss and Expert Bias Update}{equation.3.3.19}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.4}GRACE Score Refinement}{32}{section.3.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.1}Gradient Proxies}{32}{subsection.3.4.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.5}{\ignorespaces Student-conditioned router sketch in GRACE{}.}}{33}{figure.caption.27}\protected@file@percent }
+\newlabel{fig:grace-gate-balance}{{3.5}{33}{Student-conditioned router sketch in \methodname {}}{figure.caption.27}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.6}{\ignorespaces Bias-feedback behavior in GRACE.}}{33}{figure.caption.28}\protected@file@percent }
+\newlabel{fig:grace-bias-feedback}{{3.6}{33}{Bias-feedback behavior in GRACE}{figure.caption.28}{}}
 \citation{wikimedia_gradient_descent_image}
 \citation{wikimedia_gradient_descent_image}
-\@writefile{toc}{\contentsline {section}{\numberline {3.4}GRACE Score Refinement}{26}{section.3.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.1}Gradient Proxies}{26}{subsection.3.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.2}GRACE Scores and Logged Active Flags}{26}{subsection.3.4.2}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3.6}{\ignorespaces Directional view of gradient descent.}}{27}{figure.caption.24}\protected@file@percent }
-\newlabel{fig:grace-directional-view}{{3.6}{27}{Directional view of gradient descent}{figure.caption.24}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.3}Warmup, Score Smoothing and Gradient Weights}{27}{subsection.3.4.3}\protected@file@percent }
-\newlabel{eq:uniform_routed_weights}{{3.24}{27}{Warmup, Score Smoothing and Gradient Weights}{equation.3.4.24}{}}
-\newlabel{eq:grace_softmax}{{3.26}{27}{Warmup, Score Smoothing and Gradient Weights}{equation.3.4.26}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.7}{\ignorespaces EMA smoothing in GRACE.}}{28}{figure.caption.25}\protected@file@percent }
-\newlabel{fig:grace-ema-smoothing}{{3.7}{28}{EMA smoothing in GRACE}{figure.caption.25}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.8}{\ignorespaces Warmup schedule in GRACE.}}{28}{figure.caption.26}\protected@file@percent }
-\newlabel{fig:grace-warmup}{{3.8}{28}{Warmup schedule in GRACE}{figure.caption.26}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.4}Router-Gradient Blend and Uniform Fallback}{29}{subsection.3.4.4}\protected@file@percent }
-\newlabel{eq:effective_teacher_weights}{{3.28}{29}{Router-Gradient Blend and Uniform Fallback}{equation.3.4.28}{}}
-\newlabel{eq:alignment_fallback}{{3.30}{29}{Router-Gradient Blend and Uniform Fallback}{equation.3.4.30}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.9}{\ignorespaces GRACE score refinement in GRACE{}.}}{29}{figure.caption.27}\protected@file@percent }
-\newlabel{fig:grace-alignment-behavior}{{3.9}{29}{GRACE score refinement in \methodname {}}{figure.caption.27}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.10}{\ignorespaces GRACE weighting cases.}}{30}{figure.caption.28}\protected@file@percent }
-\newlabel{fig:grace-alignment-cases}{{3.10}{30}{GRACE weighting cases}{figure.caption.28}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.11}{\ignorespaces Weight refinement in GRACE.}}{30}{figure.caption.29}\protected@file@percent }
-\newlabel{fig:grace-weight-refinement}{{3.11}{30}{Weight refinement in GRACE}{figure.caption.29}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.7}{\ignorespaces Routing dynamics in GRACE.}}{34}{figure.caption.29}\protected@file@percent }
+\newlabel{fig:grace-routing-dynamics}{{3.7}{34}{Routing dynamics in GRACE}{figure.caption.29}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.2}GRACE Scores and Logged Active Flags}{34}{subsection.3.4.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.8}{\ignorespaces Directional view of gradient descent.}}{35}{figure.caption.30}\protected@file@percent }
+\newlabel{fig:grace-directional-view}{{3.8}{35}{Directional view of gradient descent}{figure.caption.30}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.3}Warmup, Score Smoothing and Gradient Weights}{35}{subsection.3.4.3}\protected@file@percent }
+\newlabel{eq:uniform_routed_weights}{{3.27}{35}{Warmup, Score Smoothing and Gradient Weights}{equation.3.4.27}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.9}{\ignorespaces EMA smoothing in GRACE.}}{36}{figure.caption.31}\protected@file@percent }
+\newlabel{fig:grace-ema-smoothing}{{3.9}{36}{EMA smoothing in GRACE}{figure.caption.31}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.10}{\ignorespaces Warmup schedule in GRACE.}}{36}{figure.caption.32}\protected@file@percent }
+\newlabel{fig:grace-warmup}{{3.10}{36}{Warmup schedule in GRACE}{figure.caption.32}{}}
+\newlabel{eq:grace_softmax}{{3.29}{36}{Warmup, Score Smoothing and Gradient Weights}{equation.3.4.29}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.4}Router-Gradient Blend and Uniform Fallback}{36}{subsection.3.4.4}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.11}{\ignorespaces GRACE score refinement in GRACE{}.}}{37}{figure.caption.33}\protected@file@percent }
+\newlabel{fig:grace-alignment-behavior}{{3.11}{37}{GRACE score refinement in \methodname {}}{figure.caption.33}{}}
+\newlabel{eq:effective_teacher_weights}{{3.31}{37}{Router-Gradient Blend and Uniform Fallback}{equation.3.4.31}{}}
+\newlabel{eq:alignment_fallback}{{3.33}{37}{Router-Gradient Blend and Uniform Fallback}{equation.3.4.33}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.12}{\ignorespaces GRACE weighting cases.}}{38}{figure.caption.34}\protected@file@percent }
+\newlabel{fig:grace-alignment-cases}{{3.12}{38}{GRACE weighting cases}{figure.caption.34}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.13}{\ignorespaces Weight refinement in GRACE.}}{38}{figure.caption.35}\protected@file@percent }
+\newlabel{fig:grace-weight-refinement}{{3.13}{38}{Weight refinement in GRACE}{figure.caption.35}{}}
 \citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,zhu2021studentcustomized}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.12}{\ignorespaces Sample-specific weighting in GRACE.}}{31}{figure.caption.30}\protected@file@percent }
-\newlabel{fig:grace-sample-specificity}{{3.12}{31}{Sample-specific weighting in GRACE}{figure.caption.30}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.5}Sample-Wise KD Aggregation}{31}{subsection.3.4.5}\protected@file@percent }
-\newlabel{eq:sample_kd_average}{{3.31}{31}{Sample-Wise KD Aggregation}{equation.3.4.31}{}}
-\newlabel{eq:batch_kd}{{3.32}{31}{Sample-Wise KD Aggregation}{equation.3.4.32}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {3.5}Final Objective}{31}{section.3.5}\protected@file@percent }
-\newlabel{eq:final_objective}{{3.33}{31}{Final Objective}{equation.3.5.33}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.14}{\ignorespaces Sample-specific weighting in GRACE.}}{39}{figure.caption.36}\protected@file@percent }
+\newlabel{fig:grace-sample-specificity}{{3.14}{39}{Sample-specific weighting in GRACE}{figure.caption.36}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.5}Sample-Wise KD Aggregation}{39}{subsection.3.4.5}\protected@file@percent }
+\newlabel{eq:sample_kd_average}{{3.34}{39}{Sample-Wise KD Aggregation}{equation.3.4.34}{}}
+\newlabel{eq:batch_kd}{{3.35}{39}{Sample-Wise KD Aggregation}{equation.3.4.35}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.5}Final Objective}{39}{section.3.5}\protected@file@percent }
+\newlabel{eq:final_objective}{{3.36}{39}{Final Objective}{equation.3.5.36}{}}
 \citation{marafioti2025smolvlm}
 \citation{duan2024vlmevalkit}
 \citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
@@ -258,13 +299,14 @@
 \citation{singh2019vqamodelsread}
 \citation{wikimedia_stop_sign_image}
 \citation{wikimedia_stop_sign_image}
-\pp@pagectr{footnote}{4}{51}{33}
-\@writefile{toc}{\contentsline {chapter}{\numberline {4}Evaluation Methodology}{33}{chapter.4}\protected@file@percent }
+\pp@pagectr{footnote}{4}{59}{41}
+\@writefile{toc}{\contentsline {chapter}{\numberline {4}Evaluation Methodology}{41}{chapter.4}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:evaluation-methodology}{{4}{33}{Evaluation Methodology}{chapter.4}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4.1}Experimental Setup}{33}{section.4.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {4.2}Datasets}{33}{section.4.2}\protected@file@percent }
+\newlabel{chap:evaluation-methodology}{{4}{41}{Evaluation Methodology}{chapter.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4.1}Experimental Setup}{41}{section.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.2}Datasets}{41}{section.4.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.1}Dataset Descriptions}{41}{subsection.4.2.1}\protected@file@percent }
 \citation{mathew2021docvqadatasetvqadocument}
 \citation{wikimedia_receipt_swiss_image}
 \citation{wikimedia_receipt_swiss_image}
@@ -273,89 +315,103 @@
 \citation{wikimedia_bar_chart_image}
 \citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
 \citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.1}Dataset Descriptions}{34}{subsection.4.2.1}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {4.1}{\ignorespaces TextVQA sample image.}}{34}{figure.caption.31}\protected@file@percent }
-\newlabel{fig:textvqa-sample}{{4.1}{34}{TextVQA sample image}{figure.caption.31}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.2}Dataset Size and Splits}{34}{subsection.4.2.2}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {4.2}{\ignorespaces DocVQA sample image.}}{35}{figure.caption.32}\protected@file@percent }
-\newlabel{fig:docvqa-sample}{{4.2}{35}{DocVQA sample image}{figure.caption.32}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {4.3}{\ignorespaces ChartQA sample image.}}{35}{figure.caption.33}\protected@file@percent }
-\newlabel{fig:chartqa-sample}{{4.3}{35}{ChartQA sample image}{figure.caption.33}{}}
 \citation{rajbhandari2020zero,chen2016sublinear}
+\@writefile{lof}{\contentsline {figure}{\numberline {4.1}{\ignorespaces TextVQA sample image.}}{42}{figure.caption.37}\protected@file@percent }
+\newlabel{fig:textvqa-sample}{{4.1}{42}{TextVQA sample image}{figure.caption.37}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.2.2}Dataset Size and Splits}{42}{subsection.4.2.2}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {4.3}Training Configuration}{42}{section.4.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {4.2}{\ignorespaces DocVQA sample image.}}{43}{figure.caption.38}\protected@file@percent }
+\newlabel{fig:docvqa-sample}{{4.2}{43}{DocVQA sample image}{figure.caption.38}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4.3}{\ignorespaces ChartQA sample image.}}{43}{figure.caption.39}\protected@file@percent }
+\newlabel{fig:chartqa-sample}{{4.3}{43}{ChartQA sample image}{figure.caption.39}{}}
 \citation{liu2023visualinstructiontuning}
-\@writefile{lot}{\contentsline {table}{\numberline {4.1}{\ignorespaces Dataset split sizes for the three benchmarks.}}{36}{table.caption.34}\protected@file@percent }
-\newlabel{tab:dataset-sizes}{{4.1}{36}{Dataset split sizes for the three benchmarks}{table.caption.34}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4.3}Training Configuration}{36}{section.4.3}\protected@file@percent }
-\newlabel{lst:llava-format}{{4.1}{36}{Representative LLaVA-style sample used after dataset conversion}{lstlisting.4.1}{}}
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {4.1}Representative LLaVA-style sample used after dataset conversion.}{36}{lstlisting.4.1}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {4.1}{\ignorespaces Dataset split sizes for the three benchmarks.}}{44}{table.caption.40}\protected@file@percent }
+\newlabel{tab:dataset-sizes}{{4.1}{44}{Dataset split sizes for the three benchmarks}{table.caption.40}{}}
+\newlabel{lst:llava-format}{{4.1}{44}{Representative LLaVA-style sample used after dataset conversion}{lstlisting.4.1}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {4.1}Representative LLaVA-style sample used after dataset conversion.}{44}{lstlisting.4.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.1}Offline Teacher-Logit Preparation}{44}{subsection.4.3.1}\protected@file@percent }
 \citation{cloudflare_r2_overview,cloudflare_r2_s3}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.1}Offline Teacher-Logit Preparation}{37}{subsection.4.3.1}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {4.4}{\ignorespaces R2 bucket used for teacher-logit storage.}}{37}{figure.caption.35}\protected@file@percent }
-\newlabel{fig:r2-storage}{{4.4}{37}{R2 bucket used for teacher-logit storage}{figure.caption.35}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4.4}{\ignorespaces R2 bucket used for teacher-logit storage.}}{45}{figure.caption.41}\protected@file@percent }
+\newlabel{fig:r2-storage}{{4.4}{45}{R2 bucket used for teacher-logit storage}{figure.caption.41}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.2}Remote Logit Streaming During Training}{45}{subsection.4.3.2}\protected@file@percent }
 \citation{fsspec_features,fsspec_api}
+\gdef \LT@ii {\LT@entry 
+    {1}{162.23138pt}\LT@entry 
+    {1}{289.69917pt}}
+\@writefile{lof}{\contentsline {figure}{\numberline {4.5}{\ignorespaces Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training and kept in a bounded local cache with oldest-file eviction. This setup avoids copying a multi-terabyte teacher store onto each rented GPU instance.\relax }}{46}{figure.caption.42}\protected@file@percent }
+\newlabel{fig:r2-cache-training}{{4.5}{46}{Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training and kept in a bounded local cache with oldest-file eviction. This setup avoids copying a multi-terabyte teacher store onto each rented GPU instance.\relax }{figure.caption.42}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {4.2}{\ignorespaces Training configuration for the current main distillation script.}}{46}{table.4.2}\protected@file@percent }
+\newlabel{tab:training-configuration}{{4.2}{46}{Training configuration for the current main distillation script}{table.4.2}{}}
 \citation{singh2019vqamodelsread}
-\@writefile{toc}{\contentsline {subsection}{\numberline {4.3.2}Remote Logit Streaming During Training}{38}{subsection.4.3.2}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {4.5}{\ignorespaces Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training and kept in a bounded local cache with oldest-file eviction. This setup avoids copying a multi-terabyte teacher store onto each rented GPU instance.\relax }}{38}{figure.caption.36}\protected@file@percent }
-\newlabel{fig:r2-cache-training}{{4.5}{38}{Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training and kept in a bounded local cache with oldest-file eviction. This setup avoids copying a multi-terabyte teacher store onto each rented GPU instance.\relax }{figure.caption.36}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4.4}Evaluation Metrics}{38}{section.4.4}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {4.2}{\ignorespaces Training configuration for the current main distillation script.}}{39}{table.caption.37}\protected@file@percent }
-\newlabel{tab:training-configuration}{{4.2}{39}{Training configuration for the current main distillation script}{table.caption.37}{}}
 \citation{mathew2021docvqadatasetvqadocument}
 \citation{masry2022chartqabenchmarkquestionanswering}
+\@writefile{toc}{\contentsline {section}{\numberline {4.4}Evaluation Metrics}{48}{section.4.4}\protected@file@percent }
 \citation{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,cui2024sinkhorn}
-\@writefile{toc}{\contentsline {section}{\numberline {4.5}Baselines and Compared Methods}{40}{section.4.5}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {4.3}{\ignorespaces Baseline groups used in the evaluation chapter.}}{40}{table.caption.38}\protected@file@percent }
-\newlabel{tab:baseline-groups}{{4.3}{40}{Baseline groups used in the evaluation chapter}{table.caption.38}{}}
 \citation{boizard2024towardscrosstokenizerdistillation}
 \citation{williams1992simple,yuan2020reinforcedmultiteacherselection}
-\citation{zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}
+\citation{takezawa2021supervisedtreewasserstein,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}
+\citation{kornblith2019similarityrepresentations,williams1992simple,yuan2020reinforcedmultiteacherselection}
+\@writefile{lot}{\contentsline {table}{\numberline {4.3}{\ignorespaces Baseline groups used in the evaluation chapter.}}{49}{table.caption.43}\protected@file@percent }
+\newlabel{tab:baseline-groups}{{4.3}{49}{Baseline groups used in the evaluation chapter}{table.caption.43}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4.5}Baselines and Compared Methods}{49}{section.4.5}\protected@file@percent }
 \citation{hinton2015distillingknowledgeneuralnetwork}
 \citation{cui2024sinkhorn,wen2023fdistill}
 \citation{lin1991jensen,cui2024sinkhorn}
 \citation{boizard2024towardscrosstokenizerdistillation}
-\citation{dasgupta2025improving,kornblith2019similarityrepresentations}
+\citation{boizard2024towardscrosstokenizerdistillation,dasgupta2025improving,kornblith2019similarityrepresentations}
 \citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}
 \citation{williams1992simple,yuan2020reinforcedmultiteacherselection}
 \citation{duan2024vlmevalkit}
-\pp@pagectr{footnote}{5}{61}{43}
-\@writefile{toc}{\contentsline {chapter}{\numberline {5}Experiment Results}{43}{chapter.5}\protected@file@percent }
+\pp@pagectr{footnote}{5}{71}{53}
+\@writefile{toc}{\contentsline {chapter}{\numberline {5}Experiment Results}{53}{chapter.5}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:experiment-results}{{5}{43}{Experiment Results}{chapter.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.1}Main Comparison Results}{43}{section.5.1}\protected@file@percent }
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.1}Baseline Results}{43}{subsection.5.1.1}\protected@file@percent }
-\@writefile{lot}{\contentsline {table}{\numberline {5.1}{\ignorespaces Original benchmark results of the two SmolVLM students evaluated with VLM-Eval-Kit. These scores define the reference point that all later fine-tuning and distillation gains should be measured against.\relax }}{43}{table.caption.39}\protected@file@percent }
-\newlabel{tab:smolvlm-original-results}{{5.1}{43}{Original benchmark results of the two SmolVLM students evaluated with VLM-Eval-Kit. These scores define the reference point that all later fine-tuning and distillation gains should be measured against.\relax }{table.caption.39}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.2}Overall Comparison}{43}{subsection.5.1.2}\protected@file@percent }
+\newlabel{chap:experiment-results}{{5}{53}{Experiment Results}{chapter.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.1}Main Comparison Results}{53}{section.5.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.1}Baseline Results}{53}{subsection.5.1.1}\protected@file@percent }
+\@writefile{toc}{\contentsline {subsection}{\numberline {5.1.2}Overall Comparison}{53}{subsection.5.1.2}\protected@file@percent }
 \citation{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge,dasgupta2025improving}
 \citation{boizard2024towardscrosstokenizerdistillation}
 \citation{williams1992simple,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
-\@writefile{lot}{\contentsline {table}{\numberline {5.2}{\ignorespaces Original benchmark results of the teacher and large reference models used in this thesis. The table shows that the selected teachers cover a wide performance range, with several models far above the compact SmolVLM students.\relax }}{44}{table.caption.40}\protected@file@percent }
-\newlabel{tab:teacher-original-results}{{5.2}{44}{Original benchmark results of the teacher and large reference models used in this thesis. The table shows that the selected teachers cover a wide performance range, with several models far above the compact SmolVLM students.\relax }{table.caption.40}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.3}{\ignorespaces TextVQA comparison across original models, fine-tuning, distillation baselines and GRACE. The main question here is whether adaptive multi-teacher weighting improves over same-family KD and over static multi-teacher baselines.\relax }}{45}{table.caption.41}\protected@file@percent }
-\newlabel{tab:textvqa-comparison}{{5.3}{45}{TextVQA comparison across original models, fine-tuning, distillation baselines and \methodname . The main question here is whether adaptive multi-teacher weighting improves over same-family KD and over static multi-teacher baselines.\relax }{table.caption.41}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.4}{\ignorespaces DocVQA comparison across original models, fine-tuning, distillation baselines and GRACE. The table is most useful for checking whether the same teacher pool helps more when document layout and OCR quality matter strongly.\relax }}{46}{table.caption.42}\protected@file@percent }
-\newlabel{tab:docvqa-comparison}{{5.4}{46}{DocVQA comparison across original models, fine-tuning, distillation baselines and \methodname . The table is most useful for checking whether the same teacher pool helps more when document layout and OCR quality matter strongly.\relax }{table.caption.42}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.5}{\ignorespaces ChartQA comparison across original models, fine-tuning, distillation baselines and GRACE. The strongest gain appears here, which suggests that adaptive teacher weighting is especially useful when numerical reasoning and chart reading are combined.\relax }}{47}{table.caption.43}\protected@file@percent }
-\newlabel{tab:chartqa-comparison}{{5.5}{47}{ChartQA comparison across original models, fine-tuning, distillation baselines and \methodname . The strongest gain appears here, which suggests that adaptive teacher weighting is especially useful when numerical reasoning and chart reading are combined.\relax }{table.caption.43}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces Training-curve comparison for uniform weighting and GRACE.}}{48}{figure.caption.44}\protected@file@percent }
-\newlabel{fig:training-curve-comparison}{{5.1}{48}{Training-curve comparison for uniform weighting and GRACE}{figure.caption.44}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.6}{\ignorespaces Absolute and relative gains of GRACE{} on SmolVLM-500M. The strongest non-GRACE{} competitor is reinforced selection on TextVQA, uniform multi-teacher weighting on DocVQA and SHM-CKA on ChartQA. The gains over direct finetuning remain large, which shows that the improvement does not come from extra optimization alone but from the distillation and weighting strategy itself.\relax }}{48}{table.caption.45}\protected@file@percent }
-\newlabel{tab:grace-relative-gains}{{5.6}{48}{Absolute and relative gains of \methodname {} on SmolVLM-500M. The strongest non-\methodname {} competitor is reinforced selection on TextVQA, uniform multi-teacher weighting on DocVQA and SHM-CKA on ChartQA. The gains over direct finetuning remain large, which shows that the improvement does not come from extra optimization alone but from the distillation and weighting strategy itself.\relax }{table.caption.45}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.1}{\ignorespaces Original SmolVLM student results.}}{54}{table.caption.44}\protected@file@percent }
+\newlabel{tab:smolvlm-original-results}{{5.1}{54}{Original SmolVLM student results}{table.caption.44}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.2}{\ignorespaces Teacher and reference-model results.}}{54}{table.caption.45}\protected@file@percent }
+\newlabel{tab:teacher-original-results}{{5.2}{54}{Teacher and reference-model results}{table.caption.45}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.3}{\ignorespaces TextVQA main comparison.}}{56}{table.caption.46}\protected@file@percent }
+\newlabel{tab:textvqa-comparison}{{5.3}{56}{TextVQA main comparison}{table.caption.46}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.4}{\ignorespaces DocVQA main comparison.}}{57}{table.caption.47}\protected@file@percent }
+\newlabel{tab:docvqa-comparison}{{5.4}{57}{DocVQA main comparison}{table.caption.47}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.5}{\ignorespaces ChartQA main comparison.}}{58}{table.caption.48}\protected@file@percent }
+\newlabel{tab:chartqa-comparison}{{5.5}{58}{ChartQA main comparison}{table.caption.48}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces Grouped comparison of original, best-baseline and GRACE results.}}{59}{figure.caption.49}\protected@file@percent }
+\newlabel{fig:c5-results-bars}{{5.1}{59}{Grouped comparison of original, best-baseline and GRACE results}{figure.caption.49}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces Training-curve comparison for uniform weighting and GRACE.}}{59}{figure.caption.50}\protected@file@percent }
+\newlabel{fig:training-curve-comparison}{{5.2}{59}{Training-curve comparison for uniform weighting and GRACE}{figure.caption.50}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces Representative collapse and non-collapse routing examples.}}{60}{figure.caption.51}\protected@file@percent }
+\newlabel{fig:router-collapse-comparison}{{5.3}{60}{Representative collapse and non-collapse routing examples}{figure.caption.51}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.6}{\ignorespaces Relative gains of GRACE{} on SmolVLM-500M.}}{61}{table.caption.52}\protected@file@percent }
+\newlabel{tab:grace-relative-gains}{{5.6}{61}{Relative gains of \methodname {} on SmolVLM-500M}{table.caption.52}{}}
 \citation{kornblith2019similarityrepresentations}
-\@writefile{lot}{\contentsline {table}{\numberline {5.7}{\ignorespaces Gap-to-teacher analysis for SmolVLM-500M under GRACE. The teacher reference is the strongest model inside the four-teacher GRACE pool for each benchmark. GRACE{} closes about half of the original gap on TextVQA and ChartQA, and about 40\% on DocVQA, which shows that the student is not only better in absolute terms but also materially closer to teacher-level performance.\relax }}{49}{table.caption.46}\protected@file@percent }
-\newlabel{tab:grace-gap-to-teacher}{{5.7}{49}{Gap-to-teacher analysis for SmolVLM-500M under \methodname . The teacher reference is the strongest model inside the four-teacher GRACE pool for each benchmark. \methodname {} closes about half of the original gap on TextVQA and ChartQA, and about 40\% on DocVQA, which shows that the student is not only better in absolute terms but also materially closer to teacher-level performance.\relax }{table.caption.46}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.2}Representation Similarity Analysis}{49}{section.5.2}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces Final-layer CKA heatmaps across two benchmarks.}}{50}{figure.caption.47}\protected@file@percent }
-\newlabel{fig:exp-cka-multi-dataset}{{5.2}{50}{Final-layer CKA heatmaps across two benchmarks}{figure.caption.47}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.3}Ablation Study}{50}{section.5.3}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces Vision-layer CKA heatmaps across two benchmarks.}}{51}{figure.caption.48}\protected@file@percent }
-\newlabel{fig:exp-cka-vision-multi-dataset}{{5.3}{51}{Vision-layer CKA heatmaps across two benchmarks}{figure.caption.48}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.8}{\ignorespaces Teacher-assignment study on SmolVLM-500M. Moving from one teacher to a heterogeneous pool already helps, but the strongest gains come from the GRACE weighting rule rather than from teacher count alone. The table isolates teacher assignment from student size, so the difference is easier to attribute to the weighting strategy itself.\relax }}{51}{table.caption.49}\protected@file@percent }
-\newlabel{tab:teacher-assignment-ablation}{{5.8}{51}{Teacher-assignment study on SmolVLM-500M. Moving from one teacher to a heterogeneous pool already helps, but the strongest gains come from the GRACE weighting rule rather than from teacher count alone. The table isolates teacher assignment from student size, so the difference is easier to attribute to the weighting strategy itself.\relax }{table.caption.49}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.4}Qualitative Analysis}{52}{section.5.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5.5}Discussion}{52}{section.5.5}\protected@file@percent }
-\@writefile{toc}{\contentsline {chapter}{Conclusion and Future Work}{53}{chapter*.50}\protected@file@percent }
+\@writefile{lot}{\contentsline {table}{\numberline {5.7}{\ignorespaces Gap-to-teacher analysis for SmolVLM-500M.}}{62}{table.caption.53}\protected@file@percent }
+\newlabel{tab:grace-gap-to-teacher}{{5.7}{62}{Gap-to-teacher analysis for SmolVLM-500M}{table.caption.53}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.2}Representation Similarity Analysis}{62}{section.5.2}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces Final-layer CKA heatmaps across two benchmarks.}}{63}{figure.caption.54}\protected@file@percent }
+\newlabel{fig:exp-cka-multi-dataset}{{5.4}{63}{Final-layer CKA heatmaps across two benchmarks}{figure.caption.54}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.3}Ablation Study}{63}{section.5.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces Vision-layer CKA heatmaps across two benchmarks.}}{64}{figure.caption.55}\protected@file@percent }
+\newlabel{fig:exp-cka-vision-multi-dataset}{{5.5}{64}{Vision-layer CKA heatmaps across two benchmarks}{figure.caption.55}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.8}{\ignorespaces Teacher-assignment ablation on SmolVLM-500M.}}{64}{table.caption.56}\protected@file@percent }
+\newlabel{tab:teacher-assignment-ablation}{{5.8}{64}{Teacher-assignment ablation on SmolVLM-500M}{table.caption.56}{}}
+\citation{hinton2015distillingknowledgeneuralnetwork,boizard2024towardscrosstokenizerdistillation}
+\citation{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}
+\@writefile{lot}{\contentsline {table}{\numberline {5.9}{\ignorespaces Partial DocVQA student-scaling comparison.}}{65}{table.caption.57}\protected@file@percent }
+\newlabel{tab:student-scaling-docvqa}{{5.9}{65}{Partial DocVQA student-scaling comparison}{table.caption.57}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.4}Qualitative Analysis}{65}{section.5.4}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{\numberline {5.5}Discussion}{65}{section.5.5}\protected@file@percent }
+\citation{kornblith2019similarityrepresentations,dasgupta2025improving}
+\citation{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}
+\citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
+\@writefile{toc}{\contentsline {chapter}{Conclusion and Future Work}{67}{chapter*.58}\protected@file@percent }
 \bibdata{references}
 \bibcite{wikimedia_clip_pretraining_image}{{1}{}{{}}{{}}}
 \bibcite{radford2021learningtransferablevisualmodels}{{2}{}{{}}{{}}}
@@ -368,58 +424,61 @@
 \bibcite{masry2022chartqabenchmarkquestionanswering}{{9}{}{{}}{{}}}
 \bibcite{wikimedia_knowledge_distillation_example}{{10}{}{{}}{{}}}
 \bibcite{hinton2015distillingknowledgeneuralnetwork}{{11}{}{{}}{{}}}
-\bibcite{wikimedia_optimal_transport_matrix_image}{{12}{}{{}}{{}}}
-\@writefile{toc}{\contentsline {chapter}{References}{54}{section*.51}\protected@file@percent }
-\bibcite{peyre2019computationaloptimaltransport}{{13}{}{{}}{{}}}
-\bibcite{boizard2024towardscrosstokenizerdistillation}{{14}{}{{}}{{}}}
-\bibcite{alayrac2022flamingovisuallanguagemodel}{{15}{}{{}}{{}}}
-\bibcite{li2023blip2bootstrappinglanguageimagepretraining}{{16}{}{{}}{{}}}
-\bibcite{liu2023visualinstructiontuning}{{17}{}{{}}{{}}}
-\bibcite{hu2024visualprogramdistillation}{{18}{}{{}}{{}}}
-\bibcite{chu2023mobilevlm}{{19}{}{{}}{{}}}
-\bibcite{zhou2024tinyllava}{{20}{}{{}}{{}}}
-\bibcite{kaplan2020scalinglaws}{{21}{}{{}}{{}}}
-\bibcite{hoffmann2022trainingcomputeoptimal}{{22}{}{{}}{{}}}
-\bibcite{marafioti2025smolvlm}{{23}{}{{}}{{}}}
-\bibcite{smolvlm_blog}{{24}{}{{}}{{}}}
-\bibcite{airank_textvqa_2026}{{25}{}{{}}{{}}}
-\bibcite{airank_docvqa_2026}{{26}{}{{}}{{}}}
-\bibcite{airank_chartqa_2026}{{27}{}{{}}{{}}}
-\bibcite{xu2024surveyknowledgedistillationlarge}{{28}{}{{}}{{}}}
-\bibcite{wang2021blackboxkd}{{29}{}{{}}{{}}}
-\bibcite{ma2024blackboxkd}{{30}{}{{}}{{}}}
-\bibcite{dasgupta2025improving}{{31}{}{{}}{{}}}
-\bibcite{frantar2022gptq}{{32}{}{{}}{{}}}
-\bibcite{xiao2023smoothquant}{{33}{}{{}}{{}}}
-\bibcite{lin2024awq}{{34}{}{{}}{{}}}
-\bibcite{li2025mbq}{{35}{}{{}}{{}}}
-\bibcite{fang2021compressingvlm}{{36}{}{{}}{{}}}
-\bibcite{yang2024clipcid}{{37}{}{{}}{{}}}
-\bibcite{yuan2020reinforcedmultiteacherselection}{{38}{}{{}}{{}}}
-\bibcite{zhang2023adaptivemultiteachermetalearning}{{39}{}{{}}{{}}}
-\bibcite{yu2024selectdistill}{{40}{}{{}}{{}}}
-\bibcite{fedus2022switchtransformersscalingtrillion}{{41}{}{{}}{{}}}
-\bibcite{zhou2022mixtureofexpertswithexpertchoice}{{42}{}{{}}{{}}}
-\bibcite{zhu2021studentcustomized}{{43}{}{{}}{{}}}
-\bibcite{lin1991jensen}{{44}{}{{}}{{}}}
-\bibcite{shazeer2017outrageouslylargeneuralnetworks}{{45}{}{{}}{{}}}
-\bibcite{deepseekai2024deepseekv2strongeconomicalefficient}{{46}{}{{}}{{}}}
-\bibcite{wikimedia_deepseek_moe_mla_image}{{47}{}{{}}{{}}}
-\bibcite{wikimedia_gradient_descent_image}{{48}{}{{}}{{}}}
-\bibcite{duan2024vlmevalkit}{{49}{}{{}}{{}}}
-\bibcite{wikimedia_stop_sign_image}{{50}{}{{}}{{}}}
-\bibcite{wikimedia_receipt_swiss_image}{{51}{}{{}}{{}}}
-\bibcite{wikimedia_bar_chart_image}{{52}{}{{}}{{}}}
-\bibcite{rajbhandari2020zero}{{53}{}{{}}{{}}}
-\bibcite{chen2016sublinear}{{54}{}{{}}{{}}}
-\bibcite{cloudflare_r2_overview}{{55}{}{{}}{{}}}
-\bibcite{cloudflare_r2_s3}{{56}{}{{}}{{}}}
-\bibcite{fsspec_features}{{57}{}{{}}{{}}}
-\bibcite{fsspec_api}{{58}{}{{}}{{}}}
-\bibcite{smolvlm2_modelcard}{{59}{}{{}}{{}}}
-\bibcite{cui2024sinkhorn}{{60}{}{{}}{{}}}
-\bibcite{williams1992simple}{{61}{}{{}}{{}}}
-\bibcite{wen2023fdistill}{{62}{}{{}}{{}}}
-\bibcite{kornblith2019similarityrepresentations}{{63}{}{{}}{{}}}
+\bibcite{boizard2024towardscrosstokenizerdistillation}{{12}{}{{}}{{}}}
+\@writefile{toc}{\contentsline {chapter}{References}{68}{section*.59}\protected@file@percent }
+\bibcite{wikimedia_continuous_optimal_transport_image}{{13}{}{{}}{{}}}
+\bibcite{peyre2019computationaloptimaltransport}{{14}{}{{}}{{}}}
+\bibcite{takezawa2021supervisedtreewasserstein}{{15}{}{{}}{{}}}
+\bibcite{wikimedia_optimal_transport_matrix_image}{{16}{}{{}}{{}}}
+\bibcite{alayrac2022flamingovisuallanguagemodel}{{17}{}{{}}{{}}}
+\bibcite{li2023blip2bootstrappinglanguageimagepretraining}{{18}{}{{}}{{}}}
+\bibcite{liu2023visualinstructiontuning}{{19}{}{{}}{{}}}
+\bibcite{hu2024visualprogramdistillation}{{20}{}{{}}{{}}}
+\bibcite{chu2023mobilevlm}{{21}{}{{}}{{}}}
+\bibcite{zhou2024tinyllava}{{22}{}{{}}{{}}}
+\bibcite{kaplan2020scalinglaws}{{23}{}{{}}{{}}}
+\bibcite{hoffmann2022trainingcomputeoptimal}{{24}{}{{}}{{}}}
+\bibcite{marafioti2025smolvlm}{{25}{}{{}}{{}}}
+\bibcite{smolvlm_blog}{{26}{}{{}}{{}}}
+\bibcite{airank_textvqa_2026}{{27}{}{{}}{{}}}
+\bibcite{airank_docvqa_2026}{{28}{}{{}}{{}}}
+\bibcite{airank_chartqa_2026}{{29}{}{{}}{{}}}
+\bibcite{xu2024surveyknowledgedistillationlarge}{{30}{}{{}}{{}}}
+\bibcite{wang2021blackboxkd}{{31}{}{{}}{{}}}
+\bibcite{ma2024blackboxkd}{{32}{}{{}}{{}}}
+\bibcite{dasgupta2025improving}{{33}{}{{}}{{}}}
+\bibcite{frantar2022gptq}{{34}{}{{}}{{}}}
+\bibcite{xiao2023smoothquant}{{35}{}{{}}{{}}}
+\bibcite{lin2024awq}{{36}{}{{}}{{}}}
+\bibcite{li2025mbq}{{37}{}{{}}{{}}}
+\bibcite{fang2021compressingvlm}{{38}{}{{}}{{}}}
+\bibcite{yang2024clipcid}{{39}{}{{}}{{}}}
+\bibcite{yuan2020reinforcedmultiteacherselection}{{40}{}{{}}{{}}}
+\bibcite{zhang2023adaptivemultiteachermetalearning}{{41}{}{{}}{{}}}
+\bibcite{yu2024selectdistill}{{42}{}{{}}{{}}}
+\bibcite{fedus2022switchtransformersscalingtrillion}{{43}{}{{}}{{}}}
+\bibcite{zhou2022mixtureofexpertswithexpertchoice}{{44}{}{{}}{{}}}
+\bibcite{zhu2021studentcustomized}{{45}{}{{}}{{}}}
+\bibcite{lin1991jensen}{{46}{}{{}}{{}}}
+\bibcite{leyamadafukumizucuturi2019treesliced}{{47}{}{{}}{{}}}
+\bibcite{shazeer2017outrageouslylargeneuralnetworks}{{48}{}{{}}{{}}}
+\bibcite{deepseekai2024deepseekv2strongeconomicalefficient}{{49}{}{{}}{{}}}
+\bibcite{wikimedia_deepseek_moe_mla_image}{{50}{}{{}}{{}}}
+\bibcite{wikimedia_gradient_descent_image}{{51}{}{{}}{{}}}
+\bibcite{duan2024vlmevalkit}{{52}{}{{}}{{}}}
+\bibcite{wikimedia_stop_sign_image}{{53}{}{{}}{{}}}
+\bibcite{wikimedia_receipt_swiss_image}{{54}{}{{}}{{}}}
+\bibcite{wikimedia_bar_chart_image}{{55}{}{{}}{{}}}
+\bibcite{rajbhandari2020zero}{{56}{}{{}}{{}}}
+\bibcite{chen2016sublinear}{{57}{}{{}}{{}}}
+\bibcite{cloudflare_r2_overview}{{58}{}{{}}{{}}}
+\bibcite{cloudflare_r2_s3}{{59}{}{{}}{{}}}
+\bibcite{fsspec_features}{{60}{}{{}}{{}}}
+\bibcite{fsspec_api}{{61}{}{{}}{{}}}
+\bibcite{smolvlm2_modelcard}{{62}{}{{}}{{}}}
+\bibcite{cui2024sinkhorn}{{63}{}{{}}{{}}}
+\bibcite{williams1992simple}{{64}{}{{}}{{}}}
+\bibcite{kornblith2019similarityrepresentations}{{65}{}{{}}{{}}}
+\bibcite{wen2023fdistill}{{66}{}{{}}{{}}}
 \providecommand\NAT@force@numbers{}\NAT@force@numbers
-\gdef \@abspage@last{77}
+\gdef \@abspage@last{91}

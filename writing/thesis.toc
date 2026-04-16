@@ -4,63 +4,69 @@
 \contentsline {chapter}{Abstract}{iii}{Doc-Start}%
 \contentsline {chapter}{Table of Contents}{iv}{Doc-Start}%
 \contentsline {chapter}{List of Figures}{vii}{Doc-Start}%
-\contentsline {chapter}{List of Tables}{ix}{Doc-Start}%
+\contentsline {chapter}{List of Tables}{x}{Doc-Start}%
 \contentsline {chapter}{List of Abbreviations}{xi}{chapter*.1}%
 \contentsline {chapter}{\numberline {1}Introduction}{1}{chapter.1}%
 \contentsline {section}{\numberline {1.1}Background and Motivation}{1}{section.1.1}%
-\contentsline {section}{\numberline {1.2}Problem Statement and Research Objectives}{6}{section.1.2}%
+\contentsline {section}{\numberline {1.2}Problem Statement and Research Objectives}{7}{section.1.2}%
 \contentsline {section}{\numberline {1.3}Thesis Contributions}{8}{section.1.3}%
 \contentsline {chapter}{\numberline {2}Preliminaries}{9}{chapter.2}%
 \contentsline {section}{\numberline {2.1}Transformer-Based Vision-Language Models}{9}{section.2.1}%
 \contentsline {subsection}{\numberline {2.1.1}Transformer Basics}{9}{subsection.2.1.1}%
 \contentsline {subsection}{\numberline {2.1.2}Vision Encoder and Multimodal Fusion}{9}{subsection.2.1.2}%
-\contentsline {subsection}{\numberline {2.1.3}Text-Rich Multimodal Understanding}{10}{subsection.2.1.3}%
+\contentsline {subsection}{\numberline {2.1.3}Text-Rich Multimodal Understanding}{12}{subsection.2.1.3}%
 \contentsline {section}{\numberline {2.2}Knowledge Distillation}{12}{section.2.2}%
 \contentsline {subsection}{\numberline {2.2.1}Teacher-Student Learning}{12}{subsection.2.2.1}%
-\contentsline {subsection}{\numberline {2.2.2}Temperature-Scaled Output Distributions}{12}{subsection.2.2.2}%
-\contentsline {section}{\numberline {2.3}Universal Logit Distillation}{13}{section.2.3}%
+\contentsline {subsection}{\numberline {2.2.2}Temperature-Scaled Output Distributions}{13}{subsection.2.2.2}%
+\contentsline {section}{\numberline {2.3}Cross-Tokenizer Distillation Background}{13}{section.2.3}%
 \contentsline {subsection}{\numberline {2.3.1}Motivation}{13}{subsection.2.3.1}%
-\contentsline {subsection}{\numberline {2.3.2}ULD Formulation}{13}{subsection.2.3.2}%
-\contentsline {subsection}{\numberline {2.3.3}Optimal Transport Perspective}{13}{subsection.2.3.3}%
-\contentsline {subsection}{\numberline {2.3.4}Answer-Token Distillation}{15}{subsection.2.3.4}%
-\contentsline {section}{\numberline {2.4}Multi-Teacher Distillation}{15}{section.2.4}%
-\contentsline {subsection}{\numberline {2.4.1}Per-Teacher KD Loss}{15}{subsection.2.4.1}%
-\contentsline {subsection}{\numberline {2.4.2}Learned Routing and Load Balancing}{15}{subsection.2.4.2}%
-\contentsline {subsection}{\numberline {2.4.3}Gradient Alignment as a Routing Signal}{17}{subsection.2.4.3}%
-\contentsline {chapter}{\numberline {3}Proposed Method}{18}{chapter.3}%
-\contentsline {section}{\numberline {3.1}Method Overview and Problem Formulation}{18}{section.3.1}%
-\contentsline {subsection}{\numberline {3.1.1}Overall Training Flow}{19}{subsection.3.1.1}%
-\contentsline {section}{\numberline {3.2}Token-Level Distillation with ULD}{19}{section.3.2}%
-\contentsline {subsection}{\numberline {3.2.1}Supervised Answer Tokens}{19}{subsection.3.2.1}%
-\contentsline {subsection}{\numberline {3.2.2}Universal Logit Distillation}{21}{subsection.3.2.2}%
-\contentsline {section}{\numberline {3.3}Learned Teacher Gate and Load Balancing}{22}{section.3.3}%
-\contentsline {subsection}{\numberline {3.3.1}Student-Conditioned Router}{22}{subsection.3.3.1}%
-\contentsline {subsection}{\numberline {3.3.2}Top-k, Capacity and Fallback}{22}{subsection.3.3.2}%
-\contentsline {subsection}{\numberline {3.3.3}Balancing Loss and Expert Bias Update}{23}{subsection.3.3.3}%
-\contentsline {section}{\numberline {3.4}GRACE Score Refinement}{26}{section.3.4}%
-\contentsline {subsection}{\numberline {3.4.1}Gradient Proxies}{26}{subsection.3.4.1}%
-\contentsline {subsection}{\numberline {3.4.2}GRACE Scores and Logged Active Flags}{26}{subsection.3.4.2}%
-\contentsline {subsection}{\numberline {3.4.3}Warmup, Score Smoothing and Gradient Weights}{27}{subsection.3.4.3}%
-\contentsline {subsection}{\numberline {3.4.4}Router-Gradient Blend and Uniform Fallback}{29}{subsection.3.4.4}%
-\contentsline {subsection}{\numberline {3.4.5}Sample-Wise KD Aggregation}{31}{subsection.3.4.5}%
-\contentsline {section}{\numberline {3.5}Final Objective}{31}{section.3.5}%
-\contentsline {chapter}{\numberline {4}Evaluation Methodology}{33}{chapter.4}%
-\contentsline {section}{\numberline {4.1}Experimental Setup}{33}{section.4.1}%
-\contentsline {section}{\numberline {4.2}Datasets}{33}{section.4.2}%
-\contentsline {subsection}{\numberline {4.2.1}Dataset Descriptions}{34}{subsection.4.2.1}%
-\contentsline {subsection}{\numberline {4.2.2}Dataset Size and Splits}{34}{subsection.4.2.2}%
-\contentsline {section}{\numberline {4.3}Training Configuration}{36}{section.4.3}%
-\contentsline {subsection}{\numberline {4.3.1}Offline Teacher-Logit Preparation}{37}{subsection.4.3.1}%
-\contentsline {subsection}{\numberline {4.3.2}Remote Logit Streaming During Training}{38}{subsection.4.3.2}%
-\contentsline {section}{\numberline {4.4}Evaluation Metrics}{38}{section.4.4}%
-\contentsline {section}{\numberline {4.5}Baselines and Compared Methods}{40}{section.4.5}%
-\contentsline {chapter}{\numberline {5}Experiment Results}{43}{chapter.5}%
-\contentsline {section}{\numberline {5.1}Main Comparison Results}{43}{section.5.1}%
-\contentsline {subsection}{\numberline {5.1.1}Baseline Results}{43}{subsection.5.1.1}%
-\contentsline {subsection}{\numberline {5.1.2}Overall Comparison}{43}{subsection.5.1.2}%
-\contentsline {section}{\numberline {5.2}Representation Similarity Analysis}{49}{section.5.2}%
-\contentsline {section}{\numberline {5.3}Ablation Study}{50}{section.5.3}%
-\contentsline {section}{\numberline {5.4}Qualitative Analysis}{52}{section.5.4}%
-\contentsline {section}{\numberline {5.5}Discussion}{52}{section.5.5}%
-\contentsline {chapter}{Conclusion and Future Work}{53}{chapter*.50}%
-\contentsline {chapter}{References}{54}{section*.51}%
+\contentsline {subsection}{\numberline {2.3.2}ULD as a Prior Baseline}{14}{subsection.2.3.2}%
+\contentsline {subsection}{\numberline {2.3.3}Optimal Transport and Tree-Structured Mass Matching}{14}{subsection.2.3.3}%
+\contentsline {subsection}{\numberline {2.3.4}Answer-Token Distillation}{17}{subsection.2.3.4}%
+\contentsline {section}{\numberline {2.4}Multi-Teacher Distillation}{18}{section.2.4}%
+\contentsline {subsection}{\numberline {2.4.1}Per-Teacher KD Loss}{18}{subsection.2.4.1}%
+\contentsline {subsection}{\numberline {2.4.2}Learned Routing and Load Balancing}{18}{subsection.2.4.2}%
+\contentsline {subsection}{\numberline {2.4.3}Gradient Alignment as a Routing Signal}{21}{subsection.2.4.3}%
+\contentsline {section}{\numberline {2.5}Related Work}{21}{section.2.5}%
+\contentsline {subsection}{\numberline {2.5.1}Compact VLM Distillation and Compression}{21}{subsection.2.5.1}%
+\contentsline {subsection}{\numberline {2.5.2}Cross-Tokenizer Distillation}{21}{subsection.2.5.2}%
+\contentsline {subsection}{\numberline {2.5.3}Multi-Teacher Distillation and Adaptive Routing}{22}{subsection.2.5.3}%
+\contentsline {subsection}{\numberline {2.5.4}Relation to This Thesis}{22}{subsection.2.5.4}%
+\contentsline {chapter}{\numberline {3}Proposed Method}{23}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Method Overview and Problem Formulation}{23}{section.3.1}%
+\contentsline {subsection}{\numberline {3.1.1}Overall Training Flow}{24}{subsection.3.1.1}%
+\contentsline {section}{\numberline {3.2}Trie-Wasserstein Cross-Tokenizer Distillation}{27}{section.3.2}%
+\contentsline {subsection}{\numberline {3.2.1}Supervised Answer Tokens}{27}{subsection.3.2.1}%
+\contentsline {subsection}{\numberline {3.2.2}Shared Byte Trie}{27}{subsection.3.2.2}%
+\contentsline {subsection}{\numberline {3.2.3}Sparse Top-\(k\) Support and Tail Edge}{28}{subsection.3.2.3}%
+\contentsline {section}{\numberline {3.3}Learned Teacher Gate and Load Balancing}{30}{section.3.3}%
+\contentsline {subsection}{\numberline {3.3.1}Student-Conditioned Router}{30}{subsection.3.3.1}%
+\contentsline {subsection}{\numberline {3.3.2}Top-k, Capacity and Fallback}{31}{subsection.3.3.2}%
+\contentsline {subsection}{\numberline {3.3.3}Balancing Loss and Expert Bias Update}{31}{subsection.3.3.3}%
+\contentsline {section}{\numberline {3.4}GRACE Score Refinement}{32}{section.3.4}%
+\contentsline {subsection}{\numberline {3.4.1}Gradient Proxies}{32}{subsection.3.4.1}%
+\contentsline {subsection}{\numberline {3.4.2}GRACE Scores and Logged Active Flags}{34}{subsection.3.4.2}%
+\contentsline {subsection}{\numberline {3.4.3}Warmup, Score Smoothing and Gradient Weights}{35}{subsection.3.4.3}%
+\contentsline {subsection}{\numberline {3.4.4}Router-Gradient Blend and Uniform Fallback}{36}{subsection.3.4.4}%
+\contentsline {subsection}{\numberline {3.4.5}Sample-Wise KD Aggregation}{39}{subsection.3.4.5}%
+\contentsline {section}{\numberline {3.5}Final Objective}{39}{section.3.5}%
+\contentsline {chapter}{\numberline {4}Evaluation Methodology}{41}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Experimental Setup}{41}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Datasets}{41}{section.4.2}%
+\contentsline {subsection}{\numberline {4.2.1}Dataset Descriptions}{41}{subsection.4.2.1}%
+\contentsline {subsection}{\numberline {4.2.2}Dataset Size and Splits}{42}{subsection.4.2.2}%
+\contentsline {section}{\numberline {4.3}Training Configuration}{42}{section.4.3}%
+\contentsline {subsection}{\numberline {4.3.1}Offline Teacher-Logit Preparation}{44}{subsection.4.3.1}%
+\contentsline {subsection}{\numberline {4.3.2}Remote Logit Streaming During Training}{45}{subsection.4.3.2}%
+\contentsline {section}{\numberline {4.4}Evaluation Metrics}{48}{section.4.4}%
+\contentsline {section}{\numberline {4.5}Baselines and Compared Methods}{49}{section.4.5}%
+\contentsline {chapter}{\numberline {5}Experiment Results}{53}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Main Comparison Results}{53}{section.5.1}%
+\contentsline {subsection}{\numberline {5.1.1}Baseline Results}{53}{subsection.5.1.1}%
+\contentsline {subsection}{\numberline {5.1.2}Overall Comparison}{53}{subsection.5.1.2}%
+\contentsline {section}{\numberline {5.2}Representation Similarity Analysis}{62}{section.5.2}%
+\contentsline {section}{\numberline {5.3}Ablation Study}{63}{section.5.3}%
+\contentsline {section}{\numberline {5.4}Qualitative Analysis}{65}{section.5.4}%
+\contentsline {section}{\numberline {5.5}Discussion}{65}{section.5.5}%
+\contentsline {chapter}{Conclusion and Future Work}{67}{chapter*.58}%
+\contentsline {chapter}{References}{68}{section*.59}%

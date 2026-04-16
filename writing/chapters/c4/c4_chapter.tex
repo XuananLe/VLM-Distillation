@@ -6,7 +6,7 @@ All experiments follow a shared evaluation protocol for fair comparison across m
 
 The study focuses on two compact student models, \textbf{SmolVLM-500M} and \textbf{SmolVLM-256M}, evaluated on text-rich multimodal benchmarks \cite{marafioti2025smolvlm}.
 
-All model evaluations are conducted using \textbf{VLM-Eval-Kit} \cite{duan2024vlmevalkit}. In brief, the toolkit works as follows:
+We evaluate all models with \textbf{VLM-Eval-Kit} \cite{duan2024vlmevalkit}. In brief, the toolkit works as follows:
 \begin{enumerate}
 \item Load a benchmark split and apply its prompt template or input format.
 \item Run model inference through a unified model wrapper interface.
@@ -20,14 +20,14 @@ We evaluate three text-centric VQA benchmarks: \textbf{TextVQA}, \textbf{DocVQA}
 
 The goal is to measure whether the model can \textbf{read textual content in images, understand questions and perform basic reasoning} across different visual domains \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
-These datasets are selected because they require optical character recognition (OCR)-heavy understanding, cover complementary visual domains and include retrieval, layout understanding and numerical reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+We chose these datasets because they require optical character recognition (OCR)-heavy understanding, cover complementary visual domains and include retrieval, layout understanding and numerical reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
 \subsection{Dataset Descriptions}
 \textbf{TextVQA} \cite{singh2019vqamodelsread}: evaluates question answering on natural images containing scene text.  
 It focuses on reading text in-the-wild and combining it with question understanding.
 \textit{Sample question}: ``What word is written on the stop sign?''
 \textit{Sample answer}: ``No word is visible on this sign.''
-\begin{figure}[htbp]
+\begin{figure}[tp]
     \centering
     \includegraphics[width=0.32\linewidth]{figures/textvqa_sample_stop_sign.jpg}
     \caption[TextVQA sample image.]{Example image for a TextVQA-style question \cite{wikimedia_stop_sign_image}. The task depends on reading scene text in a natural image and grounding the answer in that text.}
@@ -38,7 +38,7 @@ It focuses on reading text in-the-wild and combining it with question understand
 It emphasizes document structure understanding in addition to OCR.
 \textit{Sample question}: ``What is the invoice number shown in this document?''
 \textit{Sample answer}: ``4572.''
-\begin{figure}[htbp]
+\begin{figure}[tp]
     \centering
     \includegraphics[width=0.40\linewidth]{figures/docvqa_sample_receipt.jpg}
     \caption[DocVQA sample image.]{Example document image for a DocVQA-style question \cite{wikimedia_receipt_swiss_image}. Unlike TextVQA, the answer depends on document layout, local text spans and structured fields.}
@@ -49,7 +49,7 @@ It emphasizes document structure understanding in addition to OCR.
 It tests chart reading plus numerical and logical reasoning to derive the final answer.
 \textit{Sample question}: ``Which year has the highest sales value in the chart?''
 \textit{Sample answer}: ``The second (middle) bar has the highest value.''
-\begin{figure}[htbp]
+\begin{figure}[tp]
     \centering
     \includegraphics[width=0.40\linewidth]{figures/chartqa_sample_bar_chart.png}
     \caption[ChartQA sample image.]{Example chart image for a ChartQA-style question \cite{wikimedia_bar_chart_image}. This benchmark adds visual reading and numerical comparison on top of text extraction.}
@@ -63,7 +63,7 @@ evaluation.
 \subsection{Dataset Size and Splits}
 Table~\ref{tab:dataset-sizes} lists the split sizes used throughout the
 evaluation chapter.
-\begin{table}[htbp]
+\begin{table}[tp]
 \centering
 \scalebox{0.96}{
 \begin{tabular}{lrrrr}
@@ -78,7 +78,7 @@ ChartQA (H+M, combined) & 28,299 & 1,920 & 2,500 & 32,719 \\
 \bottomrule
 \end{tabular}
 }
-\caption[Dataset split sizes for the three benchmarks.]{Dataset split sizes (number of QA pairs) for TextVQA, DocVQA and ChartQA \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. The table shows that DocVQA is the largest single benchmark, while ChartQA combines human and machine-generated subsets.}
+\caption[Dataset split sizes for the three benchmarks.]{Train, validation and test split sizes for TextVQA, DocVQA and ChartQA \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. ChartQA is also broken down into its human and machine-generated subsets.}
 \label{tab:dataset-sizes}
 \end{table}
 
@@ -86,18 +86,21 @@ ChartQA (H+M, combined) & 28,299 & 1,920 & 2,500 & 32,719 \\
 
 Unless otherwise stated, the main distillation experiments use a shared training
 configuration so that differences in performance can be attributed to the
-distillation strategy rather than unrelated optimization choices.
+distillation strategy, not unrelated optimization choices.
 
-All training runs are executed on a single high-memory \textbf{NVIDIA H200}
+We run all training jobs on a single high-memory \textbf{NVIDIA H200}
 graphics processing unit (GPU) on \textbf{Modal} or on comparable single-GPU
 \textbf{Vast.ai} instances, depending on availability.
+A typical full H200 run takes about 7 hours and costs about 21 USD on
+Vast.ai, excluding the separate cost of offline teacher-logit generation and
+remote storage.
 Distillation training uses \textbf{DeepSpeed ZeRO Stage 2}, \textbf{Brain
 Floating Point 16 (bf16)} mixed precision, \textbf{TensorFloat-32 (TF32)}
 matrix multiplication and gradient checkpointing to control memory use while
 keeping the student fully trainable and all teachers frozen
 \cite{rajbhandari2020zero,chen2016sublinear}.
 
-Before training, all benchmark samples are converted into a unified
+Before training, we convert all benchmark samples into a unified
 \textbf{LLaVA-style multimodal instruction format}
 \cite{liu2023visualinstructiontuning}. Each example is stored as an image plus
 a short user-assistant dialogue, so TextVQA, DocVQA and ChartQA can share the
@@ -125,7 +128,7 @@ the selected teacher logits and the corresponding supervised labels. This
 keeps the online training loop simple: the student only reads precomputed
 teacher targets instead of running the teachers again.
 
-After generation, the teacher-logit directories are uploaded to a
+After generation, we upload the teacher-logit directories to a
 \textbf{Cloudflare R2} bucket using its S3-compatible object-storage interface
 \cite{cloudflare_r2_overview,cloudflare_r2_s3}. In our setup, the bucket
 already exceeds \textbf{1 TB}, so copying the whole cache to a rented GPU
@@ -133,7 +136,7 @@ instance is impractical. This is especially relevant on services such as
 Vast.ai, where local NVMe space is usually much smaller than the full teacher
 logit store.
 
-\begin{figure}[htbp]
+\begin{figure}[tp]
 \centering
 \includegraphics[width=0.82\linewidth]{figures/r2-storage.png}
 \caption[R2 bucket used for teacher-logit storage.]{Cloudflare R2 bucket used for offline teacher-logit storage. The screenshot shows the large bucket footprint and the dataset-specific teacher-logit prefixes, which motivates remote streaming instead of copying the full cache onto each training instance.}
@@ -145,7 +148,7 @@ offline teacher caches.
 
 \subsection{Remote Logit Streaming During Training}
 The current main training path does \emph{not} predownload the full cache. When
-an R2 root is provided to the launcher
+the launcher receives an R2 root
 \texttt{distill\_multi\_teachers.sh}, the trainer switches to remote lazy
 loading. During training, \texttt{StreamingTeacherLogitsCache} resolves the
 teacher-specific remote path
@@ -157,15 +160,15 @@ then fetches files lazily from R2 through \texttt{s3fs} and
 repository also includes a repacking utility for MDS, but the current main
 training path reads the raw per-sample \texttt{.pt} cache directly.
 
-To keep disk usage bounded, the loader uses a \textbf{100 GB} local cache. Each
-file is cached only after first access. After a file is opened, the loader
-updates its access time. When the total cache size exceeds the limit, the
-oldest cached files are removed first. In effect, the local cache behaves as a
-small least-recently-used style buffer over the much larger R2 store. A
-per-teacher file lock is also used when cache metadata is updated, so
+To keep disk usage bounded, the loader uses a \textbf{100 GB} local cache. The
+loader caches each file only after first access. After a file is opened, the
+loader updates its access time. When the total cache size exceeds the limit,
+the loader removes the oldest cached files first. In effect, the local cache
+behaves as a small least-recently-used style buffer over the much larger R2
+store. A per-teacher file lock also guards cache metadata updates, so
 concurrent dataloader workers do not corrupt the cache state.
 
-\begin{figure}[htbp]
+\begin{figure}[tp]
 \centering
 \includegraphics[width=0.96\linewidth]{figures/r2_cache_training.png}
 \caption{Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training and kept in a bounded local cache with oldest-file eviction. This setup avoids copying a multi-terabyte teacher store onto each rented GPU instance.}
@@ -175,38 +178,53 @@ concurrent dataloader workers do not corrupt the cache state.
 Figure~\ref{fig:r2-cache-training} summarizes the remote-cache training path
 used in the current implementation.
 
-\begin{table}[htbp]
-\centering
-\scriptsize
-\renewcommand{\arraystretch}{0.92}
-\begin{tabular}{p{0.34\linewidth} p{0.58\linewidth}}
+\begingroup
+\small
+\renewcommand{\arraystretch}{0.95}
+\begin{longtable}{p{0.33\textwidth} p{0.61\textwidth}}
+\caption[Training configuration for the current main distillation script.]{Key hyperparameters, systems settings and cache settings for the current three-teacher DocVQA distillation script. The values come from the active launch path documented in this chapter, while Chapter~\ref{chap:experiment-results} additionally reports broader completed runs.}
+\label{tab:training-configuration}\\
 \toprule
 \textbf{Setting} & \textbf{Value} \\
 \midrule
+\endfirsthead
+\multicolumn{2}{l}{\textit{Table \thetable\ continued from the previous page.}}\\
+\toprule
+\textbf{Setting} & \textbf{Value} \\
+\midrule
+\endhead
+\bottomrule
+\multicolumn{2}{r}{\textit{Continued on the next page.}}\\
+\endfoot
+\bottomrule
+\endlastfoot
 Student model & HuggingFaceTB/SmolVLM-500M-Instruct \\
-Teacher models & \makecell[l]{Qwen/Qwen2.5-VL-3B-Instruct\\google/gemma-3-4b-it} \\
-Teacher weighting strategy & routing \\
-Distillation loss & ULD \\
+Teacher models & \makecell[l]{Qwen/Qwen2.5-VL-3B-Instruct\\Qwen/Qwen2-VL-2B-Instruct\\ibm-granite/granite-vision-3.1-2b-preview} \\
+Teacher weighting strategy & routing (GRACE path) \\
+Distillation loss & Trie-Wasserstein \\
+Trie-Wasserstein rho & 0.7 \\
+Trie-Wasserstein top-$k$ & 64 \\
 Training dataset & DocVQA \\
 Validation split & validation \\
 Hardware and runtime & Single-GPU runs on Modal (H200) or Vast.ai \\
+Typical run cost & About 7 hours on H200, about 21 USD on Vast.ai \\
 Distributed training & DeepSpeed ZeRO-2 \\
 Optimizer & adamw\_torch \\
 Adam betas & \((0.9, 0.98)\) \\
 Adam epsilon & \(1\times 10^{-7}\) \\
-Weight decay & N/A \\
+Weight decay & 0.0 \\
 Numerical precision & bf16 enabled, half precision (fp16) disabled, TF32 enabled \\
 FlashAttention-2 & Enabled \\
 Training data format & LLaVA-style multimodal instruction JSON \\
 Teacher-logit storage & Cloudflare R2 object storage \\
 Teacher-logit format & Raw per-sample \texttt{.pt} files \\
-Local cache directory & \texttt{/tmp/teacher-logits-streaming} \\
+Local cache directory & \makecell[l]{\texttt{/tmp/teacher-logits-streaming} for R2 reads\\\texttt{/workspace/cache} for local-cache reads} \\
 Local cache limit & 100 GB \\
 Max sequence length & 16384 \\
-Training epochs & 1 \\
-Per-device batch size & 20 \\
+Training epochs & 2 \\
+Per-device batch size & 80 \\
 Gradient accumulation steps & 1 \\
-Effective batch size & 20 \\
+Effective batch size & 80 \\
 Base learning rate & \(1\times 10^{-5}\) \\
 Vision learning rate & \(2\times 10^{-6}\) \\
 Connector learning rate & \(1\times 10^{-5}\) \\
@@ -226,18 +244,15 @@ Gate entropy weight & \(\lambda_{ent}=10^{-3}\) \\
 Router \(z\)-loss weight & \(\lambda_{z}=10^{-3}\) \\
 Bias-update rate & \(\eta_b=5\times 10^{-4}\) \\
 Hard-routing warmup ratio & \(\rho_h=0.2\) \\
-GRACE warmup ratio & \(\rho_g=0.2\) \\
-GRACE softmax beta & \(\beta=20\) \\
-GRACE blend exponent & \(\lambda=0.5\) \\
-Score-spread fallback threshold & \(\epsilon=0.01\) \\
-Alignment threshold & \(\delta=-0.02\) \\
-Seed & N/A \\
-Image resolution / visual token budget & N/A \\
-\bottomrule
-\end{tabular}
-\caption[Training configuration for the current main distillation script.]{Training configuration for the current main two-teacher distillation script. The table mixes fixed launch-script values with a small number of placeholders that can be finalized later.}
-\label{tab:training-configuration}
-\end{table}
+GRACE warmup ratio & \(\rho_g=0.01\) \\
+GRACE softmax beta & \(\beta=10\) \\
+GRACE blend exponent & \(\lambda=0.4\) \\
+Score-spread fallback threshold & \(\epsilon=0.001\) \\
+Alignment threshold & \(\delta=-0.005\) \\
+Seed & 42 \\
+Image resolution / visual token budget & Processor defaults; no manual override \\
+\end{longtable}
+\endgroup
 
 \section{Evaluation Metrics}
 We report benchmark-specific official metrics for each dataset:
@@ -273,7 +288,7 @@ compared methods into four groups: non-distillation references, same-family
 distillation baselines, different-family single-teacher baselines, and
 heterogeneous multi-teacher baselines.
 
-\begin{table}[htbp]
+\begin{table}[tp]
 \centering
 \scriptsize
 \renewcommand{\arraystretch}{0.95}
@@ -287,7 +302,7 @@ heterogeneous multi-teacher baselines.
 \makecell[l]{Heterogeneous\\multi-teacher\\baselines} & \makecell[l]{Uniform averaging,\\SHM-CKA, reinforced\\selection, \methodname{}} & \makecell[l]{Mixed teacher pool from\\multiple VLM families} & \makecell[l]{Static averaging vs.\\hidden-state matching\\vs. adaptive teacher assignment} \\
 \bottomrule
 \end{tabular}
-\caption[Baseline groups used in the evaluation chapter.]{Baseline groups used in the evaluation chapter. The grouping clarifies whether a method tests matched-token KD, cross-tokenizer transfer, or adaptive multi-teacher weighting. This makes the comparison chapter easier to read because each result block has a clear experimental role.}
+\caption[Baseline groups used in the evaluation chapter.]{Baseline groups used in the evaluation chapter. The grouping separates student-only references, same-family KD, cross-tokenizer single-teacher transfer and heterogeneous multi-teacher methods.}
 \label{tab:baseline-groups}
 \end{table}
 
@@ -298,13 +313,16 @@ before the method-specific descriptions below.
 \item \textbf{Non-distillation references.} The original student and the full-finetuning baseline provide the student-only reference points for each benchmark.
 \item \textbf{Same-family baselines.} Forward Kullback-Leibler (KL), reverse KL and Jensen-Shannon divergence all use \textbf{SmolVLM2-2.2B-Instruct} as a same-family teacher \cite{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,cui2024sinkhorn}. They isolate standard teacher-student transfer when tokenizer, vocabulary and output space are already matched.
 \item \textbf{Different-family single-teacher baselines.} This group uses one teacher outside the SmolVLM family. ULD is the main cross-tokenizer logits baseline \cite{boizard2024towardscrosstokenizerdistillation}.
-\item \textbf{Heterogeneous multi-teacher baselines.} This group uses teacher pools drawn from different VLM families. Uniform averaging keeps fixed equal weights. SHM-CKA adds hidden-state matching over the same pool. Reinforced selection learns a stochastic teacher policy with REINFORCE \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}. \methodname{} adds sparse routing and alignment-aware reweighting \cite{zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}.
+\item \textbf{Heterogeneous multi-teacher baselines.} This group uses teacher pools drawn from different VLM families. Uniform averaging keeps fixed equal weights. SHM-CKA adds hidden-state matching over the same pool. Reinforced selection learns a stochastic teacher policy with REINFORCE \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}. \methodname{} adds sparse routing, trie-Wasserstein KD and alignment-aware reweighting \cite{takezawa2021supervisedtreewasserstein,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}.
 \end{itemize}
 
 For the trainable competitor methods, we keep the same supervised term
-\(\mathcal{L}_{CE}\) and change only the teacher signal. In the descriptions
-below, \(\gamma\) denotes a generic KD mixing coefficient; \(\alpha\) remains
-reserved for the current repository training script in
+\(\mathcal{L}_{CE}\). The logits-only baselines differ only in the KD signal,
+but SHM-CKA also adds a hidden-state alignment term and reinforced selection
+also adds a REINFORCE-style policy term
+\cite{kornblith2019similarityrepresentations,williams1992simple,yuan2020reinforcedmultiteacherselection}.
+In the descriptions below, \(\gamma\) denotes a generic KD mixing coefficient;
+\(\alpha\) remains reserved for the current repository training script in
 Table~\ref{tab:training-configuration}.
 
 The compared methods are:
@@ -314,11 +332,115 @@ The compared methods are:
 \item \textbf{Forward KL}: the standard same-family KD baseline, with \(\mathcal{L}_{KD}=\mathrm{KL}(p_t\|p_s)\) \cite{hinton2015distillingknowledgeneuralnetwork}. It tests soft-target transfer when tokenizer and vocabulary are already matched.
 \item \textbf{Reverse KL}: uses \(\mathcal{L}_{KD}=\mathrm{KL}(p_s\|p_t)\) \cite{cui2024sinkhorn,wen2023fdistill}. This variant is more mode-seeking and serves as a deliberately harder divergence baseline.
 \item \textbf{Jensen-Shannon}: uses the symmetric divergence \(\tfrac{1}{2}\mathrm{KL}(p_s\|m)+\tfrac{1}{2}\mathrm{KL}(p_t\|m)\), where \(m=\tfrac{1}{2}(p_s+p_t)\) \cite{lin1991jensen,cui2024sinkhorn}. It tests whether a bounded symmetric objective is more stable than KL.
-\item \textbf{ULD}: uses \(\mathcal{L}_{KD}=\|\pi(p_s)-\pi(p_t)\|_1\) \cite{boizard2024towardscrosstokenizerdistillation}. This is the main cross-tokenizer baseline because it compares ranked probability mass rather than token IDs.
-\item \textbf{SHM-CKA}: keeps the same heterogeneous teacher pool as \methodname{}, but adds hidden-state matching through a CKA penalty on top of the logits objective \cite{dasgupta2025improving,kornblith2019similarityrepresentations}. It tests whether direct representation alignment is sufficient without routed GRACE weighting.
+\item \textbf{ULD}: uses \(\mathcal{L}_{KD}=\|\pi(p_s)-\pi(p_t)\|_1\) \cite{boizard2024towardscrosstokenizerdistillation}. This is the main cross-tokenizer logits baseline because it compares ranked probability mass, not token IDs.
+\item \textbf{SHM-CKA}: keeps the same heterogeneous teacher pool as \methodname{}, but replaces routed weighting with a per-teacher ULD logits loss plus a hidden-state CKA penalty \cite{boizard2024towardscrosstokenizerdistillation,dasgupta2025improving,kornblith2019similarityrepresentations}. It tests whether direct representation alignment is sufficient without routed GRACE weighting.
 \item \textbf{Uniform multi-teacher}: averages the heterogeneous teacher losses with fixed equal weights, \(\mathcal{L}_{KD}=\frac{1}{M}\sum_{i=1}^{M}\mathcal{L}_{KD}^{(i)}\) \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}. It isolates the effect of teacher diversity without adaptive assignment.
 \item \textbf{Reinforced selection}: replaces deterministic routing with a stochastic policy that samples teachers and updates the selector with REINFORCE \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}. This baseline is close in spirit to adaptive selection, but it does not use GRACE score refinement.
 \end{itemize}
+
+For SHM-CKA, the historical training code first loads an offline CKA matrix
+and, for each student layer \(s\), selects the top-\(k\) teacher layers
+\(\mathcal{T}_s\). Their CKA scores are normalized into soft weights
+\(\alpha_{s,t}\). The per-teacher layer loss is
+\begin{equation}
+\mathcal{L}_{\mathrm{layer}}^{(i)}
+=
+\frac{1}{|S|}
+\sum_{s \in S}
+\sum_{t \in \mathcal{T}_s}
+\alpha_{s,t}\bigl(1-\sqrt{\mathrm{CKA}(\mathbf{H}_s,\mathbf{H}_t)}\bigr).
+\end{equation}
+Each teacher also contributes its own ULD logits loss
+\(\mathcal{L}_{\mathrm{ULD}}^{(i)}\). In the historical single-teacher code, the
+default fixed-weight objective gives equal weight to CE, logits KD and layer
+matching:
+\begin{equation}
+\mathcal{L}_{\mathrm{fixed}}
+=
+\frac{1}{3}
+\left(
+\mathcal{L}_{CE}
++
+\mathcal{L}_{\mathrm{ULD}}
++
+\mathcal{L}_{\mathrm{layer}}
+\right).
+\end{equation}
+That code also supports an alternative adaptive weighting scheme, but the fixed
+equal-mean form above is the default historical setting. The original soft
+top-\(k\) matching path was implemented for single-teacher runs, so the
+heterogeneous baseline in this thesis keeps the same hidden-state idea per
+teacher, averages the logits and layer terms across the teacher pool,
+\begin{equation}
+\bar{\mathcal{L}}_{\mathrm{ULD}}
+=
+\frac{1}{M}\sum_{i=1}^{M}\mathcal{L}_{\mathrm{ULD}}^{(i)},
+\qquad
+\bar{\mathcal{L}}_{\mathrm{layer}}
+=
+\frac{1}{M}\sum_{i=1}^{M}\mathcal{L}_{\mathrm{layer}}^{(i)},
+\end{equation}
+then applies the same equal-mean combination
+\begin{equation}
+\mathcal{L}_{\mathrm{SHM\text{-}CKA}}
+=
+\frac{1}{3}
+\left(
+\mathcal{L}_{CE}
++
+\bar{\mathcal{L}}_{\mathrm{ULD}}
++
+\bar{\mathcal{L}}_{\mathrm{layer}}
+\right).
+\end{equation}
+
+For reinforced selection, the policy uses the same pooled student hidden state
+as a sample descriptor, then concatenates per-teacher summary features:
+\begin{equation}
+\mathbf{z}
+=
+\Bigl[\mathrm{Pool}(\mathbf{H}_s);\ \mathbf{f}_1;\dots;\mathbf{f}_M\Bigr],
+\qquad
+\mathbf{f}_i
+=
+\bigl[\mathcal{L}_{KD}^{(i)},\ c_i,\ e_i\bigr],
+\end{equation}
+where \(c_i\) is the teacher's mean token confidence and \(e_i\) is its
+normalized token entropy over supervised positions. A linear policy then
+predicts independent Bernoulli probabilities
+\begin{equation}
+\boldsymbol{\pi}=\sigma\!\left(W\,\mathrm{LN}(\mathbf{z})+b\right).
+\end{equation}
+During the warmup stage, all teachers stay active. After warmup, the baseline
+samples \(m_i \sim \mathrm{Bernoulli}(\pi_i)\), falls back to the
+highest-probability teacher if \(\sum_i m_i=0\) and normalizes the selected
+mask into weights
+\begin{equation}
+w_i=\frac{m_i}{\sum_{j=1}^{M} m_j}.
+\end{equation}
+The multi-teacher KD term is the weighted average
+\begin{equation}
+\mathcal{L}_{KD}
+=
+\sum_{i=1}^{M} w_i \mathcal{L}_{KD}^{(i)}.
+\end{equation}
+In the current launch script, \(\mathcal{L}_{KD}^{(i)}\) is the per-teacher
+trie-Wasserstein loss. The selector is trained with a REINFORCE-style term
+\begin{equation}
+\mathcal{L}_{\mathrm{pol}}
+=
+-(r-b)\log p(\mathbf{m}\mid\boldsymbol{\pi}),
+\end{equation}
+where \(b\) is an EMA reward baseline. The current script uses
+\(r=-\mathcal{L}_{CE}-\frac{1}{\sum_i m_i}\sum_i m_i\mathcal{L}_{KD}^{(i)}\),
+so the total reinforced-selection objective is
+\begin{equation}
+\mathcal{L}_{\mathrm{RS}}
+=
+\mathcal{L}_{CE}
++ \gamma \mathcal{L}_{KD}
++ \lambda_{\pi}\mathcal{L}_{\mathrm{pol}}.
+\end{equation}
 
 Unless noted otherwise, all baselines reuse the same data conversion pipeline,
 hardware, optimizer family and checkpointing protocol described earlier in

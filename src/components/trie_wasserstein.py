@@ -7,7 +7,7 @@ from torch import nn
 import torch.nn.functional as F
 
 
-_EOS_SENTINEL = 256
+EOS_SENTINEL = 256
 
 
 def extract_tokenizer_backend(processor_or_tokenizer):
@@ -59,13 +59,13 @@ def default_ignored_token_ids(tokenizer) -> set[int]:
 
 
 @dataclass(slots=True)
-class _TrieNode:
-    children: dict[int, "_TrieNode"] = field(default_factory=dict)
+class TrieNode:
+    children: dict[int, "TrieNode"] = field(default_factory=dict)
     edge_id: int | None = None
 
 
 @dataclass(slots=True)
-class _TrieBuildResult:
+class TrieBuildResult:
     path_flat: torch.Tensor
     path_offsets: torch.Tensor
     ignored_mask: torch.Tensor
@@ -118,7 +118,7 @@ class TrieWassersteinLoss(nn.Module):
             else {int(token_id) for token_id in ignored_teacher_token_ids}
         )
 
-        root = _TrieNode()
+        root = TrieNode()
         edge_weights: list[float] = []
 
         student_paths = self.build_paths(
@@ -151,24 +151,24 @@ class TrieWassersteinLoss(nn.Module):
         self.register_buffer("teacher_path_offsets_cpu", teacher_paths.path_offsets, persistent=True)
         self.register_buffer("teacher_ignored_mask_cpu", teacher_paths.ignored_mask, persistent=True)
 
-        self._cached_device: torch.device | None = None
-        self._edge_weights_device: torch.Tensor | None = None
-        self._student_path_flat_device: torch.Tensor | None = None
-        self._student_path_offsets_device: torch.Tensor | None = None
-        self._student_ignored_mask_device: torch.Tensor | None = None
-        self._teacher_path_flat_device: torch.Tensor | None = None
-        self._teacher_path_offsets_device: torch.Tensor | None = None
-        self._teacher_ignored_mask_device: torch.Tensor | None = None
+        self.cached_device: torch.device | None = None
+        self.edge_weights_device: torch.Tensor | None = None
+        self.student_path_flat_device: torch.Tensor | None = None
+        self.student_path_offsets_device: torch.Tensor | None = None
+        self.student_ignored_mask_device: torch.Tensor | None = None
+        self.teacher_path_flat_device: torch.Tensor | None = None
+        self.teacher_path_offsets_device: torch.Tensor | None = None
+        self.teacher_ignored_mask_device: torch.Tensor | None = None
 
     def invalidate_device_cache(self) -> None:
-        self._cached_device = None
-        self._edge_weights_device = None
-        self._student_path_flat_device = None
-        self._student_path_offsets_device = None
-        self._student_ignored_mask_device = None
-        self._teacher_path_flat_device = None
-        self._teacher_path_offsets_device = None
-        self._teacher_ignored_mask_device = None
+        self.cached_device = None
+        self.edge_weights_device = None
+        self.student_path_flat_device = None
+        self.student_path_offsets_device = None
+        self.student_ignored_mask_device = None
+        self.teacher_path_flat_device = None
+        self.teacher_path_offsets_device = None
+        self.teacher_ignored_mask_device = None
 
     def extend_vocab_state_with_ignored_tokens(
         self,
@@ -220,9 +220,9 @@ class TrieWassersteinLoss(nn.Module):
         tokenizer,
         vocab_size: int,
         ignored_token_ids: set[int],
-        root: _TrieNode,
+        root: TrieNode,
         edge_weights: list[float],
-    ) -> _TrieBuildResult:
+    ) -> TrieBuildResult:
         path_flat: list[int] = []
         path_offsets = [0]
         ignored_mask = torch.zeros(vocab_size, dtype=torch.bool)
@@ -234,7 +234,7 @@ class TrieWassersteinLoss(nn.Module):
                 continue
 
             token_bytes = list(token_piece_to_bytes(tokenizer, token_id))
-            token_bytes.append(_EOS_SENTINEL)
+            token_bytes.append(EOS_SENTINEL)
             path = self.insert_bytes(
                 token_bytes=token_bytes,
                 root=root,
@@ -243,7 +243,7 @@ class TrieWassersteinLoss(nn.Module):
             path_flat.extend(path)
             path_offsets.append(len(path_flat))
 
-        return _TrieBuildResult(
+        return TrieBuildResult(
             path_flat=torch.tensor(path_flat, dtype=torch.long),
             path_offsets=torch.tensor(path_offsets, dtype=torch.long),
             ignored_mask=ignored_mask,
@@ -253,7 +253,7 @@ class TrieWassersteinLoss(nn.Module):
         self,
         *,
         token_bytes: list[int],
-        root: _TrieNode,
+        root: TrieNode,
         edge_weights: list[float],
     ) -> list[int]:
         node = root
@@ -261,7 +261,7 @@ class TrieWassersteinLoss(nn.Module):
         for depth, byte_value in enumerate(token_bytes, start=1):
             child = node.children.get(byte_value)
             if child is None:
-                child = _TrieNode()
+                child = TrieNode()
                 child.edge_id = len(edge_weights)
                 edge_weights.append(self.rho ** (depth - 1))
                 node.children[byte_value] = child
@@ -270,16 +270,16 @@ class TrieWassersteinLoss(nn.Module):
         return path
 
     def ensure_device_tensors(self, device: torch.device) -> None:
-        if self._cached_device == device:
+        if self.cached_device == device:
             return
-        self._cached_device = device
-        self._edge_weights_device = self.edge_weights_cpu.to(device=device, non_blocking=True)
-        self._student_path_flat_device = self.student_path_flat_cpu.to(device=device, non_blocking=True)
-        self._student_path_offsets_device = self.student_path_offsets_cpu.to(device=device, non_blocking=True)
-        self._student_ignored_mask_device = self.student_ignored_mask_cpu.to(device=device, non_blocking=True)
-        self._teacher_path_flat_device = self.teacher_path_flat_cpu.to(device=device, non_blocking=True)
-        self._teacher_path_offsets_device = self.teacher_path_offsets_cpu.to(device=device, non_blocking=True)
-        self._teacher_ignored_mask_device = self.teacher_ignored_mask_cpu.to(device=device, non_blocking=True)
+        self.cached_device = device
+        self.edge_weights_device = self.edge_weights_cpu.to(device=device, non_blocking=True)
+        self.student_path_flat_device = self.student_path_flat_cpu.to(device=device, non_blocking=True)
+        self.student_path_offsets_device = self.student_path_offsets_cpu.to(device=device, non_blocking=True)
+        self.student_ignored_mask_device = self.student_ignored_mask_cpu.to(device=device, non_blocking=True)
+        self.teacher_path_flat_device = self.teacher_path_flat_cpu.to(device=device, non_blocking=True)
+        self.teacher_path_offsets_device = self.teacher_path_offsets_cpu.to(device=device, non_blocking=True)
+        self.teacher_ignored_mask_device = self.teacher_ignored_mask_cpu.to(device=device, non_blocking=True)
 
     def build_signed_edge_contributions(
         self,
@@ -375,15 +375,15 @@ class TrieWassersteinLoss(nn.Module):
     ) -> torch.Tensor:
         student_edges, student_masses = self.build_signed_edge_contributions(
             probs=student_probs,
-            path_flat=self._student_path_flat_device,
-            path_offsets=self._student_path_offsets_device,
-            ignored_mask=self._student_ignored_mask_device,
+            path_flat=self.student_path_flat_device,
+            path_offsets=self.student_path_offsets_device,
+            ignored_mask=self.student_ignored_mask_device,
         )
         teacher_edges, teacher_masses = self.build_signed_edge_contributions(
             probs=teacher_probs,
-            path_flat=self._teacher_path_flat_device,
-            path_offsets=self._teacher_path_offsets_device,
-            ignored_mask=self._teacher_ignored_mask_device,
+            path_flat=self.teacher_path_flat_device,
+            path_offsets=self.teacher_path_offsets_device,
+            ignored_mask=self.teacher_ignored_mask_device,
         )
 
         all_edges = torch.cat([student_edges, teacher_edges], dim=0)
@@ -392,7 +392,7 @@ class TrieWassersteinLoss(nn.Module):
         signed_edge_balance = signed_masses.new_zeros(active_edges.size(0))
         signed_edge_balance.index_add_(0, inverse, signed_masses)
         return (
-            self._edge_weights_device.index_select(0, active_edges) * signed_edge_balance.abs()
+            self.edge_weights_device.index_select(0, active_edges) * signed_edge_balance.abs()
         ).sum()
 
     def forward(

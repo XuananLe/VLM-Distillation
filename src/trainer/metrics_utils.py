@@ -37,10 +37,6 @@ def build_distillation_train_metrics(
     teacher_grace_fallback_rate: torch.Tensor | None,
     reinforced_selection_metrics: dict[str, float] | None,
     grace_warmup_active: bool,
-    objective_conflict_strategy: str,
-    objective_ce_weight: torch.Tensor | None,
-    objective_kd_weight: torch.Tensor | None,
-    objective_gradient_cosine: torch.Tensor | None,
 ) -> dict[str, float]:
     metrics = {
         "loss": loss.item(),
@@ -56,13 +52,6 @@ def build_distillation_train_metrics(
     if outside_compute_loss_time is not None:
         metrics["perf_outside_compute_loss_s"] = outside_compute_loss_time
     metrics.update(summarize_teacher_vector("teacher_kd_loss", teacher_loss_matrix))
-    metrics["objective_conflict_active"] = float(objective_conflict_strategy != "fixed")
-    if objective_ce_weight is not None:
-        metrics["objective_ce_weight"] = objective_ce_weight.item()
-    if objective_kd_weight is not None:
-        metrics["objective_kd_weight"] = objective_kd_weight.item()
-    if objective_gradient_cosine is not None:
-        metrics["objective_gradient_cosine"] = objective_gradient_cosine.item()
     if reinforced_selection_metrics is not None:
         metrics.update(reinforced_selection_metrics)
 

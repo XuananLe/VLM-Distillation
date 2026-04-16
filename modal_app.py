@@ -242,8 +242,20 @@ def exec_cmd(cmd: str) -> None:
 @app.local_entrypoint()
 def run(
 cmd = r"""
-cd /root/VLM-Distillation
-python -c "print('Pass a command via --cmd to run a workload.')"
+cd /root/VLM-Distillation/src/eval
+
+CUDA_VISIBLE_DEVICES=0 python run.py \
+  --data TextVQA_VAL \
+  --model SmolVLM-500M-Reinforce-Checkpoint-150 \
+  --work-dir /output/vlmeval/SmolVLM-500M-Reinforce-Checkpoint-150 \
+  --smolvlm-runtime original &
+
+CUDA_VISIBLE_DEVICES=0 python run.py \
+  --data TextVQA_VAL \
+  --model SmolVLM-500M-Reinforce-Checkpoint-217 \
+  --work-dir /output/vlmeval/SmolVLM-500M-Reinforce-Checkpoint-217 \
+  --smolvlm-runtime original &
+
 wait
 """
 

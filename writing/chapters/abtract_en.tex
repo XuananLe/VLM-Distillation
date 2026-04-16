@@ -5,9 +5,13 @@
 \addcontentsline{toc}{chapter}{Abstract}
 \begin{small}
 
-Summary of the graduation thesis: The problem statement, the proposed approach and the achieved results.
+This thesis addresses heterogeneous multi-teacher distillation for compact visual language models (VLMs). The setting is difficult because the teachers come from different model families, use different tokenizers and help different samples in different ways. A fixed teacher average is not enough, especially for sub-billion students.
+
+We present \methodname{}, short for \methodfull{}. The framework directly addresses three practical failures at once: tokenizer mismatch, heterogeneous teacher specialization and unstable post-routing weighting. It combines a trie-Wasserstein KD loss on a shared byte trie, a student-conditioned teacher gate, sparse top-$k$ capacity-aware routing and GRACE score refinement. The gate first selects a small teacher subset for each sample. GRACE then compares each routed teacher's KD gradient with the student's supervised CE gradient, smooths the agreement scores with an exponential moving average and converts them into final KD weights.
+
+Experiments on TextVQA, DocVQA and ChartQA demonstrate that \methodname{} consistently improves over direct finetuning and the compared distillation baselines. In the reported four-teacher setting, \methodname{} reaches 69.38, 73.11 and 80.20 on SmolVLM-500M and 60.73, 60.48 and 72.32 on SmolVLM-256M. For SmolVLM-500M, this corresponds to gains of 22.26\%, 22.83\% and 27.71\% over the original student. The method also closes 55.03\% of the original teacher gap on TextVQA, 39.53\% on DocVQA and 55.34\% on ChartQA. These results establish \methodname{} as a strong distillation framework for compact text-rich VLMs.
 
 
 \vspace*{1cm}
-\textbf{Keywords}: Liệt kê 3-5 từ khoá liên quan
+\textbf{Keywords}: visual language model, knowledge distillation, multi-teacher distillation, mixture-of-experts routing, cross-tokenizer Wasserstein distillation
 \end{small}

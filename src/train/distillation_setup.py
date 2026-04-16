@@ -30,12 +30,7 @@ class DistillationArguments:
 
     teacher_weighting_strategy: str = field(
         default="routing",
-        metadata={"help": "Teacher weighting strategy: `routing`, `uniform_mean`, `gradient_optimal`, or `reinforced_selection`."},
-    )
-
-    objective_conflict_strategy: str = field(
-        default="fixed",
-        metadata={"help": "How to combine CE and KD objectives: `fixed`, `pcgrad`, `cagrad`, or `mgda`."},
+        metadata={"help": "Teacher weighting strategy: `routing`, `uniform_mean`, or `reinforced_selection`."},
     )
 
     distillation_loss: str = field(
@@ -186,27 +181,6 @@ class DistillationArguments:
         metadata={"help": "Weight on the reinforced teacher-selection policy loss."},
     )
 
-    gradient_weight_cap: float = field(
-        default=1.0,
-        metadata={"help": "Upper bound applied to each teacher weight in the gradient-optimized mixing strategy."},
-    )
-
-    gradient_weight_steps: int = field(
-        default=50,
-        metadata={"help": "Projected-gradient solver steps for the gradient-optimized mixing strategy."},
-    )
-
-    objective_conflict_cagrad_c: float = field(
-        default=0.5,
-        metadata={"help": "Conflict-aversion coefficient used by the CAGrad-style objective combiner."},
-    )
-
-    objective_conflict_cagrad_grid_steps: int = field(
-        default=257,
-        metadata={"help": "1D search resolution for the CAGrad-style objective combiner."},
-    )
-
-
 def validate_distillation_args(distillation_args) -> None:
     if (
         distillation_args.teacher_logits_cache_dir is None
@@ -216,10 +190,8 @@ def validate_distillation_args(distillation_args) -> None:
             "Teacher logits require either --teacher_logits_cache_dir (for example /cache "
             "or a writable /tmp path) or --teacher_logits_remote_uri (remote raw cache root)."
         )
-    if distillation_args.teacher_weighting_strategy not in {"routing", "uniform_mean", "gradient_optimal", "reinforced_selection"}:
-        raise ValueError("--teacher_weighting_strategy must be `routing`, `uniform_mean`, `gradient_optimal`, or `reinforced_selection`.")
-    if distillation_args.objective_conflict_strategy not in {"fixed", "pcgrad", "cagrad", "mgda"}:
-        raise ValueError("--objective_conflict_strategy must be `fixed`, `pcgrad`, `cagrad`, or `mgda`.")
+    if distillation_args.teacher_weighting_strategy not in {"routing", "uniform_mean", "reinforced_selection"}:
+        raise ValueError("--teacher_weighting_strategy must be `routing`, `uniform_mean`, or `reinforced_selection`.")
     if not 0.0 < distillation_args.trie_wasserstein_rho < 1.0:
         raise ValueError("--trie_wasserstein_rho must be in (0, 1).")
     if distillation_args.trie_wasserstein_topk < 1:
@@ -262,14 +234,6 @@ def validate_distillation_args(distillation_args) -> None:
         raise ValueError("--reinforced_selection_reward_ema_decay must be in [0, 1).")
     if distillation_args.reinforced_selection_policy_alpha < 0.0:
         raise ValueError("--reinforced_selection_policy_alpha must be >= 0.")
-    if distillation_args.gradient_weight_cap <= 0.0:
-        raise ValueError("--gradient_weight_cap must be > 0.")
-    if distillation_args.gradient_weight_steps < 1:
-        raise ValueError("--gradient_weight_steps must be >= 1.")
-    if distillation_args.objective_conflict_cagrad_c < 0.0:
-        raise ValueError("--objective_conflict_cagrad_c must be >= 0.")
-    if distillation_args.objective_conflict_cagrad_grid_steps < 2:
-        raise ValueError("--objective_conflict_cagrad_grid_steps must be >= 2.")
     if distillation_args.student_temperature is not None and distillation_args.student_temperature <= 0:
         raise ValueError("--student_temperature must be > 0.")
     if distillation_args.teacher_temperature is not None and distillation_args.teacher_temperature <= 0:
@@ -299,22 +263,13 @@ def log_distillation_setup(
         "Teacher Weighting: learned deep gate + balancing + GRACE routing"
         if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing"
         else (
-            "Teacher Weighting: gradient-optimized mixing"
-            if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "gradient_optimal"
-            else (
-                "Teacher Weighting: reinforced teacher selection"
-                if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "reinforced_selection"
-                else "Teacher Weighting: uniform mean"
-            )
+            "Teacher Weighting: reinforced teacher selection"
+            if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "reinforced_selection"
+            else "Teacher Weighting: uniform mean"
         )
     )
-    rank0_print(f"Objective Conflict Strategy: {distillation_args.objective_conflict_strategy}")
-    if distillation_args.objective_conflict_strategy == "fixed":
-        rank0_print("Objective: CE + alpha * KD")
-        rank0_print(f"KD Weight: {distillation_args.alpha}")
-    else:
-        rank0_print("Objective: dynamic CE/KD combination with alpha-scaled KD loss")
-        rank0_print(f"Base KD Weight: {distillation_args.alpha}")
+    rank0_print("Objective: CE + alpha * KD")
+    rank0_print(f"KD Weight: {distillation_args.alpha}")
     rank0_print(f"KD Function: {distillation_args.distillation_loss}")
     if distillation_args.distillation_loss == "trie_wasserstein_loss":
         rank0_print(f"Trie Wasserstein Rho: {distillation_args.trie_wasserstein_rho}")
@@ -369,9 +324,6 @@ def log_distillation_setup(
             f"GRACE EMA Decay: "
             f"{distillation_args.grace_ema_decay}"
         )
-    elif len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "gradient_optimal":
-        rank0_print(f"Gradient Weight Cap: {distillation_args.gradient_weight_cap}")
-        rank0_print(f"Gradient Weight Steps: {distillation_args.gradient_weight_steps}")
     elif len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "reinforced_selection":
         rank0_print(
             f"Reinforced Selection Warmup Ratio: "
@@ -388,12 +340,6 @@ def log_distillation_setup(
         rank0_print(
             f"Reinforced Selection Policy Alpha: "
             f"{distillation_args.reinforced_selection_policy_alpha}"
-        )
-    if distillation_args.objective_conflict_strategy == "cagrad":
-        rank0_print(f"Objective Conflict C: {distillation_args.objective_conflict_cagrad_c}")
-        rank0_print(
-            f"Objective Conflict Grid Steps: "
-            f"{distillation_args.objective_conflict_cagrad_grid_steps}"
         )
     if training_args.gradient_checkpointing:
         rank0_print(f"Gradient Checkpointing Kwargs: {gradient_checkpointing_kwargs}")
