@@ -342,6 +342,20 @@ tokens:
 \label{eq:per_teacher_tw}
 \end{equation}
 
+\paragraph{Complexity Analysis.}
+The shared byte trie is built once with time and memory cost
+\(O(V_s \bar{L}_s + V_t \bar{L}_t)\), where \(V_s\) and \(V_t\) are the
+student and teacher vocabulary sizes and \(\bar{L}_s\) and \(\bar{L}_t\) are
+the average byte-path lengths. For one aligned token position, the sparse
+trie-Wasserstein loss costs
+\(O(V_s \log K + V_t \log K + A \log A)\), where \(K\) is the top-\(k\)
+budget and \(A\) is the number of active trie edges. In practice, this is
+approximately \(O(V_s + V_t)\) because \(K\) and the average path length are
+fixed small constants. Runtime memory is \(O(E + P_s + P_t + A)\), where
+\(E\) is the number of trie edges and \(P_s\) and \(P_t\) are the stored
+student and teacher path-index arrays. Unlike dense OT, the implementation
+never materializes a \(|V_s| \times |V_t|\) transport matrix.
+
 Compared with the ULD baseline from Chapter~\ref{chap:preliminaries}, this
 loss compares mass on shared trie edges instead of ranked logits. It keeps the
 cross-tokenizer goal, but it uses a structured transport view that is closer to
