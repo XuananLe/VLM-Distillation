@@ -32,7 +32,6 @@ class SupervisedDataset(Dataset):
         data_path: str | list,
         processor: transformers.ProcessorMixin,
         data_args: DataArguments,
-        padding=True,
         teacher_processors: Optional[list[transformers.ProcessorMixin]] = None,
         teacher_logits_cache_dir: Optional[str] = None,
         teacher_model_ids: Optional[list[str]] = None,

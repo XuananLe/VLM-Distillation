@@ -10,14 +10,6 @@ from src.train.model_setup import (
     resolve_model_type,
 )
 
-def disable_torch_init():
-    """
-    Disable the redundant torch default initialization to accelerate model creation.
-    """
-    setattr(torch.nn.Linear, "reset_parameters", lambda self: None)
-    setattr(torch.nn.LayerNorm, "reset_parameters", lambda self: None)
-
-
 def create_quantization_config(load_4bit=True, compute_dtype=torch.float16,
                              use_double_quant=True, quant_type='nf4'):
     """

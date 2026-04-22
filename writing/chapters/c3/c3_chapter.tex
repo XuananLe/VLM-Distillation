@@ -1,6 +1,13 @@
 \chapter{Proposed Method}
 \label{chap:proposed-method}
 
+This chapter presents the full GRACE method. It first formulates the
+multi-teacher distillation problem, then defines the trie-Wasserstein KD loss,
+the student-conditioned router and the GRACE score-refinement stage. It then
+gives a compact notation summary, a one-page intuition and the full training
+step before the later sections expand each component. It closes with the final
+training objective.
+
 \section{Method Overview and Problem Formulation}
 
 We consider text-rich multimodal understanding tasks that require reading image
@@ -20,7 +27,7 @@ be a pool of frozen teacher VLMs. For each sample \(b\), the student produces lo
 \(\mathbf{z}_s^{(b)}\) and teacher \(T_i\) produces teacher logits
 \(\mathbf{z}_t^{(b,i)}\).
 
-The goal of this thesis is not to pre-select a fixed teacher subset before
+The goal is not to pre-select a fixed teacher subset before
 training. Instead, we train the student with
 \emph{\methodfull{} (\methodname{})}, a routed multi-teacher distillation
 framework that refines sparse teacher assignments with gradient-based scores.
@@ -46,22 +53,8 @@ converts them to a score softmax, blends them with the routed weights, and
 falls back to a uniform distribution only when the score spread is too small to
 justify a strong preference.
 
-The current repository objective is
-\begin{equation}
-\mathcal{L}
-=
-\mathcal{L}_{CE}
-+
-\alpha\mathcal{L}_{KD}
-+
-\lambda_{bal}\mathcal{L}_{bal}
-+
-\lambda_{ent}\mathcal{L}_{ent}
-+
-\lambda_{z}\mathcal{L}_{z},
-\end{equation}
-where \(\lambda_{bal}\), \(\lambda_{ent}\) and \(\lambda_{z}\) are
-router regularization weights.
+The final objective combines supervised CE, routed KD and small router
+regularizers. Its full form appears in Section~\ref{sec:final-objective}.
 
 This design is closer in spirit to selective gradient-based distillation
 \cite{zhu2021studentcustomized} and sparse expert routing
@@ -69,24 +62,39 @@ This design is closer in spirit to selective gradient-based distillation
 Transformer systems such as Switch Transformers show the same need for sparse
 assignment and overflow control \cite{fedus2022switchtransformersscalingtrillion}.
 
-Here we adapt that idea to the multi-teacher multimodal setting with token-level logit distillation.
+Here we adapt that idea to the multi-teacher multimodal setting with token-level logit distillation losses.
 
-The later sections define the trie-Wasserstein loss, routed teacher selection
-and GRACE score refinement in detail.
+The notation table, one-page intuition and early algorithm below fix the global
+picture first. The detailed subsections then define the trie-Wasserstein loss,
+routed teacher selection and GRACE score refinement in detail.
 
-\subsection{Overall Training Flow}
+\subsection{Notation Summary}
 
-Figure~\ref{fig:grace-architecture-photo} gives a compact architecture view of
-the training step before the loss details below.
-
-\begin{figure}[tp]
+\begin{table}[tp]
 \centering
-\includegraphics[width=0.58\textwidth,trim=90 120 120 150,clip]{figures/GRACE-Architecture.jpg}
-\caption{Architecture view of \methodname{}. The student produces hidden states and logits, the gate routes each sample to a sparse teacher subset, routed teachers contribute candidate KD losses and score refinement converts those teacher signals into the final weighted KD term added to \(\mathcal{L}_{CE}\).}
-\label{fig:grace-architecture-photo}
-\end{figure}
+\small
+\begin{tabular}{@{}p{0.26\textwidth}p{0.66\textwidth}@{}}
+\toprule
+Symbol & Meaning \\
+\midrule
+\(\mathcal{D}=\{(x_b,y_b)\}_{b=1}^{B}\) & Multimodal samples and target answer sequences. \\
+\(S_{\theta}\), \(\mathcal{T}=\{T_i\}_{i=1}^{N}\) & Student VLM and frozen teacher set. \\
+\(\mathbf{z}_s^{(b)}\), \(\mathbf{z}_t^{(b,i)}\) & Student and teacher logits for sample \(b\). \\
+\(\mathbf{H}_s\), \(\mathbf{h}\) & Student hidden states and pooled routing feature. \\
+\(\mathbf{r}\), \(\tilde{\mathbf{r}}\), \(\mathbf{p}\) & Router logits, adjusted scores and soft router weights. \\
+\(\mathcal{R}_b\), \(\hat{\mathbf{p}}^{(b)}\), \(\mathbf{w}^{(b)}\) & Routed teacher set, routed weights and final KD weights. \\
+\(\Omega_b^{CE}\), \(\Omega_{b,i}^{KD}\) & Supervised CE positions and matched KD positions. \\
+\(\mathrm{Route}\) & Sparse teacher routing with top-\(k\), capacity and fallback. \\
+\(U\) & Uniform weights over the routed teacher set. \\
+\(\mathrm{Blend}\) & Mixing routed weights with GRACE score weights. \\
+\(\mathrm{EMA}\) & Exponential moving average for GRACE scores. \\
+\bottomrule
+\end{tabular}
+\caption{Main symbols used in Chapter~\ref{chap:proposed-method}.}
+\label{tab:chapter3-notation}
+\end{table}
 
-The training step follows four stages:
+The method follows four stages:
 \begin{enumerate}
 \item Run the student to obtain \((\mathbf{z}_s,\mathbf{H}_s,\mathcal{L}_{CE})\).
 \item Compute gate logits \(\mathbf r\), adjusted routing scores \(\tilde{\mathbf r}\), soft routing weights \(\mathbf p\) and route teachers under top-\(k\) and capacity constraints.
@@ -94,43 +102,68 @@ The training step follows four stages:
 \item Compute pooled gradient-alignment scores, smooth them over time, blend them with the routed weights and apply fallback when needed.
 \end{enumerate}
 
-Algorithm~\ref{alg:grace-step} summarizes one training step of
-\methodname{} before the later sections expand each component.
+This four-stage view is the shortest way to read \methodname{} end to end:
+route first, score routed teachers next, then form the effective KD weights
+that enter the final loss.
 
-\begin{algorithm}[tp]
-\caption{One training step of \methodname{}}
-\label{alg:grace-step}
-\begin{algorithmic}
-\Require mini-batch \(\{(x_b,y_b)\}_{b=1}^{B}\), frozen teachers \(\{T_i\}_{i=1}^{N}\)
+\subsection{Training Step}
+
+\begin{algorithm}
+\caption{GRACE Training Step}
+\footnotesize
+\begin{algorithmic}[1]
+\Statex \textbf{Input:} mini-batch \(\{(x_b,y_b)\}_{b=1}^{B}\), frozen teachers \(\{T_i\}_{i=1}^{N}\)
+\Statex \textbf{State:} student \(S_\theta\), teacher gate state, GRACE EMA state
+\Statex \textbf{Hyperparameters:} \(k\), \(C_t\), \(\rho_h\), \(\rho_g\), \(\tau_g\), \(\beta\), \(\epsilon\), \(\alpha\), \(\lambda_{bal}\), \(\lambda_{ent}\), \(\lambda_z\), \(\eta\)
+\Statex \textbf{Phase 1: Student Forward}
 \State \((\mathbf{z}_s,\mathbf{H}_s,\mathcal{L}_{CE}) \gets S_\theta(x)\)
-\State \(\mathbf{h} \gets \mathrm{Pool}(\mathbf{H}_s)\); \(\mathbf{r} \gets G(\mathbf{h})\)
-\State \(\tilde{\mathbf{r}} \gets (\mathbf{r} + \mathbf{b} + \boldsymbol{\xi}) / \tau_g\); \(\mathbf{p} \gets \mathrm{Softmax}(\tilde{\mathbf{r}})\)
-\State route teachers with current \(k_t\) (\(N\) during hard-routing warmup, else \(k\)), capacity and fallback to get \(\hat{\mathbf{p}}\) and \(\mathcal{R}_b\)
-\For{each routed teacher \(i \in \mathcal{R}_b\)}
-    \State compute teacher logits \(\mathbf{z}_t^{(b,i)}\)
-    \State compute trie-Wasserstein loss \(\mathcal{L}_{KD}^{(b,i)}\) on matched answer positions \(\Omega_{b,i}^{KD}\)
+\State \(\mathbf{h} \gets \mathrm{Pool}(\mathbf{H}_s)\)
+\Statex \vspace{-0.5em}
+\Statex \textbf{Phase 2: Teacher Routing}
+\State \((\tilde{\mathbf{r}},\mathbf{p}) \gets \mathrm{RouterScores}(\mathbf{h})\)
+\State \(k_t \gets \mathrm{WarmupTopK}(t; N,k,\rho_h T)\)
+\For{each sample \(b=1,\ldots,B\)}
+    \State \((\hat{\mathbf{p}}^{(b)}, \mathcal{R}_b) \gets \mathrm{Route}(\tilde{\mathbf{r}}^{(b)}; k_t, C_t)\)
 \EndFor
+\Statex \vspace{-0.5em}
+\Statex \textbf{Phase 3: KD Loss Computation}
+\For{each sample \(b=1,\ldots,B\)}
+    \For{each routed teacher \(i \in \mathcal{R}_b\)}
+        \State \(\mathbf{z}_t^{(b,i)} \gets T_i(x_b)\)
+        \State \(\mathcal{L}_{KD}^{(b,i)} \gets \mathcal{L}_{TW}(\mathbf{z}_s^{(b)}, \mathbf{z}_t^{(b,i)}; \Omega_{b,i}^{KD})\)
+    \EndFor
+\EndFor
+\Statex \vspace{-0.5em}
+\Statex \textbf{Phase 4: GRACE Refinement and Update}
 \If{\(t < \rho_g T\)}
-    \State \(w^{(b)} \gets \mathrm{Uniform}(\mathcal{R}_b)\)
+    \State \(w^{(b)} \gets U(\mathcal{R}_b)\) for all \(b\)
 \Else
-    \State compute cosine scores \(s_i^{(b)}\) from pooled CE and KD logit-gradient proxies
-    \State update EMA-smoothed scores \(\hat{s}_i^{(b)}\)
-    \State \(q^{(b)} \gets \mathrm{Softmax}(\beta \hat{\mathbf{s}}^{(b)})\) over \(\mathcal{R}_b\)
-    \State blend \(q^{(b)}\) with \(\hat{\mathbf{p}}^{(b)}\) to get \(w^{(b)}\)
-    \If{\(\max_{i \in \mathcal{R}_b}\hat{s}_i^{(b)} - \min_{i \in \mathcal{R}_b}\hat{s}_i^{(b)} < \epsilon\)}
-        \State \(w^{(b)} \gets \mathrm{Uniform}(\mathcal{R}_b)\)
-    \EndIf
+    \State \((\tilde{\mathbf{g}}_{CE}^{(b)},\{\tilde{\mathbf{g}}_{i}^{(b)}\}) \gets \mathrm{GradientProxies}(\mathbf{z}_s,\{\mathbf{z}_t^{(b,i)}\})\) for all \(b\)
+    \State \(\mathbf{s}^{(b)} \gets \mathrm{Align}(\tilde{\mathbf{g}}_{CE}^{(b)},\{\tilde{\mathbf{g}}_{i}^{(b)}\})\) for all \(b\)
+    \State \(\hat{\mathbf{s}}^{(b)} \gets \mathrm{EMA}(\mathbf{s}^{(b)})\) for all \(b\)
+    \State \(\mathbf{q}^{(b)} \gets \mathrm{ScoreWeights}(\hat{\mathbf{s}}^{(b)}|_{\mathcal{R}_b})\) for all \(b\)
+    \State \(\mathbf{w}^{(b)} \gets \mathrm{Blend}(\hat{\mathbf{p}}^{(b)},\mathbf{q}^{(b)})\) for all \(b\)
+    \State apply uniform fallback when \(\Delta^{(b)} < \epsilon\)
 \EndIf
-\State \(\bar{\mathcal{L}}_{KD}^{(b)} \gets \sum_{i \in \mathcal{R}_b} w_i^{(b)} \mathcal{L}_{KD}^{(b,i)}\)
-\State \(\mathcal{L} \gets \mathcal{L}_{CE} + \alpha \frac{1}{B}\sum_{b=1}^{B}\bar{\mathcal{L}}_{KD}^{(b)} + \lambda_{bal}\mathcal{L}_{bal} + \lambda_{ent}\mathcal{L}_{ent} + \lambda_{z}\mathcal{L}_{z}\)
-\State update \(\theta\) with \(\nabla_\theta \mathcal{L}\)
+\State \(\mathcal{L}_{KD} \gets \mathrm{BatchKD}(\{\mathbf{w}^{(b)},\mathcal{R}_b,\mathcal{L}_{KD}^{(b,i)}\}_{b=1}^{B})\)
+\State \(\mathcal{L} \gets \mathcal{L}_{CE} + \alpha\mathcal{L}_{KD} + \lambda_{bal}\mathcal{L}_{bal} + \lambda_{ent}\mathcal{L}_{ent} + \lambda_z\mathcal{L}_z\)
+\State \(\theta \gets \mathrm{Update}(\theta,\mathcal{L},\eta)\)
 \end{algorithmic}
 \end{algorithm}
 
-The final KD loss is formed sample-wise,
-\(\bar{\mathcal{L}}_{KD}^{(b)}=\sum_{i\in\mathcal R_b} w_i^{(b)}\mathcal{L}_{KD}^{(b,i)}\),
-then averaged over the batch. The full objective remains the sum of CE, routed
-KD and router regularizers.
+Here \(\mathrm{RouterScores}\), \(\mathrm{GradientProxies}\),
+\(\mathrm{ScoreWeights}\) and \(\mathrm{BatchKD}\) are shorthands for the exact
+definitions in Equation~\ref{eq:router-softmax}, the later gradient-proxy
+equations, the GRACE score softmax and Equation~\ref{eq:batch_kd}. The exact
+warmup schedule, fallback rule and final teacher weights remain in the
+equations below.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=\linewidth]{figures/GRACE-Architecture.pdf}
+\caption{Architecture view of \methodname{}.}
+\label{fig:grace-architecture-photo}
+\end{figure}
 
 \section{Trie-Wasserstein Cross-Tokenizer Distillation}
 
@@ -166,7 +199,7 @@ The student and teacher probability distributions are
 \end{equation}
 where \(\tau_s\) and \(\tau_t\) are the student and teacher temperatures.
 
-The current implementation does not compare these distributions by token ID or
+The implementation does not compare these distributions by token ID or
 sorted rank. Instead, the method decodes each single-token vocabulary entry to
 a string, converts that string to UTF-8 bytes, appends an EOS sentinel, and
 inserts the resulting byte path into one shared
@@ -180,17 +213,17 @@ w(e)=
 \label{eq:tw_edge_weight}
 \end{equation}
 where \(0<\rho<1\) is the edge-decay factor. Shared prefixes therefore receive
-the same early edges, while deeper trie disagreements are discounted. The
+matching early edges, while deeper trie disagreements are discounted. The
 synthetic TAIL edge is handled separately with weight \(1\)
 \cite{takezawa2021supervisedtreewasserstein,peyre2019computationaloptimaltransport}.
 
 Different tokenizers may stop at different depths, but they still share the
-same byte-prefix edges when their decoded token strings are related. The trie therefore
-\textbf{matches probability mass on shared byte paths instead of token IDs.}
-Figure~\ref{fig:grace-trie-shared} uses one simple example with student strings
-\texttt{document}/\texttt{receipt} and teacher strings \texttt{doc}/\texttt{rece}.
+same byte-prefix edges when their decoded token strings are related. The trie
+therefore \textbf{matches probability mass on shared byte paths instead of
+token IDs.} The example in Figure~\ref{fig:grace-trie-shared} uses the pair
+\texttt{document}/\texttt{receipt} and \texttt{doc}/\texttt{rece}.
 
-\begin{figure}[tp]
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}[
     x=0.88cm,
@@ -244,13 +277,13 @@ Figure~\ref{fig:grace-trie-shared} uses one simple example with student strings
     \node[triemark, label={[font=\scriptsize, text=black!70, label distance=2mm]below:EOS}] at (eosreceipt) {};
 
 \end{tikzpicture}
-\caption{Shared-trie view of cross-tokenizer matching for \texttt{document}/\texttt{receipt} and \texttt{doc}/\texttt{rece}. Shared byte prefixes occupy common edges, while shorter teacher pieces terminate earlier at EOS.}
+\caption{Shared-trie view of cross-tokenizer matching for \texttt{document}/\texttt{receipt} and \texttt{doc}/\texttt{rece}.}
 \label{fig:grace-trie-shared}
 \end{figure}
 
-Figure~\ref{fig:grace-trie-shared} shows the main structural case: shorter teacher pieces
-terminate earlier with EOS, while longer student pieces continue deeper in the
-same trie, so the mismatch becomes structural instead of purely symbolic.
+In Figure~\ref{fig:grace-trie-shared}, shorter teacher pieces terminate earlier
+with EOS, while longer student pieces continue deeper in the trie, so the
+mismatch becomes structural instead of purely symbolic token matching.
 
 \subsection{Sparse \texorpdfstring{Top-\(k\)}{Top-k} Support and Tail Edge}
 
@@ -315,10 +348,10 @@ cross-tokenizer goal, but it uses a structured transport view that is closer to
 the actual tokenizer geometry, while the top-\(k\)+TAIL approximation keeps the
 cost bounded by the active support.
 
-\begin{figure}[tp]
+\begin{figure}[H]
 \centering
 \includegraphics[width=0.98\linewidth]{figures/grace_trie_sparse_tail.png}
-\caption{Sparse trie-Wasserstein support in the current implementation. The loss keeps only the top-\(k_{TW}\) student and teacher tokens at each supervised position, maps them to the shared trie and sends the remaining mass to one TAIL edge. This makes the computation depend on the active support, not the full vocabulary.}
+\caption{Sparse trie-Wasserstein support in the implementation.}
 \label{fig:grace-trie-sparse-tail}
 \end{figure}
 
@@ -326,7 +359,7 @@ The sparse view explains why the loss remains practical for compact students:
 the code never builds a dense transport matrix and the TAIL edge captures the
 residual low-probability mass in one term.
 
-\begin{figure}[tp]
+\begin{figure}[H]
 \centering
 \begin{tikzpicture}[
     x=1cm,
@@ -358,21 +391,21 @@ residual low-probability mass in one term.
     }
     \node[trie, label={[font=\scriptsize, text=black!70, label distance=1.5mm]above:EOS}] at (eos) {};
 \end{tikzpicture}
-\caption{Trie split for \texttt{document} and \texttt{doc}. The shared prefix ends at \(c\), where the teacher terminates at EOS and the student continues deeper in the trie.}
+\caption{Trie split for \texttt{document} and \texttt{doc}.}
 \label{fig:grace-trie-edge-mass}
 \end{figure}
 
-Figure~\ref{fig:grace-trie-edge-mass} connects the equations to one simple
-case. Here the shared prefix contributes little because both sides
-place mass on the same early edges. The main loss appears after \(c\): the
-teacher sends mass to EOS, while the student sends mass to the continuation
-path, so the token-level term grows on the first mismatched edges.
+The split in Figure~\ref{fig:grace-trie-edge-mass} links the equations to one
+case. The shared prefix contributes little because both sides place mass on the
+same early edges. The main loss appears after \(c\): the teacher sends mass to
+EOS, while the student sends mass to the continuation path, so the token-level
+term grows on the first mismatched edges.
 
 Table~\ref{tab:tw-vs-uld-toy} gives one small comparison against the ULD
 baseline. In both rows, the ranked masses are the same: the teacher places
 \(0.8\) on its top token and \(0.2\) on the residual tail, while the student
 places \(0.9\) on its top token and \(0.1\) on the residual tail. With
-\(\rho=0.5\) and top-\(k_{TW}=1\), ULD returns the same value in both cases
+\(\rho=0.5\) and top-\(k_{TW}=1\), ULD returns an identical value in both cases
 because it only compares sorted mass. Trie-Wasserstein gives a much smaller
 loss to \texttt{doc} vs \texttt{document} than to \texttt{abc} vs \texttt{def}
 because the first pair shares a long byte prefix.
@@ -396,7 +429,7 @@ because the first pair shares a long byte prefix.
 
 \subsection{Student-Conditioned Router}
 
-When the teacher pool contains multiple models, the method first builds a student-conditioned router instead of averaging teachers uniformly.
+When multiple teachers are available, the method first builds a student-conditioned router instead of averaging them uniformly.
 
 Let \(\mathbf{H}_s^{(b)}\) denote the student hidden states captured at the routing source layer for sample \(b\). We pool these hidden states over supervised answer positions to obtain a routing feature
 \begin{equation}
@@ -423,12 +456,25 @@ where \(\mathbf{b}\) is the expert-bias vector, \(\tau_g\) is the router
 temperature and \(\boldsymbol{\xi}^{(b)}\) is Gaussian router noise during
 training. Here \(p_i^{(b)}\) is the initial gate weight for teacher \(T_i\).
 
+\begin{figure}[t]
+    \centering
+    \includegraphics[width=0.27\linewidth]{figures/deep-router.pdf}
+\caption[Student-conditioned router sketch in \methodname{}.]{Student-conditioned router sketch in \methodname{}.}
+    \label{fig:grace-gate-balance}
+\end{figure}
+
+The gate stack in Figure~\ref{fig:grace-gate-balance} applies LayerNorm
+\(\rightarrow\) up projection \(\rightarrow\) split into gate and value branches
+\(\rightarrow\) SiLU(gate) \(\odot\) value \(\rightarrow\) down projection, then
+applies bias, top-$k$, capacity control, fallback and balance updates to the
+resulting teacher logits.
+
 
 
 \subsection{Top-k, Capacity and Fallback}
 
 Let \(k_t\) denote the effective top-\(k\) value at training step \(t\). The
-router is made sparse by applying top-\(k\) routing to the same routing
+router is made sparse by applying top-\(k\) routing to the routing
 scores \(\tilde{r}_i^{(b)}\). Let
 \(\mathcal{K}_b=\mathrm{TopK}(\tilde{\mathbf{r}}^{(b)},k_t)\) be the candidate
 teacher set for sample \(b\). To prevent one teacher from receiving too many
@@ -450,9 +496,9 @@ selection, capacity pruning and fallback. The constrained gate weights are
 
 If capacity pruning leaves a sample without any assigned teacher, the algorithm falls back to the teacher with the largest bias-adjusted routing score \(\tilde{r}_i^{(b)}\).
 
-\textbf{This ensures that at least one teacher remains available before GRACE refinement.}
+\textbf{This ensures that at least one teacher remains available before GRACE score refinement.}
 
-The current implementation also uses a short hard-routing warmup. Let
+The implementation also uses a short hard-routing warmup. Let
 \(\rho_h\) be the hard-routing warmup ratio. During the first \(\rho_h T\)
 steps, the router uses
 \begin{equation}
@@ -491,16 +537,16 @@ b_i \leftarrow b_i - \eta_b \left(\ell_i - \frac{1}{N}\sum_{j=1}^{N}\ell_j\right
 \end{equation}
 where \(\eta_b\) is a small bias-update rate.
 
-The current code also adds two small auxiliary router penalties:
+The code also adds two small auxiliary router penalties:
 \begin{itemize}
-\item a negative-entropy term
+\item A negative-entropy term
 \begin{equation}
 \mathcal{L}_{ent}
 =
 -\frac{1}{B}\sum_{b=1}^{B} H(\mathbf{p}^{(b)}),
 \end{equation}
 which discourages premature routing collapse.
-\item a router \(z\)-loss
+\item A router \(z\)-loss
 \begin{equation}
 \mathcal{L}_{z}
 =
@@ -510,39 +556,25 @@ which discourages premature routing collapse.
 which keeps router logits numerically well behaved.
 \end{itemize}
 
-\begin{figure}[tp]
+\begin{figure}[H]
     \centering
-    \includegraphics[width=0.34\linewidth]{figures/deep-router.png}
-\caption[Student-conditioned router sketch in \methodname{}.]{Conceptual sketch of the student-conditioned router in \methodname{}. The boxes summarize the routing components, while the exact execution order is given in the text below.}
-    \label{fig:grace-gate-balance}
-\end{figure}
-
-Figure~\ref{fig:grace-gate-balance} is a high-level sketch of the gate.
-The actual implementation applies LayerNorm \(\rightarrow\) up projection
-\(\rightarrow\) split into gate and value branches \(\rightarrow\)
-SiLU(gate) \(\odot\) value \(\rightarrow\) down projection, then applies bias,
-top-$k$, capacity control, fallback and balance updates to the resulting
-teacher logits.
-
-\begin{figure}[tp]
-    \centering
-    \includegraphics[width=0.92\linewidth]{figures/grace_bias_feedback.png}
-    \caption[Bias-feedback behavior in GRACE.]{Bias-feedback behavior in \methodname{} under expert-bias updates. If one teacher receives too many assignments, its bias is reduced, while underused teachers receive higher bias. This shifts future routing toward a more balanced load.}
+    \includegraphics[width=0.82\linewidth]{figures/grace_bias_feedback.png}
+    \caption[Bias-feedback behavior in GRACE.]{Bias-feedback behavior in \methodname{} under expert-bias updates.}
     \label{fig:grace-bias-feedback}
 \end{figure}
 
-Figure~\ref{fig:grace-bias-feedback} isolates the effect of the bias update.
-Figure~\ref{fig:grace-routing-dynamics} gives a routing example inspired by
-the routing-overflow and load-balancing behavior used in sparse expert models
+The bias update is isolated in Figure~\ref{fig:grace-bias-feedback}. The routing
+example in Figure~\ref{fig:grace-routing-dynamics} is inspired by the
+routing-overflow and load-balancing behavior used in sparse expert models
 \cite{fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}.
 The dense gate may prefer a small subset of teachers, but top-$k$ selection,
 capacity constraints and fallback convert these scores into a sparse assignment
 pattern with explicit load statistics.
 
-\begin{figure}[tp]
+\begin{figure}[H]
     \centering
-    \includegraphics[width=\linewidth]{figures/grace_routing_dynamics.png}
-    \caption[Routing dynamics in GRACE.]{Routing dynamics in \methodname{}. Left to right: dense gate scores, top-$k$ routed weights and the final assignment pattern after capacity control and fallback. The rightmost panel compares average soft load and normalized hard load, illustrating why balancing terms and expert-bias updates are needed.}
+    \includegraphics[width=0.78\linewidth]{figures/grace_routing_dynamics.png}
+    \caption[Routing dynamics in GRACE.]{Routing dynamics in \methodname{} under top-$k$, capacity and fallback.}
     \label{fig:grace-routing-dynamics}
 \end{figure}
 
@@ -574,7 +606,7 @@ For each teacher \(T_i\), the pooled KD logit-gradient proxy is
 \end{equation}
 
 The code computes this proxy directly from the selected distillation loss. In the
-default setting of this thesis, \(\mathcal{L}_{KD}^{(b,i)}\) is the
+default setting here, \(\mathcal{L}_{KD}^{(b,i)}\) is the
 trie-Wasserstein loss in Equation~\ref{eq:per_teacher_tw}. The KD sum uses the
 matched student-teacher positions \(\Omega_{b,i}^{KD}\), but the normalization
 still uses the student CE count \(|\Omega_b^{CE}|\).
@@ -595,28 +627,27 @@ The CE proxy averages over \(\Omega_b^{CE}\), while the KD proxy sums over
 \(\Omega_{b,i}^{KD}\) and normalizes by \(|\Omega_b^{CE}|\). This matches the
 current implementation.
 
-The current implementation also records a thresholded activity flag
+The implementation also records a thresholded activity flag
 \begin{equation}
 a_i^{(b)} = \mathbf{1}[s_i^{(b)} > \delta],
 \end{equation}
 where \(\delta\) is a logging threshold. These flags are useful for monitoring,
 but the GRACE weight update itself uses the continuous scores \(s_i^{(b)}\).
+Figure~\ref{fig:grace-directional-view} gives the directional picture behind
+this cosine score.
 
-\begin{figure}[tp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.42\linewidth]{figures/gradient_descent_wikimedia.png}
-    \caption[Directional view of gradient descent.]{A directional view of gradient descent on a contour surface \cite{wikimedia_gradient_descent_image}. \methodname{} uses the same directional idea at the logit level: teachers whose KD update direction aligns better with the CE direction receive larger GRACE weights after warmup.}
+    \caption[Directional view of gradient descent.]{Directional view of gradient descent on a contour surface \cite{wikimedia_gradient_descent_image}.}
     \label{fig:grace-directional-view}
 \end{figure}
-
-Figure~\ref{fig:grace-directional-view} gives the directional picture behind
-the cosine-based GRACE score.
 
 \subsection{Warmup, Score Smoothing and Gradient Weights}
 
 GRACE refinement starts only after a warmup phase. Let \(\rho_g \in [0,1]\)
 denote the GRACE warmup ratio with respect to the total number of training
-steps. During the first \(\rho_g T\) steps, the current code uses a uniform KD
+steps. During the first \(\rho_g T\) steps, the code uses a uniform KD
 distribution over the teachers that remain after routing:
 \begin{equation}
 u_i^{(b)}
@@ -638,16 +669,16 @@ be the EMA decay. The per-sample smoothed score is
 (1-\gamma) s_i^{(b)}.
 \end{equation}
 
-\begin{figure}[tp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.96\linewidth]{figures/grace_ema_smoothing.png}
-    \caption[EMA smoothing in GRACE.]{EMA smoothing in \methodname{}. The current batch score is blended with the running teacher score history before the GRACE softmax is applied. This damps batch-level noise and keeps the final gradient weights more stable.}
+    \caption[EMA smoothing in GRACE.]{EMA smoothing in \methodname{}.}
     \label{fig:grace-ema-smoothing}
 \end{figure}
 
-Figure~\ref{fig:grace-ema-smoothing} explains why GRACE uses EMA before the
-score softmax: \textbf{raw per-batch scores are noisy, while smoothed scores produce
-more stable teacher weights.}
+\textbf{Raw per-batch scores are noisy, while smoothed scores produce more
+stable teacher weights,} a point illustrated by
+Figure~\ref{fig:grace-ema-smoothing}.
 
 Let \(\mathcal{R}_b=\{i \mid \hat{p}_i^{(b)} > 0\}\) be the routed teacher set.
 GRACE converts the smoothed scores into a gradient-weight vector
@@ -664,15 +695,15 @@ q_i^{(b)}
 \end{equation}
 where \(\beta\) controls how sharply the highest-scoring teacher is preferred.
 
-\begin{figure}[tp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=0.95\linewidth]{figures/grace_warmup_schedule.png}
-    \caption[Warmup schedule in GRACE.]{Warmup stages in the current implementation of \methodname{}. The hard-routing warmup starts with all teachers available, then switches to sparse top-\(k\) routing. GRACE warmup starts with uniform KD over the routed teachers, then activates score-based refinement after \(\rho_g T\).}
+    \caption[Warmup schedule in GRACE.]{Warmup schedule in the implementation of \methodname{}.}
     \label{fig:grace-warmup}
 \end{figure}
 
-Figure~\ref{fig:grace-warmup} summarizes when hard routing and GRACE weighting
-become active in the current implementation.
+The activation points for hard routing and GRACE weighting appear in
+Figure~\ref{fig:grace-warmup}.
 
 \subsection{Router-Gradient Blend and Uniform Fallback}
 
@@ -714,47 +745,47 @@ w_i^{(b)}
 \textbf{This keeps KD stable when the routed teachers have nearly indistinguishable
 GRACE scores.}
 
-\begin{figure}[tp]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{figures/grace_alignment_intuition.png}
-\caption[GRACE score refinement in \methodname{}.]{GRACE score refinement in \methodname{}. Left: pooled CE and KD gradients define per-teacher cosine scores. Middle: after warmup, the smoothed scores are converted into a GRACE softmax over the routed teachers. Right: the final KD weights blend the routed weights and GRACE weights, or become uniform when the score spread is below \(\epsilon\).}
+\caption[GRACE score refinement in \methodname{}.]{GRACE score refinement in \methodname{}.}
     \label{fig:grace-alignment-behavior}
 \end{figure}
 
-Figure~\ref{fig:grace-alignment-behavior} presents the score update itself,
-while Figure~\ref{fig:grace-alignment-cases} shows the resulting weighting
-patterns.
+Figures~\ref{fig:grace-alignment-behavior} and
+\ref{fig:grace-alignment-cases} separate the score update from its resulting
+weighting patterns.
 
-Figure~\ref{fig:grace-alignment-cases} shows the same rule from a weight-update
-view. The routed gate weights are first proposed by the student-conditioned
-router, then refined by GRACE scores and finally converted into the
-effective KD weights used in Equation~\ref{eq:sample_kd_average}.
+The weight view in Figure~\ref{fig:grace-alignment-cases} recasts this rule as a weight
+update. The routed gate weights are first proposed by the student-conditioned
+router, then refined by GRACE scores and finally converted into the effective
+KD weights used in Equation~\ref{eq:sample_kd_average}.
 
-\begin{figure}[tp]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{figures/grace_alignment_cases.png}
-\caption[GRACE weighting cases.]{Three GRACE weighting cases in \methodname{}. When the GRACE scores show a clear preference, the final weights stay close to the strongest teacher. Under mixed router and GRACE preferences, the final weights become a compromise between both signals. When the score spread is very small, the method falls back to uniform weighting over the routed teachers.}
+\caption[GRACE weighting cases.]{Representative GRACE weighting cases in \methodname{}.}
     \label{fig:grace-alignment-cases}
 \end{figure}
 
-Figure~\ref{fig:grace-weight-refinement} compresses the same update into one
+The sample-wise path in Figure~\ref{fig:grace-weight-refinement} compresses that update into one
 sample-wise path, from gate softmax to routed weights, GRACE softmax and final
 effective KD weights.
 
-\begin{figure}[tp]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{figures/grace_weight_refinement.png}
-    \caption[Weight refinement in GRACE.]{A sample-wise view of weight refinement in \methodname{}. The gate first proposes dense soft weights, routing constraints make them sparse, GRACE converts smoothed gradient scores into a second weight vector and the final KD weights blend both signals.}
+    \caption[Weight refinement in GRACE.]{Sample-wise weight refinement in \methodname{}.}
     \label{fig:grace-weight-refinement}
 \end{figure}
 
-Figure~\ref{fig:grace-sample-specificity} then shows the practical implication:
-the same teacher pool can lead to different final weights on different samples.
+One teacher set can lead to different final weights on different samples, as
+Figure~\ref{fig:grace-sample-specificity} shows.
 
-\begin{figure}[tp]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=\linewidth]{figures/grace_sample_specificity.png}
-    \caption[Sample-specific weighting in GRACE.]{Sample-specific weighting in \methodname{}. The routed teacher set can remain similar across samples, while the final KD weights still shift according to the sample content and the GRACE score refinement stage.}
+    \caption[Sample-specific weighting in GRACE.]{Sample-specific weighting in \methodname{}.}
     \label{fig:grace-sample-specificity}
 \end{figure}
 
@@ -780,6 +811,7 @@ This rule has two stages: the gate defines the routed teacher set and GRACE
 refines those routed teachers into the final KD weights.
 
 \section{Final Objective}
+\label{sec:final-objective}
 
 The final optimization objective is
 \begin{equation}
@@ -808,3 +840,6 @@ static multi-teacher averaging, this objective makes the teacher contribution
 adaptive at the sample level. Compared with fixed teacher-subset selection, it
 avoids committing to one subset for the whole run
 \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,zhu2021studentcustomized}.
+
+Together with the early algorithmic summary, Equation~\ref{eq:final_objective}
+completes the formal training recipe used in the experiments.

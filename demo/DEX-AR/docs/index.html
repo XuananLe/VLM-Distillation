@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="DEX-AR: A Dynamic Explainability Method for Autoregressive Vision-Language Models">
+  <meta name="keywords" content="DEX-AR, Explainability, Vision-Language Models, VLM, Autoregressive, Heatmaps">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DEX-AR: A Dynamic Explainability Method for Autoregressive Vision-Language Models</title>
+
+  <!-- Global site tag (gtag.js) - Google Analytics -->
+  <script async src="https://www.googletagmanager.com/gtag/js?id=G-PYVRSFMDRL"></script>
+  <script>
+    window.dataLayer = window.dataLayer || [];
+
+    function gtag() {
+      dataLayer.push(arguments);
+    }
+
+    gtag('js', new Date());
+
+    gtag('config', 'G-PYVRSFMDRL');
+  </script>
+   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/prismjs/themes/prism.css">
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-carousel.min.css">
+  <link rel="stylesheet" href="./static/css/bulma-slider.min.css">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script src="./static/js/bulma-carousel.min.js"></script>
+  <script src="./static/js/bulma-slider.min.js"></script>
+  <script src="./static/js/index.js"></script>
+<!--  MathJax: for inline equations-->
+  <script type="text/x-mathjax-config">
+  MathJax.Hub.Config({
+    tex2jax: {
+      inlineMath: [ ['$','$'], ["\\(","\\)"] ],
+      processEscapes: true
+    }
+  });
+</script>
+<!--  MathJax loading-->
+  <script src='https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.4/MathJax.js?config=default'></script>
+</head>
+<body>
+
+<nav class="navbar" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false">
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+    </a>
+  </div>
+  <div class="navbar-menu">
+    <div class="navbar-start" style="flex-grow: 1; justify-content: center;">
+      <a class="navbar-item" href="https://walidbousselham.com/">
+      <span class="icon">
+          <i class="fas fa-home"></i>
+      </span>
+      </a>
+
+      <div class="navbar-item has-dropdown is-hoverable">
+        <a class="navbar-link">
+          More Research
+        </a>
+        <div class="navbar-dropdown">
+          <a class="navbar-item" href="https://github.com/WalBouss/GEM">
+            GEM (Grounding Everything Module) - CVPR2024
+          </a>
+          <a class="navbar-item" href="https://walidbousselham.com/LeGrad">
+            LeGrad (Explainability method for ViTs) - ICCV2025
+          </a>
+          <a class="navbar-item" href="https://walidbousselham.com/MaskInversion">
+            MaskInversion - ICLR2026
+          </a>
+          <a class="navbar-item" href="https://walidbousselham.com/VOLD">
+            VOLD (Visual Reasoning via On-Policy Distillation) - CVPR2026
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+</nav>
+
+
+<section class="hero">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <h1 class="title is-1 publication-title">DEX-AR: A Dynamic Explainability Method for Autoregressive Vision-Language Models</h1>
+          
+          <div class="is-size-5 publication-authors">
+            <span class="author-block">
+              <a href="https://walidbousselham.com/">Walid Bousselham</a><sup>1</sup>,</span>
+            <span class="author-block">
+              <a href="#">Angie Boggust</a><sup>2</sup>,
+            </span>
+            <span class="author-block">
+              <a href="#">Hendrik Strobelt</a><sup>3,4</sup>,
+            </span>
+            <span class="author-block">
+              <a href="https://hildekuehne.github.io/">Hilde Kuehne</a><sup>1,3</sup>
+            </span>
+          </div>
+
+          <div class="is-size-5 publication-authors">
+            <span class="author-block"><sup>1</sup>Tuebingen AI Center, University of Tuebingen</span><br>
+            <span class="author-block"><sup>2</sup>MIT CSAIL</span><br>
+            <span class="author-block"><sup>3</sup>MIT-IBM Watson AI Lab</span><br>
+            <span class="author-block"><sup>4</sup>IBM Research</span>
+          </div>
+
+          <div class="column has-text-centered">
+              <div class="publication-links">
+            <!-- PDF Link. -->
+            <span class="link-block">
+                <a href="https://arxiv.org/pdf/2603.06302"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fas fa-file-pdf"></i>
+                  </span>
+                  <span>Paper</span>
+                </a>
+              </span>
+              
+              <!-- arXiv Link. -->
+              <span class="link-block">
+                <a href="https://arxiv.org/abs/2603.06302"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="ai ai-arxiv"></i> <!-- Note: Requires academicons css, which is already in your <head> -->
+                  </span>
+                  <span>arXiv</span>
+                </a>
+              </span>
+              <!-- Code Link. -->
+              <span class="link-block">
+                <a href="https://github.com/WalBouss/DEX-AR"
+                   class="external-link button is-normal is-rounded is-dark">
+                  <span class="icon">
+                      <i class="fab fa-github"></i>
+                  </span>
+                  <span>Code</span>
+                  </a>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="hero teaser">
+  <div class="container is-max-desktop">
+    <div class="hero-body">
+      <img src="./static/images/teaser_dex_ar.jpg" alt="DEX-AR Teaser Figure"/>
+      <h2 class="subtitle has-text-centered">
+         <strong>DEX-AR</strong> produces fine-grained per-token heatmaps highlighting relevant image regions for each generated word, and intelligently aggregates them into a final sentence-level heatmap using token-specific weighting scores.
+        </h2>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <!-- Abstract. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>
+            As Vision-Language Models (VLMs) become increasingly sophisticated and widely used, it becomes more and more crucial to understand their decision-making process. Traditional explainability methods, designed for classification tasks, struggle with modern autoregressive VLMs due to their complex token-by-token generation process and intricate interactions between visual and textual modalities.
+          </p>
+          <p>
+            We present <b>DEX-AR</b> (Dynamic Explainability for AutoRegressive models), a novel explainability method designed to address these challenges by generating both per-token and sequence-level 2D heatmaps highlighting image regions crucial for the model’s textual responses. The proposed method interprets autoregressive VLMs by computing layer-wise gradients with respect to attention maps during the token-by-token generation process.
+          </p>
+            <p>
+            DEX-AR introduces two key innovations: a <strong>dynamic head filtering mechanism</strong> that identifies attention heads focused on visual information, and a <strong>sequence-level filtering approach</strong> that aggregates per-token explanations while distinguishing between visually-grounded and purely linguistic tokens. Our evaluation on ImageNet, VQAv2, and PascalVOC shows a consistent improvement in both perturbation-based metrics, using a novel normalized perplexity measure, as well as segmentation-based metrics.
+          </p>
+        </div>
+      </div>
+    </div>
+    <!--/ Abstract. -->
+
+    <!-- Paper Method. -->
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Method</h2>
+        <div class="method-figure">
+          <img src="./static/images/method_dex_ar.jpg" alt="DEX-AR Architecture Overview"/>
+        </div>
+        <div class="content has-text-justified">
+          <p>
+            Autoregressive VLMs generate text sequentially, with each token potentially attending to different parts of the image and previous textual context. Traditional explainability methods fail to capture this dynamic interaction.
+          </p>
+          <p>
+            <b>DEX-AR</b> tackles this by leveraging layer-wise gradients with respect to attention maps to produce 2D heatmaps highlighting the most influential image regions for each generated token. As shown in the figure above 👆, at each layer <i>l</i>, head <i>i</i>, and generation step <i>t</i>, gradients of attention maps are computed. 
+            To suppress noise from attention heads that primarily focus on text rather than image content, we apply a <b>dynamic head filtering</b> mechanism that weights contributions based on their relative focus on visual versus textual tokens. Finally, we apply <b>token-level filtering</b> to distinguish between visually-grounded words (e.g., "dog", "ball") and linguistic filler words (e.g., "the", "is"), yielding accurate, model-agnostic explanations without post-hoc heuristic smoothing.
+          </p>
+        </div>
+      </div>
+    </div>
+    <!--/ Paper Method. -->
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop is-centered ">
+    <div class="content has-text-justified ">
+        <h2 class="title is-3 is-centered has-text-centered ">Results</h2>
+        
+        <h3 class="title is-4">Qualitative Comparison against Baselines</h3>
+        <p>
+          DEX-AR generates focused attributions that align with the objects being discussed, while comparable methods tend to generate more diffuse or scattered heatmaps. Our dual-filtering approach effectively separates relevant objects from background elements.
+        </p>
+        <div class="has-text-centered">
+          <img src="./static/images/qualitative_examples_dex_ar.jpg" class="interpolation-image" alt="Qualitative Comparison" width="500"/>
+        </div>
+        <br/>
+
+        <h3 class="title is-4">Performance Across Different VLM Architectures</h3>
+        <p>
+          We evaluated DEX-AR across multiple model architectures (LLaVA, BakLLaVA, PaliGemma, and Florence-2). Our method consistently localizes objects of interest with high precision across portraits, animals, and complex indoor scenes.
+        </p>
+        <div class="has-text-centered">
+          <img src="./static/images/qualitative_vlms.jpg" class="interpolation-image" alt="Different VLMs Comparison"/>
+        </div>
+        <br/>
+
+        <h3 class="title is-4">Handling Complex & Cluttered Scenes</h3>
+        <p>
+          DEX-AR accurately localizes distinct objects (e.g., "hat", "clock") and abstract concepts (e.g., "vintage") despite dense environments. Notably, the method correctly distinguishes between visually grounded tokens (e.g., "suit") and purely linguistic completions (e.g., "case" in "suitcase"), actively suppressing the latter.
+        </p>
+        <div class="has-text-centered">
+          <img src="./static/images/complex_scene.jpg" class="interpolation-image" alt="Complex Cluttered Scene Evaluation"/>
+        </div>
+        <br/>
+
+    </div>
+  </div>
+</section>
+
+
+<section class="section" id="BibTeX">
+  <div class="container is-max-desktop content">
+    <h2 class="title">BibTeX</h2>
+    <pre><code>@article{bousselham2026dexar,
+  author    = {Bousselham, Walid and Boggust, Angie and Strobelt, Hendrik and Kuehne, Hilde},
+  title     = {DEX-AR: A Dynamic Explainability Method for Autoregressive Vision-Language Models},
+  journal   = {arXiv preprint arXiv:2603.06302},
+  year      = {2026},
+}</code></pre>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content">
+          <p>
+            This website is licensed under a <a rel="license"
+                                                href="http://creativecommons.org/licenses/by-sa/4.0/">Creative
+            Commons Attribution-ShareAlike 4.0 International License</a>.
+          </p>
+          <p>
+            This means you are free to borrow the <a
+              href="https://github.com/nerfies/nerfies.github.io">source code</a> of this website,
+            we just ask that you link back to this page in the footer.
+            Please remember to remove the analytics code included in the header of the website which
+            you do not want on your website.
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>

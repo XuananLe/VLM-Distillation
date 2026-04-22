@@ -3,11 +3,12 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange, reduce
 
 from src.components.teacher_gate import Gate
 
 
-def _compute_reinforced_teacher_descriptor_stats(
+def compute_reinforced_teacher_descriptor_stats(
     *,
     teacher_logits: torch.Tensor,
     teacher_labels: torch.Tensor,
@@ -59,7 +60,7 @@ def build_reinforced_selection_teacher_features(
     for teacher_index, (teacher_logits, teacher_labels) in enumerate(
         zip(teacher_logits_batches, teacher_label_batches)
     ):
-        descriptor_stats = _compute_reinforced_teacher_descriptor_stats(
+        descriptor_stats = compute_reinforced_teacher_descriptor_stats(
             teacher_logits=teacher_logits,
             teacher_labels=teacher_labels,
             teacher_temperature=teacher_temperature,
@@ -90,7 +91,8 @@ class ReinforcedTeacherSelectionPolicy(nn.Module):
         nn.init.zeros_(self.policy.bias)
         self.hook_handle = hook_module.register_forward_pre_hook(self.capture_hidden_state)
 
-    def capture_hidden_state(self, _module, args):
+    def capture_hidden_state(self, module, args):
+        del module
         if args:
             self.hidden_state = args[0]
 
@@ -121,8 +123,10 @@ class ReinforcedTeacherSelectionPolicy(nn.Module):
             pool_mask[missing_supervised] = fallback_mask[missing_supervised]
 
         pool_mask = pool_mask.to(dtype=hidden_state.dtype)
-        pooled_hidden = (hidden_state * pool_mask.unsqueeze(-1)).sum(dim=1)
-        return pooled_hidden / pool_mask.sum(dim=1, keepdim=True).clamp(min=1.0)
+        masked_hidden = hidden_state * rearrange(pool_mask, "b t -> b t 1")
+        pooled_hidden = reduce(masked_hidden, "b t d -> b d", "sum")
+        pooled_denominator = reduce(pool_mask, "b t -> b 1", "sum").clamp(min=1.0)
+        return pooled_hidden / pooled_denominator
 
     def compute_policy_logits(
         self,
@@ -135,7 +139,8 @@ class ReinforcedTeacherSelectionPolicy(nn.Module):
             labels=labels,
             attention_mask=attention_mask,
         ).detach()
-        state = torch.cat([pooled_hidden, teacher_features.flatten(start_dim=1)], dim=-1)
+        flattened_teacher_features = rearrange(teacher_features, "b teacher feat -> b (teacher feat)")
+        state = torch.cat([pooled_hidden, flattened_teacher_features], dim=-1)
         return self.policy(self.state_normalizer(state))
 
 

@@ -2,6 +2,7 @@ import gc
 from types import SimpleNamespace
 
 import torch
+from einops import rearrange
 
 from src.components.forward_utils import forward_with_kwarg_retry
 
@@ -127,7 +128,10 @@ def _slice_hidden_states_for_logits(
     if not isinstance(logits_to_keep, torch.Tensor):
         raise TypeError(f"Unsupported logits_to_keep type: {type(logits_to_keep)!r}")
 
-    positions = logits_to_keep.reshape(-1).to(device=hidden_states.device, dtype=torch.long)
+    positions = rearrange(logits_to_keep, "... -> (...)").to(
+        device=hidden_states.device,
+        dtype=torch.long,
+    )
     return hidden_states.index_select(dim=1, index=positions)
 
 

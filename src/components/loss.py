@@ -336,8 +336,3 @@ def jensen_shannon_divergence(
         F.kl_div(t.log(), m, reduction='batchmean')
     ) * student_temperature ** 2
 
-
-def trie_wasserstein_loss(*args, **kwargs):
-    raise RuntimeError(
-        "trie_wasserstein_loss is stateful and must be constructed via build_distillation_loss()."
-    )

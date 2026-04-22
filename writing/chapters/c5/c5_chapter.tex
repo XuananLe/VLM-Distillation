@@ -1,15 +1,22 @@
 \chapter{Experiment Results}
 \label{chap:experiment-results}
 
+This chapter reports the empirical results and analyzes what drives them. It
+first compares GRACE with the baseline methods on the main benchmarks, then
+examines stability, teacher usage and ablations. It closes with a discussion of
+the main gains, limitations and remaining gaps.
+
 \section{Main Comparison Results}
-This section compares the proposed method with the baselines on TextVQA, DocVQA and ChartQA.
+This section answers RQ1 from Chapter~\ref{chap:introduction} by comparing
+\methodname{} with same-family logits KD, cross-tokenizer ULD and the
+multi-teacher baselines on TextVQA, DocVQA and ChartQA.
 
 \subsection{Baseline Results}
 Before applying adaptation or distillation, we report the original performance of the two student models, \textbf{SmolVLM-500M} and \textbf{SmolVLM-256M}.
 
 These baseline results establish the starting point for later comparison.
 
-We obtain all results with \textbf{VLM-Eval-Kit} \cite{duan2024vlmevalkit} under the same evaluation pipeline described in Chapter~\ref{chap:evaluation-methodology}.
+We obtain all results with \textbf{VLM-Eval-Kit} \cite{duan2024vlmevalkit} under the evaluation pipeline described in Chapter~\ref{chap:evaluation-methodology}.
 
 \begin{table}[tp]
 \centering
@@ -27,7 +34,7 @@ SmolVLM-256M & 47.17 & 48.64 & 45.04 \\
 
 Table~\ref{tab:smolvlm-original-results} gives the student-only starting point.
 
-The teacher pool is substantially stronger than the compact students, which is
+The teacher set is substantially stronger than the compact students, which is
 what makes distillation meaningful in the first place.
 
 \begin{table}[tp]
@@ -43,7 +50,7 @@ Qwen2-VL-2B-Instruct & 79.70 & 90.10 & 89.28 \\
 Granite Vision 3.1 2B & 88.00 & 76.00 & 86.00 \\
 \bottomrule
 \end{tabular}
-\caption[Teacher and reference-model results.]{Original benchmark results of the teacher and large reference models used in this thesis. The table establishes the teacher-side reference range used later in the gap-to-teacher analysis.}
+\caption[Teacher and reference-model results.]{Original benchmark results of the teacher and large reference models used here. The table establishes the teacher-side reference range used later in the gap-to-teacher analysis.}
 \label{tab:teacher-original-results}
 \end{table}
 
@@ -54,21 +61,21 @@ reference.
 
 Tables~\ref{tab:textvqa-comparison}, \ref{tab:docvqa-comparison} and \ref{tab:chartqa-comparison} summarize the main comparison results across original models, direct fine-tuning, standard logits distillation baselines and \methodname.
 
-Unless stated otherwise, the main comparison tables report the strongest completed run for each method and benchmark. In particular, the adaptive heterogeneous multi-teacher rows, namely SHM-CKA, reinforced selection and \methodname{}, use the four-teacher pool \{Qwen2-VL-2B-Instruct, Qwen2.5-VL-3B-Instruct, InternVL3-1B, Gemma-3-4B-it\}. The Uniform baseline is reported from a cheaper two-teacher run with \{Qwen2-VL-2B-Instruct, Qwen2.5-VL-3B-Instruct\}. Chapter~\ref{chap:evaluation-methodology} documents the current three-teacher DocVQA launch script for systems and reproducibility details.
+Unless stated otherwise, the main comparison tables report the strongest completed run for each method and benchmark. SHM-CKA, reinforced selection and \methodname{} use a four-teacher mixed set spanning the Qwen, InternVL and Gemma families. The Uniform baseline is reported from a cheaper two-teacher Qwen run. Chapter~\ref{chap:evaluation-methodology} documents the active three-teacher DocVQA launch script for systems and reproducibility details.
 
 We report the baselines in four groups.
 
 \begin{itemize}
-\item The \textbf{non-distillation references} are the original student and the full-finetuning baseline.
+\item The \textbf{non-distillation references} are the original student and the full-finetuning baseline used for comparison.
 \item The \textbf{same-family baselines} use \textbf{SmolVLM2-2.2B-Instruct} as teacher for forward KL, reverse KL and Jensen-Shannon divergence \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge,dasgupta2025improving}.
 \item The \textbf{different-family single-teacher baselines}\\
 use a teacher outside the SmolVLM family. This group includes the ULD baseline \cite{boizard2024towardscrosstokenizerdistillation}.
-\item The \textbf{heterogeneous multi-teacher baselines} use teacher pools drawn from different VLM families, including uniform averaging, SHM-CKA, reinforced selection and \methodname{} \cite{williams1992simple,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
+\item The \textbf{multi-teacher baselines} compare a cheaper two-teacher Uniform average with four-teacher adaptive methods such as SHM-CKA, reinforced selection and \methodname{} \cite{williams1992simple,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
 \end{itemize}
 
 We report each configuration as a single run. Multi-teacher training is
 expensive in both GPU time and teacher-logit storage, so standard deviations are
-not available for every method.
+not available for every compared method.
 
 Because each multi-teacher run requires large offline logit caches and long
 single-GPU training, we report one fully trained run per method. A typical H200
@@ -106,7 +113,7 @@ sizes and leave broader sweeps for later work.
 \midrule
 Cross-family & ULD & Qwen2-VL-2B-Instruct & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{61.49\\53.95} \\
 \midrule
-\multicolumn{5}{@{}l@{}}{\textit{Heterogeneous multi-teacher baselines}} \\
+\multicolumn{5}{@{}l@{}}{\textit{Multi-teacher baselines}} \\
 \midrule
 \multirow[c]{4}{=}[-5.5ex]{\centering Multi-teacher} & Uniform & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{63.88\\54.57} \\
 \cmidrule(l){2-5}
@@ -117,12 +124,12 @@ Cross-family & ULD & Qwen2-VL-2B-Instruct & \makecell[c]{SmolVLM-500M\\SmolVLM-2
 & GRACE & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct\\InternVL3-1B\\Gemma-3-4B-it} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{69.38\\60.73} \\
 \bottomrule
 \end{tabular}
-\caption[TextVQA main comparison.]{TextVQA results for the original students, fine-tuning, single-teacher baselines and heterogeneous multi-teacher methods. The table is organized by method family so the gain from adaptive weighting can be compared against simpler baselines.}
+\caption[TextVQA main comparison.]{TextVQA results for the original students, fine-tuning, single-teacher baselines and multi-teacher methods. The table includes one two-teacher Uniform row and four-teacher adaptive rows.}
 \label{tab:textvqa-comparison}
 \end{table}
 
-DocVQA shows the same broad pattern, but the gains from adaptive weighting are
-even larger for the 500M student.
+On DocVQA, \methodname{} rises from 69.59 to 73.11 on SmolVLM-500M and from
+55.70 to 60.48 on SmolVLM-256M relative to the Uniform baseline.
 
 \begin{table}[tp]
 \centering
@@ -153,7 +160,7 @@ even larger for the 500M student.
 \midrule
 Cross-family & ULD & Qwen2-VL-2B-Instruct & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{65.28\\52.24} \\
 \midrule
-\multicolumn{5}{@{}l@{}}{\textit{Heterogeneous multi-teacher baselines}} \\
+\multicolumn{5}{@{}l@{}}{\textit{Multi-teacher baselines}} \\
 \midrule
 \multirow[c]{4}{=}[-5.5ex]{\centering Multi-teacher} & Uniform & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{69.59\\55.70} \\
 \cmidrule(l){2-5}
@@ -164,12 +171,12 @@ Cross-family & ULD & Qwen2-VL-2B-Instruct & \makecell[c]{SmolVLM-500M\\SmolVLM-2
 & GRACE & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct\\InternVL3-1B\\Gemma-3-4B-it} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{73.11\\60.48} \\
 \bottomrule
 \end{tabular}
-\caption[DocVQA main comparison.]{DocVQA results for the original students, fine-tuning, single-teacher baselines and heterogeneous multi-teacher methods. The rows use the same grouping as Table~\ref{tab:textvqa-comparison} so the cross-benchmark pattern is easy to compare.}
+\caption[DocVQA main comparison.]{DocVQA results for the original students, fine-tuning, single-teacher baselines and multi-teacher methods. The rows follow the grouping in Table~\ref{tab:textvqa-comparison}, including one two-teacher Uniform row and four-teacher adaptive rows.}
 \label{tab:docvqa-comparison}
 \end{table}
 
-ChartQA is the hardest benchmark in our study. It is also the clearest case
-where stronger multi-teacher supervision matters.
+ChartQA shows the largest margins over Uniform: 75.60 to 80.20 for
+SmolVLM-500M and 63.68 to 72.32 for SmolVLM-256M.
 
 \begin{table}[tp]
 \centering
@@ -200,7 +207,7 @@ where stronger multi-teacher supervision matters.
 \midrule
 Cross-family & ULD & Qwen2-VL-2B-Instruct & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{66.92\\60.96} \\
 \midrule
-\multicolumn{5}{@{}l@{}}{\textit{Heterogeneous multi-teacher baselines}} \\
+\multicolumn{5}{@{}l@{}}{\textit{Multi-teacher baselines}} \\
 \midrule
 \multirow[c]{4}{=}[-5.5ex]{\centering Multi-teacher} & Uniform & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{75.60\\63.68} \\
 \cmidrule(l){2-5}
@@ -211,38 +218,118 @@ Cross-family & ULD & Qwen2-VL-2B-Instruct & \makecell[c]{SmolVLM-500M\\SmolVLM-2
 & GRACE & \makecell[c]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct\\InternVL3-1B\\Gemma-3-4B-it} & \makecell[c]{SmolVLM-500M\\SmolVLM-256M} & \makecell[c]{\textbf{80.20}\\\textbf{72.32}} \\
 \bottomrule
 \end{tabular}
-\caption[ChartQA main comparison.]{ChartQA results for the original students, fine-tuning, single-teacher baselines and heterogeneous multi-teacher methods. This table uses the same method layout as the TextVQA and DocVQA comparisons.}
+\caption[ChartQA main comparison.]{ChartQA results for the original students, fine-tuning, single-teacher baselines and multi-teacher methods. This table follows the method layout used in the TextVQA and DocVQA comparisons, including one two-teacher Uniform row and four-teacher adaptive rows.}
 \label{tab:chartqa-comparison}
 \end{table}
 
-The tables above show the end-point accuracy. The optimization path is also
-different: \methodname{} is visibly more stable than static uniform averaging.
+The tables above report end-point accuracy. Figure~\ref{fig:training-curve-comparison}
+adds one illustrative optimization trace.
 
 Several trends are consistent across the three benchmarks:
 \begin{itemize}
-    \item same-family logits baselines remain weak. Forward KL gives only small gains, reverse KL is consistently poor and Jensen-Shannon is unstable. Simply matching a same-family teacher distribution is not enough for these compact students.
-    \item \textbf{cross-family ULD is already stronger than the same-family logits losses on all three tasks.} This shows that cross-tokenizer distillation is more useful here than vocabulary-matched KL. Once multiple heterogeneous teachers are added, uniform averaging gives another clear jump, which means teacher diversity itself is already valuable.
-    \item \textbf{the remaining jump from the single-teacher ULD baseline to \methodname{} comes from the full recipe: a trie-Wasserstein KD loss, sample-dependent sparse routing and GRACE score refinement after routing.}
+    \item Same-family logits baselines remain weak. Forward KL gives only small gains, reverse KL is consistently poor and Jensen-Shannon is unstable. Simply matching a same-family teacher distribution is not enough for these compact students.
+    \item \textbf{Cross-family ULD is already stronger than the same-family logits losses on all three tasks.} This shows that cross-tokenizer distillation is more useful here than vocabulary-matched KL. Once multiple teachers are added, Uniform averaging gives another clear jump, which means teacher diversity itself is already valuable.
+    \item \textbf{The remaining jump from the single-teacher ULD baseline to \methodname{} comes from the full recipe: a trie-Wasserstein KD loss, sample-dependent sparse routing and GRACE score refinement after routing.}
     \item \textbf{\methodname{} consistently improves on the uniform multi-teacher baseline for both student sizes.} The gain is moderate on TextVQA and DocVQA, but larger on ChartQA. This suggests that adaptive weighting helps most when the task mixes visual reading, numerical reasoning and teacher specialization.
 \end{itemize}
 
-\begin{figure}[tp]
+\begin{figure}[H]
     \centering
     \includegraphics[width=\linewidth]{figures/c5_results_bars.png}
-    \caption[Grouped comparison of original, best-baseline and GRACE results.]{Grouped comparison of the original student, the strongest non-\methodname{} baseline and \methodname{} for both student sizes. The chart makes the pattern in Tables~\ref{tab:textvqa-comparison} to \ref{tab:chartqa-comparison} easier to scan: \methodname{} stays above the best competing baseline on every benchmark.}
+    \caption[Grouped comparison of original, best-baseline and GRACE results.]{Grouped comparison of the original student, the strongest non-\methodname{} baseline and \methodname{} for both student sizes.}
     \label{fig:c5-results-bars}
 \end{figure}
 
-Figure~\ref{fig:c5-results-bars} gives the same comparison in a more compact
-visual form. The red bars stay above the blue and yellow bars on every task,
-and the separation is largest on ChartQA for both students.
+The bar chart in Figure~\ref{fig:c5-results-bars} compresses the main ranking:
+\methodname{} stays above the strongest non-\methodname{} baseline on all three
+benchmarks and for both student sizes.
 
-\begin{figure}[tp]
+For the qualitative analysis below, we use DEX-AR
+\cite{bousselham2026dexar}. For token \(t\), layer \(l\), and head \(h\),
+DEX-AR forms a gradient-based attribution map
+\[
+\mathbf{G}_{t}^{(l,h)}
+=
+\nabla_{\mathbf{A}^{(l,h)}} y_t \odot \mathbf{A}^{(l,h)},
+\]
+then keeps visually grounded heads with
+\[
+w^{(l,h)}=\max\!\big(S_{\mathrm{img}}^{(l,h)}-S_{\mathrm{text}}^{(l,h)},0\big),
+\]
+and aggregates
+\[
+\mathbf{H}_t=\sum_{l,h} w^{(l,h)} \mathbf{G}_{t}^{(l,h)},
+\qquad
+\mathbf{H}_{\mathrm{sent}}=\sum_t \delta_t \mathbf{H}_t .
+\]
+We prefer DEX-AR over raw attention maps or generic saliency because the model
+is autoregressive and the target is answer-token grounding, not generic image
+saliency.
+
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=0.82\linewidth]{figures/dexar_architecture.jpg}
+    \caption[DEX-AR overview.]{DEX-AR overview. The method computes
+    gradient-based attribution over autoregressive attention maps, filters
+    visually grounded heads and aggregates token-level maps into a
+    sentence-level explanation.}
+    \label{fig:dexar-architecture}
+\end{figure}
+
+Figure~\ref{fig:textvqa-sample3-qualitative} gives a representative TextVQA
+example. Sample 3 asks \emph{``who is this copyrighted by?''} The relevant
+evidence is the copyright text on the lower-left border. The original
+SmolVLM-500M instead attends to the \emph{Virgin} logo, i.e. the wrong region.
+The \methodname{} model reduces that error.
+
+\begin{figure}[H]
+    \centering
+    \begin{subfigure}[t]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/input_image.png}
+        \caption{Input image}
+    \end{subfigure}
+
+    \vspace{0.5em}
+
+    \begin{subfigure}[t]{0.34\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/original_smolvlm_500_heatmap.png}
+        \caption{Original SmolVLM-500M}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.34\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/grace_smolvlm_500_heatmap.png}
+        \caption{\methodname{} SmolVLM-500M}
+    \end{subfigure}
+    \caption[Representative TextVQA attention example.]{Representative
+    TextVQA example for sample 3 (\emph{``who is this copyrighted by?''}). The
+    original SmolVLM-500M places highest mass on the salient \emph{Virgin}
+    logo, while the \methodname{} model shifts attention toward the
+    copyright-text region.}
+    \label{fig:textvqa-sample3-qualitative}
+\end{figure}
+
+\begin{rqanswerbox}{Answer to RQ1}
+\methodname{} consistently improves over direct finetuning and the compared
+distillation baselines. The ranking is clear: same-family logits baselines are
+weakest, cross-family ULD is stronger, multi-teacher baselines improve further
+and \methodname{} is best overall. Within the multi-teacher group, static
+Uniform averaging already helps, but \methodname{} stays ahead of SHM-CKA,
+reinforced selection and Uniform itself. This shows that teacher diversity
+already helps, but the largest gains come from combining the trie-Wasserstein
+loss with gradient-based alignment. On SmolVLM-500M, \methodname{} closes
+\(39.53\%\) to \(55.34\%\) of the gap between the best teacher and the compact
+student.
+\end{rqanswerbox}
+
+\begin{figure}[H]
     \centering
     \begin{subfigure}[t]{0.48\linewidth}
         \centering
         \includegraphics[width=\linewidth]{figures/uniform.png}
-        \caption{Uniform multi-teacher baseline}
+        \caption{Uniform two-teacher baseline}
     \end{subfigure}
     \hfill
     \begin{subfigure}[t]{0.48\linewidth}
@@ -250,15 +337,15 @@ and the separation is largest on ChartQA for both students.
         \includegraphics[width=\linewidth]{figures/GRACE.png}
         \caption{\methodname}
     \end{subfigure}
-    \caption[Training-curve comparison for uniform weighting and GRACE.]{Representative training curves from a uniform multi-teacher run and a \methodname{} run. The \methodname{} trace is visibly smoother and shows smaller oscillations, which is consistent with the stability claim, but the figure is illustrative rather than a controlled matched-run comparison.}
+    \caption[Training-curve comparison for uniform weighting and GRACE.]{Illustrative training curves from a Uniform two-teacher run and one representative \methodname{} run.}
     \label{fig:training-curve-comparison}
 \end{figure}
 
-Figure~\ref{fig:training-curve-comparison} complements the final benchmark
-tables with one illustrative optimization trace.
-\textbf{A representative \methodname{} run also follows a more stable training trajectory.}
+The training-curve comparison in Figure~\ref{fig:training-curve-comparison}
+should be read as an example, not a matched stability study. In this pair of
+runs, the \methodname{} trace is smoother than the Uniform trace.
 
-\begin{figure}[tp]
+\begin{figure}[H]
     \centering
     \begin{subfigure}[t]{0.74\linewidth}
         \centering
@@ -273,17 +360,17 @@ tables with one illustrative optimization trace.
         \includegraphics[width=\linewidth]{figures/GRACE-non-collapse.png}
         \caption{With \methodname{}}
     \end{subfigure}
-    \caption[Representative collapse and non-collapse routing examples.]{Representative routed-teacher load plots from one collapse case and one stable \methodname{} case. The figure is diagnostic, not a controlled matched-run ablation: it shows that the router can collapse toward one teacher, while a \methodname{} run with the current trie-Wasserstein loss keeps routing mass distributed across the teacher pool.}
+    \caption[Representative collapse and non-collapse routing examples.]{Representative routed-teacher load plots from one collapse case and one stable \methodname{} case.}
     \label{fig:router-collapse-comparison}
 \end{figure}
 
-Figure~\ref{fig:router-collapse-comparison} shows the contrast directly.
-The figure is best read as a diagnostic contrast. In one routed run without the
+The contrast is explicit in Figure~\ref{fig:router-collapse-comparison}. The
+figure is best read as a diagnostic contrast. In one routed run without the
 full \methodname{} recipe, the router drifts toward one teacher. In a
-representative \methodname{} run, the final load remains spread across teachers,
-so the student keeps the benefit of the heterogeneous pool.
+representative \methodname{} run, the final load remains spread across
+teachers, so the student keeps the benefit of the heterogeneous pool.
 
-Table~\ref{tab:grace-relative-gains} makes the same point numerically for the
+Table~\ref{tab:grace-relative-gains} states the result numerically for the
 SmolVLM-500M student. Relative gain is computed as
 \((\text{\methodname} - \text{baseline}) / \text{baseline}\).
 
@@ -307,12 +394,12 @@ ChartQA & +17.40 (+27.71\%) & +17.20 (+27.30\%) & +4.60 (+6.08\%) & +3.32 (+4.32
 
 \begin{itemize}
     \item \textbf{The gains over the original student are large:} +22.26\% on TextVQA, +22.83\% on DocVQA and +27.71\% on ChartQA. The gains over direct finetuning are almost as large: +21.80\%, +18.00\% and +27.30\%, respectively.
-    \item the gain over static uniform averaging is smaller, but it remains consistent across all three tasks. \textbf{This isolates the value of adaptive teacher weighting from the value of simply using more than one teacher.}
-    \item \textbf{The same pattern holds for SmolVLM-256M.} \methodname{} rises from 47.17 to 60.73 on TextVQA (+28.75\%), from 48.64 to 60.48 on DocVQA (+24.34\%) and from 45.04 to 72.32 on ChartQA (+60.57\%).
-    \item it also stays ahead of direct finetuning and uniform weighting. Relative to the uniform baseline, the gains are +11.29\% on TextVQA, +8.58\% on DocVQA and +13.57\% on ChartQA.
+    \item The gain over static uniform averaging is smaller, but it remains consistent across all three tasks. \textbf{This isolates the value of adaptive teacher weighting from the value of simply using more than one teacher.}
+    \item \textbf{The pattern also holds for SmolVLM-256M.} \methodname{} rises from 47.17 to 60.73 on TextVQA (+28.75\%), from 48.64 to 60.48 on DocVQA (+24.34\%) and from 45.04 to 72.32 on ChartQA (+60.57\%).
+    \item It also stays ahead of direct finetuning and uniform weighting. Relative to the uniform baseline, the gains are +11.29\% on TextVQA, +8.58\% on DocVQA and +13.57\% on ChartQA.
 \end{itemize}
 
-The same trend appears if the reference point is the strongest teacher in the
+The trend is similar if the reference point is the strongest teacher in the
 \methodname{} pool. Let \(g_{\mathrm{orig}} = y_T - y_{\mathrm{orig}}\) and
 \(g_{\mathrm{grace}} = y_T - y_{\mathrm{grace}}\). The fraction of the gap
 closed is \(1 - g_{\mathrm{grace}} / g_{\mathrm{orig}}\).
@@ -331,7 +418,7 @@ DocVQA & 93.90 & 34.38 & 20.79 & 39.53\% \\
 ChartQA & 94.24 & 31.44 & 14.04 & 55.34\% \\
 \bottomrule
 \end{tabular}
-\caption[Gap-to-teacher analysis for SmolVLM-500M.]{Gap-to-teacher analysis for SmolVLM-500M under \methodname. The teacher reference is the strongest model in the four-teacher pool for each benchmark and the last column reports the fraction of the original gap that \methodname{} closes.}
+\caption[Gap-to-teacher analysis for SmolVLM-500M.]{Gap-to-teacher analysis for SmolVLM-500M under \methodname. The teacher reference is the strongest model in the four-teacher set for each benchmark and the last column reports the fraction of the original gap that \methodname{} closes.}
 \label{tab:grace-gap-to-teacher}
 \end{table}
 
@@ -351,14 +438,14 @@ it learns from.
 forward KL.} This suggests that the more mode-seeking objective is a poor fit
 for these compact multimodal students.
 
-\textbf{SHM-CKA is not enough by itself.} SHM-CKA uses the same heterogeneous
-teacher pool, but replaces routed weighting with hidden-state matching. It is
+\textbf{SHM-CKA is not enough by itself.} SHM-CKA uses the heterogeneous
+teacher set, but replaces routed weighting with hidden-state matching. It is
 competitive on ChartQA, but clearly weaker on TextVQA and DocVQA. This implies
 that representation alignment alone is not sufficient.
 Teacher assignment matters, especially when the pool contains teachers with
 different strengths and tokenizers.
 
-\textbf{A clear limitation remains on the vision side.} The current method
+\textbf{A clear limitation remains on the vision side.} The method
 distills supervised answer-token logits, pools student hidden states for
 routing and scores teachers from CE/KD agreement at the output side. This is
 effective, but it does not explicitly align visual features, cross-attention
@@ -384,7 +471,7 @@ The main question is whether strong internal similarity is enough to justify
 layer-wise distillation. Our results suggest that it is not, as shown in the
 figures and tables below.
 
-\begin{figure}[tp]
+\begin{figure}[htbp]
     \centering
     \begin{subfigure}[t]{0.48\linewidth}
         \centering
@@ -397,14 +484,14 @@ figures and tables below.
         \includegraphics[width=\linewidth]{figures/cka_last_docvqa_qwen2vl2b_smolvlm500m.png}
         \caption{DocVQA}
     \end{subfigure}
-    \caption[Final-layer CKA heatmaps across two benchmarks.]{Final-layer CKA heatmaps from our experiments for the teacher-student pair Qwen2-VL-2B and SmolVLM-500M on TextVQA and DocVQA. Brighter regions and values closer to \(1\) indicate stronger representation similarity, but they do not imply that direct layer matching is the best training signal.}
+    \caption[Final-layer CKA heatmaps across two benchmarks.]{Final-layer CKA heatmaps for Qwen2-VL-2B and SmolVLM-500M on TextVQA and DocVQA.}
     \label{fig:exp-cka-multi-dataset}
 \end{figure}
 
 The final-layer maps already show that the teacher and student are not
 arbitrarily far apart in representation space.
 
-\begin{figure}[tp]
+\begin{figure}[htbp]
     \centering
     \begin{subfigure}[t]{0.48\linewidth}
         \centering
@@ -417,13 +504,13 @@ arbitrarily far apart in representation space.
         \includegraphics[width=\linewidth]{figures/cka_vision_docvqa_qwen2vl2b_smolvlm500m.png}
         \caption{DocVQA}
     \end{subfigure}
-    \caption[Vision-layer CKA heatmaps across two benchmarks.]{Vision-layer CKA heatmaps for the same teacher-student pair on TextVQA and DocVQA. Again, brighter regions and values closer to \(1\) indicate stronger similarity, while the benchmark gaps show that similar internal structure is still not enough by itself.}
+    \caption[Vision-layer CKA heatmaps across two benchmarks.]{Vision-layer CKA heatmaps for Qwen2-VL-2B and SmolVLM-500M on TextVQA and DocVQA.}
     \label{fig:exp-cka-vision-multi-dataset}
 \end{figure}
 
-Figures~\ref{fig:exp-cka-multi-dataset} and
-\ref{fig:exp-cka-vision-multi-dataset} show that the teacher and student can be
-relatively close in both the language and vision stacks.
+Teacher and student can remain relatively close in both the language and vision
+stacks, as Figures~\ref{fig:exp-cka-multi-dataset} and
+\ref{fig:exp-cka-vision-multi-dataset} indicate.
 
 However, Tables~\ref{tab:textvqa-comparison}, \ref{tab:docvqa-comparison}, and
 \ref{tab:chartqa-comparison} still show a clear benchmark gap between compact
@@ -435,66 +522,126 @@ not a reliable signal that direct layer matching will produce better task
 transfer.
 
 \section{Ablation Study}
-We report a compact teacher-assignment study on SmolVLM-500M. The goal is to
-test whether the gain comes only from using more teachers, or from the specific
-adaptive weighting rule in \methodname{}.
+This section answers RQ2 from Chapter~\ref{chap:introduction} by isolating the
+main components of \methodname{} on DocVQA. Table~\ref{tab:docvqa-planned-ablation}
+keeps the teacher set and KD loss close to the final method and changes one
+mechanism at a time:
+\begin{itemize}
+\item \textbf{Cross-family ULD (single teacher)} uses one cross-family teacher and optimizes \(\mathcal{L}=\mathcal{L}_{CE}+\alpha\mathcal{L}_{ULD}\), with \(\mathcal{L}_{ULD}=\|\pi(p_s)-\pi(p_t)\|_1\). This provides the single-teacher cross-tokenizer baseline.
+\item \textbf{Uniform multi-teacher} averages the active per-teacher KD losses, \(\mathcal{L}=\mathcal{L}_{CE}+\alpha \frac{1}{M}\sum_{i=1}^{M}\mathcal{L}_{TW}^{(i)}\). This tests whether teacher diversity alone explains the gain.
+\item \textbf{Routing only + trie-Wasserstein} keeps sparse routing but disables GRACE refinement after routing, so \(w_i^{(b)}=u_i^{(b)}=\mathbf{1}[i\in\mathcal{R}_b]/|\mathcal{R}_b|\). This tests whether routing alone explains the gain.
+\item \textbf{Full GRACE + trie-Wasserstein} is the full method and serves as the reference row, with \(w_i^{(b)}\propto (\hat p_i^{(b)})^{\lambda}(q_i^{(b)})^{1-\lambda}\).
+\item \textbf{Full GRACE + trie-Wasserstein (\(\lambda = 1.0\))} reduces the final weights to router weights only, \(w_i^{(b)}=\hat p_i^{(b)}\) after normalization over routed teachers. This tests whether post-routing blending matters.
+\item \textbf{Full GRACE + trie-Wasserstein (\(\lambda_{bal}=0\))} removes the router balance term, so \(\mathcal{L}=\mathcal{L}_{CE}+\alpha\mathcal{L}_{KD}+\lambda_{ent}\mathcal{L}_{ent}+\lambda_z\mathcal{L}_z\). This tests whether anti-collapse regularization contributes beyond the main KD objective.
+\item \textbf{Full GRACE + trie-Wasserstein (\(\gamma_{\mathrm{EMA}}=0\))} removes EMA smoothing, so \(\hat s_i^{(b)}=s_i^{(b)}\) and \(q_i^{(b)}=\mathrm{Softmax}(\beta s_i^{(b)})\). This tests whether temporal score smoothing stabilizes teacher weighting.
+\end{itemize}
 
 \begin{table}[tp]
 \centering
-\begin{tabular}{lccc}
+\scriptsize
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{0.94}
+\begin{tabular}{@{}lcc@{}}
 \toprule
-\textbf{Variant} & \textbf{TextVQA} & \textbf{DocVQA} & \textbf{ChartQA} \\
+\textbf{DocVQA ablation variant} & \makecell[c]{\textbf{SmolVLM-}\\\textbf{256M}} & \makecell[c]{\textbf{SmolVLM-}\\\textbf{500M}} \\
 \midrule
-ULD (single cross-family teacher) & 61.49 & 65.28 & 66.92 \\
-Uniform multi-teacher & 63.88 & 69.59 & 75.60 \\
-SHM-CKA & 60.47 & 63.32 & 76.88 \\
-Reinforced selection & 63.26 & 64.00 & 70.27 \\
-GRACE & \textbf{69.38} & \textbf{73.11} & \textbf{80.20} \\
+Cross-family ULD (single teacher) & 52.24 & 65.28 \\
+Uniform multi-teacher & 55.70 & 69.59 \\
+Routing only + trie-Wasserstein & 57.45 & 63.23 \\
+Full GRACE + trie-Wasserstein & 60.48 & 73.11 \\
+\makecell[l]{Full GRACE + trie-Wasserstein\\(\(\lambda = 1.0\))} & 57.97 & 70.45 \\
+\makecell[l]{Full GRACE + trie-Wasserstein\\(\(\lambda_{bal}=0\))} & 58.46 & 72.12 \\
+\makecell[l]{Full GRACE + trie-Wasserstein\\(\(\gamma_{\mathrm{EMA}}=0\))} & 57.45 & 71.25 \\
 \bottomrule
 \end{tabular}
-\caption[Teacher-assignment ablation on SmolVLM-500M.]{Teacher-assignment ablation on SmolVLM-500M across TextVQA, DocVQA and ChartQA. The variants isolate single-teacher transfer, static multi-teacher averaging and adaptive multi-teacher weighting under the same student size.}
-\label{tab:teacher-assignment-ablation}
+\caption[DocVQA component ablation.]{DocVQA component ablation for SmolVLM-256M and SmolVLM-500M.}
+\label{tab:docvqa-planned-ablation}
 \end{table}
 
-Table~\ref{tab:teacher-assignment-ablation} suggests that heterogeneous
-supervision is useful, but static or partially adaptive alternatives still miss
-part of the gain.
+Table~\ref{tab:docvqa-planned-ablation} shows that the full variant remains the
+strongest setting for both student sizes. Relative to routing only, it gains
+3.03 points on SmolVLM-256M and 9.88 points on SmolVLM-500M, which indicates
+that sparse routing alone does not explain the final improvement.
 
-We also include a student-scaling study on DocVQA. The goal is to check whether
-the same training recipe remains effective as the student capacity changes from
-SmolVLM-256M to LFM2.5-VL-450M and SmolVLM-500M.
+The table also reveals two distinct post-routing gains. On SmolVLM-500M,
+moving from routing-only weights to router-only weights (\(\lambda=1.0\))
+already adds 7.22 points (63.23 \(\rightarrow\) 70.45), and full GRACE adds
+another 2.66 points (70.45 \(\rightarrow\) 73.11). On SmolVLM-256M, the
+router-only gain is only 0.52 points (57.45 \(\rightarrow\) 57.97), while
+gradient-based refinement adds 2.51 points (57.97 \(\rightarrow\) 60.48). This
+suggests that the gate provides a coarse ranking, especially for the larger
+student, whereas gradient-based reweighting is the more universal corrective
+layer \cite{zhu2021studentcustomized,yuan2020reinforcedmultiteacherselection}.
+This also suggests an interaction between student size and routing quality: the
+larger student appears to extract stronger routing features from its hidden
+states, while the smaller student relies more on the GRACE refiner. This is an
+inference from the ablation pattern, not a direct causal proof.
 
-\begin{table}[tp]
-\centering
-\begin{tabular}{lcccc}
-\toprule
-\textbf{Student model} & \textbf{Scale} & \textbf{Original} & \textbf{Best baseline} & \textbf{GRACE} \\
-\midrule
-SmolVLM-256M & 256M & 48.64 & 58.53 & 60.48 \\
-LFM2.5-VL-450M & 450M & N/A & N/A & N/A \\
-SmolVLM-500M & 500M & 59.52 & 69.59 & 73.11 \\
-\bottomrule
-\end{tabular}
-\caption[Partial DocVQA student-scaling comparison.]{Partial student-scaling comparison on DocVQA. The table reports the original model, the strongest non-\methodname{} baseline and \methodname{} for each student size, while the LFM2.5-VL-450M row remains open for future runs.}
-\label{tab:student-scaling-docvqa}
-\end{table}
+Removing router balance loss or EMA smoothing causes smaller but consistent
+degradations, suggesting that both terms mainly stabilize teacher weighting
+instead of replacing the main contribution of GRACE-guided blending.
 
-Table~\ref{tab:student-scaling-docvqa} gives the currently available scaling
-comparison and leaves the LFM row for future completion.
+\begin{rqanswerbox}{Answer to RQ2}
+GRACE works because it combines a strong cross-tokenizer KD loss
+(trie-Wasserstein), sample-dependent sparse routing and, most critically,
+post-routing gradient-based score refinement. The balance loss and EMA
+smoothing are supportive stabilizers.
+\end{rqanswerbox}
 
-\section{Qualitative Analysis}
-This section presents representative examples to inspect how distillation affects text reading and basic reasoning behavior.
+\section{Efficiency Analysis}
+This section addresses RQ3 from Chapter~\ref{chap:introduction}. Runtime,
+training cost and storage overhead will be summarized here.
+
+\begin{rqanswerbox}{Answer to RQ3}
+The cost of \methodname{} is dominated by GPU training rather than object
+storage. From the Vast.ai screenshot, one H200 instance costs 2.059 USD/hour,
+so a 2500 USD budget corresponds to
+\[
+\frac{2500}{2.059} \approx 1214.18 \text{ GPU-hours},
+\]
+which is about 50.59 days of continuous single-GPU runtime. If one full run
+takes about 7 hours, this budget is equivalent to roughly
+\[
+\frac{1214.18}{7} \approx 173
+\]
+single-H200 runs.
+
+The storage side is much cheaper under the official Cloudflare R2 standard
+pricing policy: 0.015 USD/GB-month for storage, 4.50 USD per million Class A
+operations, 0.36 USD per million Class B operations and zero egress. Using the
+dashboard values in Figure~\ref{fig:r2-storage}, 1.04 TB of stored logits is
+about 1040 GB, which gives
+\[
+1040 \times 0.015 = 15.60 \text{ USD/month}.
+\]
+The 598.73k Class A operations stay below the 1M monthly free allowance, so
+their marginal cost is 0 USD. The 20.3M Class B operations exceed the 10M free
+allowance by 10.3M, which gives
+\[
+10.3 \times 0.36 = 3.71 \text{ USD}.
+\]
+The total R2 cost is therefore about
+\[
+15.60 + 3.71 = 19.31 \text{ USD/month},
+\]
+before billing-unit rounding. This is below 1\% of the 2500 USD GPU budget,
+which means the main efficiency bottleneck is training compute and offline
+logit generation, not storage egress or serving cost.
+\end{rqanswerbox}
 
 \section{Discussion}
 \begin{itemize}
-    \item \textbf{The results show a clear ordering.} Same-family KL baselines are weakest, single cross-family distillation is stronger, uniform weighting improves again and \methodname{} is best overall \cite{hinton2015distillingknowledgeneuralnetwork,boizard2024towardscrosstokenizerdistillation}. This means that the problem is not solved by one trick alone. Heterogeneous teachers provide better supervision, but the student still needs a cross-tokenizer loss, sample-dependent routing and a stable post-routing weighting rule.
-    \item the code-level implementation helps explain that pattern. The current training recipe uses a shared-trie Wasserstein loss for mismatched tokenizers, a routed multi-teacher setup with hard-routing warmup, top-\(k\) capacity control and GRACE score refinement with EMA-smoothed score updates \cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}. The smoother training curve in Figure~\ref{fig:training-curve-comparison} is consistent with that design: the router narrows the teacher set first, then GRACE reweights only the routed teachers instead of averaging all teachers equally.
-    \item the largest gain appears on ChartQA and the same trend also holds for the smaller 256M student. This suggests that sample-dependent teacher assignment is most useful when the task mixes visual parsing and numerical reasoning. It also shows that the method is not only helping the larger compact student. The improvement persists in the more resource-constrained regime.
-    \item the comparison with SHM-CKA is also informative. SHM-CKA uses the same heterogeneous teacher pool, but it is less consistent than \methodname{}. Together with the CKA heatmaps, this suggests that internal similarity alone is not enough. \textbf{Good transfer still depends on which teacher is emphasized for each sample} \cite{kornblith2019similarityrepresentations,dasgupta2025improving}.
+    \item \textbf{The results show a clear ordering.} Same-family KL baselines are weakest, single cross-family distillation is stronger, uniform weighting improves again and \methodname{} is best overall \cite{hinton2015distillingknowledgeneuralnetwork,boizard2024towardscrosstokenizerdistillation}. This means that the problem is not solved by one trick alone. Heterogeneous teachers provide better supervision, but the student still needs a cross-tokenizer loss, sample-dependent routing and a stable post-routing weighting scheme.
+    \item The code-level implementation helps explain that pattern. The training recipe uses a shared-trie Wasserstein loss for mismatched tokenizers, a routed multi-teacher setup with hard-routing warmup, top-\(k\) capacity control and GRACE score refinement with EMA-smoothed score updates \cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}. The smoother training curve in Figure~\ref{fig:training-curve-comparison} is consistent with that design: the router narrows the teacher set first, then GRACE reweights only the routed teachers instead of averaging them uniformly.
+    \item The largest gain appears on ChartQA and the trend also holds for the smaller 256M student. This suggests that sample-dependent teacher assignment is most useful when the task mixes visual parsing and numerical reasoning. It also shows that the method is not only helping the larger compact student. The improvement persists in the more resource-constrained regime.
+    \item The comparison with SHM-CKA is also informative. SHM-CKA uses the heterogeneous teacher set, but it is less consistent than \methodname{}. Together with the CKA heatmaps, this suggests that internal similarity alone is not enough. \textbf{Good transfer still depends on which teacher is emphasized for each sample} \cite{kornblith2019similarityrepresentations,dasgupta2025improving}.
 \end{itemize}
 
-Two limitations remain:
+\section{Limitations and Threats to Validity}
 \begin{itemize}
-    \item the reported results are single-run numbers, because offline teacher-logit generation, remote storage and multi-teacher training are expensive. In our setup, a typical H200 run takes about 7 hours and costs about 21 USD on Vast.ai before cache-generation cost. This budget is the main reason some broader sweeps are still missing and are deferred to later work.
-    \item the current implementation still depends on large remote teacher-logit caches. The method is effective, but the systems cost is still significant.
+    \item \textbf{Cost-limited evaluation.} The reported numbers are single-run results. A typical H200 run takes about 7 hours and costs about 21 USD on Vast.ai before offline cache-generation and storage cost. This limits repeated seeds, confidence intervals and broader hyperparameter sweeps, so small gaps between strong baselines should be interpreted cautiously.
+    \item \textbf{Incomplete apples-to-apples coverage across all baselines.} The strongest adaptive rows use the full heterogeneous teacher set, while the Uniform baseline is reported from a cheaper two-teacher run. The active Chapter~\ref{chap:evaluation-methodology} launch path also documents one three-teacher DocVQA recipe, whereas the main result tables aggregate broader completed runs. This does not invalidate the overall trend, but it weakens strict per-row comparability.
+    \item \textbf{Answer-token-centric transfer.} The method distills teacher distributions on supervised answer positions, routes teachers from pooled student states and refines them with CE/KD gradient agreement. It does not explicitly align visual tokens, cross-attention maps or region-level evidence. As a result, some gains may come mainly from output-side transfer instead of deeper visual grounding.
+    \item \textbf{Systems dependence.} The implementation relies on large offline teacher-logit caches, remote object storage and local streaming caches. This keeps the online loop simple, but it raises storage, I/O and reproducibility requirements. The method is therefore easier to reproduce in a well-provisioned training environment than on minimal local hardware.
+    \item \textbf{Scope of validation.} The empirical study focuses on text-rich VQA benchmarks and compact students in the SmolVLM family. The reported gains are strong in this regime, but the thesis does not yet establish the same behavior for other multimodal task families, other student architectures or larger teacher pools.
 \end{itemize}

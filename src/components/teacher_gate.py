@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from einops import rearrange, reduce
 
 
 class DeepRouter(nn.Module):
@@ -98,8 +99,10 @@ class Gate(nn.Module):
             gate_mask[missing_supervised] = fallback_mask[missing_supervised]
 
         gate_mask = gate_mask.to(dtype=tensor.dtype)
-        pooled_tensor = (tensor * gate_mask.unsqueeze(-1)).sum(dim=1)
-        return pooled_tensor / gate_mask.sum(dim=1, keepdim=True).clamp(min=1.0)
+        masked_tensor = tensor * rearrange(gate_mask, "b t -> b t 1")
+        pooled_tensor = reduce(masked_tensor, "b t d -> b d", "sum")
+        pooled_denominator = reduce(gate_mask, "b t -> b 1", "sum").clamp(min=1.0)
+        return pooled_tensor / pooled_denominator
 
     def pool_features(
         self,

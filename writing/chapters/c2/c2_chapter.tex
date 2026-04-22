@@ -1,6 +1,12 @@
 \chapter{Preliminaries}
 \label{chap:preliminaries}
 
+This chapter keeps only the technical preliminaries that Chapter~\ref{chap:proposed-method}
+uses directly. It fixes the model notation, the generic distillation template,
+the cross-tokenizer background and the sparse-routing concepts behind GRACE.
+The broader motivation, related work and research gap already appear in
+Chapter~\ref{chap:introduction}, so they are not repeated here.
+
 \section{Transformer-Based Vision-Language Models}
 
 \subsection{Transformer Basics}
@@ -18,16 +24,9 @@ in parallel across several learned subspaces, then applies a feed-forward
 network and residual normalization.
 
 For language modeling, the Transformer produces a sequence of hidden states and
-next-token logits. In this thesis, the student and teacher interact through
+next-token logits. Here the student and teacher interact through
 their output logits because the distillation method operates at the
 token-distribution level \cite{vaswani2023attentionneed,hinton2015distillingknowledgeneuralnetwork}.
-
-\begin{figure}[tp]
-    \centering
-    \includegraphics[height=0.20\textheight,keepaspectratio]{figures/transformer_attention_block_wikimedia.png}
-    \caption{Transformer attention block structure \cite{wikimedia_transformer_attention_block_image,vaswani2023attentionneed}. The figure isolates the attention and feed-forward block that is later reused in both language and vision stacks.}
-    \label{fig:prelim-transformer-attention}
-\end{figure}
 
 \subsection{Vision Encoder and Multimodal Fusion}
 
@@ -38,7 +37,7 @@ module then fuses these visual tokens with text, using cross-attention, a Q-Form
 or a learned projector
 \cite{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning}.
 
-This thesis focuses on compact generative VLMs in the same general family as
+We focus on compact generative VLMs in the same general family as
 SmolVLM and related projector-based models. Conceptually, we can write such a model as
 \begin{equation}
 \mathbf{z} = f_{\theta}(x),
@@ -48,13 +47,26 @@ used for autoregressive answer generation.
 
 \begin{figure}[tp]
     \centering
-    \includegraphics[width=0.68\linewidth]{figures/vit_wikimedia.png}
-    \caption{Vision Transformer pipeline with patch embedding and Transformer encoder blocks \cite{wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}. It shows how an image becomes a token sequence before multimodal fusion.}
-    \label{fig:prelim-vit}
+    \begin{subfigure}[t]{0.28\linewidth}
+        \centering
+        \includegraphics[width=\linewidth,height=0.18\textheight,keepaspectratio]{figures/transformer_attention_block_wikimedia.png}
+        \caption{Transformer attention block \cite{wikimedia_transformer_attention_block_image,vaswani2023attentionneed}.}
+        \label{fig:prelim-transformer-attention}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.62\linewidth}
+        \centering
+        \includegraphics[width=\linewidth,height=0.18\textheight,keepaspectratio]{figures/vit_wikimedia.png}
+        \caption{Vision Transformer pipeline \cite{wikimedia_vision_transformer_image,dosovitskiy2021imageworth16x16words}.}
+        \label{fig:prelim-vit}
+    \end{subfigure}
+    \caption{Transformer and ViT building blocks.}
+    \label{fig:prelim-transformer-vit-pair}
 \end{figure}
 
-Figures~\ref{fig:prelim-transformer-attention} and \ref{fig:prelim-vit} give
-the basic Transformer and ViT blocks that later multimodal systems build on.
+The basic Transformer and ViT blocks that later multimodal systems build on
+appear in Figures~\ref{fig:prelim-transformer-attention} and
+\ref{fig:prelim-vit}.
 
 \begin{figure}[tp]
     \centering
@@ -83,45 +95,16 @@ the basic Transformer and ViT blocks that later multimodal systems build on.
         \includegraphics[width=\linewidth]{figures/llava_architecture_family.png}
         \caption{LLaVA projector-based design \cite{liu2023visualinstructiontuning}.}
     \end{subfigure}
-    \caption{Representative architecture families of modern vision-language models. Together they show the main fusion choices used in practice: dual encoders, cross-attention, query bottlenecks and projector-based coupling to a language model.}
+    \caption{Representative architecture families of modern vision-language models.}
     \label{fig:prelim-vlm-families}
 \end{figure}
 
-\subsection{Text-Rich Multimodal Understanding}
-
-The tasks considered in this thesis, namely TextVQA, DocVQA and ChartQA, require
-the model to read text in images, understand the question and perform basic
-reasoning over visual and textual evidence
+The later experiments focus on text-rich multimodal understanding, where the
+model must read image text, interpret the question and generate a short answer
+sequence
 \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
-This setting differs from generic image captioning because success depends strongly
-on optical character recognition (OCR)-sensitive recognition and token-level answer generation.
-
-\begin{figure}[tp]
-    \centering
-    \begin{subfigure}[t]{0.31\linewidth}
-        \centering
-        \includegraphics[width=\linewidth,height=0.18\textheight,keepaspectratio]{figures/textvqa_sample_stop_sign.jpg}
-        \caption{TextVQA}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[t]{0.31\linewidth}
-        \centering
-        \includegraphics[width=\linewidth,height=0.18\textheight,keepaspectratio]{figures/docvqa_sample_receipt.jpg}
-        \caption{DocVQA}
-    \end{subfigure}
-    \hfill
-    \begin{subfigure}[t]{0.31\linewidth}
-        \centering
-        \includegraphics[width=\linewidth,height=0.18\textheight,keepaspectratio]{figures/chartqa_sample_bar_chart.png}
-        \caption{ChartQA}
-    \end{subfigure}
-    \caption{Representative inputs from the text-rich multimodal benchmarks considered in this thesis \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. The three examples show why text reading, layout parsing and visual reasoning all matter in this benchmark suite.}
-    \label{fig:prelim-benchmark-examples}
-\end{figure}
-
-Figure~\ref{fig:prelim-vlm-families} summarizes the main architecture families,
-while Figure~\ref{fig:prelim-benchmark-examples} shows the text-rich inputs
-used in this thesis.
+Modern VLM families fall into the groups in
+Figure~\ref{fig:prelim-vlm-families}.
 
 \section{Knowledge Distillation}
 
@@ -146,16 +129,6 @@ In token-level distillation, the teacher and student are compared on their outpu
 logits, not only on hard labels. This allows the student to learn richer
 distributional structure, often called \emph{dark knowledge} \cite{hinton2015distillingknowledgeneuralnetwork}.
 
-\begin{figure}[tp]
-    \centering
-    \includegraphics[width=0.78\linewidth]{figures/knowledge_distillation_example.png}
-    \caption{Generic teacher-student knowledge distillation setup with hard labels and soft targets \cite{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}. It provides the basic supervision pattern before GRACE adds heterogeneous teachers and routing.}
-    \label{fig:prelim-kd-overview}
-\end{figure}
-
-Figure~\ref{fig:prelim-kd-overview} provides the generic teacher-student
-template before Chapter~\ref{chap:proposed-method} specializes it to GRACE.
-
 \subsection{Temperature-Scaled Output Distributions}
 
 Let \(\mathbf{z}_s\) and \(\mathbf{z}_t\) denote student and teacher logits.
@@ -173,27 +146,12 @@ approaches usually assume that teacher and student share the same vocabulary
 
 \section{Cross-Tokenizer Distillation Background}
 
-\subsection{Motivation}
-
-In this thesis, the teacher pool may contain different VLM families with
-different tokenizers and vocabulary sizes. A KD loss that assumes a shared
-output space is therefore too restrictive. Universal Logit Distillation (ULD)
-is one important prior remedy because it avoids direct token-ID matching
-\cite{boizard2024towardscrosstokenizerdistillation}. Chapter~\ref{chap:proposed-method}
-later replaces the ranked-mass surrogate with a trie-Wasserstein variant that
-keeps the same cross-tokenizer goal but uses a tree-structured transport view.
-
-\begin{figure}[tp]
-    \centering
-    \includegraphics[width=0.58\linewidth]{figures/uld_vocab_overlap.png}
-    \caption{Vocabulary-overlap ratios between teacher and student tokenizers from the ULD paper \cite{boizard2024towardscrosstokenizerdistillation}. The overlap is far from complete, which makes direct token-ID KD unreliable across model families.}
-    \label{fig:prelim-uld-overlap}
-\end{figure}
-
-Figure~\ref{fig:prelim-uld-overlap} makes the mismatch explicit: even strong
-teacher-student pairs can share only part of their vocabularies.
-
 \subsection{ULD as a Prior Baseline}
+
+When the teacher and student vocabularies differ, KD losses defined on a shared
+output space are not directly applicable. Universal Logit Distillation (ULD)
+is one prior remedy because it avoids direct token-ID matching
+\cite{boizard2024towardscrosstokenizerdistillation}.
 
 Given student logits \(\mathbf{z}_s \in \mathbb{R}^{V_s}\) and teacher logits
 \(\mathbf{z}_t \in \mathbb{R}^{V_t}\), we first compute their temperature-scaled
@@ -210,17 +168,10 @@ the sorted masses with an \(L_1\) distance:
 where \(\pi(\cdot)\) denotes sorting in descending order after zero-padding.
 
 The key advantage of ULD is that it compares distributions by ranked
-probability mass instead of token identity. This makes it directly
-applicable to cross-tokenizer teacher-student distillation
-\cite{boizard2024towardscrosstokenizerdistillation}. In the later experiments,
-ULD is treated as a cross-tokenizer baseline, not the final method.
-
-\begin{figure}[tp]
-    \centering
-    \includegraphics[width=0.88\linewidth]{figures/uld_pipeline.png}
-    \caption{ULD pipeline from the original paper \cite{boizard2024towardscrosstokenizerdistillation}. Teacher and student probabilities are sorted and zero-padded before the ranked masses are compared, which removes the need for direct vocabulary alignment.}
-    \label{fig:prelim-uld-pipeline}
-\end{figure}
+probability mass instead of token identity. This makes it directly applicable
+to cross-tokenizer teacher-student distillation
+\cite{boizard2024towardscrosstokenizerdistillation}. In this thesis, ULD serves
+as a cross-tokenizer baseline.
 
 \subsection{Optimal Transport and Tree-Structured Mass Matching}
 
@@ -249,13 +200,14 @@ from each source bin to each target bin.
 \begin{figure}[tp]
     \centering
     \includegraphics[width=0.78\linewidth]{figures/continuous_optimal_transport_wikimedia.png}
-    \caption{Continuous displacement view of optimal transport \cite{wikimedia_continuous_optimal_transport_image,peyre2019computationaloptimaltransport}. The figure emphasizes the geometric side of OT: mass is moved through space with a transport map, not compared by fixed bin identity alone.}
+    \caption{Continuous displacement view of optimal transport \cite{wikimedia_continuous_optimal_transport_image,peyre2019computationaloptimaltransport}.}
     \label{fig:prelim-continuous-ot}
 \end{figure}
 
-Figure~\ref{fig:prelim-continuous-ot} gives the continuous geometric view of
-OT. The same idea appears in the discrete case through a transport plan
-\(\mathbf{P}\), and later in the tree case through edgewise subtree mass.
+The continuous geometric view of OT in
+Figure~\ref{fig:prelim-continuous-ot} carries over to the discrete case through a
+transport plan \(\mathbf{P}\), and later to the tree case through edgewise
+subtree mass.
 
 This viewpoint also motivates tree-structured transport. When teacher and
 student have different vocabularies, matching probabilities by token index is
@@ -283,17 +235,10 @@ This is computationally attractive because the comparison follows the tree
 structure directly and it is conceptually natural when tokens share prefixes or
 other hierarchical relations.
 
-\begin{figure}[tp]
-    \centering
-    \includegraphics[width=0.78\linewidth]{figures/tree_wasserstein_stw_paper.png}
-    \caption{Example tree metrics from Quadtree, tree-sliced Wasserstein (TSW) and supervised tree-Wasserstein (STW) on a synthetic dataset \cite{takezawa2021supervisedtreewasserstein}. The comparison is not a VLM result, but it makes the tree-transport idea explicit: mass is organized along branches of a hierarchy instead of through one dense transport matrix.}
-    \label{fig:prelim-tree-ot}
-\end{figure}
-
-Tree-sliced OT extends the same idea by averaging Wasserstein distances over
+Tree-sliced OT extends this idea by averaging Wasserstein distances over
 tree metrics and shows that tree metrics preserve the geometric view of OT while
 admitting fast closed-form computations
-\cite{leyamadafukumizucuturi2019treesliced}. In this thesis, the relevant tree
+\cite{leyamadafukumizucuturi2019treesliced}. Here the relevant tree
 is not an abstract hierarchy but the shared UTF-8 byte trie induced by teacher
 and student decoded single-token strings.
 
@@ -303,16 +248,28 @@ trie and compares mass on edges instead of token index.
 
 \begin{figure}[tp]
     \centering
-    \includegraphics[height=0.26\textheight,keepaspectratio]{figures/optimal_transport_matrix_wikimedia.png}
-    \caption{Discrete transport plan matrix in optimal transport, showing how source and target marginals are coupled by a transport matrix \cite{wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}. The key idea is geometric: mass is compared by how it can be rearranged, not by fixed token identity.}
-    \label{fig:prelim-optimal-transport}
+    \begin{subfigure}[t]{0.58\linewidth}
+        \centering
+        \includegraphics[width=\linewidth,height=0.23\textheight,keepaspectratio]{figures/tree_wasserstein_stw_paper.png}
+        \caption{Tree metrics for Wasserstein variants \cite{takezawa2021supervisedtreewasserstein}.}
+        \label{fig:prelim-tree-ot}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[t]{0.34\linewidth}
+        \centering
+        \includegraphics[width=\linewidth,height=0.23\textheight,keepaspectratio]{figures/optimal_transport_matrix_wikimedia.png}
+        \caption{Discrete transport plan matrix \cite{wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}.}
+        \label{fig:prelim-optimal-transport}
+    \end{subfigure}
+    \caption{Tree-structured and matrix views of discrete optimal transport.}
 \end{figure}
 
-Figures~\ref{fig:prelim-continuous-ot}, \ref{fig:prelim-optimal-transport}
-and \ref{fig:prelim-tree-ot} now cover the three views used later in the
-thesis: geometric mass movement, discrete transport plans and tree-structured
-mass matching. Chapter~\ref{chap:proposed-method} instantiates the third view
-with a shared byte trie and a sparse tree-Wasserstein loss.
+Together, Figures~\ref{fig:prelim-continuous-ot},
+\ref{fig:prelim-optimal-transport} and \ref{fig:prelim-tree-ot} cover the
+three views used later in the thesis: geometric mass movement, discrete
+transport plans and tree-structured mass matching.
+Chapter~\ref{chap:proposed-method} instantiates the third view with a shared
+byte trie and a sparse tree-Wasserstein loss.
 
 \subsection{Answer-Token Distillation}
 
@@ -323,7 +280,7 @@ In our implementation, the code computes KD only on supervised answer positions 
 In Chapter~\ref{chap:proposed-method}, these sets are denoted by
 \(\Omega_b^{CE}\) for CE and \(\Omega_{b,i}^{KD}\) for teacher-specific KD.
 
-This gives a token-aligned distillation signal while remaining compatible with different tokenizers.
+This gives a token-aligned distillation signal while remaining compatible with different teacher and student tokenizers.
 
 \section{Multi-Teacher Distillation}
 
@@ -349,7 +306,7 @@ should be active.
 
 Recent sparse expert models route each sample or token through only a subset of available experts. This improves efficiency and allows specialized computation \cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,deepseekai2024deepseekv2strongeconomicalefficient}.
 
-The same high-level idea is useful in multi-teacher distillation. Instead of averaging all teachers equally, a learned router can propose teacher weights from student-side features \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
+The same routing idea is useful in multi-teacher distillation. Instead of averaging all teachers equally, a learned router can propose teacher weights from student-side features \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
 
 Let \(\mathbf{h}^{(b)}\) denote a pooled student representation for sample \(b\).
 A router network \(G(\cdot)\) produces gate logits
@@ -362,7 +319,7 @@ A router network \(G(\cdot)\) produces gate logits
 \end{equation}
 where \(p_i^{(b)}\) is the initial routing weight for teacher \(T_i\). In the
 current implementation, \(\tilde{\mathbf{r}}^{(b)}\) includes expert bias,
-optional training noise and router-temperature scaling before softmax.
+optional training noise and router-temperature scaling before the routing softmax.
 
 In sparse routing, these weights are typically refined by additional constraints:
 \begin{enumerate}
@@ -387,7 +344,7 @@ In \methodname, the code implements the router as a small student-conditioned ML
 top of pooled student hidden states. It then applies softmax weights,
 top-\(k\) sparsification and capacity filtering, with a short dense warmup
 before sparse routing starts. The full framework also supports optional
-balancing, entropy regularization and expert-bias updates.
+balancing, entropy regularization and expert-bias updates during training.
 
 When enabled, the expert bias term nudges the router toward under-used teachers
 in subsequent batches.
@@ -397,7 +354,7 @@ This makes the routing stage closer to sparse-expert training than to a static t
 \begin{figure}[tp]
     \centering
     \includegraphics[width=0.80\linewidth]{figures/switch_capacity_routing_jmlr_clean2.png}
-    \caption[Sparse routing with expert capacity constraints.]{Illustration of sparse routing with expert capacity constraints, adapted from Switch Transformers \cite{fedus2022switchtransformersscalingtrillion}. Capacity factors control how many routed samples each expert can accept before overflow, which is directly analogous to the capacity-aware teacher routing used in \methodname.}
+    \caption[Sparse routing with expert capacity constraints.]{Sparse routing with expert capacity constraints, adapted from Switch Transformers \cite{fedus2022switchtransformersscalingtrillion}.}
     \label{fig:prelim-switch-routing}
 \end{figure}
 
@@ -407,93 +364,16 @@ compute, it also lets different experts focus on different inputs.
 \begin{figure}[tp]
     \centering
     \includegraphics[width=0.78\linewidth]{figures/deepseek_moe_wikimedia.png}
-    \caption[Sparse routing and expert specialization in MoE.]{Example of sparse routing and expert specialization in a mixture-of-experts architecture \cite{wikimedia_deepseek_moe_mla_image,deepseekai2024deepseekv2strongeconomicalefficient}. Although our setting is multi-teacher distillation, not token-level MoE language modeling, the same principles of learned routing, sparse activation and load balancing are directly relevant.}
+    \caption[Sparse routing and expert specialization in MoE.]{Sparse routing and expert specialization in a mixture-of-experts architecture \cite{wikimedia_deepseek_moe_mla_image,deepseekai2024deepseekv2strongeconomicalefficient}.}
     \label{fig:prelim-sparse-routing}
 \end{figure}
 
-Figures~\ref{fig:prelim-switch-routing} and \ref{fig:prelim-sparse-routing}
-summarize the sparse-routing ideas that motivate the teacher gate in GRACE.
+The sparse-routing ideas that motivate the teacher gate in GRACE appear in
+Figures~\ref{fig:prelim-switch-routing} and
+\ref{fig:prelim-sparse-routing}.
 
-\subsection{Gradient Alignment as a Routing Signal}
-
-Prior work uses gradient similarity in distillation as a signal for deciding
+Prior work also uses gradient similarity in distillation as a signal for
 whether teacher supervision helps or conflicts with the student objective
-\cite{zhu2021studentcustomized}. If the teacher-induced update points in a
-similar direction to the supervised update, the teacher is more likely to be
-helpful. If the two directions conflict, teacher supervision may hurt learning
-on that sample \cite{zhu2021studentcustomized}.
-
-In \methodname{}, this idea is applied only after routing. The router first
-decides which teachers remain available and Chapter~\ref{chap:proposed-method}
-then refines those routed teachers with continuous gradient-based scores. The
-GRACE-specific details, including score smoothing, score softmax, router-score
-blending and uniform fallback, are therefore deferred to Chapter~\ref{chap:proposed-method}.
-
-\section{Related Work}
-
-\subsection{Compact VLM Distillation and Compression}
-
-Knowledge distillation is a standard way to compress large models into smaller
-students while retaining part of the teacher's predictive structure
-\cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
-In multimodal systems, prior work has used distillation to compress
-visual-linguistic models, transfer reasoning behavior, or improve compact
-vision-language students
-\cite{fang2021compressingvlm,hu2024visualprogramdistillation,yang2024clipcid}.
-These studies show that small VLMs can benefit from teacher supervision, but
-most of them do not focus on heterogeneous teacher pools with mismatched
-tokenizers.
-
-Compression by quantization is also important in practice, but it is a
-different intervention point: quantization changes the numerical precision of a
-trained model, while distillation changes how the student is trained
-\cite{frantar2022gptq,xiao2023smoothquant,lin2024awq,li2025mbq}. This thesis
-therefore treats quantization as complementary deployment work and focuses the
-method contribution on distillation.
-
-\subsection{Cross-Tokenizer Distillation}
-
-Cross-tokenizer KD becomes necessary when teacher and student vocabularies do
-not match. ULD is a direct baseline in this setting because it compares sorted
-probability mass instead of token IDs
-\cite{boizard2024towardscrosstokenizerdistillation}. More recent work also
-studies tokenizer-agnostic distillation through transport-based or alignment
-based formulations
-\cite{takezawa2021supervisedtreewasserstein,leyamadafukumizucuturi2019treesliced,dasgupta2025improving}.
-
-The main limitation of ranked-mass matching is that it discards structural
-relations between decoded token strings. Tree-structured transport retains that
-structure by comparing mass on shared branches of a hierarchy
-\cite{takezawa2021supervisedtreewasserstein,peyre2019computationaloptimaltransport}.
-This is the line of work most relevant to our trie-Wasserstein loss: the
-student and teacher are not matched by token ID, but by mass placed on a shared
-UTF-8 byte trie.
-
-\subsection{Multi-Teacher Distillation and Adaptive Routing}
-
-Multi-teacher KD has been studied with fixed teacher averages, stochastic
-selection and meta-learned weighting rules
-\cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
-These methods motivate the use of more than one teacher, but they do not solve
-the full combination of heterogeneous VLM teachers, tokenizer mismatch, and
-sparse routed weighting in one compact-VLM setting.
-
-Sparse routing and load balancing are well established in mixture-of-experts
-models
-\cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}.
-Our teacher gate borrows that routing view, but applies it to teacher
-selection, not to internal expert blocks. Gradient-based teacher filtering has
-also appeared in distillation through alignment-style objectives
-\cite{zhu2021studentcustomized}. \methodname{} combines these ideas in a
-two-stage procedure: sparse student-conditioned routing first, then
-post-routing GRACE score refinement.
-
-\subsection{Relation to This Thesis}
-
-This thesis sits at the intersection of the three lines above. It studies
-compact generative VLM distillation, replaces ranked-mass ULD with a
-cross-tokenizer trie-Wasserstein loss in the main method and combines that
-loss with sparse multi-teacher routing plus gradient-based score refinement.
-Later chapters keep ULD, SHM-CKA and reinforced teacher selection as
-baselines, but the final method integrates the transport, routing, and
-alignment ideas into one framework.
+\cite{zhu2021studentcustomized}. Chapter~\ref{chap:proposed-method} builds on
+that idea after routing, where GRACE scores only the teachers that remain
+active for a sample.

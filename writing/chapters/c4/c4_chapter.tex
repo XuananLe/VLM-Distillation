@@ -1,6 +1,12 @@
 \chapter{Evaluation Methodology}
 \label{chap:evaluation-methodology}
 
+This chapter describes how the methods are evaluated. It introduces the
+students, datasets, baselines and evaluation protocol used in the
+comparison. It also records the implementation details needed to reproduce the
+active training path, but keeps those engineering notes separate from the main
+experimental protocol.
+
 \section{Experimental Setup}
 All experiments follow a shared evaluation protocol for fair comparison across methods.
 
@@ -27,10 +33,10 @@ We chose these datasets because they require optical character recognition (OCR)
 It focuses on reading text in-the-wild and combining it with question understanding.
 \textit{Sample question}: ``What word is written on the stop sign?''
 \textit{Sample answer}: ``No word is visible on this sign.''
-\begin{figure}[tp]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.32\linewidth]{figures/textvqa_sample_stop_sign.jpg}
-    \caption[TextVQA sample image.]{Example image for a TextVQA-style question \cite{wikimedia_stop_sign_image}. The task depends on reading scene text in a natural image and grounding the answer in that text.}
+    \caption[TextVQA sample image.]{Example image for a TextVQA-style question \cite{wikimedia_stop_sign_image}.}
     \label{fig:textvqa-sample}
 \end{figure}
 
@@ -38,10 +44,10 @@ It focuses on reading text in-the-wild and combining it with question understand
 It emphasizes document structure understanding in addition to OCR.
 \textit{Sample question}: ``What is the invoice number shown in this document?''
 \textit{Sample answer}: ``4572.''
-\begin{figure}[tp]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.40\linewidth]{figures/docvqa_sample_receipt.jpg}
-    \caption[DocVQA sample image.]{Example document image for a DocVQA-style question \cite{wikimedia_receipt_swiss_image}. Unlike TextVQA, the answer depends on document layout, local text spans and structured fields.}
+    \caption[DocVQA sample image.]{Example document image for a DocVQA-style question \cite{wikimedia_receipt_swiss_image}.}
     \label{fig:docvqa-sample}
 \end{figure}
 
@@ -49,16 +55,16 @@ It emphasizes document structure understanding in addition to OCR.
 It tests chart reading plus numerical and logical reasoning to derive the final answer.
 \textit{Sample question}: ``Which year has the highest sales value in the chart?''
 \textit{Sample answer}: ``The second (middle) bar has the highest value.''
-\begin{figure}[tp]
+\begin{figure}[htbp]
     \centering
     \includegraphics[width=0.40\linewidth]{figures/chartqa_sample_bar_chart.png}
-    \caption[ChartQA sample image.]{Example chart image for a ChartQA-style question \cite{wikimedia_bar_chart_image}. This benchmark adds visual reading and numerical comparison on top of text extraction.}
+    \caption[ChartQA sample image.]{Example chart image for a ChartQA-style question \cite{wikimedia_bar_chart_image}.}
     \label{fig:chartqa-sample}
 \end{figure}
 
-Figures~\ref{fig:textvqa-sample}, \ref{fig:docvqa-sample}, and
-\ref{fig:chartqa-sample} show the three visual domains covered by the
-evaluation.
+The evaluation covers the three visual domains in
+Figures~\ref{fig:textvqa-sample}, \ref{fig:docvqa-sample} and
+\ref{fig:chartqa-sample}.
 
 \subsection{Dataset Size and Splits}
 Table~\ref{tab:dataset-sizes} lists the split sizes used throughout the
@@ -119,70 +125,17 @@ pipeline.
 }
 \end{lstlisting}
 
-\subsection{Offline Teacher-Logit Preparation}
-Teacher logits are generated \emph{offline} before distillation. An offline
-caching script runs each frozen teacher on every training example, keeps only
-the supervised answer-token positions and writes one \texttt{.pt} file per
-sample under a teacher-specific directory. Each record stores the sample index,
-the selected teacher logits and the corresponding supervised labels. This
-keeps the online training loop simple: the student only reads precomputed
-teacher targets instead of running the teachers again.
-
-After generation, we upload the teacher-logit directories to a
-\textbf{Cloudflare R2} bucket using its S3-compatible object-storage interface
-\cite{cloudflare_r2_overview,cloudflare_r2_s3}. In our setup, the bucket
-already exceeds \textbf{1 TB}, so copying the whole cache to a rented GPU
-instance is impractical. This is especially relevant on services such as
-Vast.ai, where local NVMe space is usually much smaller than the full teacher
-logit store.
-
-\begin{figure}[tp]
-\centering
-\includegraphics[width=0.82\linewidth]{figures/r2-storage.png}
-\caption[R2 bucket used for teacher-logit storage.]{Cloudflare R2 bucket used for offline teacher-logit storage. The screenshot shows the large bucket footprint and the dataset-specific teacher-logit prefixes, which motivates remote streaming instead of copying the full cache onto each training instance.}
-\label{fig:r2-storage}
-\end{figure}
-
-Figure~\ref{fig:r2-storage} shows the remote bucket layout used to store the
-offline teacher caches.
-
-\subsection{Remote Logit Streaming During Training}
-The current main training path does \emph{not} predownload the full cache. When
-the launcher receives an R2 root
-\texttt{distill\_multi\_teachers.sh}, the trainer switches to remote lazy
-loading. During training, \texttt{StreamingTeacherLogitsCache} resolves the
-teacher-specific remote path
-\[
-\texttt{remote\_root}/\texttt{<dataset>\_teacher\_logits\_<alias>}/\texttt{<teacher-slug>}/\texttt{<index>.pt},
-\]
-then fetches files lazily from R2 through \texttt{s3fs} and
-\texttt{WholeFileCacheFileSystem} \cite{fsspec_features,fsspec_api}. The
-repository also includes a repacking utility for MDS, but the current main
-training path reads the raw per-sample \texttt{.pt} cache directly.
-
-To keep disk usage bounded, the loader uses a \textbf{100 GB} local cache. The
-loader caches each file only after first access. After a file is opened, the
-loader updates its access time. When the total cache size exceeds the limit,
-the loader removes the oldest cached files first. In effect, the local cache
-behaves as a small least-recently-used style buffer over the much larger R2
-store. A per-teacher file lock also guards cache metadata updates, so
-concurrent dataloader workers do not corrupt the cache state.
-
-\begin{figure}[tp]
-\centering
-\includegraphics[width=0.96\linewidth]{figures/r2_cache_training.png}
-\caption{Training with remote teacher logits. Offline caches are uploaded to R2, fetched lazily during training and kept in a bounded local cache with oldest-file eviction. This setup avoids copying a multi-terabyte teacher store onto each rented GPU instance.}
-\label{fig:r2-cache-training}
-\end{figure}
-
-Figure~\ref{fig:r2-cache-training} summarizes the remote-cache training path
-used in the current implementation.
+Table~\ref{tab:training-configuration} summarizes the main optimization and
+routing settings used in the active launch path. The engineering details of
+teacher-logit storage and remote caching are deferred to
+Section~\ref{sec:implementation-notes}, because they support reproducibility
+but are not part of the fair-comparison protocol itself.
 
 \begingroup
 \small
 \renewcommand{\arraystretch}{0.95}
 \begin{longtable}{p{0.33\textwidth} p{0.61\textwidth}}
-\caption[Training configuration for the current main distillation script.]{Key hyperparameters, systems settings and cache settings for the current three-teacher DocVQA distillation script. The values come from the active launch path documented in this chapter, while Chapter~\ref{chap:experiment-results} additionally reports broader completed runs.}
+\caption[Main training protocol for the active distillation launch path.]{Main optimization and routing settings for the active three-teacher DocVQA distillation launch path. These values define the fair-comparison protocol used for the main training recipe, while broader engineering details are deferred to Section~\ref{sec:implementation-notes}.}
 \label{tab:training-configuration}\\
 \toprule
 \textbf{Setting} & \textbf{Value} \\
@@ -216,10 +169,6 @@ Weight decay & 0.0 \\
 Numerical precision & bf16 enabled, half precision (fp16) disabled, TF32 enabled \\
 FlashAttention-2 & Enabled \\
 Training data format & LLaVA-style multimodal instruction JSON \\
-Teacher-logit storage & Cloudflare R2 object storage \\
-Teacher-logit format & Raw per-sample \texttt{.pt} files \\
-Local cache directory & \makecell[l]{\texttt{/tmp/teacher-logits-streaming} for R2 reads\\\texttt{/workspace/cache} for local-cache reads} \\
-Local cache limit & 100 GB \\
 Max sequence length & 16384 \\
 Training epochs & 2 \\
 Per-device batch size & 80 \\
@@ -263,7 +212,7 @@ s_{\text{VQA}}=\min\left(\frac{\#\text{annotators that provided } \hat{a}}{3},\,
 \]
 and the final score is the mean over all questions \cite{singh2019vqamodelsread}.
 
-\item \textbf{DocVQA}: \textbf{ANLS} (Average Normalized Levenshtein Similarity):
+\item \textbf{DocVQA}: \textbf{ANLS} (Average Normalized Levenshtein Similarity). The final ANLS is the average score over all samples \cite{mathew2021docvqadatasetvqadocument}:
 \[
 \mathrm{NLS}(a,\hat{a})=1-\frac{d_{\text{Lev}}(a,\hat{a})}{\max(|a|,|\hat{a}|)}, \quad
 s_{\text{ANLS}}=
@@ -272,7 +221,6 @@ s_{\text{ANLS}}=
 0, & \text{otherwise}.
 \end{cases}
 \]
-The final ANLS is the average score over all samples \cite{mathew2021docvqadatasetvqadocument}.
 
 \item \textbf{ChartQA}: \textbf{Relaxed Accuracy}. A prediction is correct if it matches exactly for text answers, or if the relative error is within \(5\%\) for numeric answers:
 \[
@@ -290,18 +238,18 @@ heterogeneous multi-teacher baselines.
 
 \begin{table}[tp]
 \centering
-\scriptsize
-\renewcommand{\arraystretch}{0.95}
-\begin{tabular}{@{}llll@{}}
+\resizebox{0.96\linewidth}{!}{
+\begin{tabular}{llll}
 \toprule
 \textbf{Group} & \textbf{Methods} & \textbf{Teacher setup} & \textbf{Purpose} \\
 \midrule
  \makecell[l]{Non-distillation\\references} & \makecell[l]{Original,\\full finetuning} & No teacher & \makecell[l]{Student-only\\reference points} \\
 \makecell[l]{Same-family\\baselines} & \makecell[l]{Forward KL, Reverse KL,\\Jensen-Shannon} & SmolVLM2-2.2B-Instruct & \makecell[l]{Standard single-teacher\\objectives within the\\SmolVLM family} \\
 \makecell[l]{Different-family\\single-teacher\\baselines} & ULD & Qwen2-VL-2B-Instruct & \makecell[l]{Cross-family transfer\\without multi-teacher routing} \\
-\makecell[l]{Heterogeneous\\multi-teacher\\baselines} & \makecell[l]{Uniform averaging,\\SHM-CKA, reinforced\\selection, \methodname{}} & \makecell[l]{Mixed teacher pool from\\multiple VLM families} & \makecell[l]{Static averaging vs.\\hidden-state matching\\vs. adaptive teacher assignment} \\
+\makecell[l]{Heterogeneous\\multi-teacher\\baselines} & \makecell[l]{Uniform averaging,\\SHM-CKA, reinforced\\selection, \methodname{}} & \makecell[l]{Mixed teacher set from\\multiple VLM families} & \makecell[l]{Static averaging vs.\\hidden-state matching\\vs. adaptive teacher assignment} \\
 \bottomrule
 \end{tabular}
+}
 \caption[Baseline groups used in the evaluation chapter.]{Baseline groups used in the evaluation chapter. The grouping separates student-only references, same-family KD, cross-tokenizer single-teacher transfer and heterogeneous multi-teacher methods.}
 \label{tab:baseline-groups}
 \end{table}
@@ -313,27 +261,27 @@ before the method-specific descriptions below.
 \item \textbf{Non-distillation references.} The original student and the full-finetuning baseline provide the student-only reference points for each benchmark.
 \item \textbf{Same-family baselines.} Forward Kullback-Leibler (KL), reverse KL and Jensen-Shannon divergence all use \textbf{SmolVLM2-2.2B-Instruct} as a same-family teacher \cite{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,cui2024sinkhorn}. They isolate standard teacher-student transfer when tokenizer, vocabulary and output space are already matched.
 \item \textbf{Different-family single-teacher baselines.} This group uses one teacher outside the SmolVLM family. ULD is the main cross-tokenizer logits baseline \cite{boizard2024towardscrosstokenizerdistillation}.
-\item \textbf{Heterogeneous multi-teacher baselines.} This group uses teacher pools drawn from different VLM families. Uniform averaging keeps fixed equal weights. SHM-CKA adds hidden-state matching over the same pool. Reinforced selection learns a stochastic teacher policy with REINFORCE \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}. \methodname{} adds sparse routing, trie-Wasserstein KD and alignment-aware reweighting \cite{takezawa2021supervisedtreewasserstein,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}.
+\item \textbf{Heterogeneous multi-teacher baselines.} This group uses teacher sets drawn from different VLM families. Uniform averaging keeps fixed equal weights. SHM-CKA adds hidden-state matching over that set. Reinforced selection learns a stochastic teacher policy with REINFORCE \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}. \methodname{} adds sparse routing, trie-Wasserstein KD and alignment-aware reweighting \cite{takezawa2021supervisedtreewasserstein,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}.
 \end{itemize}
 
-For the trainable competitor methods, we keep the same supervised term
+For the trainable competitor methods, we keep the supervised term
 \(\mathcal{L}_{CE}\). The logits-only baselines differ only in the KD signal,
 but SHM-CKA also adds a hidden-state alignment term and reinforced selection
 also adds a REINFORCE-style policy term
 \cite{kornblith2019similarityrepresentations,williams1992simple,yuan2020reinforcedmultiteacherselection}.
 In the descriptions below, \(\gamma\) denotes a generic KD mixing coefficient;
-\(\alpha\) remains reserved for the current repository training script in
+\(\alpha\) remains reserved for the repository training script in
 Table~\ref{tab:training-configuration}.
 
 The compared methods are:
 \begin{itemize}
 \item \textbf{Original}: direct evaluation of the released student, with no additional optimization. This measures the native capability of the compact model before any task adaptation or distillation.
-\item \textbf{Full finetuning}: uses \(\mathcal{L}=\mathcal{L}_{CE}\) with no teacher, so it isolates the benefit of external supervision.
+\item \textbf{Full finetuning}: uses \(\mathcal{L}=\mathcal{L}_{CE}\) with no teacher, so it isolates the benefit of external supervision alone.
 \item \textbf{Forward KL}: the standard same-family KD baseline, with \(\mathcal{L}_{KD}=\mathrm{KL}(p_t\|p_s)\) \cite{hinton2015distillingknowledgeneuralnetwork}. It tests soft-target transfer when tokenizer and vocabulary are already matched.
 \item \textbf{Reverse KL}: uses \(\mathcal{L}_{KD}=\mathrm{KL}(p_s\|p_t)\) \cite{cui2024sinkhorn,wen2023fdistill}. This variant is more mode-seeking and serves as a deliberately harder divergence baseline.
 \item \textbf{Jensen-Shannon}: uses the symmetric divergence \(\tfrac{1}{2}\mathrm{KL}(p_s\|m)+\tfrac{1}{2}\mathrm{KL}(p_t\|m)\), where \(m=\tfrac{1}{2}(p_s+p_t)\) \cite{lin1991jensen,cui2024sinkhorn}. It tests whether a bounded symmetric objective is more stable than KL.
 \item \textbf{ULD}: uses \(\mathcal{L}_{KD}=\|\pi(p_s)-\pi(p_t)\|_1\) \cite{boizard2024towardscrosstokenizerdistillation}. This is the main cross-tokenizer logits baseline because it compares ranked probability mass, not token IDs.
-\item \textbf{SHM-CKA}: keeps the same heterogeneous teacher pool as \methodname{}, but replaces routed weighting with a per-teacher ULD logits loss plus a hidden-state CKA penalty \cite{boizard2024towardscrosstokenizerdistillation,dasgupta2025improving,kornblith2019similarityrepresentations}. It tests whether direct representation alignment is sufficient without routed GRACE weighting.
+\item \textbf{SHM-CKA}: keeps the heterogeneous teacher set used by \methodname{}, but replaces routed weighting with a per-teacher ULD logits loss plus a hidden-state CKA penalty \cite{boizard2024towardscrosstokenizerdistillation,dasgupta2025improving,kornblith2019similarityrepresentations}. It tests whether direct representation alignment is sufficient without routed GRACE weighting.
 \item \textbf{Uniform multi-teacher}: averages the heterogeneous teacher losses with fixed equal weights, \(\mathcal{L}_{KD}=\frac{1}{M}\sum_{i=1}^{M}\mathcal{L}_{KD}^{(i)}\) \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}. It isolates the effect of teacher diversity without adaptive assignment.
 \item \textbf{Reinforced selection}: replaces deterministic routing with a stochastic policy that samples teachers and updates the selector with REINFORCE \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}. This baseline is close in spirit to adaptive selection, but it does not use GRACE score refinement.
 \end{itemize}
@@ -369,8 +317,8 @@ matching:
 That code also supports an alternative adaptive weighting scheme, but the fixed
 equal-mean form above is the default historical setting. The original soft
 top-\(k\) matching path was implemented for single-teacher runs, so the
-heterogeneous baseline in this thesis keeps the same hidden-state idea per
-teacher, averages the logits and layer terms across the teacher pool,
+heterogeneous baseline used here keeps the hidden-state idea per
+teacher, averages the logits and layer terms across the teacher set,
 \begin{equation}
 \bar{\mathcal{L}}_{\mathrm{ULD}}
 =
@@ -380,7 +328,7 @@ teacher, averages the logits and layer terms across the teacher pool,
 =
 \frac{1}{M}\sum_{i=1}^{M}\mathcal{L}_{\mathrm{layer}}^{(i)},
 \end{equation}
-then applies the same equal-mean combination
+then applies an equal-mean combination
 \begin{equation}
 \mathcal{L}_{\mathrm{SHM\text{-}CKA}}
 =
@@ -394,7 +342,7 @@ then applies the same equal-mean combination
 \right).
 \end{equation}
 
-For reinforced selection, the policy uses the same pooled student hidden state
+For reinforced selection, the policy uses the pooled student hidden state
 as a sample descriptor, then concatenates per-teacher summary features:
 \begin{equation}
 \mathbf{z}
@@ -424,14 +372,14 @@ The multi-teacher KD term is the weighted average
 =
 \sum_{i=1}^{M} w_i \mathcal{L}_{KD}^{(i)}.
 \end{equation}
-In the current launch script, \(\mathcal{L}_{KD}^{(i)}\) is the per-teacher
+In the active launch script, \(\mathcal{L}_{KD}^{(i)}\) is the per-teacher
 trie-Wasserstein loss. The selector is trained with a REINFORCE-style term
 \begin{equation}
 \mathcal{L}_{\mathrm{pol}}
 =
 -(r-b)\log p(\mathbf{m}\mid\boldsymbol{\pi}),
 \end{equation}
-where \(b\) is an EMA reward baseline. The current script uses
+where \(b\) is an EMA reward baseline. The active script uses
 \(r=-\mathcal{L}_{CE}-\frac{1}{\sum_i m_i}\sum_i m_i\mathcal{L}_{KD}^{(i)}\),
 so the total reinforced-selection objective is
 \begin{equation}
@@ -442,8 +390,106 @@ so the total reinforced-selection objective is
 + \lambda_{\pi}\mathcal{L}_{\mathrm{pol}}.
 \end{equation}
 
-Unless noted otherwise, all baselines reuse the same data conversion pipeline,
+Unless noted otherwise, all baselines reuse the data conversion pipeline,
 hardware, optimizer family and checkpointing protocol described earlier in
 this chapter. Methods that do not use routing simply omit the GRACE-specific
 terms and retain the corresponding single-teacher or uniform multi-teacher
 objective from the cited source.
+
+\section{Implementation Details}
+\label{sec:implementation-notes}
+
+This section records the engineering details needed to reproduce the active
+launch path. These details are useful for systems reproducibility, but they are
+separate from the fair-comparison protocol summarized earlier.
+
+\subsection{Offline Teacher-Logit Preparation}
+Teacher logits are generated \emph{offline} before distillation. An offline
+caching script runs each frozen teacher on every training example, keeps only
+the supervised answer-token positions and writes one \texttt{.pt} file per
+sample under a teacher-specific directory. Each record stores the sample index,
+the selected teacher logits and the corresponding supervised labels. This
+keeps the online training loop simple: the student only reads precomputed
+teacher targets instead of running the teachers again.
+
+After generation, the teacher-logit directories are uploaded to a
+\textbf{Cloudflare R2} bucket using its S3-compatible object-storage interface
+\cite{cloudflare_r2_overview,cloudflare_r2_s3}. In the active setup, the bucket
+already exceeds \textbf{1 TB}, so copying the full cache to a rented GPU
+instance is impractical. This is especially relevant on services such as
+Vast.ai, where local NVMe space is usually much smaller than the full teacher
+logit store.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.82\linewidth]{figures/r2-storage.png}
+\caption[R2 bucket used for teacher-logit storage.]{Cloudflare R2 bucket used for offline teacher-logit storage.}
+\label{fig:r2-storage}
+\end{figure}
+
+The remote bucket layout used for the offline teacher caches appears in
+Figure~\ref{fig:r2-storage}.
+
+\subsection{Remote Logit Streaming During Training}
+The main training path does \emph{not} predownload the full cache. When
+the launcher receives an R2 root in
+\texttt{distill\_multi\_teachers.sh}, the trainer switches to remote lazy
+loading. During training, \texttt{StreamingTeacherLogitsCache} resolves the
+teacher-specific remote object path
+\[
+\texttt{remote\_root}/\texttt{<dataset>\_teacher\_logits\_<alias>}/\texttt{<teacher-slug>}/\texttt{<index>.pt},
+\]
+then fetches files lazily from R2 through \texttt{s3fs} and
+\texttt{WholeFileCacheFileSystem} \cite{fsspec_features,fsspec_api}. The
+repository also includes a repacking utility for MDS, but the active
+training path reads the raw per-sample \texttt{.pt} cache directly.
+
+To keep disk usage bounded, the loader uses a \textbf{100 GB} local cache. The
+loader caches each file only after first access, updates its access time after
+opening and removes the oldest files first once the cache exceeds the limit.
+In effect, the local cache behaves as a small least-recently-used style buffer
+over the much larger R2 store. A per-teacher file lock also guards cache
+metadata updates, so concurrent dataloader workers do not corrupt the cache
+state.
+
+\begin{figure}[H]
+\centering
+\includegraphics[width=0.96\linewidth]{figures/r2_cache_training.png}
+\caption{Training with remote teacher logits.}
+\label{fig:r2-cache-training}
+\end{figure}
+
+The remote-cache training path appears in
+Figure~\ref{fig:r2-cache-training}.
+
+\begingroup
+\small
+\renewcommand{\arraystretch}{0.95}
+\begin{longtable}{p{0.33\textwidth} p{0.61\textwidth}}
+\caption[Engineering settings for the active logit-streaming pipeline.]{Engineering settings for the active three-teacher DocVQA logit-streaming pipeline. These values describe storage, caching and launch-path behavior rather than the fair-comparison protocol itself.}
+\label{tab:implementation-settings}\\
+\toprule
+\textbf{Setting} & \textbf{Value} \\
+\midrule
+\endfirsthead
+\multicolumn{2}{l}{\textit{Table \thetable\ continued from the previous page.}}\\
+\toprule
+\textbf{Setting} & \textbf{Value} \\
+\midrule
+\endhead
+\bottomrule
+\multicolumn{2}{r}{\textit{Continued on the next page.}}\\
+\endfoot
+\bottomrule
+\endlastfoot
+Teacher-logit storage & Cloudflare R2 object storage \\
+Teacher-logit format & Raw per-sample \texttt{.pt} files \\
+Remote path template & \makecell[l]{\texttt{remote\_root/<dataset>\_teacher\_logits\_<alias>/}\\\texttt{<teacher-slug>/<index>.pt}} \\
+Remote filesystem stack & \texttt{s3fs} + \texttt{WholeFileCacheFileSystem} \\
+Optional repacking utility & MDS repacking is available but not used in the active path \\
+Local cache directory & \makecell[l]{\texttt{/tmp/teacher-logits-streaming} for R2 reads\\\texttt{/workspace/cache} for local-cache reads} \\
+Local cache limit & 100 GB \\
+Cache eviction rule & Remove the oldest cached files first \\
+Cache synchronization & Per-teacher file lock on cache metadata updates \\
+\end{longtable}
+\endgroup
