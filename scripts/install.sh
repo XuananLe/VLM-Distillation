@@ -130,6 +130,7 @@ maybe_install_apt_packages() {
     libgl1
     libglib2.0-0
     libjpeg-dev
+    libpango1.0-dev
     libpng-dev
     libssl-dev
     ninja-build
@@ -267,6 +268,10 @@ main() {
 
   log "Installing FlashAttention ${FLASH_ATTN_VERSION}."
   "${uv_exec}" pip install --python "${VENV_DIR}/bin/python" --no-build-isolation "flash-attn==${FLASH_ATTN_VERSION}"
+
+  # Triton/DeepSpeed may call `df` against the autotune cache directory during
+  # first import; pre-creating it avoids a noisy warning in verification.
+  mkdir -p "${HOME}/.triton/autotune"
 
   log "Verifying core imports."
   python - <<'PY'
