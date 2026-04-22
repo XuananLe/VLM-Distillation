@@ -19,7 +19,7 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.components.skc import compute_skc_from_matrices
+from src.components.cka import compute_skc_from_matrices
 from src.components.forward_utils import (
     forward_with_kwarg_retry,
     infer_batch_size,

@@ -17,10 +17,11 @@ from src.trainer.setup_utils import (
     validate_distillation_trainer_args,
 )
 from src.trainer.sft_trainer import VisionLanguageSFTTrainer
-from src.trainer.distillation_utils import release_eval_memory
+from src.trainer.distillation_utils import release_eval_memory, setup_layer_matching
 from src.trainer.step_utils import (
     apply_grace_and_compute_distillation_loss,
     apply_teacher_gate_routing,
+    compute_layer_distillation_loss,
     compute_teacher_losses_and_grace,
     compute_total_loss,
     move_teacher_models_to_device,
@@ -39,6 +40,12 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
         teacher_tokenizers=None,
         teacher_weighting_strategy: str = "routing",
         loss_function: str = "uld_loss",
+        layer_distill_source: str = "none",
+        layer_distill_weight: float = 0.0,
+        layer_match_json_path: str | None = None,
+        layer_match_topk: int = 1,
+        student_layer_indices: list[int] | None = None,
+        teacher_layer_indices: list[int] | None = None,
         temperature: float = 2.0,
         student_temperature: float | None = None,
         teacher_temperature: float | None = None,
@@ -75,6 +82,9 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
 
         validate_distillation_trainer_args(
             alpha=alpha,
+            layer_distill_source=layer_distill_source,
+            layer_distill_weight=layer_distill_weight,
+            layer_match_topk=layer_match_topk,
             teacher_gate_balance_alpha=teacher_gate_balance_alpha,
             teacher_gate_top_k=teacher_gate_top_k,
             teacher_gate_capacity_factor=teacher_gate_capacity_factor,
@@ -117,6 +127,36 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
             teacher_model,
             teacher_count,
         )
+        self.layer_distill_source = layer_distill_source
+        self.layer_distill_weight = layer_distill_weight
+        self.layer_match_json_path = layer_match_json_path
+        self.layer_match_topk = layer_match_topk
+        self.student_layer_indices = []
+        self.teacher_layer_indices = list(teacher_layer_indices or [])
+        self.teacher_layer_soft_matches = []
+        self.layer_distillation_enabled = (
+            layer_distill_source in {"vision", "model"}
+            and layer_distill_weight > 0.0
+            and (bool(student_layer_indices) or bool(layer_match_json_path))
+        )
+        if self.layer_distillation_enabled:
+            if not self.teacher_models:
+                raise ValueError(
+                    "Layer distillation requires live teacher models to be loaded."
+                )
+            if teacher_layer_indices is None and not layer_match_json_path:
+                raise ValueError(
+                    "`teacher_layer_indices` must be provided when layer distillation is enabled."
+                )
+            self.student_layer_indices, self.teacher_layer_soft_matches = setup_layer_matching(
+                self.model,
+                self.teacher_models,
+                layer_match_json_path,
+                layer_match_topk,
+                layer_distill_source,
+                list(student_layer_indices or []),
+                self.teacher_layer_indices,
+            )
         self.teacher_gate = maybe_create_teacher_gate(
             model=self.model,
             num_teachers=self.num_teachers,
@@ -174,6 +214,13 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
             num_teachers=self.num_teachers,
             teacher_weighting_strategy=self.teacher_weighting_strategy,
             loss_function=loss_function,
+            layer_distillation_enabled=self.layer_distillation_enabled,
+            layer_distill_source=self.layer_distill_source,
+            layer_distill_weight=self.layer_distill_weight,
+            layer_match_json_path=self.layer_match_json_path,
+            layer_match_topk=self.layer_match_topk,
+            student_layer_indices=self.student_layer_indices,
+            teacher_layer_soft_matches=self.teacher_layer_soft_matches,
             student_temperature=self.student_temperature,
             teacher_temperature=self.teacher_temperature,
             skip_student_eos=self.skip_student_eos,
@@ -318,6 +365,11 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
             attention_mask=student_inputs.get("attention_mask"),
             ce_loss=ce_loss,
         )
+        layer_and_loss = compute_layer_distillation_loss(
+            trainer=self,
+            teacher_batches=teacher_batches,
+            student_layer_representations=student_and_gate["student_layer_representations"],
+        )
 
         update_eval_ce_stats(
             trainer=self,
@@ -328,6 +380,7 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
             trainer=self,
             ce_loss=ce_loss,
             distillation_loss=grace_and_loss["distillation_loss"],
+            layer_distillation_loss=layer_and_loss["layer_distillation_loss"],
             teacher_gate_balance_loss=gate_routing["teacher_gate_balance_loss"],
             teacher_gate_entropy_loss=gate_routing["teacher_gate_entropy_loss"],
             teacher_gate_z_loss=gate_routing["teacher_gate_z_loss"],
@@ -342,6 +395,9 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
                 loss=loss,
                 distillation_loss=grace_and_loss["distillation_loss"],
                 ce_loss=ce_loss,
+                layer_distillation_loss=layer_and_loss["layer_distillation_loss"],
+                layer_distillation_time=layer_and_loss["layer_distillation_time"],
+                layer_distill_source=self.layer_distill_source if self.layer_distillation_enabled else None,
                 compute_loss_time=compute_loss_time,
                 student_forward_time=student_and_gate["student_forward_time"],
                 teacher_gate_time=student_and_gate["teacher_gate_time"],

@@ -8,6 +8,9 @@ def build_distillation_train_metrics(
     loss: torch.Tensor,
     distillation_loss: torch.Tensor,
     ce_loss: torch.Tensor,
+    layer_distillation_loss: torch.Tensor | None,
+    layer_distillation_time: float | None,
+    layer_distill_source: str | None,
     compute_loss_time: float,
     student_forward_time: float,
     teacher_gate_time: float,
@@ -49,6 +52,10 @@ def build_distillation_train_metrics(
         "perf_teacher_loss_matrix_s": teacher_loss_matrix_time,
         "perf_grace_routing_s": grace_routing_time,
     }
+    if layer_distillation_loss is not None and layer_distill_source is not None:
+        metrics[f"{layer_distill_source}_layer_distill_loss"] = layer_distillation_loss.item()
+    if layer_distillation_time is not None:
+        metrics["perf_layer_distillation_s"] = layer_distillation_time
     if outside_compute_loss_time is not None:
         metrics["perf_outside_compute_loss_s"] = outside_compute_loss_time
     metrics.update(summarize_teacher_vector("teacher_kd_loss", teacher_loss_matrix))

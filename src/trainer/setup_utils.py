@@ -5,6 +5,9 @@ from src.components.reinforced_teacher_selection import ReinforcedTeacherSelecti
 def validate_distillation_trainer_args(
     *,
     alpha: float,
+    layer_distill_source: str,
+    layer_distill_weight: float,
+    layer_match_topk: int,
     teacher_gate_balance_alpha: float,
     teacher_gate_top_k: int,
     teacher_gate_capacity_factor: float,
@@ -31,6 +34,15 @@ def validate_distillation_trainer_args(
 ) -> None:
     if alpha < 0.0:
         raise ValueError("DistillationTrainer requires `alpha >= 0`.")
+    if layer_distill_source not in {"none", "vision", "model"}:
+        raise ValueError(
+            "DistillationTrainer requires `layer_distill_source` to be "
+            "`none`, `vision`, or `model`."
+        )
+    if layer_distill_weight < 0.0:
+        raise ValueError("DistillationTrainer requires `layer_distill_weight >= 0`.")
+    if layer_match_topk < 1:
+        raise ValueError("DistillationTrainer requires `layer_match_topk >= 1`.")
     if teacher_gate_balance_alpha < 0.0:
         raise ValueError("DistillationTrainer requires `teacher_gate_balance_alpha >= 0`.")
     if teacher_gate_top_k < 1:
@@ -163,6 +175,13 @@ def log_distillation_trainer_setup(
     num_teachers: int,
     teacher_weighting_strategy: str,
     loss_function: str,
+    layer_distillation_enabled: bool,
+    layer_distill_source: str,
+    layer_distill_weight: float,
+    layer_match_json_path: str | None,
+    layer_match_topk: int,
+    student_layer_indices: list[int],
+    teacher_layer_soft_matches: list[list[dict]],
     student_temperature: float,
     teacher_temperature: float,
     skip_student_eos: bool,
@@ -210,6 +229,33 @@ def log_distillation_trainer_setup(
     print(f"  - Alpha: {alpha}")
     print(f"  - KD weight: {alpha}")
     print("  - CE weight: 1.0")
+    if layer_distillation_enabled:
+        print("  - Layer distillation: enabled")
+        print(f"  - Layer distill source: {layer_distill_source}")
+        print(f"  - Layer distill weight: {layer_distill_weight}")
+        print(f"  - Layer match JSON: {layer_match_json_path}")
+        print(f"  - Layer match top-k: {layer_match_topk}")
+        print(f"  - Student layer indices: {student_layer_indices}")
+        for teacher_index, soft_matches in enumerate(teacher_layer_soft_matches):
+            if layer_match_json_path:
+                print(f"  - Teacher {teacher_index} soft matches:")
+                for match in soft_matches:
+                    teacher_terms = ", ".join(
+                        f"{layer_idx}:{weight:.4f}"
+                        for layer_idx, weight in zip(
+                            match["teacher_layer_indices"],
+                            match["teacher_layer_weights"],
+                        )
+                    )
+                    print(f"    - student {match['student_layer_index']} -> {teacher_terms}")
+            else:
+                layer_pairs = [
+                    (match["student_layer_index"], match["teacher_layer_indices"][0])
+                    for match in soft_matches
+                ]
+                print(f"  - Teacher {teacher_index} layer pairs: {layer_pairs}")
+    else:
+        print("  - Layer distillation: disabled")
     if teacher_gate is not None:
         print(f"  - Teacher gate balance alpha: {teacher_gate_balance_alpha}")
         print(f"  - Teacher gate top-k: {teacher_gate_top_k}")

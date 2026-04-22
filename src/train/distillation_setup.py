@@ -36,8 +36,38 @@ class DistillationArguments:
     distillation_loss: str = field(
         default="uld_loss",
         metadata={
-            "help": "KD loss to use. Supported by src/components/loss.py, e.g. uld_loss, trie_wasserstein_loss, forward_kl, reverse_kl, jensen_shannon_divergence."
+            "help": "KD loss to use. Supported by src/components/loss.py, e.g. uld_loss, trie_wasserstein_loss, cka_loss, forward_kl, reverse_kl, jensen_shannon_divergence."
         },
+    )
+
+    layer_distill_source: str = field(
+        default="none",
+        metadata={"help": "Optional hidden-state distillation source. Supported: none, vision, model."},
+    )
+
+    layer_distill_weight: float = field(
+        default=0.0,
+        metadata={"help": "Extra weight applied to the auxiliary soft layer-matching CKA loss."},
+    )
+
+    layer_match_json_path: str | None = field(
+        default=None,
+        metadata={"help": "Optional CKA matrix.json path used to derive top-k soft teacher matches."},
+    )
+
+    layer_match_topk: int = field(
+        default=1,
+        metadata={"help": "Number of teacher layers to soft-match per student layer from the CKA matrix."},
+    )
+
+    student_layer_indices: str | None = field(
+        default=None,
+        metadata={"help": "Student layer indices as a Python list literal or comma-separated string."},
+    )
+
+    teacher_layer_indices: str | None = field(
+        default=None,
+        metadata={"help": "Teacher layer indices as a Python list literal or comma-separated string."},
     )
 
     trie_wasserstein_rho: float = field(
@@ -196,6 +226,12 @@ def validate_distillation_args(distillation_args) -> None:
         raise ValueError("--trie_wasserstein_rho must be in (0, 1).")
     if distillation_args.trie_wasserstein_topk < 1:
         raise ValueError("--trie_wasserstein_topk must be >= 1.")
+    if distillation_args.layer_distill_source not in {"none", "vision", "model"}:
+        raise ValueError("--layer_distill_source must be `none`, `vision`, or `model`.")
+    if distillation_args.layer_distill_weight < 0.0:
+        raise ValueError("--layer_distill_weight must be >= 0.")
+    if distillation_args.layer_match_topk < 1:
+        raise ValueError("--layer_match_topk must be >= 1.")
     if distillation_args.alpha < 0.0:
         raise ValueError("--alpha must be >= 0.")
     if distillation_args.teacher_gate_balance_alpha < 0.0:
@@ -245,6 +281,8 @@ def validate_distillation_args(distillation_args) -> None:
 def log_distillation_setup(
     *,
     teacher_ids,
+    student_layer_indices,
+    teacher_layer_indices,
     data_args,
     training_args,
     distillation_args,
@@ -271,6 +309,12 @@ def log_distillation_setup(
     rank0_print("Objective: CE + alpha * KD")
     rank0_print(f"KD Weight: {distillation_args.alpha}")
     rank0_print(f"KD Function: {distillation_args.distillation_loss}")
+    rank0_print(f"Layer Distill Source: {distillation_args.layer_distill_source}")
+    rank0_print(f"Layer Distill Weight: {distillation_args.layer_distill_weight}")
+    rank0_print(f"Layer Match JSON: {distillation_args.layer_match_json_path}")
+    rank0_print(f"Layer Match Top-k: {distillation_args.layer_match_topk}")
+    rank0_print(f"Student Layer Indices: {student_layer_indices}")
+    rank0_print(f"Teacher Layer Indices: {teacher_layer_indices}")
     if distillation_args.distillation_loss == "trie_wasserstein_loss":
         rank0_print(f"Trie Wasserstein Rho: {distillation_args.trie_wasserstein_rho}")
         rank0_print(f"Trie Wasserstein Top-k: {distillation_args.trie_wasserstein_topk}")

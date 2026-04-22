@@ -9,6 +9,9 @@ if str(ROOT_DIR) not in sys.path:
 
 import torch
 from transformers import (
+    AutoModel,
+    AutoTokenizer,
+    Gemma3ForConditionalGeneration,
     HfArgumentParser,
 )
 from src.trainer.distillation_trainer import DistillationTrainer
@@ -33,7 +36,10 @@ from src.train.train_utils import (
     set_local_rank,
     rank0_print,
     load_processor_and_tokenizer_backend,
+    load_vision_language_model,
+    resolve_model_type,
     parse_model_id_list,
+    parse_list_argument,
 )
 from src.train.distillation_runtime import (
     build_trainer_callbacks,
@@ -45,6 +51,95 @@ importlib.import_module("pillow_avif")
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
+
+
+def load_teachers_and_processors_for_layer_distillation(
+    *,
+    teacher_ids: list[str],
+    training_args,
+    compute_dtype: torch.dtype,
+):
+    teacher_models = []
+    teacher_processors = []
+    attn_impl = "flash_attention_2" if not training_args.disable_flash_attn2 else "eager"
+
+    for teacher_id in teacher_ids:
+        rank0_print(f"Loading live teacher for layer distillation: {teacher_id}")
+        if "internvl" in teacher_id.lower():
+            teacher_model = AutoModel.from_pretrained(
+                teacher_id,
+                cache_dir=training_args.cache_dir,
+                torch_dtype=compute_dtype,
+                low_cpu_mem_usage=True,
+                use_flash_attn=not training_args.disable_flash_attn2,
+                trust_remote_code=True,
+            ).to(training_args.device)
+            teacher_tokenizer = AutoTokenizer.from_pretrained(
+                teacher_id,
+                cache_dir=training_args.cache_dir,
+                padding_side="right",
+                trust_remote_code=True,
+                use_fast=False,
+            )
+            img_context_token_id = teacher_tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
+            if hasattr(teacher_model, "img_context_token_id"):
+                teacher_model.img_context_token_id = img_context_token_id
+            vision_config = getattr(teacher_model.config, "vision_config", None)
+            teacher_processor = {
+                "model_id": teacher_id,
+                "tokenizer": teacher_tokenizer,
+                "image_size": getattr(teacher_model.config, "force_image_size", None)
+                or getattr(vision_config, "image_size", 448),
+                "normalize_type": (
+                    "siglip"
+                    if getattr(vision_config, "model_type", None) == "siglip_vision_model"
+                    else "imagenet"
+                ),
+                "max_num_tiles": 6,
+                "num_image_token": getattr(teacher_model, "num_image_token", 256),
+                "img_start_token": "<img>",
+                "img_end_token": "</img>",
+                "img_context_token": "<IMG_CONTEXT>",
+            }
+        else:
+            teacher_processor, _, teacher_model_type = load_processor_and_tokenizer_backend(
+                teacher_id,
+                padding_side="right",
+                cache_dir=training_args.cache_dir,
+            )
+            if teacher_processor is None:
+                raise ValueError(
+                    f"Could not load an AutoProcessor for teacher model {teacher_id!r}."
+                )
+            if "gemma-3" in teacher_id.lower():
+                teacher_model = Gemma3ForConditionalGeneration.from_pretrained(
+                    teacher_id,
+                    cache_dir=training_args.cache_dir,
+                    attn_implementation=attn_impl,
+                    torch_dtype=compute_dtype,
+                    trust_remote_code=True,
+                    device_map={"": training_args.device},
+                )
+            else:
+                teacher_model = load_vision_language_model(
+                    model_id=teacher_id,
+                    model_type=teacher_model_type or resolve_model_type(teacher_id),
+                    cache_dir=training_args.cache_dir,
+                    attn_implementation=attn_impl,
+                    compute_dtype=compute_dtype,
+                    trust_remote_code=True,
+                    model_kwargs={"device_map": {"": training_args.device}},
+                )
+        if hasattr(teacher_model.config, "use_cache"):
+            teacher_model.config.use_cache = False
+        teacher_model._suppress_forward_stdout = "internvl" in teacher_id.lower()
+        teacher_model.eval()
+        for param in teacher_model.parameters():
+            param.requires_grad_(False)
+        teacher_models.append(teacher_model)
+        teacher_processors.append(teacher_processor)
+
+    return teacher_models, teacher_processors
 
 
 def _uses_wandb(report_to) -> bool:
@@ -110,7 +205,39 @@ def train_distillation():
         distillation_args.teacher_model_ids,
         arg_name="--teacher_model_ids",
     )
+    student_layer_indices = parse_list_argument(
+        distillation_args.student_layer_indices,
+        arg_name="--student_layer_indices",
+        element_type=int,
+    )
+    teacher_layer_indices = parse_list_argument(
+        distillation_args.teacher_layer_indices,
+        arg_name="--teacher_layer_indices",
+        element_type=int,
+    )
     validate_distillation_args(distillation_args)
+    layer_distillation_enabled = (
+        distillation_args.layer_distill_source in {"vision", "model"}
+        and distillation_args.layer_distill_weight > 0.0
+        and (bool(student_layer_indices) or bool(distillation_args.layer_match_json_path))
+    )
+    if layer_distillation_enabled:
+        if not student_layer_indices and not distillation_args.layer_match_json_path:
+            raise ValueError(
+                "--student_layer_indices must be provided when layer distillation is enabled."
+            )
+        if not teacher_layer_indices and not distillation_args.layer_match_json_path:
+            raise ValueError(
+                "--teacher_layer_indices must be provided when layer distillation is enabled."
+            )
+        if (
+            student_layer_indices
+            and teacher_layer_indices
+            and len(student_layer_indices) != len(teacher_layer_indices)
+        ):
+            raise ValueError(
+                "--student_layer_indices and --teacher_layer_indices must have the same length."
+            )
     gradient_checkpointing_kwargs = dict(training_args.gradient_checkpointing_kwargs or {})
     if "use_reentrant" not in gradient_checkpointing_kwargs:
         gradient_checkpointing_kwargs["use_reentrant"] = True
@@ -119,6 +246,8 @@ def train_distillation():
 
     log_distillation_setup(
         teacher_ids=teacher_ids,
+        student_layer_indices=student_layer_indices,
+        teacher_layer_indices=teacher_layer_indices,
         data_args=data_args,
         training_args=training_args,
         distillation_args=distillation_args,
@@ -162,8 +291,18 @@ def train_distillation():
             "Teacher logits require either --teacher_logits_cache_dir (for example /cache "
             "or a writable /tmp path) or --teacher_logits_remote_uri (remote raw cache root)."
         )
-    rank0_print("\nUsing cached teacher logits; skipping online teacher model loading.")
-    teacher_models, teacher_processors = [], []
+    if layer_distillation_enabled:
+        rank0_print(
+            "\nLayer distillation enabled; loading live teacher models in addition to cached teacher logits."
+        )
+        teacher_models, teacher_processors = load_teachers_and_processors_for_layer_distillation(
+            teacher_ids=teacher_ids,
+            training_args=training_args,
+            compute_dtype=compute_dtype,
+        )
+    else:
+        rank0_print("\nUsing cached teacher logits; skipping online teacher model loading.")
+        teacher_models, teacher_processors = [], []
 
     student_loss_tokenizer = None
     teacher_loss_tokenizers = None
@@ -203,6 +342,12 @@ def train_distillation():
         teacher_tokenizers=teacher_loss_tokenizers,
         teacher_weighting_strategy=distillation_args.teacher_weighting_strategy,
         loss_function=distillation_args.distillation_loss,
+        layer_distill_source=distillation_args.layer_distill_source,
+        layer_distill_weight=distillation_args.layer_distill_weight,
+        layer_match_json_path=distillation_args.layer_match_json_path,
+        layer_match_topk=distillation_args.layer_match_topk,
+        student_layer_indices=student_layer_indices,
+        teacher_layer_indices=teacher_layer_indices,
         temperature=distillation_args.temperature,
         student_temperature=distillation_args.student_temperature,
         teacher_temperature=distillation_args.teacher_temperature,

@@ -1,6 +1,7 @@
 import torch
 import torch.nn.functional as F
 
+from src.components.cka import linear_cka_loss
 from src.components.trie_wasserstein import TrieWassersteinLoss
 
 
@@ -199,6 +200,18 @@ def distillation_logit_grad(
     student_temperature: float | None = None,
     teacher_temperature: float | None = None,
 ) -> torch.Tensor:
+    if loss_function == "cka_loss":
+        with torch.enable_grad():
+            logits_for_grad = student_logits.detach().clone().requires_grad_(True)
+            loss = cka_loss(
+                student_logits=logits_for_grad,
+                teacher_logits=teacher_logits,
+                temperature=temperature,
+                student_temperature=student_temperature,
+                teacher_temperature=teacher_temperature,
+            )
+            return torch.autograd.grad(loss, logits_for_grad, retain_graph=False)[0].float()
+
     student_temperature, teacher_temperature = resolve_temperatures(
         temperature=temperature,
         student_temperature=student_temperature,
@@ -231,6 +244,30 @@ def distillation_logit_grad(
 
     teacher_probs = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
     return (student_probs - teacher_probs) / student_temperature
+
+
+def cka_loss(
+    student_logits: torch.Tensor,
+    teacher_logits: torch.Tensor,
+    temperature: float = 1.0,
+    student_temperature: float | None = None,
+    teacher_temperature: float | None = None,
+) -> torch.Tensor:
+    """
+    Logits-space linear CKA loss using softened token distributions.
+
+    Unlike token-wise KL losses, CKA only requires the same number of aligned
+    samples, so student and teacher vocabulary sizes may differ.
+    """
+    student_temperature, teacher_temperature = resolve_temperatures(
+        temperature=temperature,
+        student_temperature=student_temperature,
+        teacher_temperature=teacher_temperature,
+    )
+    student_probs = F.softmax(student_logits.float() / student_temperature, dim=-1)
+    with torch.no_grad():
+        teacher_probs = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
+    return linear_cka_loss(student_probs, teacher_probs)
 
 
 def uld_loss(
@@ -335,4 +372,3 @@ def jensen_shannon_divergence(
         F.kl_div(s.log(), m, reduction='batchmean') +
         F.kl_div(t.log(), m, reduction='batchmean')
     ) * student_temperature ** 2
-

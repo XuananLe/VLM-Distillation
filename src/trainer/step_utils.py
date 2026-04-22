@@ -1,4 +1,5 @@
 import time
+from contextlib import nullcontext
 
 import torch
 
@@ -12,7 +13,13 @@ from src.trainer.routing_utils import (
     compute_teacher_gate_entropy_loss,
     compute_teacher_gate_z_loss,
 )
-from src.trainer.distillation_utils import build_cached_teacher_batches, build_teacher_batches
+from src.trainer.distillation_utils import (
+    build_cached_teacher_batches,
+    build_teacher_batches,
+    capture_layer_outputs,
+    compute_student_representations,
+    compute_teacher_forward_and_layer_distillation,
+)
 
 
 def move_teacher_models_to_device(teacher_models, target_device) -> None:
@@ -24,17 +31,22 @@ def move_teacher_models_to_device(teacher_models, target_device) -> None:
 
 def prepare_teacher_batches(*, inputs, student_inputs, num_teachers: int, teacher_models):
     cached_teacher_batches = build_cached_teacher_batches(inputs, num_teachers)
-    teacher_batches = None
-    if cached_teacher_batches is None and teacher_models:
-        teacher_batches = build_teacher_batches(inputs, student_inputs, num_teachers)
-    elif cached_teacher_batches is None:
-        raise ValueError(
-            "No teacher inputs were found in the batch. Provide teacher models or cached teacher logits."
-        )
-    elif len(cached_teacher_batches) != num_teachers:
+    if cached_teacher_batches is not None and len(cached_teacher_batches) != num_teachers:
         raise ValueError(
             "Cached teacher-logit batch count does not match the configured teacher count. "
             f"cached={len(cached_teacher_batches)}, configured={num_teachers}"
+        )
+    teacher_batches = None
+    if teacher_models:
+        teacher_batches = build_teacher_batches(
+            inputs,
+            student_inputs,
+            num_teachers,
+            fallback_to_student_inputs=cached_teacher_batches is None,
+        )
+    elif cached_teacher_batches is None:
+        raise ValueError(
+            "No teacher inputs were found in the batch. Provide teacher models or cached teacher logits."
         )
     return teacher_batches, cached_teacher_batches
 
@@ -45,13 +57,35 @@ def run_student_forward_and_teacher_gate(*, trainer, model, student_inputs):
     if trainer.reinforced_teacher_selector is not None:
         trainer.reinforced_teacher_selector.reset()
 
-    student_forward_start_time = time.perf_counter()
-    student_outputs = forward_with_kwarg_retry(
-        model,
-        {**student_inputs, "return_dict": True, "output_hidden_states": False},
+    output_hidden_states = (
+        trainer.layer_distillation_enabled and trainer.layer_distill_source == "model"
     )
+    student_hook_context = (
+        capture_layer_outputs(model, trainer.student_layer_indices)
+        if trainer.layer_distillation_enabled and trainer.layer_distill_source == "vision"
+        else nullcontext(None)
+    )
+    student_forward_start_time = time.perf_counter()
+    with student_hook_context as student_layer_outputs:
+        student_outputs = forward_with_kwarg_retry(
+            model,
+            {
+                **student_inputs,
+                "return_dict": True,
+                "output_hidden_states": output_hidden_states,
+            },
+        )
     student_forward_time = time.perf_counter() - student_forward_start_time
     student_logits = student_outputs.logits
+    student_layer_representations = None
+    if trainer.layer_distillation_enabled:
+        student_layer_representations = compute_student_representations(
+            trainer.layer_distill_source,
+            trainer.student_layer_indices,
+            student_inputs,
+            student_layer_outputs,
+            student_outputs,
+        )
 
     teacher_gate_start_time = time.perf_counter()
     teacher_gate_logits = (
@@ -77,11 +111,59 @@ def run_student_forward_and_teacher_gate(*, trainer, model, student_inputs):
     return {
         "student_outputs": student_outputs,
         "student_logits": student_logits,
+        "student_layer_representations": student_layer_representations,
         "student_forward_time": student_forward_time,
         "teacher_gate_time": teacher_gate_time,
         "teacher_gate_logits": teacher_gate_logits,
         "teacher_gate_weights": teacher_gate_weights,
         "teacher_gate_routing_scores": teacher_gate_routing_scores,
+    }
+
+
+def compute_layer_distillation_loss(
+    *,
+    trainer,
+    teacher_batches,
+    student_layer_representations,
+):
+    if not trainer.layer_distillation_enabled:
+        return {
+            "layer_distillation_loss": None,
+            "layer_distillation_time": None,
+        }
+    if teacher_batches is None:
+        raise ValueError(
+            "Layer distillation requires live teacher inputs. "
+            "Provide teacher processors alongside the cached teacher logits."
+        )
+
+    layer_distillation_start_time = time.perf_counter()
+    layer_distillation_losses = []
+    output_hidden_states = trainer.layer_distill_source == "model"
+    for teacher_index, (teacher_model, (teacher_inputs, _teacher_labels)) in enumerate(
+        zip(trainer.teacher_models, teacher_batches)
+    ):
+        _teacher_outputs, layer_loss = compute_teacher_forward_and_layer_distillation(
+            teacher_model=teacher_model,
+            teacher_inputs=teacher_inputs,
+            teacher_layer_soft_matches=trainer.teacher_layer_soft_matches[teacher_index],
+            layer_distill_source=trainer.layer_distill_source,
+            student_layer_representations=student_layer_representations,
+            output_hidden_states=output_hidden_states,
+            suppress_stdout=getattr(teacher_model, "_suppress_forward_stdout", False),
+        )
+        if layer_loss is not None:
+            layer_distillation_losses.append(layer_loss)
+
+    if layer_distillation_losses:
+        layer_distillation_loss = torch.stack(layer_distillation_losses).mean()
+    else:
+        reference_tensor = next(iter(student_layer_representations.values()))
+        layer_distillation_loss = reference_tensor.new_zeros(())
+
+    return {
+        "layer_distillation_loss": layer_distillation_loss,
+        "layer_distillation_time": time.perf_counter() - layer_distillation_start_time,
     }
 
 
@@ -297,6 +379,7 @@ def compute_total_loss(
     trainer,
     ce_loss,
     distillation_loss,
+    layer_distillation_loss,
     teacher_gate_balance_loss,
     teacher_gate_entropy_loss,
     teacher_gate_z_loss,
@@ -304,6 +387,8 @@ def compute_total_loss(
 ):
     base_kd_loss = trainer.alpha * distillation_loss
     loss = ce_loss + base_kd_loss
+    if layer_distillation_loss is not None:
+        loss = loss + layer_distillation_loss * trainer.layer_distill_weight
     if teacher_gate_balance_loss is not None:
         loss = loss + teacher_gate_balance_loss * trainer.teacher_gate_balance_alpha
     if teacher_gate_entropy_loss is not None:
@@ -318,6 +403,7 @@ def compute_total_loss(
 __all__ = [
     "apply_grace_and_compute_distillation_loss",
     "apply_teacher_gate_routing",
+    "compute_layer_distillation_loss",
     "compute_teacher_losses_and_grace",
     "compute_total_loss",
     "move_teacher_models_to_device",
