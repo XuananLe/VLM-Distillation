@@ -1,12 +1,17 @@
 \chapter*{Conclusion and Future Work}
 \addcontentsline{toc}{chapter}{Conclusion and Future Work}
 
-This thesis addressed compact visual language model distillation under
-heterogeneous teachers. The student is much smaller than the teacher pool, the
+This chapter summarizes the main contributions and the empirical conclusions of
+the study. The main limitations are discussed separately in
+Chapter~\ref{chap:experiment-results}. This final part focuses on the core
+takeaways and on practical directions for future work.
+
+We studied compact visual language model distillation under
+heterogeneous teachers. The student is much smaller than the teacher set, the
 teachers do not help every sample equally and their tokenizers do not match.
-This thesis presents \methodname{}, a routed multi-teacher
+We present \methodname{}, a routed multi-teacher
 framework with trie-Wasserstein cross-tokenizer distillation, capacity-aware
-selection and EMA-smoothed GRACE weighting. The code follows the same order:
+selection and EMA-smoothed GRACE weighting. The code follows that order:
 route teachers first, refine their weights with GRACE scores, then aggregate
 the routed trie-Wasserstein KD loss
 \cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}.
@@ -23,7 +28,7 @@ compact text-rich VLM distillation.
 
 \section*{Future Work}
 \begin{itemize}
-\item stronger evaluation. Repeated runs would make the comparison more rigorous, especially for the smaller gaps between the stronger multi-teacher baselines.
-\item better systems efficiency. The current pipeline still relies on large offline teacher-logit caches, so reducing storage and I/O cost would make the method easier to scale to more datasets and larger teacher pools.
-\item broader method extensions. The current recipe is still answer-token centric, so one important next step is explicit visual distillation: visual-token alignment, cross-attention transfer, or region-level matching. The method can also study richer router inputs, stronger objective-conflict handling and teacher pools that mix specialized document, chart and general VLM experts \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
+\item Stronger evaluation. Repeated runs would make the comparison more rigorous, especially for the smaller gaps between the stronger multi-teacher baselines.
+\item Better systems efficiency. The pipeline still relies on large offline teacher-logit caches, so reducing storage and I/O cost would make the method easier to scale to more datasets and larger teacher sets.
+\item Broader method extensions. The recipe is still answer-token centric, so one important next step is explicit visual distillation: visual-token alignment, cross-attention transfer, or region-level matching. The method can also study richer router inputs, stronger objective-conflict handling and teacher sets that mix specialized document, chart and general VLM experts \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
 \end{itemize}

@@ -33,6 +33,7 @@ MODAL_REQUIREMENTS_BLOCKLIST = (
     "transformers==",
     "flash_attn==",
     "flash-attn==",
+    "manimgl==",
 )
 model_volume = modal.Volume.from_name("model-weights-vol", create_if_missing=True)
 dataset_volume = modal.Volume.from_name("vlm-distillation-data", create_if_missing=True)
@@ -202,8 +203,7 @@ def _prepare_modal_runtime_env() -> dict[str, str]:
     return env
 
 
-@app.function(gpu = "L4", timeout=60 * 60 * 24)
-def exec_cmd(cmd: str) -> None:
+def _exec_cmd_impl(cmd: str) -> None:
     cmd = cmd.strip()
     if not cmd:
         raise ValueError("cmd must be non-empty")
@@ -239,25 +239,28 @@ def exec_cmd(cmd: str) -> None:
         raise subprocess.CalledProcessError(returncode, cmd)
 
 
+@app.function(gpu="T4", timeout=60 * 60 * 24)
+def exec_cmd(cmd: str) -> None:
+    _exec_cmd_impl(cmd)
+
+
 @app.local_entrypoint()
 def run(
 cmd = r"""
-cd /root/VLM-Distillation/src/eval
+cd /root/VLM-Distillation/demo/DEX-AR
 
-CUDA_VISIBLE_DEVICES=0 python run.py \
-  --data TextVQA_VAL \
-  --model SmolVLM-500M-Reinforce-Checkpoint-150 \
-  --work-dir /output/vlmeval/SmolVLM-500M-Reinforce-Checkpoint-150 \
-  --smolvlm-runtime original &
+export MPLBACKEND=Agg
+export DEXAR_SHOW_PLOTS=0
+export DEXAR_DEVICE=cuda
+export DEXAR_MODEL_NAME=HuggingFaceTB/SmolVLM-256M-Instruct
+export DEXAR_LAYER_INDEX=0
+export DEXAR_OUTPUT_DIR=/output/dexar-demo/smolvlm_256m
 
-CUDA_VISIBLE_DEVICES=0 python run.py \
-  --data TextVQA_VAL \
-  --model SmolVLM-500M-Reinforce-Checkpoint-217 \
-  --work-dir /output/vlmeval/SmolVLM-500M-Reinforce-Checkpoint-217 \
-  --smolvlm-runtime original &
+python playground.py
 
-wait
+find /output/dexar-demo/smolvlm_256m -maxdepth 2 -type f | sort
 """
 
 ):
-    exec_cmd.remote(cmd)
+    call = exec_cmd.spawn(cmd)
+    print(f"Triggered Modal function call: {getattr(call, 'object_id', call)}")

@@ -13,62 +13,6 @@ Alec Radford, Jong~Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh,
 \newblock Learning transferable visual models from natural language
   supervision, 2021.
 
-\bibitem{wikimedia_transformer_attention_block_image}
-{Wikimedia Commons contributors}.
-\newblock File: Transformer, attention block diagram.png.
-\newblock Wikimedia Commons, 2024.
-\newblock CC BY 4.0. Accessed: 2026-03-06.
-
-\bibitem{vaswani2023attentionneed}
-Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
-  Aidan~N. Gomez, Lukasz Kaiser, and Illia Polosukhin.
-\newblock Attention is all you need.
-\newblock In {\em Advances in Neural Information Processing Systems 30 (NeurIPS
-  2017)}, pages 5998--6008, 2017.
-
-\bibitem{wikimedia_vision_transformer_image}
-{Wikimedia Commons contributors}.
-\newblock File: Vision transformer.png.
-\newblock Wikimedia Commons, 2024.
-\newblock CC BY 4.0. Accessed: 2026-03-06.
-
-\bibitem{dosovitskiy2021imageworth16x16words}
-Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn,
-  Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg
-  Heigold, Sylvain Gelly, Jakob Uszkoreit, and Neil Houlsby.
-\newblock An image is worth 16x16 words: Transformers for image recognition at
-  scale, 2021.
-
-\bibitem{singh2019vqamodelsread}
-Amanpreet Singh, Vivek Natarajan, Meet Shah, Yu~Jiang, Xinlei Chen, Dhruv
-  Batra, Devi Parikh, and Marcus Rohrbach.
-\newblock Towards vqa models that can read, 2019.
-
-\bibitem{mathew2021docvqadatasetvqadocument}
-Minesh Mathew, Dimosthenis Karatzas, and C.~V. Jawahar.
-\newblock Docvqa: A dataset for vqa on document images, 2021.
-
-\bibitem{masry2022chartqabenchmarkquestionanswering}
-Ahmed Masry, Do~Xuan Long, Jia~Qing Tan, Shafiq Joty, and Enamul Hoque.
-\newblock Chartqa: A benchmark for question answering about charts with visual
-  and logical reasoning, 2022.
-
-\bibitem{wikimedia_knowledge_distillation_example}
-{Wikimedia Commons contributors}.
-\newblock File: Knowledge-distillation-example.png.
-\newblock Wikimedia Commons, 2023.
-\newblock CC0 1.0. Source: Intel Distiller knowledge distillation page.
-  Accessed: 2026-03-07.
-
-\bibitem{hinton2015distillingknowledgeneuralnetwork}
-Geoffrey Hinton, Oriol Vinyals, and Jeff Dean.
-\newblock Distilling the knowledge in a neural network, 2015.
-
-\bibitem{boizard2024towardscrosstokenizerdistillation}
-Nicolas Boizard, Kevin~El Haddad, Pierre Colombo, and Chlo{\'e} Clavel.
-\newblock Towards cross-tokenizer distillation: The universal logit
-  distillation loss for llms, 2024.
-
 \bibitem{wikimedia_continuous_optimal_transport_image}
 Nicolas Papadakis.
 \newblock File: Continuous optimal transport.png.
@@ -79,19 +23,6 @@ Nicolas Papadakis.
 \bibitem{peyre2019computationaloptimaltransport}
 Gabriel Peyr{\'e} and Marco Cuturi.
 \newblock Computational optimal transport, 2019.
-
-\bibitem{takezawa2021supervisedtreewasserstein}
-Yuki Takezawa, Ryoma Sato, and Makoto Yamada.
-\newblock Supervised tree-wasserstein distance.
-\newblock In {\em Proceedings of the 38th International Conference on Machine
-  Learning}, volume 139 of {\em Proceedings of Machine Learning Research},
-  pages 10086--10095. PMLR, 2021.
-
-\bibitem{wikimedia_optimal_transport_matrix_image}
-{Wikimedia Commons contributors}.
-\newblock File: Optimal transport matrix.png.
-\newblock Wikimedia Commons, 2018.
-\newblock CC BY-SA 4.0. Accessed: 2026-03-31.
 
 \bibitem{alayrac2022flamingovisuallanguagemodel}
 Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech, Iain Barr,
@@ -117,6 +48,20 @@ Yushi Hu, Otilia Stretcu, Chun-Ta Lu, Krishnamurthy Viswanathan, Kenji Hata,
 \newblock Visual program distillation: Distilling tools and programmatic
   reasoning into vision-language models, 2024.
 
+\bibitem{singh2019vqamodelsread}
+Amanpreet Singh, Vivek Natarajan, Meet Shah, Yu~Jiang, Xinlei Chen, Dhruv
+  Batra, Devi Parikh, and Marcus Rohrbach.
+\newblock Towards vqa models that can read, 2019.
+
+\bibitem{mathew2021docvqadatasetvqadocument}
+Minesh Mathew, Dimosthenis Karatzas, and C.~V. Jawahar.
+\newblock Docvqa: A dataset for vqa on document images, 2021.
+
+\bibitem{masry2022chartqabenchmarkquestionanswering}
+Ahmed Masry, Do~Xuan Long, Jia~Qing Tan, Shafiq Joty, and Enamul Hoque.
+\newblock Chartqa: A benchmark for question answering about charts with visual
+  and logical reasoning, 2022.
+
 \bibitem{chu2023mobilevlm}
 Xiangxiang Chu, Limeng Qiao, Xinyang Lin, Shuang Xu, Yang Yang, Yiming Hu, Fei
   Wei, Xinyu Zhang, Bo~Zhang, Xiaolin Wei, and Chunhua Shen.
@@ -140,6 +85,13 @@ Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor
   Driessche, Bogdan Damoc, Aurelia Guy, Simon Osindero, Karen Simonyan, Erich
   Elsen, Jack~W. Rae, Oriol Vinyals, and Laurent Sifre.
 \newblock Training compute-optimal large language models, 2022.
+
+\bibitem{vaswani2023attentionneed}
+Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
+  Aidan~N. Gomez, Lukasz Kaiser, and Illia Polosukhin.
+\newblock Attention is all you need.
+\newblock In {\em Advances in Neural Information Processing Systems 30 (NeurIPS
+  2017)}, pages 5998--6008, 2017.
 
 \bibitem{marafioti2025smolvlm}
 Andr{\'e}s Marafioti, Orr Zohar, Miquel Farr{\'e}, Merve Noyan, Elie Bakouch,
@@ -173,6 +125,10 @@ Andr{\'e}s Marafioti, Merve Noyan, Miquel Farr{\'e}, Elie Bakouch, and Pedro
 \newblock AI Rank, 2026.
 \newblock Self-reported leaderboard. Accessed: 2026-04-02.
 
+\bibitem{hinton2015distillingknowledgeneuralnetwork}
+Geoffrey Hinton, Oriol Vinyals, and Jeff Dean.
+\newblock Distilling the knowledge in a neural network, 2015.
+
 \bibitem{xu2024surveyknowledgedistillationlarge}
 Xiaohan Xu, Ming Li, Chongyang Tao, Tao Shen, Reynold Cheng, Jinyang Li, Can
   Xu, Dacheng Tao, and Tianyi Zhou.
@@ -192,6 +148,18 @@ Wenhao Ma, Jie Li, Bo~Han, and Xiaojuan Qi.
   models.
 \newblock In {\em Proceedings of the IEEE/CVF Conference on Computer Vision and
   Pattern Recognition (CVPR)}, pages 15313--15323, 2024.
+
+\bibitem{boizard2024towardscrosstokenizerdistillation}
+Nicolas Boizard, Kevin~El Haddad, Pierre Colombo, and Chlo{\'e} Clavel.
+\newblock Towards cross-tokenizer distillation: The universal logit
+  distillation loss for llms, 2024.
+
+\bibitem{takezawa2021supervisedtreewasserstein}
+Yuki Takezawa, Ryoma Sato, and Makoto Yamada.
+\newblock Supervised tree-wasserstein distance.
+\newblock In {\em Proceedings of the 38th International Conference on Machine
+  Learning}, volume 139 of {\em Proceedings of Machine Learning Research},
+  pages 10086--10095. PMLR, 2021.
 
 \bibitem{dasgupta2025improving}
 Sayantan Dasgupta and Trevor Cohn.
@@ -236,6 +204,13 @@ Kaicheng Yang, Tiancheng Gu, Xiang An, Haiqiang Jiang, Xiangzi Dai, Ziyong
 \newblock Clip-cid: Efficient clip distillation via cluster-instance
   discrimination, 2024.
 
+\bibitem{wikimedia_knowledge_distillation_example}
+{Wikimedia Commons contributors}.
+\newblock File: Knowledge-distillation-example.png.
+\newblock Wikimedia Commons, 2023.
+\newblock CC0 1.0. Source: Intel Distiller knowledge distillation page.
+  Accessed: 2026-03-07.
+
 \bibitem{yuan2020reinforcedmultiteacherselection}
 Fei Yuan, Linjun Shou, Jian Pei, Wutao Lin, Ming Gong, Yan Fu, and Daxin Jiang.
 \newblock Reinforced multi-teacher selection for knowledge distillation, 2020.
@@ -250,6 +225,25 @@ Yu-Chu Yu, Chi-Pin Huang, Jr-Jen Chen, Kai-Po Chang, Yung-Hsuan Lai, Fu-En
   Yang, and Yu-Chiang~Frank Wang.
 \newblock Select and distill: Selective dual-teacher knowledge transfer for
   continual learning on vision-language models, 2024.
+
+\bibitem{leyamadafukumizucuturi2019treesliced}
+Tuan Le, Makoto Yamada, Kenji Fukumizu, and Marco Cuturi.
+\newblock Tree-sliced variants of wasserstein distances.
+\newblock In {\em Advances in Neural Information Processing Systems},
+  volume~32, 2019.
+
+\bibitem{kornblith2019similarityrepresentations}
+Simon Kornblith, Mohammad Norouzi, Honglak Lee, and Geoffrey Hinton.
+\newblock Similarity of neural network representations revisited.
+\newblock In {\em Proceedings of the 36th International Conference on Machine
+  Learning}, volume~97 of {\em Proceedings of Machine Learning Research}, pages
+  3519--3529. PMLR, 2019.
+
+\bibitem{shazeer2017outrageouslylargeneuralnetworks}
+Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le,
+  Geoffrey Hinton, and Jeff Dean.
+\newblock Outrageously large neural networks: The sparsely-gated
+  mixture-of-experts layer, 2017.
 
 \bibitem{fedus2022switchtransformersscalingtrillion}
 William Fedus, Barret Zoph, and Noam Shazeer.
@@ -268,22 +262,35 @@ Yichen Zhu and Yi~Wang.
 \newblock In {\em Proceedings of the IEEE/CVF International Conference on
   Computer Vision}, pages 5057--5066, 2021.
 
+\bibitem{dosovitskiy2021imageworth16x16words}
+Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn,
+  Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg
+  Heigold, Sylvain Gelly, Jakob Uszkoreit, and Neil Houlsby.
+\newblock An image is worth 16x16 words: Transformers for image recognition at
+  scale, 2021.
+
+\bibitem{wikimedia_transformer_attention_block_image}
+{Wikimedia Commons contributors}.
+\newblock File: Transformer, attention block diagram.png.
+\newblock Wikimedia Commons, 2024.
+\newblock CC BY 4.0. Accessed: 2026-03-06.
+
+\bibitem{wikimedia_vision_transformer_image}
+{Wikimedia Commons contributors}.
+\newblock File: Vision transformer.png.
+\newblock Wikimedia Commons, 2024.
+\newblock CC BY 4.0. Accessed: 2026-03-06.
+
 \bibitem{lin1991jensen}
 Jianhua Lin.
 \newblock Divergence measures based on the shannon entropy.
 \newblock {\em IEEE Transactions on Information Theory}, 37(1), 1991.
 
-\bibitem{leyamadafukumizucuturi2019treesliced}
-Tuan Le, Makoto Yamada, Kenji Fukumizu, and Marco Cuturi.
-\newblock Tree-sliced variants of wasserstein distances.
-\newblock In {\em Advances in Neural Information Processing Systems},
-  volume~32, 2019.
-
-\bibitem{shazeer2017outrageouslylargeneuralnetworks}
-Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le,
-  Geoffrey Hinton, and Jeff Dean.
-\newblock Outrageously large neural networks: The sparsely-gated
-  mixture-of-experts layer, 2017.
+\bibitem{wikimedia_optimal_transport_matrix_image}
+{Wikimedia Commons contributors}.
+\newblock File: Optimal transport matrix.png.
+\newblock Wikimedia Commons, 2018.
+\newblock CC BY-SA 4.0. Accessed: 2026-03-31.
 
 \bibitem{deepseekai2024deepseekv2strongeconomicalefficient}
 {DeepSeek-AI}.
@@ -334,6 +341,33 @@ Samyam Rajbhandari, Jeff Rasley, Olatunji Ruwase, and Yuxiong He.
 Tianqi Chen, Bing Xu, Chiyuan Zhang, and Carlos Guestrin.
 \newblock Training deep nets with sublinear memory cost, 2016.
 
+\bibitem{smolvlm2_modelcard}
+{Hugging Face TB}.
+\newblock Smolvlm2-2.2b-instruct model card.
+\newblock Hugging Face, 2025.
+\newblock Accessed: 2026-04-02.
+
+\bibitem{cui2024sinkhorn}
+Yifan Cui, Wei Wang, Yifei Wang, Yao Lu, Haoyu Wang, Fuzhen Zhuang, Qing He,
+  and Chuan Shi.
+\newblock Sinkhorn distance minimization for knowledge distillation.
+\newblock In {\em Findings of the Association for Computational Linguistics:
+  ACL 2024}, pages 11046--11060. Association for Computational Linguistics,
+  2024.
+
+\bibitem{williams1992simple}
+Ronald~J. Williams.
+\newblock Simple statistical gradient-following algorithms for connectionist
+  reinforcement learning.
+\newblock {\em Machine Learning}, 8(3):229--256, 1992.
+
+\bibitem{wen2023fdistill}
+Yuqiao Wen, Zichao Li, Wenyu Du, and Lili Mou.
+\newblock f-divergence minimization for sequence-level knowledge distillation.
+\newblock In {\em Proceedings of the 61st Annual Meeting of the Association for
+  Computational Linguistics (Volume 1: Long Papers)}, pages 10817--10834.
+  Association for Computational Linguistics, 2023.
+
 \bibitem{cloudflare_r2_overview}
 {Cloudflare}.
 \newblock R2 object storage.
@@ -358,38 +392,10 @@ Tianqi Chen, Bing Xu, Chiyuan Zhang, and Carlos Guestrin.
 \newblock fsspec documentation, 2026.
 \newblock Accessed: 2026-04-09.
 
-\bibitem{smolvlm2_modelcard}
-{Hugging Face TB}.
-\newblock Smolvlm2-2.2b-instruct model card.
-\newblock Hugging Face, 2025.
-\newblock Accessed: 2026-04-02.
-
-\bibitem{cui2024sinkhorn}
-Yifan Cui, Wei Wang, Yifei Wang, Yao Lu, Haoyu Wang, Fuzhen Zhuang, Qing He,
-  and Chuan Shi.
-\newblock Sinkhorn distance minimization for knowledge distillation.
-\newblock In {\em Findings of the Association for Computational Linguistics:
-  ACL 2024}, pages 11046--11060. Association for Computational Linguistics,
-  2024.
-
-\bibitem{williams1992simple}
-Ronald~J. Williams.
-\newblock Simple statistical gradient-following algorithms for connectionist
-  reinforcement learning.
-\newblock {\em Machine Learning}, 8(3):229--256, 1992.
-
-\bibitem{kornblith2019similarityrepresentations}
-Simon Kornblith, Mohammad Norouzi, Honglak Lee, and Geoffrey Hinton.
-\newblock Similarity of neural network representations revisited.
-\newblock In {\em Proceedings of the 36th International Conference on Machine
-  Learning}, volume~97 of {\em Proceedings of Machine Learning Research}, pages
-  3519--3529. PMLR, 2019.
-
-\bibitem{wen2023fdistill}
-Yuqiao Wen, Zichao Li, Wenyu Du, and Lili Mou.
-\newblock f-divergence minimization for sequence-level knowledge distillation.
-\newblock In {\em Proceedings of the 61st Annual Meeting of the Association for
-  Computational Linguistics (Volume 1: Long Papers)}, pages 10817--10834.
-  Association for Computational Linguistics, 2023.
+\bibitem{bousselham2026dexar}
+Walid Bousselham, Rishikesh Jadhav, Simon de~Mathelin, Fran{\c{c}}ois Fleuret,
+  and Pascal Frossard.
+\newblock Dex-ar: Explainability in multimodal large language models with deep
+  expectation and attention rollout, 2026.
 
 \end{thebibliography}

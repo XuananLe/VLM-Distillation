@@ -1,25 +1,31 @@
 \chapter{Introduction}
 \label{chap:introduction}
 
+This chapter introduces the problem, motivates the need for compact
+vision-language model distillation and states the main research objectives. It
+first explains why deployment constraints make sub-billion students important,
+then positions the work against prior methods. It ends by defining the
+technical gap that motivates the proposed approach.
+
 \section{Background and Motivation}
-The core task in this thesis is to distill strong multimodal ability from large
+The core task here is to distill strong multimodal ability from large
 VLM teachers into \textbf{sub-billion} VLM students. The goal is to do so
 without losing performance on text-centric benchmarks. Vision-Language Models
 (VLMs) jointly process images and text for tasks such as image captioning,
 visual question answering, document understanding and instruction following
 \cite{radford2021learningtransferablevisualmodels,alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning,hu2024visualprogramdistillation}.
 
-In this thesis, \textit{multimodal understanding} refers to practical capabilities such as reading text in images, understanding the input question and performing basic reasoning over visual and textual evidence, not broad general intelligence \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. Our focus is efficient transfer of this ability to compact students.
+\textit{Multimodal understanding} here refers to practical capabilities such as reading text in images, understanding the input question and performing basic reasoning over visual and textual evidence, not broad general intelligence \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. Our focus is efficient transfer of this ability to compact students.
 
 \begin{figure}[tp]
     \centering
     \includegraphics[width=0.82\linewidth]{figures/Contrastive_Language-Image_Pretraining.png}
-    \caption{CLIP-style vision-language pretraining aligns image and text representations in a shared embedding space \cite{wikimedia_clip_pretraining_image,radford2021learningtransferablevisualmodels}. This shared-space pretraining pattern is one of the main starting points for modern VLM families.}
+    \caption{CLIP-style vision-language pretraining with a shared image-text embedding space \cite{wikimedia_clip_pretraining_image,radford2021learningtransferablevisualmodels}.}
     \label{fig:intro-vlm-pretraining}
 \end{figure}
 
-Figure~\ref{fig:intro-vlm-pretraining} illustrates the basic vision-text
-pretraining pattern that underlies many modern VLM families.
+Many modern VLM families still build on the basic vision-text pretraining
+pattern shown in Figure~\ref{fig:intro-vlm-pretraining}.
 
 However, high-performing VLMs are often large and expensive in memory, latency and deployment cost \cite{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,chu2023mobilevlm,zhou2024tinyllava}. This cost limits their use in resource-constrained settings.
 
@@ -33,7 +39,7 @@ to train or deploy.
 \begin{figure}[tp]
     \centering
     \includegraphics[width=0.84\linewidth]{figures/kaplan_scaling_law_chart.png}
-    \caption[Scaling-law trends from Kaplan et al.]{Scaling-law trends from Figure 1 of Kaplan et al. The reported loss decreases smoothly as compute, dataset size and parameter count increase, which explains why larger teachers remain attractive even when deployment favors smaller students \cite{kaplan2020scalinglaws}.}
+    \caption[Scaling-law trends from Kaplan et al.]{Scaling-law trends from Kaplan et al. \cite{kaplan2020scalinglaws}.}
     \label{fig:intro-scaling-laws}
 \end{figure}
 
@@ -43,7 +49,7 @@ the effective sequence length grows with image tokenization density. Since
 Transformer attention scales quadratically with sequence length, increasing the
 visual token budget quickly raises memory and latency \cite{vaswani2023attentionneed,liu2023visualinstructiontuning,marafioti2025smolvlm}. For compact VLMs, this means that shrinking only the language backbone is not enough. The visual stack and the number of visual tokens also need to be controlled.
 
-For this thesis, the most important regime is \textbf{small models}, especially
+The most important regime here is \textbf{small models}, especially
 \textbf{sub-billion VLMs}. Models in the 1B to 3B range are already cheaper
 than large 7B to 70B systems, but they can still be heavy for edge deployment,
 memory-limited serving, or repeated evaluation across many checkpoints.
@@ -54,18 +60,18 @@ useful multimodal performance \cite{chu2023mobilevlm,zhou2024tinyllava,marafioti
 \begin{figure}[tp]
     \centering
     \includegraphics[width=0.74\linewidth]{figures/smolvlm_memory_blog.png}
-    \caption[SmolVLM memory comparison from the Hugging Face release.]{Inference graphics processing unit (GPU) memory usage reported in the SmolVLM release blog. The comparison shows that compact VLM design can reduce memory substantially relative to similarly capable models, especially when the visual token budget is controlled \cite{smolvlm_blog,marafioti2025smolvlm}.}
+    \caption[SmolVLM memory comparison from the Hugging Face release.]{Inference GPU memory usage from the SmolVLM release blog \cite{smolvlm_blog,marafioti2025smolvlm}.}
     \label{fig:intro-smolvlm-memory}
 \end{figure}
 
-Figure~\ref{fig:intro-smolvlm-memory} highlights the deployment side of the
-problem, while the next figure places compact VLM families on the parameter
-scale itself.
+Deployment pressure is visible in
+Figure~\ref{fig:intro-smolvlm-memory}. The next comparison places compact VLM
+families on the parameter scale itself.
 
 \begin{figure}[tp]
     \centering
     \includegraphics[width=0.84\linewidth]{figures/intro_compact_vlm_scale.png}
-    \caption[Representative compact VLM scales.]{Representative compact VLM families already span the sub-billion to 3B regime. This is the design space most relevant to our thesis: the student must stay small enough for efficient deployment, while still benefiting from stronger teachers \cite{chu2023mobilevlm,zhou2024tinyllava,marafioti2025smolvlm}.}
+    \caption[Representative compact VLM scales.]{Representative compact VLM scales in the sub-billion to 3B range \cite{chu2023mobilevlm,zhou2024tinyllava,marafioti2025smolvlm}.}
     \label{fig:intro-compact-vlm-scale}
 \end{figure}
 
@@ -74,19 +80,20 @@ The issue is especially important for text-centric tasks such as scene-text read
 \begin{figure}[tp]
     \centering
     \includegraphics[width=0.66\linewidth]{figures/tinyllava_vs_llava7b_chart.png}
-    \caption[TinyLLaVA vs. LLaVA-1.5-7B benchmark comparison.]{Benchmark comparison from TinyLLaVA Figure 1, where a 3.1B small-scale multimodal model remains competitive with the 7B LLaVA-1.5 baseline across several benchmarks \cite{zhou2024tinyllava}.}
+    \caption[TinyLLaVA vs. LLaVA-1.5-7B benchmark comparison.]{TinyLLaVA vs.\ LLaVA-1.5-7B benchmark comparison from \cite{zhou2024tinyllava}.}
     \label{fig:intro-small-vlm-tradeoff}
 \end{figure}
 
-Figures~\ref{fig:intro-scaling-laws}, \ref{fig:intro-smolvlm-memory},
-\ref{fig:intro-compact-vlm-scale} and \ref{fig:intro-small-vlm-tradeoff}
-together motivate the same conclusion: strong teachers benefit from scale, but
-the deployment target is still a much smaller student.
+Taken together, Figures~\ref{fig:intro-scaling-laws},
+\ref{fig:intro-smolvlm-memory}, \ref{fig:intro-compact-vlm-scale} and
+\ref{fig:intro-small-vlm-tradeoff} point to one conclusion: strong
+teachers benefit from scale, but the deployment target is still a much smaller
+student.
 
 \begin{figure}[tp]
     \centering
     \includegraphics[width=0.9\linewidth]{figures/intro_open_vs_closed_gap.png}
-    \caption[Best proprietary vs. open-source frontier results on three benchmarks.]{Representative proprietary and open-source frontier results on TextVQA, DocVQA and ChartQA. The gap is already small and the best open-source model is ahead on TextVQA and DocVQA. The right panel shows the benchmark gap computed as open-source score minus proprietary score from snapshots accessed on April 2, 2026 \cite{airank_textvqa_2026,airank_docvqa_2026,airank_chartqa_2026}.}
+    \caption[Best proprietary vs. open-source frontier results on three benchmarks.]{Representative proprietary vs.\ open-source frontier results on TextVQA, DocVQA and ChartQA \cite{airank_textvqa_2026,airank_docvqa_2026,airank_chartqa_2026}.}
     \label{fig:intro-closed-open-gap}
 \end{figure}
 
@@ -94,17 +101,19 @@ Knowledge distillation (KD) transfers knowledge from a large teacher to a
 compact student, often preserving strong performance at lower cost
 \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
 
-Figure \ref{fig:intro-small-vlm-tradeoff} shows why this direction matters. Compact multimodal models can already be competitive, but closing the gap to stronger models still requires better transfer of knowledge.
+Compact multimodal models can already be competitive
+(Figure~\ref{fig:intro-small-vlm-tradeoff}), but closing the gap to stronger
+models still requires better transfer of knowledge.
 
-Figure~\ref{fig:intro-closed-open-gap} sharpens this point. On these three
-benchmarks, the best open-source models are already close to the best
-proprietary models and in two cases they are ahead.
+On these three benchmarks, the best open-source models are already close to the
+best proprietary models and in two cases they are ahead
+(Figure~\ref{fig:intro-closed-open-gap}).
 
 This makes white-box distillation especially attractive. In black-box KD, the
 student can only query an external teacher service and read its returned
 predictions. In white-box KD, the student can also use teacher logits and
 intermediate states \cite{wang2021blackboxkd,ma2024blackboxkd}. That extra
-access enables objectives such as the trie-Wasserstein KD loss used in this thesis, as well as prior baselines such as ULD and hidden-state matching, which are not
+access enables objectives such as the trie-Wasserstein KD loss used here, as well as prior baselines such as ULD and hidden-state matching, which are not
 available in a pure black-box setting
 \cite{boizard2024towardscrosstokenizerdistillation,takezawa2021supervisedtreewasserstein,dasgupta2025improving,xu2024surveyknowledgedistillationlarge}.
 
@@ -122,7 +131,7 @@ training.
 \begin{figure}[tp]
     \centering
     \includegraphics[width=0.74\linewidth]{figures/intro_quantization_drop_mbq.png}
-    \caption[Low-bit quantization can sharply reduce VLM accuracy.]{SEED accuracy for LLaVA-OneVision-7B under several low-bit quantization settings, reconstructed from MBQ Table 4 \cite{li2025mbq}. The naive W3A16 RTN baseline drops by 60.7 points, which is why we treat quantization as complementary to distillation, not a replacement for it.}
+    \caption[Low-bit quantization can sharply reduce VLM accuracy.]{SEED accuracy of LLaVA-OneVision-7B under several low-bit quantization settings, reconstructed from MBQ Table 4 \cite{li2025mbq}.}
     \label{fig:intro-quantization-drop}
 \end{figure}
 
@@ -141,28 +150,110 @@ and ChartQA
 \begin{figure}[tp]
     \centering
     \includegraphics[width=0.70\linewidth]{figures/knowledge_distillation_example.png}
-    \caption[Teacher-student knowledge distillation.]{Knowledge distillation transfers information from a teacher model to a smaller student model \cite{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}. This thesis extends that basic pattern to heterogeneous teachers and sample-dependent weighting.}
+    \caption[Teacher-student knowledge distillation.]{Generic teacher-student knowledge distillation \cite{wikimedia_knowledge_distillation_example,hinton2015distillingknowledgeneuralnetwork}.}
     \label{fig:intro-knowledge-distillation}
 \end{figure}
 
-Figure~\ref{fig:intro-knowledge-distillation} summarizes the teacher-student
-transfer pattern that this thesis extends to the heterogeneous multi-teacher
-setting.
+The pattern in Figure~\ref{fig:intro-knowledge-distillation} is the base case
+extended here to the heterogeneous multi-teacher setting.
 
 Since no single teacher excels across all multimodal tasks, \textit{multi-teacher distillation} can provide richer supervision than a single-teacher pipeline \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
 
-In our setting, this is not just a matter of picking several strong teachers. The teacher pool contains heterogeneous VLMs with different tokenizers, different output vocabularies and different sample-level strengths \cite{boizard2024towardscrosstokenizerdistillation,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}.
+In our setting, this is not just a matter of picking several strong teachers. The available teachers come from heterogeneous VLMs with different tokenizers, different output vocabularies and different sample-level strengths \cite{boizard2024towardscrosstokenizerdistillation,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}.
 
 A naive uniform average can therefore mix teachers that help one sample but hurt another \cite{xu2024surveyknowledgedistillationlarge,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}.
 
 This motivates a selective multi-teacher framework over static teacher averaging.
 
-We introduce \methodfull{} (\methodname{}), a selective multi-teacher distillation framework that routes teachers per sample, applies a trie-Wasserstein cross-tokenizer loss and refines teacher weights with gradient-based alignment. The framework tackles tokenizer mismatch, heterogeneous teacher specialization and post-routing instability in one recipe. The next section formalizes the problem and requirements.
+We introduce \methodfull{} (\methodname{}), a selective multi-teacher distillation framework that routes teachers per sample, applies a trie-Wasserstein cross-tokenizer loss and refines teacher weights with gradient-based alignment. To the best of our knowledge, this is the first distillation framework to employ a shared tree-metric OT for heterogeneous multi-teacher VLM distillation. The framework tackles tokenizer mismatch, heterogeneous teacher specialization and post-routing instability in one recipe.
+
+\section{Related Work}
+
+The literature that matters most here is best grouped by transfer mechanism:
+matched-vocabulary logits distillation, cross-tokenizer distillation,
+representation matching and multi-teacher selection.
+
+\subsection{Compact VLM Distillation with Matched Output Spaces}
+
+Knowledge distillation is a standard way to compress large models into smaller
+students while retaining part of the teacher's predictive structure
+\cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
+When teacher and student share the same tokenizer, the common choice is to
+match softened output distributions with a Kullback-Leibler (KL) divergence
+\cite{hinton2015distillingknowledgeneuralnetwork}. In multimodal systems,
+prior work has distilled large VLMs into smaller students, transferred
+reasoning behavior or improved compact vision-language models
+\cite{fang2021compressingvlm,hu2024visualprogramdistillation,yang2024clipcid}.
+This line shows that compact VLMs benefit from teacher supervision, but it
+usually assumes one teacher or a matched output space. It therefore does not
+directly address heterogeneous teachers with different tokenizers.
+
+Quantization is a separate compression line that reduces numerical precision
+after or during training
+\cite{frantar2022gptq,xiao2023smoothquant,lin2024awq,li2025mbq}. It helps
+deployment, but it does not solve the transfer problem studied here.
+
+\subsection{Cross-Tokenizer and Transport-Based Distillation}
+
+Cross-tokenizer KD becomes necessary when teacher and student vocabularies do
+not match. ULD is a direct baseline in this setting because it compares sorted
+probability mass instead of token IDs
+\cite{boizard2024towardscrosstokenizerdistillation}. More recent work also
+studies tokenizer-agnostic distillation through transport-based formulations
+\cite{takezawa2021supervisedtreewasserstein,leyamadafukumizucuturi2019treesliced,dasgupta2025improving}.
+
+The weakness of ranked-mass matching is that it discards relations between
+decoded strings. Two pairs with the same probability shape can therefore
+receive the same loss even when one pair shares a long prefix and the other
+does not. Tree-structured transport keeps that information by comparing mass on
+shared branches of a hierarchy
+\cite{takezawa2021supervisedtreewasserstein,peyre2019computationaloptimaltransport}.
+This leaves clear room for cross-tokenizer objectives that match teacher and
+student by mass on shared substructures, not by token ID.
+
+\subsection{Representation Matching Beyond Logits}
+
+Another line of work transfers intermediate representations instead of only
+final logits. Similarity measures such as CKA provide a tokenizer-independent
+way to compare hidden states across layers
+\cite{kornblith2019similarityrepresentations}. This makes representation
+matching attractive when teacher and student architectures differ. However,
+hidden-state alignment alone does not decide which teacher should dominate a
+sample and does not resolve conflicts among several teachers. It is therefore a
+useful baseline, but still incomplete for heterogeneous multi-teacher
+distillation.
+
+\subsection{Multi-Teacher Distillation and Adaptive Teacher Selection}
+
+Multi-teacher KD has been studied with fixed averages, stochastic teacher
+selection and meta-learned weighting rules
+\cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
+These methods motivate the use of more than one teacher, but fixed or
+meta-learned weights can still mix useful and harmful teachers when teacher
+utility changes across samples.
+
+Sparse routing and load balancing are well established in mixture-of-experts
+models
+\cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}.
+Gradient-based filtering also appears in distillation through
+alignment-style objectives
+\cite{zhu2021studentcustomized}. These ideas are relevant, but prior work does
+not jointly handle heterogeneous VLM teachers, tokenizer mismatch and
+post-routing instability in one compact-VLM setting. The remaining gap is a
+method that can select teachers per sample while staying stable under
+heterogeneous supervision.
+
+\subsection{Research Gap}
+
+Taken together, the literature leaves three gaps open: tokenizer mismatch
+across heterogeneous teachers and students, sample-dependent teacher utility
+and instability after adaptive routing. Those gaps define the technical problem
+studied in the following chapters.
 
 \section{Problem Statement and Research Objectives}
-This thesis addresses one central problem: how to transfer multimodal
+The central problem is how to transfer multimodal
 understanding from large VLMs to compact students. The transfer must preserve
-task performance while cutting deployment cost.
+task performance while reducing deployment cost at inference time.
 
 We focus on text-rich multimodal tasks where the student must read image text, understand the question and perform basic reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
@@ -184,15 +275,24 @@ Given a pool of \(N\) frozen teacher VLMs and a compact student, the goal is the
 \item Filters routed teachers when their KD update direction conflicts with the supervised objective, while keeping a fallback teacher when necessary.
 \end{enumerate}
 
-This thesis addresses these requirements with \methodfull{} (\methodname).
+\methodfull{} (\methodname) addresses these requirements.
 
 \methodname{} is a selective multi-teacher distillation framework.
 
-It combines a trie-Wasserstein cross-tokenizer KD loss, a student-conditioned teacher gate, top-\(k\) capacity-aware sparse routing and gradient-based GRACE score refinement. The framework also supports routing fallback after capacity pruning, uniform fallback when score spread is too small and balancing and expert-bias updates \cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice,zhu2021studentcustomized}.
+It combines a trie-Wasserstein cross-tokenizer KD loss, a student-conditioned teacher gate, top-\(k\) capacity-aware sparse routing and gradient-based GRACE score refinement after routing. The framework also supports routing fallback after capacity pruning, uniform fallback when score spread is too small and balancing and expert-bias updates \cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice,zhu2021studentcustomized}.
 
 We evaluate it on text-rich multimodal understanding tasks such as TextVQA, DocVQA and ChartQA \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
-Accordingly, this thesis focuses on cross-tokenizer multimodal distillation for compact students and evaluates \methodname{} on TextVQA, DocVQA and ChartQA, with analysis of routing behavior and representation matching.
+Accordingly, we focus on cross-tokenizer multimodal distillation for compact students and evaluate \methodname{} on TextVQA, DocVQA and ChartQA, with analysis of routing behavior and representation matching.
+
+\section{Research Questions}
+The thesis is organized around three research questions.
+
+\begin{enumerate}
+\item \textbf{RQ1: Performance Comparison.} How does \methodname{} compare with same-family logits KD, cross-tokenizer ULD and other multi-teacher baselines on TextVQA, DocVQA and ChartQA?
+\item \textbf{RQ2: Component Analysis.} What is the contribution of trie-Wasserstein KD, sparse routing and GRACE score refinement to the final performance of \methodname{}?
+\item \textbf{RQ3: Efficiency Analysis.} How efficient is \methodname{} in terms of execution time and computational cost?
+\end{enumerate}
 
 \section{Thesis Contributions}
 The main contributions are:
@@ -202,3 +302,16 @@ The main contributions are:
 \item We show that this framework directly addresses the main practical failures of heterogeneous VLM distillation: tokenizer mismatch, sample-dependent teacher conflict and unstable teacher weighting after routing.
 \item We establish consistent gains over fine-tuning and strong distillation baselines, supported by routing, ablation and representation analyses.
 \end{enumerate}
+
+\section{Thesis Organization}
+The remainder of the thesis is organized as follows. Chapter~\ref{chap:preliminaries}
+summarizes the technical preliminaries, including Transformer-based VLMs,
+standard distillation notation, cross-tokenizer KD background, optimal
+transport and sparse routing concepts. Chapter~\ref{chap:proposed-method}
+presents the proposed method, including the trie-Wasserstein KD loss, the
+student-conditioned router and the GRACE refinement mechanism. Chapter~\ref{chap:evaluation-methodology}
+describes the datasets, baselines, training configuration and evaluation
+protocol. Chapter~\ref{chap:experiment-results} answers the three research
+questions through the main empirical results, ablations and efficiency
+analysis. The final chapter concludes the thesis and outlines the main
+limitations and future directions.
