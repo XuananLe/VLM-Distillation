@@ -19,6 +19,7 @@ def encode_with_processor(
     processor: transformers.ProcessorMixin,
     role: str,
 ) -> Dict[str, torch.Tensor]:
+    """Dispatch one conversation/image sample to the matching processor-specific encoder."""
     processor_type = type(processor)
     encoder = PROCESSOR_ENCODERS.get(processor_type)
     if encoder is None:
@@ -31,6 +32,7 @@ def encode_student_data(
     images,
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
+    """Encode one sample with the student processor into model-ready tensors."""
     return encode_with_processor(sources, images, processor, role="student")
 
 
@@ -40,6 +42,7 @@ def _finalize_teacher_data(
     teacher_model_id: Optional[str],
     dummy_pixel_tensors: Callable[[], tuple[torch.Tensor, torch.Tensor]],
 ) -> Dict[str, torch.Tensor]:
+    """Fill teacher-side defaults so every teacher batch exposes the expected multimodal fields."""
     if teacher_data["attention_mask"] is None:
         teacher_data["attention_mask"] = torch.ones_like(teacher_data["input_ids"])
 
@@ -47,6 +50,8 @@ def _finalize_teacher_data(
         return teacher_data
 
     if is_internvl_teacher_model_id(teacher_model_id):
+        # InternVL expects a single image tensor even for text-only turns, so it
+        # gets a minimal zero image instead of the packed SmolVLM-style dummy batch.
         image_size = teacher_processor.get("image_size", 448)
         teacher_data["pixel_values"] = torch.zeros((1, 3, image_size, image_size))
         teacher_data["image_flags"] = torch.zeros(INTERNVL3_DUMMY_IMAGE_FLAGS, dtype=torch.long)
@@ -66,6 +71,7 @@ def encode_teacher_data(
     teacher_processor,
     dummy_pixel_tensors: Callable[[], tuple[torch.Tensor, torch.Tensor]],
 ) -> Dict[str, torch.Tensor]:
+    """Encode one sample for a live teacher and normalize its optional multimodal fields."""
     teacher_model_id = teacher_processor.get("model_id") if isinstance(teacher_processor, dict) else None
     if isinstance(teacher_processor, dict):
         encoder = (

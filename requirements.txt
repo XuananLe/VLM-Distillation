@@ -12,7 +12,6 @@ apted==1.0.3
 asttokens==3.0.1
 attrdict==2.0.1
 attrs==26.1.0
-av==17.0.0
 backoff==2.2.1
 bert-score==0.3.13
 brotli==1.2.0
@@ -33,7 +32,6 @@ cuda-toolkit==13.0.2
 cycler==0.12.1
 datasets==4.8.4
 decorator==5.2.1
-decord==0.6.0
 deepspeed==0.18.8
 defusedxml==0.7.1
 dill==0.4.1

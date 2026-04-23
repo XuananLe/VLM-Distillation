@@ -46,6 +46,7 @@ IMAGE_NAME_PRIORITY = ("image_id", "docid")
 
 
 def canonical_dataset_name(dataset_name: str) -> str:
+    """Normalize one user dataset name or alias to the repo's canonical dataset key."""
     key = dataset_name.strip().lower()
     canonical = DATASET_ALIASES.get(key)
     if canonical is None:
@@ -55,6 +56,7 @@ def canonical_dataset_name(dataset_name: str) -> str:
 
 
 def load_hf_dataset(dataset_id: str, config: str | None, split: str):
+    """Load one Hugging Face dataset split with an optional config name."""
     try:
         from datasets import load_dataset
     except ImportError as exc:
@@ -71,6 +73,7 @@ def load_dataset_split(
     *,
     log_fallback: bool = False,
 ):
+    """Load one VQA dataset split and fall back when the primary hub entry requires a script."""
     source = DATASET_SOURCES[dataset_name]
     try:
         return load_hf_dataset(source["hub"], source["config"], split), source["hub"]
@@ -87,14 +90,17 @@ def load_dataset_split(
 
 
 def normalize_name(name: str) -> str:
+    """Normalize a schema field name for fuzzy field matching."""
     return re.sub(r"[^a-z0-9]+", "", name.lower())
 
 
 def is_string_feature(feature: Any) -> bool:
+    """Return whether a datasets feature behaves like a scalar string field."""
     return getattr(feature, "dtype", None) == "string"
 
 
 def is_sequence_of_strings_feature(feature: Any) -> bool:
+    """Return whether a datasets feature is a list-like container of strings."""
     if feature.__class__.__name__ not in {"Sequence", "List", "LargeList"}:
         return False
     inner_feature = getattr(feature, "feature", None)
@@ -104,10 +110,12 @@ def is_sequence_of_strings_feature(feature: Any) -> bool:
 
 
 def is_image_feature(feature: Any) -> bool:
+    """Return whether a datasets feature is an image field."""
     return feature.__class__.__name__ == "Image" or getattr(feature, "dtype", None) == "image"
 
 
 def pick_exact_name(fields: list[str], priority: tuple[str, ...]) -> str | None:
+    """Pick the first exact field-name match from a priority list after normalization."""
     normalized_fields = {normalize_name(field): field for field in fields}
     for target in priority:
         matched = normalized_fields.get(normalize_name(target))
@@ -117,6 +125,7 @@ def pick_exact_name(fields: list[str], priority: tuple[str, ...]) -> str | None:
 
 
 def pick_contains_name(fields: list[str], tokens: tuple[str, ...]) -> str | None:
+    """Pick the first field whose normalized name contains one of the target tokens."""
     normalized_tokens = tuple(normalize_name(token) for token in tokens)
     for field in fields:
         normalized_field = normalize_name(field)
@@ -126,6 +135,7 @@ def pick_contains_name(fields: list[str], tokens: tuple[str, ...]) -> str | None
 
 
 def infer_schema(dataset: Any, *, require_answer_field: bool) -> dict[str, str | None]:
+    """Infer image, question, answer, and id fields from a VQA-style dataset schema."""
     features = dataset.features
     all_fields = list(features.keys())
     image_fields = [name for name, feature in features.items() if is_image_feature(feature)]
@@ -171,6 +181,7 @@ def infer_schema(dataset: Any, *, require_answer_field: bool) -> dict[str, str |
 
 
 def pick_first_text(value: Any) -> str | None:
+    """Return the first non-empty scalar text value or None for non-text containers."""
     if value is None or isinstance(value, (list, tuple, dict)):
         return None
     text = str(value).strip()
@@ -178,6 +189,7 @@ def pick_first_text(value: Any) -> str | None:
 
 
 def extract_image_as_pil(image_value: Any) -> Any:
+    """Convert a dataset image field into an RGB PIL image."""
     try:
         from PIL import Image
     except ImportError as exc:

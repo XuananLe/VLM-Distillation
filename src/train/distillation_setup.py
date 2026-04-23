@@ -1,17 +1,15 @@
 from dataclasses import dataclass, field
 
-from src.train.train_utils import rank0_print
-
 @dataclass
 class DistillationArguments:
-    """Arguments for knowledge distillation."""
-
+    """CLI arguments that control teacher loading, KD loss, routing, and layer distillation."""
     student_model_id: str = field(
         metadata={"help": "Student model ID or path."}
     )
 
-    teacher_model_ids: str = field(
-        metadata={"help": "Teacher model IDs as a Python list literal or comma-separated string."}
+    teacher_model_ids: list[str] = field(
+        default_factory=list,
+        metadata={"help": "Teacher model IDs. Pass as repeated values after --teacher_model_ids."}
     )
 
     teacher_logits_cache_dir: str | None = field(
@@ -60,14 +58,14 @@ class DistillationArguments:
         metadata={"help": "Number of teacher layers to soft-match per student layer from the CKA matrix."},
     )
 
-    student_layer_indices: str | None = field(
-        default=None,
-        metadata={"help": "Student layer indices as a Python list literal or comma-separated string."},
+    student_layer_indices: list[int] = field(
+        default_factory=list,
+        metadata={"help": "Student layer indices. Pass as repeated integer values after --student_layer_indices."},
     )
 
-    teacher_layer_indices: str | None = field(
-        default=None,
-        metadata={"help": "Teacher layer indices as a Python list literal or comma-separated string."},
+    teacher_layer_indices: list[int] = field(
+        default_factory=list,
+        metadata={"help": "Teacher layer indices. Pass as repeated integer values after --teacher_layer_indices."},
     )
 
     trie_wasserstein_rho: float = field(
@@ -80,19 +78,14 @@ class DistillationArguments:
         metadata={"help": "Sparse top-k used by trie_wasserstein_loss before routing leftover mass to the TAIL edge."},
     )
 
-    temperature: float = field(
+    student_temperature: float = field(
         default=2.0,
-        metadata={"help": "Legacy shorthand temperature. Used for both student and teacher if separate temperatures are not set."}
+        metadata={"help": "Student softmax temperature for KD."}
     )
 
-    student_temperature: float | None = field(
-        default=None,
-        metadata={"help": "Student softmax temperature for KD. Defaults to --temperature when omitted."}
-    )
-
-    teacher_temperature: float | None = field(
-        default=None,
-        metadata={"help": "Teacher softmax temperature for KD. Defaults to --temperature when omitted."}
+    teacher_temperature: float = field(
+        default=2.0,
+        metadata={"help": "Teacher softmax temperature for KD."}
     )
 
     skip_student_eos: bool = field(
@@ -210,8 +203,10 @@ class DistillationArguments:
         default=1.0,
         metadata={"help": "Weight on the reinforced teacher-selection policy loss."},
     )
-
 def validate_distillation_args(distillation_args) -> None:
+    """Validate distillation CLI arguments before any heavy model or cache loading starts."""
+    if not distillation_args.teacher_model_ids:
+        raise ValueError("At least one teacher model ID must be provided via --teacher_model_ids.")
     if (
         distillation_args.teacher_logits_cache_dir is None
         and distillation_args.teacher_logits_remote_uri is None
@@ -270,12 +265,31 @@ def validate_distillation_args(distillation_args) -> None:
         raise ValueError("--reinforced_selection_reward_ema_decay must be in [0, 1).")
     if distillation_args.reinforced_selection_policy_alpha < 0.0:
         raise ValueError("--reinforced_selection_policy_alpha must be >= 0.")
-    if distillation_args.student_temperature is not None and distillation_args.student_temperature <= 0:
+    if distillation_args.student_temperature <= 0:
         raise ValueError("--student_temperature must be > 0.")
-    if distillation_args.teacher_temperature is not None and distillation_args.teacher_temperature <= 0:
+    if distillation_args.teacher_temperature <= 0:
         raise ValueError("--teacher_temperature must be > 0.")
-    if distillation_args.temperature <= 0:
-        raise ValueError("--temperature must be > 0.")
+    if (
+        distillation_args.layer_distill_source in {"vision", "model"}
+        and distillation_args.layer_distill_weight > 0.0
+        and (
+            distillation_args.student_layer_indices
+            or distillation_args.layer_match_json_path
+        )
+    ):
+        if (
+            not distillation_args.teacher_layer_indices
+            and not distillation_args.layer_match_json_path
+        ):
+            raise ValueError("--teacher_layer_indices must be provided when layer distillation is enabled.")
+        if (
+            distillation_args.student_layer_indices
+            and distillation_args.teacher_layer_indices
+            and len(distillation_args.student_layer_indices) != len(distillation_args.teacher_layer_indices)
+        ):
+            raise ValueError(
+                "--student_layer_indices and --teacher_layer_indices must have the same length."
+            )
 
 
 def log_distillation_setup(
@@ -288,16 +302,17 @@ def log_distillation_setup(
     distillation_args,
     gradient_checkpointing_kwargs,
 ) -> None:
-    rank0_print("=" * 80)
-    rank0_print("Logits Distillation Training")
-    rank0_print("=" * 80)
-    rank0_print(f"Student Model: {distillation_args.student_model_id}")
-    rank0_print(f"Teacher Model(s): {teacher_ids}")
+    """Print the resolved distillation configuration once at startup for reproducibility."""
+    print("=" * 80)
+    print("Logits Distillation Training")
+    print("=" * 80)
+    print(f"Student Model: {distillation_args.student_model_id}")
+    print(f"Teacher Model(s): {teacher_ids}")
     if distillation_args.teacher_logits_cache_dir:
-        rank0_print(f"Teacher Logits Cache: {distillation_args.teacher_logits_cache_dir}")
+        print(f"Teacher Logits Cache: {distillation_args.teacher_logits_cache_dir}")
     if distillation_args.teacher_logits_remote_uri:
-        rank0_print(f"Teacher Logits Remote URI: {distillation_args.teacher_logits_remote_uri}")
-    rank0_print(
+        print(f"Teacher Logits Remote URI: {distillation_args.teacher_logits_remote_uri}")
+    print(
         "Teacher Weighting: learned deep gate + balancing + GRACE routing"
         if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing"
         else (
@@ -306,85 +321,75 @@ def log_distillation_setup(
             else "Teacher Weighting: uniform mean"
         )
     )
-    rank0_print("Objective: CE + alpha * KD")
-    rank0_print(f"KD Weight: {distillation_args.alpha}")
-    rank0_print(f"KD Function: {distillation_args.distillation_loss}")
-    rank0_print(f"Layer Distill Source: {distillation_args.layer_distill_source}")
-    rank0_print(f"Layer Distill Weight: {distillation_args.layer_distill_weight}")
-    rank0_print(f"Layer Match JSON: {distillation_args.layer_match_json_path}")
-    rank0_print(f"Layer Match Top-k: {distillation_args.layer_match_topk}")
-    rank0_print(f"Student Layer Indices: {student_layer_indices}")
-    rank0_print(f"Teacher Layer Indices: {teacher_layer_indices}")
+    print("Objective: CE + alpha * KD")
+    print(f"KD Weight: {distillation_args.alpha}")
+    print(f"KD Function: {distillation_args.distillation_loss}")
+    print(f"Layer Distill Source: {distillation_args.layer_distill_source}")
+    print(f"Layer Distill Weight: {distillation_args.layer_distill_weight}")
+    print(f"Layer Match JSON: {distillation_args.layer_match_json_path}")
+    print(f"Layer Match Top-k: {distillation_args.layer_match_topk}")
+    print(f"Student Layer Indices: {student_layer_indices}")
+    print(f"Teacher Layer Indices: {teacher_layer_indices}")
     if distillation_args.distillation_loss == "trie_wasserstein_loss":
-        rank0_print(f"Trie Wasserstein Rho: {distillation_args.trie_wasserstein_rho}")
-        rank0_print(f"Trie Wasserstein Top-k: {distillation_args.trie_wasserstein_topk}")
-    rank0_print(f"Alpha: {distillation_args.alpha}")
-    rank0_print("CE Weight: 1.0")
-    resolved_student_temperature = (
-        distillation_args.temperature
-        if distillation_args.student_temperature is None
-        else distillation_args.student_temperature
-    )
-    resolved_teacher_temperature = (
-        distillation_args.temperature
-        if distillation_args.teacher_temperature is None
-        else distillation_args.teacher_temperature
-    )
-    rank0_print(f"Student Temperature: {resolved_student_temperature}")
-    rank0_print(f"Teacher Temperature: {resolved_teacher_temperature}")
-    rank0_print(f"Skip Student EOS: {distillation_args.skip_student_eos}")
-    rank0_print(f"Skip Teacher EOS: {distillation_args.skip_teacher_eos}")
+        print(f"Trie Wasserstein Rho: {distillation_args.trie_wasserstein_rho}")
+        print(f"Trie Wasserstein Top-k: {distillation_args.trie_wasserstein_topk}")
+    print(f"Alpha: {distillation_args.alpha}")
+    print("CE Weight: 1.0")
+    print(f"Student Temperature: {distillation_args.student_temperature}")
+    print(f"Teacher Temperature: {distillation_args.teacher_temperature}")
+    print(f"Skip Student EOS: {distillation_args.skip_student_eos}")
+    print(f"Skip Teacher EOS: {distillation_args.skip_teacher_eos}")
     if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing":
-        rank0_print(f"Teacher Gate Balance Alpha: {distillation_args.teacher_gate_balance_alpha}")
-        rank0_print(f"Teacher Gate Top-k: {distillation_args.teacher_gate_top_k}")
-        rank0_print(f"Teacher Gate Capacity Factor: {distillation_args.teacher_gate_capacity_factor}")
-        rank0_print(f"Teacher Gate Bias Update Rate: {distillation_args.teacher_gate_bias_update_rate}")
-        rank0_print(f"Teacher Gate Temperature: {distillation_args.teacher_gate_temperature}")
-        rank0_print(f"Teacher Gate Noise Std: {distillation_args.teacher_gate_noise_std}")
-        rank0_print(f"Teacher Gate Entropy Alpha: {distillation_args.teacher_gate_entropy_alpha}")
-        rank0_print(
+        print(f"Teacher Gate Balance Alpha: {distillation_args.teacher_gate_balance_alpha}")
+        print(f"Teacher Gate Top-k: {distillation_args.teacher_gate_top_k}")
+        print(f"Teacher Gate Capacity Factor: {distillation_args.teacher_gate_capacity_factor}")
+        print(f"Teacher Gate Bias Update Rate: {distillation_args.teacher_gate_bias_update_rate}")
+        print(f"Teacher Gate Temperature: {distillation_args.teacher_gate_temperature}")
+        print(f"Teacher Gate Noise Std: {distillation_args.teacher_gate_noise_std}")
+        print(f"Teacher Gate Entropy Alpha: {distillation_args.teacher_gate_entropy_alpha}")
+        print(
             f"Teacher Gate Router Z-Loss Alpha: "
             f"{distillation_args.teacher_gate_router_z_loss_alpha}"
         )
-        rank0_print(
+        print(
             f"Teacher Gate Hard Routing Warmup Ratio: "
             f"{distillation_args.teacher_gate_hard_routing_warmup_ratio}"
         )
-        rank0_print(f"GRACE Threshold: {distillation_args.grace_threshold}")
-        rank0_print(f"GRACE Warmup Ratio: {distillation_args.grace_warmup_ratio}")
-        rank0_print(
+        print(f"GRACE Threshold: {distillation_args.grace_threshold}")
+        print(f"GRACE Warmup Ratio: {distillation_args.grace_warmup_ratio}")
+        print(
             f"GRACE Epsilon: "
             f"{distillation_args.grace_epsilon}"
         )
-        rank0_print(
+        print(
             f"GRACE Softmax Beta: "
             f"{distillation_args.grace_softmax_beta}"
         )
-        rank0_print(
+        print(
             f"GRACE Router Blend Lambda: "
             f"{distillation_args.grace_router_blend_lambda}"
         )
-        rank0_print(
+        print(
             f"GRACE EMA Decay: "
             f"{distillation_args.grace_ema_decay}"
         )
     elif len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "reinforced_selection":
-        rank0_print(
+        print(
             f"Reinforced Selection Warmup Ratio: "
             f"{distillation_args.reinforced_selection_warmup_ratio}"
         )
-        rank0_print(
+        print(
             f"Reinforced Selection Reward Type: "
             f"{distillation_args.reinforced_selection_reward_type}"
         )
-        rank0_print(
+        print(
             f"Reinforced Selection Reward EMA Decay: "
             f"{distillation_args.reinforced_selection_reward_ema_decay}"
         )
-        rank0_print(
+        print(
             f"Reinforced Selection Policy Alpha: "
             f"{distillation_args.reinforced_selection_policy_alpha}"
         )
     if training_args.gradient_checkpointing:
-        rank0_print(f"Gradient Checkpointing Kwargs: {gradient_checkpointing_kwargs}")
-    rank0_print("=" * 80)
+        print(f"Gradient Checkpointing Kwargs: {gradient_checkpointing_kwargs}")
+    print("=" * 80)

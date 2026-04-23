@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+from einops import einsum
 
 from src.components.cka import linear_cka_loss
 from src.components.trie_wasserstein import TrieWassersteinLoss
@@ -11,6 +12,7 @@ def resolve_temperatures(
     student_temperature: float | None,
     teacher_temperature: float | None,
 ) -> tuple[float, float]:
+    """Resolve student and teacher temperatures with the shared fallback and epsilon clamp."""
     base_temperature = max(float(temperature), torch.finfo(torch.float32).eps)
     resolved_student_temperature = (
         base_temperature
@@ -26,7 +28,9 @@ def resolve_temperatures(
 
 
 class FunctionalDistillationLoss:
+    """Wrap a function-based KD loss in the trainer's object interface."""
     def __init__(self, loss_function: str):
+        """Bind one global loss function name so trainers can call a uniform API."""
         self.loss_function = loss_function
         self.loss_fn = globals()[loss_function]
 
@@ -40,6 +44,7 @@ class FunctionalDistillationLoss:
         teacher_temperature: float | None = None,
         teacher_index: int | None = None,
     ) -> torch.Tensor:
+        """Compute one function-based KD loss for aligned student and teacher logits."""
         del teacher_index
         return self.loss_fn(
             student_logits=student_logits,
@@ -60,6 +65,7 @@ class FunctionalDistillationLoss:
         teacher_index: int | None = None,
         loss_function: str | None = None,
     ) -> torch.Tensor:
+        """Return the student-logit gradient for a function-based KD loss."""
         del teacher_index, loss_function
         return distillation_logit_grad(
             self.loss_function,
@@ -78,10 +84,12 @@ class FunctionalDistillationLoss:
         teacher_labels: torch.Tensor | None = None,
         teacher_index: int | None = None,
     ) -> None:
+        """Accept the shared loss interface even though function losses keep no batch state."""
         del student_logits, teacher_logits, teacher_labels, teacher_index
 
 
 class TrieWassersteinDistillationLoss:
+    """Own one trie-Wasserstein module per teacher tokenizer."""
     def __init__(
         self,
         *,
@@ -90,6 +98,7 @@ class TrieWassersteinDistillationLoss:
         trie_wasserstein_rho: float,
         trie_wasserstein_topk: int,
     ):
+        """Build the per-teacher trie loss modules used by cross-tokenizer KD."""
         if student_tokenizer is None:
             raise ValueError("Trie Wasserstein loss requires a student tokenizer.")
         if not teacher_tokenizers:
@@ -105,6 +114,7 @@ class TrieWassersteinDistillationLoss:
         ]
 
     def _select_loss_module(self, teacher_index: int | None) -> TrieWassersteinLoss:
+        """Return the trie loss module associated with one teacher index."""
         if teacher_index is None:
             raise ValueError("Trie Wasserstein loss requires a teacher index.")
         return self.loss_modules[teacher_index]
@@ -117,6 +127,7 @@ class TrieWassersteinDistillationLoss:
         teacher_labels: torch.Tensor | None = None,
         teacher_index: int | None = None,
     ) -> None:
+        """Prepare the selected trie module for the current teacher batch."""
         self._select_loss_module(teacher_index).prepare_runtime_state(
             student_vocab_size=student_logits.size(-1),
             teacher_vocab_size=teacher_logits.size(-1),
@@ -133,6 +144,7 @@ class TrieWassersteinDistillationLoss:
         teacher_temperature: float | None = None,
         teacher_index: int | None = None,
     ) -> torch.Tensor:
+        """Compute trie-Wasserstein KD against the selected teacher tokenizer."""
         loss_module = self._select_loss_module(teacher_index)
         loss_module.prepare_runtime_state(
             student_vocab_size=student_logits.size(-1),
@@ -157,6 +169,7 @@ class TrieWassersteinDistillationLoss:
         teacher_index: int | None = None,
         loss_function: str | None = None,
     ) -> torch.Tensor:
+        """Return dL/d(student_logits) for the selected trie-Wasserstein module."""
         del loss_function
         loss_module = self._select_loss_module(teacher_index)
         loss_module.prepare_runtime_state(
@@ -180,6 +193,7 @@ def build_distillation_loss(
     trie_wasserstein_rho: float = 0.7,
     trie_wasserstein_topk: int = 64,
 ):
+    """Construct the configured KD loss object from CLI settings and tokenizers."""
     if loss_function == "trie_wasserstein_loss":
         return TrieWassersteinDistillationLoss(
             student_tokenizer=student_tokenizer,
@@ -200,6 +214,7 @@ def distillation_logit_grad(
     student_temperature: float | None = None,
     teacher_temperature: float | None = None,
 ) -> torch.Tensor:
+    """Return dL/d(student_logits) for the configured KD loss in aligned logit space."""
     if loss_function == "cka_loss":
         with torch.enable_grad():
             logits_for_grad = student_logits.detach().clone().requires_grad_(True)
@@ -220,6 +235,8 @@ def distillation_logit_grad(
     student_probs = F.softmax(student_logits.float() / student_temperature, dim=-1)
 
     if loss_function == "uld_loss":
+        # ULD compares sorted probability masses, so its logit gradient is built in
+        # sorted-probability space and then mapped back through the softmax Jacobian.
         student_sorted, sort_idx = student_probs.sort(dim=-1, descending=True)
         teacher_probs = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
         teacher_sorted = teacher_probs.sort(dim=-1, descending=True).values
@@ -236,13 +253,20 @@ def distillation_logit_grad(
 
         grad_probs = torch.zeros_like(student_probs)
         grad_probs.scatter_(dim=-1, index=sort_idx, src=grad_sorted)
-        grad_dot = (grad_probs * student_probs).sum(dim=-1, keepdim=True)
+        grad_dot = einsum(
+            grad_probs,
+            student_probs,
+            "... vocab, ... vocab -> ...",
+        ).unsqueeze(-1)
+        # For softmax p = softmax(z / T), dL/dz = p * (dL/dp - <dL/dp, p>) / T.
         return student_probs * (grad_probs - grad_dot) / student_temperature
 
     if student_logits.size(-1) != teacher_logits.size(-1):
         return torch.zeros_like(student_logits, dtype=torch.float32)
 
     teacher_probs = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
+    # For KL-style losses in matched vocab space, the pooled logit gradient reduces to
+    # (p_student - p_teacher) / T.
     return (student_probs - teacher_probs) / student_temperature
 
 
@@ -267,6 +291,7 @@ def cka_loss(
     student_probs = F.softmax(student_logits.float() / student_temperature, dim=-1)
     with torch.no_grad():
         teacher_probs = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
+    # L_CKA = 1 - sqrt(CKA(P_student, P_teacher)).
     return linear_cka_loss(student_probs, teacher_probs)
 
 
@@ -310,6 +335,8 @@ def uld_loss(
     elif V_t < V_s:
         teacher_sorted = F.pad(teacher_sorted, (0, V_s - V_t))
 
+    # Closed-form 1D Wasserstein-1 on sorted probability masses:
+    # L_ULD = sum_i |sort(p_s)_i - sort(p_t)_i|.
     return (student_sorted - teacher_sorted).abs().sum(dim=-1).mean()
 
 
@@ -320,12 +347,14 @@ def forward_kl(
     student_temperature: float | None = None,
     teacher_temperature: float | None = None,
 ) -> torch.Tensor:
+    """Compute forward KL distillation when student and teacher share a vocab."""
     student_temperature, teacher_temperature = resolve_temperatures(
         temperature=temperature,
         student_temperature=student_temperature,
         teacher_temperature=teacher_temperature,
     )
     assert student_logits.shape == teacher_logits.shape, "student_logits and teacher_logits must have the same shape"
+    # L = T^2 * KL(p_teacher || p_student) with p_student = softmax(z_s / T_s).
     return F.kl_div(
         F.log_softmax(student_logits / student_temperature, dim=-1),
         F.softmax(teacher_logits / teacher_temperature, dim=-1),
@@ -339,12 +368,14 @@ def reverse_kl(
     student_temperature: float | None = None,
     teacher_temperature: float | None = None,
 ) -> torch.Tensor:
+    """Compute reverse KL distillation when student and teacher share a vocab."""
     student_temperature, teacher_temperature = resolve_temperatures(
         temperature=temperature,
         student_temperature=student_temperature,
         teacher_temperature=teacher_temperature,
     )
     assert student_logits.shape == teacher_logits.shape, "student_logits and teacher_logits must have the same shape"
+    # L = T^2 * KL(p_student || p_teacher).
     return F.kl_div(
         F.log_softmax(teacher_logits / teacher_temperature, dim=-1),
         F.softmax(student_logits / student_temperature, dim=-1),
@@ -359,6 +390,7 @@ def jensen_shannon_divergence(
     student_temperature: float | None = None,
     teacher_temperature: float | None = None,
 ) -> torch.Tensor:
+    """Compute Jensen-Shannon divergence between matched student and teacher distributions."""
     student_temperature, teacher_temperature = resolve_temperatures(
         temperature=temperature,
         student_temperature=student_temperature,
@@ -368,6 +400,7 @@ def jensen_shannon_divergence(
     s = F.softmax(student_logits / student_temperature, dim=-1)
     t = F.softmax(teacher_logits / teacher_temperature, dim=-1)
     m = 0.5 * (s + t)
+    # JSD(s, t) = 0.5 * KL(s || m) + 0.5 * KL(t || m), where m = 0.5 * (s + t).
     return 0.5 * (
         F.kl_div(s.log(), m, reduction='batchmean') +
         F.kl_div(t.log(), m, reduction='batchmean')

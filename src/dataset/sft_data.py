@@ -16,10 +16,11 @@ from .conversation_encoders import (
     encode_teacher_data,
 )
 from .conversation_transforms import llava_to_openai
-from .data_utils import encode_video
 from .data_collator import DataCollatorForSupervisedDataset
 from .streaming_teacher_logits_cache import StreamingTeacherLogitsCache
 
+# Text-only samples still flow through multimodal models, so the dataset injects
+# zero image tensors with the same packed SmolVLM layout used for real images.
 DUMMY_PIXEL_VALUES = (1, 13, 3, 384, 384)
 DUMMY_PIXEL_MASK = (1, 13, 384, 384)
 
@@ -37,6 +38,7 @@ class SupervisedDataset(Dataset):
         teacher_model_ids: Optional[list[str]] = None,
         teacher_logits_remote_uri: Optional[str] = None,
     ):
+        """Load training records and optional teacher-cache state for multimodal SFT/distillation."""
         super(SupervisedDataset, self).__init__()
         if isinstance(data_path, str):
             list_data_dict = json.load(open(data_path, "r"))
@@ -47,7 +49,6 @@ class SupervisedDataset(Dataset):
         self.teacher_processors = list(teacher_processors or [])
         self.list_data_dict = list_data_dict
         self.data_args = data_args
-        self.max_num_frames = data_args.max_num_frames
         self.teacher_logits_cache = None
         dataset_name = self._infer_dataset_name(data_path)
         if teacher_logits_cache_dir is not None or teacher_logits_remote_uri is not None:
@@ -78,10 +79,12 @@ class SupervisedDataset(Dataset):
         self.teacher_count = max(processor_teacher_count, cache_teacher_count)
 
     def __len__(self):
+        """Return the number of serialized training examples."""
         return len(self.list_data_dict)
 
     @staticmethod
     def _dummy_pixel_tensors():
+        """Return zero image tensors for text-only samples in multimodal models."""
         return (
             torch.zeros(DUMMY_PIXEL_VALUES),
             torch.zeros(DUMMY_PIXEL_MASK),
@@ -89,6 +92,7 @@ class SupervisedDataset(Dataset):
 
     @staticmethod
     def _infer_dataset_name(data_path: str | list) -> str | None:
+        """Infer a dataset name from the data path so remote cache layout can match training data."""
         if not isinstance(data_path, str):
             return None
         parent = Path(data_path).parent.name
@@ -100,6 +104,7 @@ class SupervisedDataset(Dataset):
         images,
         teacher_processor,
     ) -> Dict[str, torch.Tensor]:
+        """Encode one sample for a live teacher with the dataset's shared dummy-image fallback."""
         return encode_teacher_data(
             sources,
             images,
@@ -108,9 +113,8 @@ class SupervisedDataset(Dataset):
         )
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
+        """Load, image-resolve, and encode one dataset item for the student and optional teachers."""
         sources = self.list_data_dict[i]
-        is_video = False
-        num_frames = None
         images = None
 
         if "image" in sources:
@@ -126,17 +130,12 @@ class SupervisedDataset(Dataset):
                     resolved_path = os.path.join(image_folder, image_file)
                 images.append(Image.open(resolved_path).convert("RGB"))
         elif "video" in sources:
-            video_file = sources["video"]
-            video_folder = self.data_args.image_folder
-            if not os.path.exists(video_file):
-                video_file = os.path.join(video_folder, video_file)
-            images = encode_video(video_file, self.max_num_frames)
-            is_video = True
-            num_frames = len(images)
+            raise ValueError(
+                "Video samples are no longer supported in the training dataset path. "
+                "Convert them to images before training."
+            )
 
-        sources = copy.deepcopy(
-            llava_to_openai(sources['conversations'], is_video=is_video, num_frames=num_frames)
-        )
+        sources = copy.deepcopy(llava_to_openai(sources["conversations"]))
 
         data_dict = encode_student_data(sources, images, self.processor)
         if data_dict["pixel_values"] is None:
@@ -145,6 +144,8 @@ class SupervisedDataset(Dataset):
             data_dict["pixel_attention_mask"] = pixel_attention_mask
 
         if self.teacher_logits_cache is not None:
+            # Cached teacher logits short-circuit the live teacher encoding path,
+            # but the batch layout stays the same by namespacing each teacher slot.
             for teacher_index in range(self.teacher_count):
                 cache_sample = self.teacher_logits_cache.load_sample(teacher_index, i)
                 prefix = "teacher" if self.teacher_count == 1 else f"teacher_{teacher_index}"
@@ -173,6 +174,7 @@ class SupervisedDataset(Dataset):
                 data_dict[f"{prefix}_image_flags"] = teacher_data["image_flags"]
 
         return data_dict
+
 
 def make_supervised_data_module(
     processor,

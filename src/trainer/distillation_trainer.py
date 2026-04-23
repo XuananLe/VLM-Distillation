@@ -4,9 +4,7 @@ from typing import override
 from transformers import PreTrainedModel
 
 from src.trainer.checkpoint_utils import (
-    load_best_non_lora_weights,
     update_best_checkpoint_by_train_ce,
-    update_eval_ce_logs,
 )
 from src.trainer.metrics_utils import build_distillation_train_metrics
 from src.trainer.setup_utils import (
@@ -14,10 +12,9 @@ from src.trainer.setup_utils import (
     maybe_create_teacher_gate,
     maybe_create_reinforced_teacher_selector,
     normalize_teacher_models,
-    validate_distillation_trainer_args,
 )
 from src.trainer.sft_trainer import VisionLanguageSFTTrainer
-from src.trainer.distillation_utils import release_eval_memory, setup_layer_matching
+from src.trainer.distillation_utils import setup_layer_matching
 from src.trainer.step_utils import (
     apply_grace_and_compute_distillation_loss,
     apply_teacher_gate_routing,
@@ -27,11 +24,11 @@ from src.trainer.step_utils import (
     move_teacher_models_to_device,
     prepare_teacher_batches,
     run_student_forward_and_teacher_gate,
-    update_eval_ce_stats,
 )
 
 
 class DistillationTrainer(VisionLanguageSFTTrainer):
+    """Trainer that combines CE, KD, routing, GRACE, and optional layer distillation."""
     def __init__(
         self,
         teacher_model: PreTrainedModel = None,
@@ -76,39 +73,10 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
         *args,
         **kwargs
     ):
+        """Initialize distillation-specific models, losses, routing modules, and trainer state."""
         super().__init__(*args, **kwargs)
 
         from src.components import loss as distillation_loss_module
-
-        validate_distillation_trainer_args(
-            alpha=alpha,
-            layer_distill_source=layer_distill_source,
-            layer_distill_weight=layer_distill_weight,
-            layer_match_topk=layer_match_topk,
-            teacher_gate_balance_alpha=teacher_gate_balance_alpha,
-            teacher_gate_top_k=teacher_gate_top_k,
-            teacher_gate_capacity_factor=teacher_gate_capacity_factor,
-            teacher_gate_bias_update_rate=teacher_gate_bias_update_rate,
-            teacher_gate_temperature=teacher_gate_temperature,
-            teacher_gate_noise_std=teacher_gate_noise_std,
-            teacher_gate_entropy_alpha=teacher_gate_entropy_alpha,
-            teacher_gate_router_z_loss_alpha=teacher_gate_router_z_loss_alpha,
-            teacher_gate_hard_routing_warmup_ratio=teacher_gate_hard_routing_warmup_ratio,
-            grace_warmup_ratio=grace_warmup_ratio,
-            grace_epsilon=grace_epsilon,
-            grace_softmax_beta=grace_softmax_beta,
-            grace_router_blend_lambda=grace_router_blend_lambda,
-            grace_ema_decay=grace_ema_decay,
-            reinforced_selection_warmup_ratio=reinforced_selection_warmup_ratio,
-            reinforced_selection_reward_type=reinforced_selection_reward_type,
-            reinforced_selection_reward_ema_decay=reinforced_selection_reward_ema_decay,
-            reinforced_selection_policy_alpha=reinforced_selection_policy_alpha,
-            teacher_weighting_strategy=teacher_weighting_strategy,
-            trie_wasserstein_rho=trie_wasserstein_rho,
-            trie_wasserstein_topk=trie_wasserstein_topk,
-            loss_function=loss_function,
-            distillation_loss_module=distillation_loss_module,
-        )
 
         self.loss_function = loss_function
         self.distillation_loss = distillation_loss_module.build_distillation_loss(
@@ -202,9 +170,6 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
         self.reinforced_selection_policy_alpha = reinforced_selection_policy_alpha
         self.trie_wasserstein_rho = trie_wasserstein_rho
         self.trie_wasserstein_topk = trie_wasserstein_topk
-        self.non_lora_require_grad_only = True
-        self.eval_ce_loss_sum = 0.0
-        self.eval_ce_loss_count = 0
         self.last_compute_loss_end_time = None
         self.latest_train_ce_loss = None
         self.teacher_grace_score_ema = None
@@ -251,6 +216,7 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
         )
 
     def tracks_best_checkpoint_by_train_ce(self) -> bool:
+        """Return whether checkpoint selection should track train CE instead of eval metrics."""
         metric_name = getattr(self.args, "metric_for_best_model", None)
         return (
             getattr(self.args, "eval_strategy", "no") == "no"
@@ -259,6 +225,7 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
 
     @override
     def _prepare_inputs(self, inputs):
+        """Prepare student inputs on-device while preserving teacher-prefixed tensors unchanged."""
         if not isinstance(inputs, dict):
             return super()._prepare_inputs(inputs)
 
@@ -274,6 +241,7 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
         return prepared_inputs
 
     def should_apply_grace_routing(self) -> bool:
+        """Return whether GRACE refinement is active at the current global step."""
         if self.teacher_gate is None or not self.model.training:
             return False
 
@@ -288,6 +256,7 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
         return self.state.global_step >= warmup_steps
 
     def current_teacher_gate_top_k(self) -> int:
+        """Return the effective teacher-gate top-k after warmup scheduling."""
         if self.teacher_gate is None:
             return self.teacher_gate_top_k
         if not self.model.training or self.teacher_gate_hard_routing_warmup_ratio <= 0.0:
@@ -302,6 +271,7 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
         return self.teacher_gate_top_k
 
     def reinforced_selection_warmup_active(self) -> bool:
+        """Return whether reinforced teacher selection is still in its all-teachers warmup phase."""
         if self.reinforced_teacher_selector is None or not self.model.training:
             return False
         if self.reinforced_selection_warmup_ratio <= 0.0:
@@ -315,6 +285,7 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
 
     @override
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+        """Run one full distillation step and return the combined training loss."""
         compute_loss_start_time = time.perf_counter()
         outside_compute_loss_time = (
             None
@@ -369,12 +340,6 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
             trainer=self,
             teacher_batches=teacher_batches,
             student_layer_representations=student_and_gate["student_layer_representations"],
-        )
-
-        update_eval_ce_stats(
-            trainer=self,
-            student_inputs=student_inputs,
-            ce_loss=ce_loss,
         )
         loss = compute_total_loss(
             trainer=self,
@@ -433,61 +398,7 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
         return (loss, student_and_gate["student_outputs"]) if return_outputs else loss
 
     @override
-    def prediction_step(self, model, inputs, prediction_loss_only, ignore_keys=None):
-        if prediction_loss_only:
-            has_labels = False if len(self.label_names) == 0 else all(
-                inputs.get(k) is not None for k in self.label_names
-            )
-            return_loss = inputs.get("return_loss")
-            if return_loss is None:
-                return_loss = self.can_return_loss
-            loss_without_labels = len(self.label_names) == 0 and return_loss
-
-            if has_labels or loss_without_labels:
-                prepared_inputs = self._prepare_inputs(inputs)
-                import torch
-                with torch.no_grad():
-                    with self.compute_loss_context_manager():
-                        num_items_in_batch = self._get_num_items_in_batch([prepared_inputs], self.args.device)
-                        loss = self.compute_loss(
-                            model,
-                            prepared_inputs,
-                            return_outputs=False,
-                            num_items_in_batch=num_items_in_batch,
-                        )
-                    loss = loss.detach().mean()
-                return (loss, None, None)
-
-        return super().prediction_step(
-            model,
-            inputs,
-            prediction_loss_only=prediction_loss_only,
-            ignore_keys=ignore_keys,
-        )
-
-    @override
-    def evaluate(self, eval_dataset=None, ignore_keys=None, metric_key_prefix: str = "eval"):
-        self.eval_ce_loss_sum = 0.0
-        self.eval_ce_loss_count = 0
-        try:
-            return super().evaluate(
-                eval_dataset=eval_dataset,
-                ignore_keys=ignore_keys,
-                metric_key_prefix=metric_key_prefix,
-            )
-        finally:
-            release_eval_memory()
-
-    @override
-    def log(self, logs: dict[str, float], start_time=None) -> None:
-        super().log(update_eval_ce_logs(self, logs), start_time=start_time)
-
-    @override
     def _save_checkpoint(self, model, trial):
+        """Save a checkpoint, then refresh the best-checkpoint pointer using train CE."""
         super()._save_checkpoint(model, trial)
         update_best_checkpoint_by_train_ce(self, trial)
-
-    @override
-    def _load_best_model(self):
-        super()._load_best_model()
-        load_best_non_lora_weights(self)

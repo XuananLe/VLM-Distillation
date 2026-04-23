@@ -3,8 +3,9 @@ import math
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from einops import rearrange, reduce
+from einops import einsum, rearrange
 
+from src.components.pooling import masked_mean_pool_sequence
 from src.components.teacher_gate import Gate
 
 
@@ -15,6 +16,8 @@ def compute_reinforced_teacher_descriptor_stats(
     teacher_temperature: float,
     skip_teacher_eos: bool,
 ) -> torch.Tensor:
+    """Summarize one teacher batch into confidence/entropy descriptors; input is teacher logits and labels, output is per-sample stats, and this exists to give the policy teacher-side signals beyond KD loss."""
+    # Build simple per-sample teacher descriptors from supervised answer positions only.
     stats = []
     for sample_logits, sample_labels in zip(teacher_logits, teacher_labels):
         positions = sample_labels.ne(-100).nonzero(as_tuple=False).squeeze(-1)
@@ -48,6 +51,7 @@ def build_reinforced_selection_teacher_features(
     teacher_temperature: float,
     skip_teacher_eos: bool,
 ) -> torch.Tensor:
+    """Assemble selector features for all teachers; input is teacher logits/labels plus KD losses, output is [batch, teacher, feature], and this exists to build the policy state tensor."""
     if not teacher_logits_batches or not teacher_label_batches:
         raise ValueError("Reinforced teacher selection requires teacher logits and labels.")
     if len(teacher_logits_batches) != len(teacher_label_batches):
@@ -69,6 +73,7 @@ def build_reinforced_selection_teacher_features(
         teacher_features.append(
             torch.cat(
                 [
+                    # Each teacher contributes [KD loss, mean confidence, mean normalized entropy].
                     teacher_loss_matrix[:, teacher_index : teacher_index + 1],
                     descriptor_stats,
                 ],
@@ -79,7 +84,9 @@ def build_reinforced_selection_teacher_features(
 
 
 class ReinforcedTeacherSelectionPolicy(nn.Module):
+    """Bernoulli teacher-subset policy on student context; it maps pooled student state plus teacher descriptors to teacher logits and exists for REINFORCE-based teacher selection."""
     def __init__(self, model: nn.Module, num_teachers: int, teacher_feature_dim: int = 3):
+        """Initialize the selector and register its hook; input is the student model and teacher count, output is an initialized policy module, and this exists to keep selector setup local."""
         super().__init__()
         hidden_size, hook_module = Gate.resolve_gate_source(model)
         self.num_teachers = num_teachers
@@ -89,14 +96,17 @@ class ReinforcedTeacherSelectionPolicy(nn.Module):
         self.policy = nn.Linear(hidden_size + num_teachers * teacher_feature_dim, num_teachers)
         nn.init.xavier_uniform_(self.policy.weight)
         nn.init.zeros_(self.policy.bias)
+        # Reuse the same pre-lm-head hidden state that the router sees.
         self.hook_handle = hook_module.register_forward_pre_hook(self.capture_hidden_state)
 
     def capture_hidden_state(self, module, args):
+        """Cache the pre-lm-head hidden state; input is hook args, output is None, and this exists so the policy can reuse student context without another forward pass."""
         del module
         if args:
             self.hidden_state = args[0]
 
     def reset(self) -> None:
+        """Clear the cached hidden state; input/output are None, and this exists to avoid reusing stale activations across steps."""
         self.hidden_state = None
 
     def pool_hidden_state(
@@ -105,28 +115,16 @@ class ReinforcedTeacherSelectionPolicy(nn.Module):
         labels: torch.Tensor,
         attention_mask: torch.Tensor | None,
     ) -> torch.Tensor:
+        """Pool the cached student hidden state per sample; input is labels plus optional attention mask, output is [batch, hidden], and this exists to build the selector state vector."""
         if self.hidden_state is None:
             raise RuntimeError("Reinforced teacher selector hidden state was not captured.")
         hidden_state = self.hidden_state
         self.hidden_state = None
-
-        label_mask = labels.ne(-100)
-        fallback_mask = (
-            attention_mask.bool()
-            if attention_mask is not None
-            else torch.ones_like(label_mask, dtype=torch.bool)
+        return masked_mean_pool_sequence(
+            hidden_state,
+            labels=labels,
+            attention_mask=attention_mask,
         )
-        pool_mask = label_mask
-        missing_supervised = ~pool_mask.any(dim=1)
-        if missing_supervised.any():
-            pool_mask = pool_mask.clone()
-            pool_mask[missing_supervised] = fallback_mask[missing_supervised]
-
-        pool_mask = pool_mask.to(dtype=hidden_state.dtype)
-        masked_hidden = hidden_state * rearrange(pool_mask, "b t -> b t 1")
-        pooled_hidden = reduce(masked_hidden, "b t d -> b d", "sum")
-        pooled_denominator = reduce(pool_mask, "b t -> b 1", "sum").clamp(min=1.0)
-        return pooled_hidden / pooled_denominator
 
     def compute_policy_logits(
         self,
@@ -135,10 +133,12 @@ class ReinforcedTeacherSelectionPolicy(nn.Module):
         labels: torch.Tensor,
         attention_mask: torch.Tensor | None,
     ) -> torch.Tensor:
+        """Compute Bernoulli logits over teachers; input is teacher descriptors plus pooled student context, output is [batch, teacher] logits, and this exists to parameterize the policy."""
         pooled_hidden = self.pool_hidden_state(
             labels=labels,
             attention_mask=attention_mask,
         ).detach()
+        # The policy state is student context plus all teacher descriptors flattened together.
         flattened_teacher_features = rearrange(teacher_features, "b teacher feat -> b (teacher feat)")
         state = torch.cat([pooled_hidden, flattened_teacher_features], dim=-1)
         return self.policy(self.state_normalizer(state))
@@ -160,6 +160,7 @@ def compute_reinforced_selection_state(
     prev_reward_baseline: torch.Tensor | None,
     reward_ema_decay: float,
 ) -> dict[str, torch.Tensor | dict[str, float] | None]:
+    """Compute one reinforced-selection step state; input is selector state plus per-teacher losses/logits, output is a dict of losses, weights, and metrics, and this exists to isolate REINFORCE bookkeeping from the trainer."""
     teacher_features = build_reinforced_selection_teacher_features(
         teacher_logits_batches=teacher_logits_batches,
         teacher_label_batches=teacher_label_batches,
@@ -176,8 +177,11 @@ def compute_reinforced_selection_state(
         min=torch.finfo(policy_logits.dtype).eps,
         max=1.0 - torch.finfo(policy_logits.dtype).eps,
     )
+    # Independent Bernoulli policy per teacher: p_t = sigmoid(logit_t).
 
     if warmup_active:
+        # Warmup keeps all teachers active and trains the selector to predict "on"
+        # before sampling-based REINFORCE starts.
         selection_mask = torch.ones_like(policy_probs, dtype=torch.bool)
         policy_loss = F.binary_cross_entropy_with_logits(
             policy_logits,
@@ -193,6 +197,7 @@ def compute_reinforced_selection_state(
             selection_mask = policy_probs >= 0.5
         empty_selection = ~selection_mask.any(dim=-1)
         if empty_selection.any():
+            # Never allow an all-zero teacher set; fall back to the highest-probability teacher.
             fallback_indices = policy_probs[empty_selection].argmax(dim=-1, keepdim=True)
             selection_mask = selection_mask.clone()
             selection_mask[empty_selection] = False
@@ -201,14 +206,22 @@ def compute_reinforced_selection_state(
 
         selection_mask_float = selection_mask.to(dtype=teacher_loss_matrix.dtype)
         if selector.training:
+            # Bernoulli log-prob of the sampled multi-teacher action for REINFORCE.
+            # log pi(a|s) = sum_t [a_t log p_t + (1-a_t) log(1-p_t)].
             log_prob = (
                 selection_mask_float * policy_probs.log()
                 + (1.0 - selection_mask_float) * (1.0 - policy_probs).log()
             ).sum(dim=-1).mean()
+            # reward1: R = -CE
+            # reward2: R = -CE - mean_selected_teacher_KD
             reward = -ce_loss.detach()
             if reward_type == "reward2":
                 reward = reward - (
-                    (teacher_loss_matrix * selection_mask_float).sum(dim=-1)
+                    einsum(
+                        teacher_loss_matrix,
+                        selection_mask_float,
+                        "batch teacher, batch teacher -> batch",
+                    )
                     / selection_mask_float.sum(dim=-1).clamp(min=1.0)
                 ).mean().detach()
             baseline_source = reward.detach().to(dtype=policy_logits.dtype, device=policy_logits.device)
@@ -225,16 +238,24 @@ def compute_reinforced_selection_state(
                 if reward_baseline is None
                 else reward_ema_decay * reward_baseline + (1.0 - reward_ema_decay) * baseline_source
             )
+            # Advantage estimate: A = R - b.
             advantage = baseline_source if reward_baseline is None else baseline_source - reward_baseline
+            # REINFORCE objective: L_policy = -A * log pi(a|s).
             policy_loss = -(advantage.detach() * log_prob)
         else:
             reward = None
             policy_loss = None
             next_reward_baseline = prev_reward_baseline
 
+    # Normalize the selected teacher mask into mixture weights for the KD loss.
+    # w_t = a_t / sum_j a_j, then L_KD = sum_t w_t * ell_t.
     selection_weights = selection_mask.to(dtype=teacher_loss_matrix.dtype)
     selection_weights = selection_weights / selection_weights.sum(dim=-1, keepdim=True).clamp(min=1.0)
-    distillation_loss = (teacher_loss_matrix * selection_weights).sum(dim=-1).mean()
+    distillation_loss = einsum(
+        teacher_loss_matrix,
+        selection_weights,
+        "batch teacher, batch teacher -> batch",
+    ).mean()
     policy_entropy = (
         -(policy_probs * policy_probs.log() + (1.0 - policy_probs) * (1.0 - policy_probs).log())
         .sum(dim=-1)

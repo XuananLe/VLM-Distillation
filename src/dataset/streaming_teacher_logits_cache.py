@@ -21,6 +21,7 @@ KNOWN_TEACHER_CACHE_ALIASES = {
     "qwen2.5-vl-3b-instruct": "qwen25vl_3b",
 }
 def join_remote_uri(root: str, *parts: str) -> str:
+    """Join a remote cache root and path parts without losing URI separators."""
     value = root.rstrip("/")
     for part in parts:
         value = f"{value}/{part.strip('/')}"
@@ -28,6 +29,7 @@ def join_remote_uri(root: str, *parts: str) -> str:
 
 
 def normalize_teacher_cache_alias(teacher_model_id: str) -> str:
+    """Map a teacher model id to the normalized alias used in remote cache paths."""
     teacher_slug = teacher_model_id.split("/")[-1].lower()
     cached_alias = KNOWN_TEACHER_CACHE_ALIASES.get(teacher_slug)
     if cached_alias is not None:
@@ -44,6 +46,7 @@ def normalize_teacher_cache_alias(teacher_model_id: str) -> str:
 
 
 def parse_size_limit_bytes(value: str | int | None) -> int | None:
+    """Parse cache-size limits like `100gb` into raw byte counts."""
     if value is None:
         return None
     if isinstance(value, int):
@@ -69,6 +72,7 @@ def parse_size_limit_bytes(value: str | int | None) -> int | None:
 
 
 class StreamingTeacherLogitsCache:
+    """Load teacher-logit samples either locally or through an on-demand remote cache."""
     def __init__(
         self,
         *,
@@ -81,6 +85,7 @@ class StreamingTeacherLogitsCache:
         cache_limit: str | int | None = None,
         predownload: int | None = None,
     ):
+        """Configure local or remote teacher-logit loading for one training dataset."""
         del local_cache_dir, predownload
         if not teacher_model_ids:
             raise ValueError("teacher_model_ids must be provided for teacher logits.")
@@ -138,11 +143,13 @@ class StreamingTeacherLogitsCache:
 
     @property
     def teacher_count(self) -> int:
+        """Return the number of teacher streams exposed by this cache wrapper."""
         if self._local_cache is not None:
             return self._local_cache.teacher_count
         return len(self.teacher_slugs)
 
     def load_sample(self, teacher_index: int, dataset_index: int) -> dict[str, torch.Tensor]:
+        """Load one teacher-logit sample, streaming and caching it first when needed."""
         if self._local_cache is not None:
             return self._local_cache.load_sample(teacher_index, dataset_index)
 
@@ -177,6 +184,7 @@ class StreamingTeacherLogitsCache:
         cache_fs: WholeFileCacheFileSystem,
         remote_path: str,
     ) -> None:
+        """Refresh one cached file's access time so LRU eviction keeps hot samples."""
         normalized_path = cache_fs._strip_protocol(remote_path)
         entry = cache_fs._metadata.cached_files[-1].get(normalized_path)
         if entry is None:
@@ -194,6 +202,7 @@ class StreamingTeacherLogitsCache:
         cache_fs: WholeFileCacheFileSystem,
         keep_remote_path: str,
     ) -> None:
+        """Evict least-recently-used cached files when the local streaming cache exceeds its limit."""
         if self.cache_limit_bytes is None:
             return
 
@@ -223,6 +232,7 @@ class StreamingTeacherLogitsCache:
             total_size -= candidate_size
 
     def _build_cache_filesystem(self, local_root: str) -> WholeFileCacheFileSystem:
+        """Build the fsspec whole-file cache wrapper used for remote teacher logits."""
         s3_filesystem = s3fs.S3FileSystem(**self._build_s3_options())
         return WholeFileCacheFileSystem(
             fs=s3_filesystem,
@@ -233,6 +243,7 @@ class StreamingTeacherLogitsCache:
         )
 
     def _build_s3_options(self) -> dict[str, object]:
+        """Collect endpoint and region options for the backing S3-compatible store."""
         endpoint_url = (
             os.environ.get("S3_ENDPOINT_URL")
             or os.environ.get("AWS_ENDPOINT_URL_S3")
@@ -250,23 +261,20 @@ class StreamingTeacherLogitsCache:
 
     @contextmanager
     def _teacher_lock(self, local_root: str):
+        """Serialize cache mutations per teacher root so streaming workers do not race."""
         lock_path = os.path.join(local_root, ".cache.lock")
+        import fcntl
+
         with open(lock_path, "a+", encoding="utf-8") as lock_file:
             try:
-                import fcntl
-
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_EX)
                 yield
             finally:
-                try:
-                    import fcntl
-
-                    fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
-                except Exception:
-                    pass
+                fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     @staticmethod
     def _local_cache_path(base_local_root: str, remote_root: str) -> str:
+        """Derive a stable local cache directory name from a remote teacher root URI."""
         parsed = urlparse(remote_root)
         root_name = Path(parsed.path.rstrip("/")).name or "teacher"
         digest = hashlib.sha1(remote_root.encode("utf-8")).hexdigest()[:12]

@@ -8,14 +8,11 @@ import torch.nn.functional as F
 
 
 EOS_SENTINEL = 256
-
-
-def extract_tokenizer_backend(processor_or_tokenizer):
-    tokenizer = getattr(processor_or_tokenizer, "tokenizer", None)
-    return tokenizer if tokenizer is not None else processor_or_tokenizer
+# Byte values live in [0, 255], so 256 is a clean end-of-token marker for the trie.
 
 
 def resolve_vocab_size(tokenizer) -> int:
+    """Return tokenizer vocabulary size; input is a tokenizer-like object, output is an int, and this exists to normalize tokenizer APIs used by trie OT."""
     if hasattr(tokenizer, "__len__"):
         return int(len(tokenizer))
     vocab_size = getattr(tokenizer, "vocab_size", None)
@@ -25,6 +22,7 @@ def resolve_vocab_size(tokenizer) -> int:
 
 
 def token_piece_to_bytes(tokenizer, token_id: int) -> bytes:
+    """Convert one token id to UTF-8 bytes; input is tokenizer plus token id, output is bytes, and this exists so student and teacher can share one byte-level trie."""
     token_id = int(token_id)
     if hasattr(tokenizer, "decode"):
         try:
@@ -50,6 +48,7 @@ def token_piece_to_bytes(tokenizer, token_id: int) -> bytes:
 
 
 def default_ignored_token_ids(tokenizer) -> set[int]:
+    """Return special token ids ignored by trie OT; input is a tokenizer, output is a set of ids, and this exists to skip non-semantic pad/bos tokens."""
     ignored = set()
     for attr_name in ("pad_token_id", "bos_token_id"):
         token_id = getattr(tokenizer, attr_name, None)
@@ -60,12 +59,14 @@ def default_ignored_token_ids(tokenizer) -> set[int]:
 
 @dataclass(slots=True)
 class TrieNode:
+    """One byte-trie node; it stores outgoing byte children and the edge id that reaches this node."""
     children: dict[int, "TrieNode"] = field(default_factory=dict)
     edge_id: int | None = None
 
 
 @dataclass(slots=True)
 class TrieBuildResult:
+    """Packed trie-path tables for one tokenizer; it stores flattened paths, path offsets, and ignored-token mask used at runtime."""
     path_flat: torch.Tensor
     path_offsets: torch.Tensor
     ignored_mask: torch.Tensor
@@ -92,14 +93,15 @@ class TrieWassersteinLoss(nn.Module):
         ignored_student_token_ids: set[int] | None = None,
         ignored_teacher_token_ids: set[int] | None = None,
     ):
+        """Build the shared byte-trie loss state; input is student/teacher tokenizers plus trie hyperparameters, output is an initialized loss module, and this exists to precompute cross-tokenizer path structure once."""
         super().__init__()
         if not 0.0 < float(rho) < 1.0:
             raise ValueError(f"rho must be in (0, 1), got {rho}")
         if int(topk) < 1:
             raise ValueError(f"topk must be >= 1, got {topk}")
 
-        self.student_tokenizer = extract_tokenizer_backend(student_tokenizer)
-        self.teacher_tokenizer = extract_tokenizer_backend(teacher_tokenizer)
+        self.student_tokenizer = getattr(student_tokenizer, "tokenizer", None) or student_tokenizer
+        self.teacher_tokenizer = getattr(teacher_tokenizer, "tokenizer", None) or teacher_tokenizer
         self.student_tokenizer_vocab_size = resolve_vocab_size(self.student_tokenizer)
         self.teacher_tokenizer_vocab_size = resolve_vocab_size(self.teacher_tokenizer)
         self.student_vocab_size = self.student_tokenizer_vocab_size
@@ -161,6 +163,7 @@ class TrieWassersteinLoss(nn.Module):
         self.teacher_ignored_mask_device: torch.Tensor | None = None
 
     def invalidate_device_cache(self) -> None:
+        """Clear cached device-side trie tensors; input/output are None, and this exists because vocab extension invalidates earlier device copies."""
         self.cached_device = None
         self.edge_weights_device = None
         self.student_path_flat_device = None
@@ -176,6 +179,7 @@ class TrieWassersteinLoss(nn.Module):
         side: str,
         target_vocab_size: int,
     ) -> None:
+        """Extend one trie side with ignored extra tokens; input is side name and target vocab size, output is None, and this exists to tolerate runtime vocab growth without rebuilding the trie."""
         if side == "student":
             current_vocab_size = self.student_vocab_size
             if target_vocab_size <= current_vocab_size:
@@ -223,6 +227,7 @@ class TrieWassersteinLoss(nn.Module):
         root: TrieNode,
         edge_weights: list[float],
     ) -> TrieBuildResult:
+        """Build flattened trie paths for one tokenizer; input is tokenizer state plus shared trie root, output is packed path tables, and this exists to make runtime path lookup cheap."""
         path_flat: list[int] = []
         path_offsets = [0]
         ignored_mask = torch.zeros(vocab_size, dtype=torch.bool)
@@ -234,6 +239,8 @@ class TrieWassersteinLoss(nn.Module):
                 continue
 
             token_bytes = list(token_piece_to_bytes(tokenizer, token_id))
+            # Append an explicit token terminator so prefix tokens and longer tokens
+            # do not collapse onto the same trie path.
             token_bytes.append(EOS_SENTINEL)
             path = self.insert_bytes(
                 token_bytes=token_bytes,
@@ -256,6 +263,7 @@ class TrieWassersteinLoss(nn.Module):
         root: TrieNode,
         edge_weights: list[float],
     ) -> list[int]:
+        """Insert one token byte sequence into the shared trie; input is token bytes plus trie state, output is the edge-id path, and this exists to build weighted token paths offline."""
         node = root
         path: list[int] = []
         for depth, byte_value in enumerate(token_bytes, start=1):
@@ -270,6 +278,7 @@ class TrieWassersteinLoss(nn.Module):
         return path
 
     def ensure_device_tensors(self, device: torch.device) -> None:
+        """Materialize cached trie tensors on a target device; input is a torch device, output is None, and this exists because the trie is built on CPU but used during GPU loss computation."""
         if self.cached_device == device:
             return
         self.cached_device = device
@@ -289,6 +298,7 @@ class TrieWassersteinLoss(nn.Module):
         path_offsets: torch.Tensor,
         ignored_mask: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor]:
+        """Expand a sparse token distribution into trie-edge masses; input is token probabilities plus path tables, output is (edge_ids, edge_masses), and this exists to express token mass on trie edges."""
         valid_mask = ~ignored_mask
         num_valid = int(valid_mask.sum().item())
         tail_edge = torch.tensor([self.tail_edge_id], device=probs.device, dtype=torch.long)
@@ -300,6 +310,7 @@ class TrieWassersteinLoss(nn.Module):
         k = min(self.topk, num_valid)
         masked_probs = probs.masked_fill(ignored_mask, float("-inf"))
         kept_values, kept_token_ids = torch.topk(masked_probs, k=k, dim=-1)
+        # Everything outside the sparse top-k is routed to one synthetic TAIL edge.
         tail_mass = (1.0 - kept_values.sum()).clamp_min(0.0)
 
         edge_chunks: list[torch.Tensor] = []
@@ -332,6 +343,7 @@ class TrieWassersteinLoss(nn.Module):
         teacher_vocab_size: int,
         teacher_labels: torch.Tensor | None = None,
     ) -> None:
+        """Validate or extend trie runtime state for one batch; input is current vocab sizes and optional teacher labels, output is None, and this exists to keep cached trie buffers aligned with runtime tensors."""
         if student_vocab_size > self.student_vocab_size:
             self.extend_vocab_state_with_ignored_tokens(
                 side="student",
@@ -373,6 +385,7 @@ class TrieWassersteinLoss(nn.Module):
         student_probs: torch.Tensor,
         teacher_probs: torch.Tensor,
     ) -> torch.Tensor:
+        """Compute trie OT for one aligned token position; input is student/teacher probability vectors, output is a scalar loss tensor, and this exists to isolate per-position edge balancing."""
         student_edges, student_masses = self.build_signed_edge_contributions(
             probs=student_probs,
             path_flat=self.student_path_flat_device,
@@ -391,6 +404,7 @@ class TrieWassersteinLoss(nn.Module):
         active_edges, inverse = torch.unique(all_edges, sorted=False, return_inverse=True)
         signed_edge_balance = signed_masses.new_zeros(active_edges.size(0))
         signed_edge_balance.index_add_(0, inverse, signed_masses)
+        # Tree OT here is the weighted L1 imbalance over active trie edges.
         return (
             self.edge_weights_device.index_select(0, active_edges) * signed_edge_balance.abs()
         ).sum()
@@ -403,6 +417,7 @@ class TrieWassersteinLoss(nn.Module):
         student_temperature: float | None = None,
         teacher_temperature: float | None = None,
     ) -> torch.Tensor:
+        """Compute mean trie-Wasserstein KD over aligned positions; input is student/teacher logits, output is a scalar loss tensor, and this exists as the main cross-tokenizer KD objective."""
         from src.components.loss import resolve_temperatures
 
         if student_logits.ndim != 2:
@@ -439,6 +454,7 @@ class TrieWassersteinLoss(nn.Module):
         student_probs = F.softmax(student_logits.float() / student_temperature, dim=-1)
         teacher_probs = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
 
+        # Loss is averaged over aligned supervised token positions.
         step_losses = [
             self.single_step_loss(student_probs[index], teacher_probs[index])
             for index in range(student_probs.size(0))
@@ -456,6 +472,7 @@ class TrieWassersteinLoss(nn.Module):
         student_temperature: float | None = None,
         teacher_temperature: float | None = None,
     ) -> torch.Tensor:
+        """Compute dL/d(student_logits) for trie OT; input is student/teacher logits, output is a gradient tensor, and this exists so GRACE can compare trie-Wasserstein KD directions."""
         self.prepare_runtime_state(
             student_vocab_size=student_logits.size(-1),
             teacher_vocab_size=teacher_logits.size(-1),
@@ -475,5 +492,4 @@ class TrieWassersteinLoss(nn.Module):
 
 __all__ = [
     "TrieWassersteinLoss",
-    "extract_tokenizer_backend",
 ]

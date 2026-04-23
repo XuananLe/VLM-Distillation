@@ -1,6 +1,3 @@
-from decord import VideoReader, cpu
-from PIL import Image
-
 def pad_sequence(sequences, padding_side='right', padding_value=0):
     """
     Pad a list of sequences to the same length.
@@ -19,18 +16,3 @@ def pad_sequence(sequences, padding_side='right', padding_value=0):
         else:
             output.data[i, -length:] = seq
     return output
-
-def encode_video(video_path, max_num_frames=10):
-    def uniform_sample(l, n):
-        gap = len(l) / n
-        idxs = [int(i * gap + gap / 2) for i in range(n)]
-        return [l[i] for i in idxs]
-
-    vr = VideoReader(video_path, ctx=cpu(0))
-    sample_fps = round(vr.get_avg_fps() / 1)  # FPS
-    frame_idx = [i for i in range(0, len(vr), sample_fps)]
-    if len(frame_idx) > max_num_frames:
-        frame_idx = uniform_sample(frame_idx, max_num_frames)
-    frames = vr.get_batch(frame_idx).asnumpy()
-    frames = [Image.fromarray(v.astype('uint8')) for v in frames]
-    return frames

@@ -9,9 +9,6 @@ deepspeed src/train/train_sft.py \
     --model_id $MODEL_NAME \
     --data_path /path/to/your/training/data.json \
     --image_folder /path/to/your/image/folder \
-    --freeze_vision_tower False \
-    --freeze_llm False \
-    --freeze_connector False \
     --bf16 True \
     --fp16 False \
     --disable_flash_attn2 False \

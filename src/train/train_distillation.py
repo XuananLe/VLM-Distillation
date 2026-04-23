@@ -15,6 +15,7 @@ from transformers import (
     HfArgumentParser,
 )
 from src.trainer.distillation_trainer import DistillationTrainer
+from src.trainer.setup_utils import normalize_teacher_models
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, TrainingArguments
 from src.train.distillation_setup import (
@@ -22,28 +23,13 @@ from src.train.distillation_setup import (
     log_distillation_setup,
     validate_distillation_args,
 )
-from src.train.train_utils import (
-    configure_training_model,
-    finalize_quantized_trainable_modules,
-    safe_save_model_for_hf_trainer,
-    get_compute_dtype,
-    get_peft_state_maybe_zero_3,
-    get_peft_state_non_lora_maybe_zero_3,
-    load_training_model_bundle,
-    maybe_apply_lora,
-    normalize_lora_namespan_exclude,
-    prepare_model_for_low_bit_training,
-    set_local_rank,
-    rank0_print,
-    load_processor_and_tokenizer_backend,
-    load_vision_language_model,
+from src.train.model_setup import (
+    configure_vision_tower,
+    load_model,
+    load_processor_and_tokenizer,
     resolve_model_type,
-    parse_model_id_list,
-    parse_list_argument,
 )
-from src.train.distillation_runtime import (
-    build_trainer_callbacks,
-)
+from src.train.save_utils import safe_save_model_for_hf_trainer
 
 from PIL import Image, ImageFile
 
@@ -59,12 +45,13 @@ def load_teachers_and_processors_for_layer_distillation(
     training_args,
     compute_dtype: torch.dtype,
 ):
+    """Load live teacher models and processors only for hidden-state layer distillation."""
     teacher_models = []
     teacher_processors = []
     attn_impl = "flash_attention_2" if not training_args.disable_flash_attn2 else "eager"
 
     for teacher_id in teacher_ids:
-        rank0_print(f"Loading live teacher for layer distillation: {teacher_id}")
+        print(f"Loading live teacher for layer distillation: {teacher_id}")
         if "internvl" in teacher_id.lower():
             teacher_model = AutoModel.from_pretrained(
                 teacher_id,
@@ -88,6 +75,8 @@ def load_teachers_and_processors_for_layer_distillation(
             teacher_processor = {
                 "model_id": teacher_id,
                 "tokenizer": teacher_tokenizer,
+                # These fallbacks mirror the common InternVL defaults used when
+                # model config fields are absent in older or custom checkpoints.
                 "image_size": getattr(teacher_model.config, "force_image_size", None)
                 or getattr(vision_config, "image_size", 448),
                 "normalize_type": (
@@ -102,7 +91,7 @@ def load_teachers_and_processors_for_layer_distillation(
                 "img_context_token": "<IMG_CONTEXT>",
             }
         else:
-            teacher_processor, _, teacher_model_type = load_processor_and_tokenizer_backend(
+            teacher_processor, _, teacher_model_type = load_processor_and_tokenizer(
                 teacher_id,
                 padding_side="right",
                 cache_dir=training_args.cache_dir,
@@ -121,7 +110,7 @@ def load_teachers_and_processors_for_layer_distillation(
                     device_map={"": training_args.device},
                 )
             else:
-                teacher_model = load_vision_language_model(
+                teacher_model = load_model(
                     model_id=teacher_id,
                     model_type=teacher_model_type or resolve_model_type(teacher_id),
                     cache_dir=training_args.cache_dir,
@@ -133,116 +122,45 @@ def load_teachers_and_processors_for_layer_distillation(
         if hasattr(teacher_model.config, "use_cache"):
             teacher_model.config.use_cache = False
         teacher_model._suppress_forward_stdout = "internvl" in teacher_id.lower()
-        teacher_model.eval()
-        for param in teacher_model.parameters():
-            param.requires_grad_(False)
         teacher_models.append(teacher_model)
         teacher_processors.append(teacher_processor)
 
+    teacher_models, _ = normalize_teacher_models(teacher_models, len(teacher_models))
     return teacher_models, teacher_processors
 
 
-def _uses_wandb(report_to) -> bool:
-    if report_to is None:
-        return False
-    if isinstance(report_to, str):
-        parts = [part.strip() for part in report_to.split(",") if part.strip()]
-        return "all" in parts or "wandb" in parts
-    return "all" in report_to or "wandb" in report_to
-
-
-def _init_primary_wandb_run(training_args) -> None:
-    if not _uses_wandb(training_args.report_to):
-        return
-
-    try:
-        import wandb
-    except Exception:
-        return
-
-    if wandb.run is not None:
-        return
-
-    init_kwargs = {
-        "project": os.getenv("WANDB_PROJECT", "huggingface"),
-        "settings": wandb.Settings(
-            mode="shared",
-            x_primary=True,
-            x_label="trainer",
-        ),
-    }
-    wandb_entity = os.getenv("WANDB_ENTITY")
-    wandb_run_id = os.getenv("WANDB_RUN_ID")
-    wandb_resume = os.getenv("WANDB_RESUME")
-    if wandb_entity:
-        init_kwargs["entity"] = wandb_entity
-    if wandb_run_id:
-        init_kwargs["id"] = wandb_run_id
-    if wandb_resume:
-        init_kwargs["resume"] = wandb_resume
-    if training_args.run_name is not None:
-        init_kwargs["name"] = training_args.run_name
-    wandb.init(**init_kwargs)
-
 def train_distillation():
     """
-    Main training function for VLM distillation.
-
-    This script supports CE + KD distillation from one or more frozen teachers.
+    Parse args, load models/data, and run one distillation training job.
     """
-    global local_rank
-
     parser = HfArgumentParser(
         (DataArguments, TrainingArguments, DistillationArguments)
     )
 
     data_args, training_args, distillation_args = parser.parse_args_into_dataclasses()
 
-    local_rank = training_args.local_rank
-    set_local_rank(local_rank)
-    compute_dtype = get_compute_dtype(training_args)
-    teacher_ids = parse_model_id_list(
-        distillation_args.teacher_model_ids,
-        arg_name="--teacher_model_ids",
+    compute_dtype = (
+        torch.float16 if training_args.fp16
+        else torch.bfloat16 if training_args.bf16
+        else torch.float32
     )
-    student_layer_indices = parse_list_argument(
-        distillation_args.student_layer_indices,
-        arg_name="--student_layer_indices",
-        element_type=int,
-    )
-    teacher_layer_indices = parse_list_argument(
-        distillation_args.teacher_layer_indices,
-        arg_name="--teacher_layer_indices",
-        element_type=int,
-    )
+    teacher_ids = list(distillation_args.teacher_model_ids)
+    student_layer_indices = list(distillation_args.student_layer_indices)
+    teacher_layer_indices = list(distillation_args.teacher_layer_indices)
     validate_distillation_args(distillation_args)
-    layer_distillation_enabled = (
+    if (
         distillation_args.layer_distill_source in {"vision", "model"}
         and distillation_args.layer_distill_weight > 0.0
-        and (bool(student_layer_indices) or bool(distillation_args.layer_match_json_path))
-    )
-    if layer_distillation_enabled:
-        if not student_layer_indices and not distillation_args.layer_match_json_path:
-            raise ValueError(
-                "--student_layer_indices must be provided when layer distillation is enabled."
-            )
-        if not teacher_layer_indices and not distillation_args.layer_match_json_path:
-            raise ValueError(
-                "--teacher_layer_indices must be provided when layer distillation is enabled."
-            )
-        if (
-            student_layer_indices
-            and teacher_layer_indices
-            and len(student_layer_indices) != len(teacher_layer_indices)
-        ):
-            raise ValueError(
-                "--student_layer_indices and --teacher_layer_indices must have the same length."
-            )
+        and (student_layer_indices or distillation_args.layer_match_json_path)
+    ):
+        # Layer distillation is only "on" when the user asked for a real hidden-state
+        # target, gave it non-zero weight, and provided some student-side layer spec.
+        layer_distillation_enabled = True
+    else:
+        layer_distillation_enabled = False
     gradient_checkpointing_kwargs = dict(training_args.gradient_checkpointing_kwargs or {})
     if "use_reentrant" not in gradient_checkpointing_kwargs:
         gradient_checkpointing_kwargs["use_reentrant"] = True
-
-    normalize_lora_namespan_exclude(training_args)
 
     log_distillation_setup(
         teacher_ids=teacher_ids,
@@ -254,45 +172,36 @@ def train_distillation():
         gradient_checkpointing_kwargs=gradient_checkpointing_kwargs,
     )
 
-    processor, student_model, _ = load_training_model_bundle(
-        model_id=distillation_args.student_model_id,
-        training_args=training_args,
-        compute_dtype=compute_dtype,
-        include_load_flags=True,
+    processor, _, student_model_type = load_processor_and_tokenizer(
+        distillation_args.student_model_id,
+        padding_side="right",
+        cache_dir=training_args.cache_dir,
     )
-
-    rank0_print("Loading student model...")
-    configure_training_model(
-        model=student_model,
-        processor=processor,
-        training_args=training_args,
-        compute_dtype=compute_dtype,
-    )
-
-    student_model = prepare_model_for_low_bit_training(
-        model=student_model,
-        training_args=training_args,
-        gradient_checkpointing_kwargs=gradient_checkpointing_kwargs,
-    )
-    student_model = maybe_apply_lora(
-        model=student_model,
-        training_args=training_args,
-    )
-    finalize_quantized_trainable_modules(
-        model=student_model,
-        training_args=training_args,
-    )
-
-    if (
-        distillation_args.teacher_logits_cache_dir is None
-        and distillation_args.teacher_logits_remote_uri is None
-    ):
+    if processor is None:
         raise ValueError(
-            "Teacher logits require either --teacher_logits_cache_dir (for example /cache "
-            "or a writable /tmp path) or --teacher_logits_remote_uri (remote raw cache root)."
+            "Training requires an AutoProcessor, but processor loading failed for "
+            f"{distillation_args.student_model_id!r}."
         )
+    student_model = load_model(
+        model_id=distillation_args.student_model_id,
+        model_type=student_model_type,
+        cache_dir=training_args.cache_dir,
+        attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "eager",
+        compute_dtype=compute_dtype,
+        trust_remote_code=True,
+        model_kwargs={"device_map": {"": training_args.device}},
+    )
+
+    print("Loading student model...")
+    configure_vision_tower(student_model, processor, compute_dtype, training_args.device)
+    student_model.config.use_cache = False
+
+    if training_args.gradient_checkpointing:
+        student_model.enable_input_require_grads()
+        training_args.gradient_checkpointing_kwargs = gradient_checkpointing_kwargs
+
     if layer_distillation_enabled:
-        rank0_print(
+        print(
             "\nLayer distillation enabled; loading live teacher models in addition to cached teacher logits."
         )
         teacher_models, teacher_processors = load_teachers_and_processors_for_layer_distillation(
@@ -301,23 +210,23 @@ def train_distillation():
             compute_dtype=compute_dtype,
         )
     else:
-        rank0_print("\nUsing cached teacher logits; skipping online teacher model loading.")
+        print("\nUsing cached teacher logits; skipping online teacher model loading.")
         teacher_models, teacher_processors = [], []
 
     student_loss_tokenizer = None
     teacher_loss_tokenizers = None
     if distillation_args.distillation_loss == "trie_wasserstein_loss":
-        rank0_print("Preparing trie-Wasserstein tokenizers...")
+        print("Preparing trie-Wasserstein tokenizers...")
         student_loss_tokenizer = getattr(processor, "tokenizer", None) or processor
         teacher_loss_tokenizers = [
-            load_processor_and_tokenizer_backend(
+            load_processor_and_tokenizer(
                 teacher_id,
                 cache_dir=training_args.cache_dir,
             )[1]
             for teacher_id in teacher_ids
         ]
 
-    rank0_print("\nPreparing datasets...")
+    print("\nPreparing datasets...")
     data_module = make_supervised_data_module(
         processor=processor,
         data_args=data_args,
@@ -326,14 +235,7 @@ def train_distillation():
         teacher_logits_cache_dir=distillation_args.teacher_logits_cache_dir,
         teacher_logits_remote_uri=distillation_args.teacher_logits_remote_uri,
     )
-    _init_primary_wandb_run(training_args)
-
-    rank0_print("\nInitializing distillation trainer...")
-    trainer_callbacks = build_trainer_callbacks(
-        training_args=training_args,
-        data_module=data_module,
-    )
-
+    print("\nInitializing distillation trainer...")
     trainer = DistillationTrainer(
         model=student_model,
         teacher_model=teacher_models or None,
@@ -348,7 +250,7 @@ def train_distillation():
         layer_match_topk=distillation_args.layer_match_topk,
         student_layer_indices=student_layer_indices,
         teacher_layer_indices=teacher_layer_indices,
-        temperature=distillation_args.temperature,
+        temperature=distillation_args.student_temperature,
         student_temperature=distillation_args.student_temperature,
         teacher_temperature=distillation_args.teacher_temperature,
         skip_student_eos=distillation_args.skip_student_eos,
@@ -377,13 +279,12 @@ def train_distillation():
         trie_wasserstein_topk=distillation_args.trie_wasserstein_topk,
         processing_class=processor,
         args=training_args,
-        callbacks=trainer_callbacks,
         **data_module,
     )
 
-    rank0_print("\n" + "=" * 80)
-    rank0_print("Starting distillation training...")
-    rank0_print("=" * 80 + "\n")
+    print("\n" + "=" * 80)
+    print("Starting distillation training...")
+    print("=" * 80 + "\n")
 
     if list(Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
@@ -392,40 +293,24 @@ def train_distillation():
 
     if trainer.state.best_model_checkpoint is not None:
         best_metric_name = training_args.metric_for_best_model or "train_ce_loss"
-        rank0_print(f"\nLoading best checkpoint based on {best_metric_name}...")
-        rank0_print(f"Best checkpoint: {trainer.state.best_model_checkpoint}")
-        rank0_print(f"Best {best_metric_name}: {trainer.state.best_metric:.6f}")
+        print(f"\nLoading best checkpoint based on {best_metric_name}...")
+        print(f"Best checkpoint: {trainer.state.best_model_checkpoint}")
+        print(f"Best {best_metric_name}: {trainer.state.best_metric:.6f}")
         trainer._load_best_model()
 
-    rank0_print("\nSaving trained model...")
+    print("\nSaving trained model...")
     trainer.save_state()
     student_model.config.use_cache = True
 
-    if training_args.lora_enable:
-        state_dict = get_peft_state_maybe_zero_3(
-            student_model.named_parameters(), training_args.lora_bias
-        )
-        non_lora_state_dict = get_peft_state_non_lora_maybe_zero_3(
-            student_model.named_parameters(), require_grad_only=True
-        )
-        if local_rank == 0 or local_rank == -1:
-            student_model.config.save_pretrained(training_args.output_dir)
-            student_model.save_pretrained(training_args.output_dir, state_dict=state_dict)
-            processor.save_pretrained(training_args.output_dir)
-            torch.save(
-                non_lora_state_dict,
-                os.path.join(training_args.output_dir, "non_lora_state_dict.bin"),
-            )
-    else:
-        safe_save_model_for_hf_trainer(
-            trainer=trainer,
-            output_dir=training_args.output_dir
-        )
+    safe_save_model_for_hf_trainer(
+        trainer=trainer,
+        output_dir=training_args.output_dir
+    )
 
-    rank0_print("\n" + "=" * 80)
-    rank0_print("Training completed successfully!")
-    rank0_print(f"Model saved to: {training_args.output_dir}")
-    rank0_print("=" * 80)
+    print("\n" + "=" * 80)
+    print("Training completed successfully!")
+    print(f"Model saved to: {training_args.output_dir}")
+    print("=" * 80)
 
 
 if __name__ == "__main__":

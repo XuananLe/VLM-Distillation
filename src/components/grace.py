@@ -19,6 +19,7 @@ def apply_grace_routing(
     torch.Tensor | None,
     torch.Tensor | None,
 ]:
+    """Blend router weights with GRACE agreement scores and return the effective routing state."""
     if (
         teacher_gate_weights is None
         or teacher_grace_scores is None
@@ -41,6 +42,7 @@ def apply_grace_routing(
             device=teacher_grace_scores.device,
             dtype=teacher_grace_scores.dtype,
         )
+        # Per-sample scores are noisy, so smooth them against the running teacher-level EMA.
         smoothed_grace_scores = (
             grace_ema_decay * prev_grace_score_ema.unsqueeze(0)
             + (1.0 - grace_ema_decay) * teacher_grace_scores
@@ -66,6 +68,8 @@ def apply_grace_routing(
     )
 
     router_weights = teacher_gate_weights.clamp(min=torch.finfo(teacher_gate_weights.dtype).eps)
+    # Blend in log-space / geometric space:
+    # w_blend ∝ w_router^lambda * w_grad^(1-lambda).
     blended_weights = (
         router_weights.pow(grace_router_blend_lambda)
         * gradient_weights.clamp(min=torch.finfo(gradient_weights.dtype).eps).pow(
@@ -83,6 +87,8 @@ def apply_grace_routing(
         masked_smoothed_scores.max(dim=-1).values
         - smoothed_grace_scores.masked_fill(~available_mask, float("inf")).min(dim=-1).values
     )
+    # If all active teachers look almost identical to GRACE, fall back to uniform
+    # over the already-routed set instead of overfitting to tiny score differences.
     use_uniform = score_spread < grace_epsilon
     effective_weights = torch.where(use_uniform.unsqueeze(-1), uniform_weights, blended_weights)
     fallback_rate = use_uniform.to(dtype=teacher_gate_weights.dtype).mean()

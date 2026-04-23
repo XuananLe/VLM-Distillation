@@ -23,7 +23,7 @@ TEACHER_MODEL_1="Qwen/Qwen2.5-VL-3B-Instruct"
 TEACHER_MODEL_2="Qwen/Qwen2-VL-2B-Instruct"
 TEACHER_MODEL_3="ibm-granite/granite-vision-3.1-2b-preview"
 TEACHER_MODEL_4="google/gemma-3-4b-it"
-TEACHER_MODEL_IDS="[\"${TEACHER_MODEL_1}\", \"${TEACHER_MODEL_2}\", \"${TEACHER_MODEL_3}\", \"${TEACHER_MODEL_4}\"]"
+TEACHER_MODEL_IDS=("${TEACHER_MODEL_1}" "${TEACHER_MODEL_2}" "${TEACHER_MODEL_3}" "${TEACHER_MODEL_4}")
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 
 # Distillation strategy
@@ -31,9 +31,8 @@ STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 TEACHER_WEIGHTING_STRATEGY="${TEACHER_WEIGHTING_STRATEGY:-routing}"
 
 DISTILLATION_LOSS="trie_wasserstein_loss"
-TEMPERATURE=1.0
-STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-$TEMPERATURE}"
-TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-$TEMPERATURE}"
+STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-1.0}"
+TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-1.0}"
 # Trie-loss sensitivity knobs
 TRIE_WASSERSTEIN_RHO="${TRIE_WASSERSTEIN_RHO:-0.7}"
 TRIE_WASSERSTEIN_TOPK="${TRIE_WASSERSTEIN_TOPK:-64}"
@@ -139,7 +138,7 @@ stop_vast_instance() {
 deepspeed src/train/train_distillation.py \
     --deepspeed scripts/deepspeed/zero2.json \
     --student_model_id "$STUDENT_MODEL" \
-    --teacher_model_ids "$TEACHER_MODEL_IDS" \
+    --teacher_model_ids "${TEACHER_MODEL_IDS[@]}" \
     --teacher_weighting_strategy "$TEACHER_WEIGHTING_STRATEGY" \
     --data_path data/${DATASET_NAME}/train_llava.json \
     --image_folder data/${DATASET_NAME}/images \
@@ -150,7 +149,6 @@ deepspeed src/train/train_distillation.py \
     --fp16 False \
     --disable_flash_attn2 False \
     --output_dir "$OUTPUT_DIR" \
-    --temperature "$TEMPERATURE" \
     --student_temperature "$STUDENT_TEMPERATURE" \
     --teacher_temperature "$TEACHER_TEMPERATURE" \
     --alpha "$ALPHA" \
@@ -181,9 +179,6 @@ deepspeed src/train/train_distillation.py \
     --connector_lr 1e-5 \
     --warmup_ratio 0.03 \
     --lr_scheduler_type cosine \
-    --freeze_vision_tower False \
-    --freeze_llm False \
-    --freeze_connector False \
     --tf32 True \
     --gradient_checkpointing True \
     --lazy_preprocess True \

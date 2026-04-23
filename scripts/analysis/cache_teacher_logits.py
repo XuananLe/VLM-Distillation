@@ -23,14 +23,9 @@ from src.trainer.distillation_utils import (
     select_labels_at_positions,
     select_supervised_logit_positions,
 )
-from src.train.distillation_runtime import (
-    ensure_flash_attention_available,
-    require_flash_attention_support,
-)
 from src.train.train_utils import (
-    load_processor_and_tokenizer_backend,
-    load_vision_language_model,
-    parse_model_id_list,
+    load_model,
+    load_processor_and_tokenizer,
 )
 
 
@@ -46,7 +41,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--teacher-model-ids",
         required=True,
-        help='JSON-style list, e.g. ["Qwen/Qwen2-VL-2B-Instruct","Qwen/Qwen2.5-VL-3B-Instruct"]',
+        nargs="+",
+        help="Teacher model IDs passed as repeated values.",
     )
     parser.add_argument("--data-path", required=True, help="Path to training LLaVA JSON.")
     parser.add_argument("--image-folder", required=True, help="Image root used by the dataset.")
@@ -100,7 +96,7 @@ def make_dataset_and_collator(
     teacher_ids: list[str],
     teacher_processors,
 ):
-    student_processor, _, _ = load_processor_and_tokenizer_backend(
+    student_processor, _, _ = load_processor_and_tokenizer(
         args.student_model_id,
         padding_side="right",
     )
@@ -131,11 +127,8 @@ def load_teachers_and_processors(teacher_ids: list[str], device: str):
     }
     torch_dtype = dtype_map["cuda"] if device.startswith("cuda") else dtype_map["cpu"]
     attn_impl = "flash_attention_2" if device.startswith("cuda") else "eager"
-    flash_attention_requested = device.startswith("cuda")
     teacher_models = []
     teacher_processors = []
-    if flash_attention_requested:
-        ensure_flash_attention_available()
     for teacher_id in teacher_ids:
         if "internvl" in teacher_id.lower():
             teacher_model = AutoModel.from_pretrained(
@@ -174,7 +167,7 @@ def load_teachers_and_processors(teacher_ids: list[str], device: str):
                 }
             )
         else:
-            teacher_processor, _, teacher_model_type = load_processor_and_tokenizer_backend(
+            teacher_processor, _, teacher_model_type = load_processor_and_tokenizer(
                 teacher_id,
                 padding_side="right",
             )
@@ -191,7 +184,7 @@ def load_teachers_and_processors(teacher_ids: list[str], device: str):
                     device_map={"": device},
                 )
             else:
-                teacher_model = load_vision_language_model(
+                teacher_model = load_model(
                     model_id=teacher_id,
                     model_type=teacher_model_type,
                     cache_dir=None,
@@ -205,8 +198,6 @@ def load_teachers_and_processors(teacher_ids: list[str], device: str):
             teacher_processors.append(teacher_processor)
         if hasattr(teacher_model.config, "use_cache"):
             teacher_model.config.use_cache = False
-        if flash_attention_requested:
-            require_flash_attention_support(teacher_model, teacher_id)
         teacher_model._suppress_forward_stdout = "internvl" in teacher_id.lower()
         teacher_model.eval()
         for param in teacher_model.parameters():
@@ -259,7 +250,7 @@ def main() -> None:
     output_root.mkdir(parents=True, exist_ok=True)
     storage_dtype = prepare_storage_dtype(args.dtype)
 
-    teacher_ids = parse_model_id_list(args.teacher_model_ids, arg_name="--teacher-model-ids")
+    teacher_ids = list(args.teacher_model_ids)
     teacher_models, teacher_processors = load_teachers_and_processors(teacher_ids, device=device)
     teacher_ids, dataset, data_collator = make_dataset_and_collator(
         args,

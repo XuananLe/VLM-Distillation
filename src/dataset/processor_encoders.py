@@ -21,6 +21,7 @@ QWEN3_VL_PROCESSOR = getattr(transformers, "Qwen3VLProcessor", None)
 
 
 def is_internvl_teacher_model_id(model_id: str | None) -> bool:
+    """Return whether a teacher model id should use the InternVL encoding path."""
     return isinstance(model_id, str) and "internvl" in model_id.lower()
 
 
@@ -29,6 +30,7 @@ def smolvlm_encode_conversation(
     images,
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
+    """Encode one conversation with the SmolVLM/Idefics-style chat template and image packing."""
     all_input_ids = [torch.tensor([1])]
     all_labels = [torch.tensor([-100])]
 
@@ -98,6 +100,7 @@ def qwen_encode_conversation(
     images,
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
+    """Encode one conversation with the Qwen-VL chat template and image-grid fields."""
     all_input_ids = []
     all_labels = []
 
@@ -178,6 +181,7 @@ def gemma3_encode_conversation(
     images,
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
+    """Encode one conversation with Gemma 3 by masking prompt tokens out of the full chat encoding."""
     all_input_ids = []
     all_labels = []
 
@@ -264,6 +268,7 @@ def llava_next_encode_conversation(
     images,
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
+    """Encode one conversation with the LLaVA-NeXT processor and retain image-size metadata."""
     all_input_ids = []
     all_labels = []
     pixel_values = None
@@ -352,7 +357,10 @@ def internvl3_encode_conversation(
     images,
     teacher_processor: dict,
 ) -> Dict[str, torch.Tensor]:
+    """Encode one conversation for InternVL by expanding image placeholders into context tokens."""
     tokenizer = teacher_processor["tokenizer"]
+    # InternVL expands each image into a fixed run of context placeholders before
+    # the image features are inserted, and 256 is the common fallback width.
     num_image_token = teacher_processor.get("num_image_token", 256)
     img_start_token = teacher_processor.get("img_start_token", "<img>")
     img_end_token = teacher_processor.get("img_end_token", "</img>")

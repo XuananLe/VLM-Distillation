@@ -14,29 +14,166 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import numpy as np
 import torch
+from torch.utils.data import DataLoader, Dataset
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.components.cka import compute_skc_from_matrices
+from src.components.cka import compute_cka_from_matrices
 from src.components.forward_utils import (
     forward_with_kwarg_retry,
     infer_batch_size,
-    prepare_forward_inputs,
     unwrap_tensor,
 )
 from src.components.vision_forward import pool_vision_features
-from src.dataset.vqa_loading import extract_image_as_pil, pick_first_text
-from src.skc.data.loading import load_probe_dataset
-from src.skc.data.probe import build_loader
-from src.skc.runtime.execution import cleanup_inference_objects, select_dtype
-from src.skc.vlm.api import load_vlm
-from src.skc.vlm.processors import load_vlm_processor
+from src.dataset.vqa_loading import (
+    canonical_dataset_name,
+    extract_image_as_pil,
+    infer_schema,
+    load_dataset_split,
+    load_hf_dataset,
+    pick_first_text,
+)
+from src.train.train_utils import (
+    load_model,
+    load_processor_and_tokenizer,
+    resolve_model_type,
+)
 from src.utils import find_vision_layer_indices, get_specific_layer
 
 DEFAULT_MODEL_A = "Qwen/Qwen2-VL-2B-Instruct"
 DEFAULT_MODEL_B = "HuggingFaceTB/SmolVLM-256M-Instruct"
+
+
+def select_dtype() -> torch.dtype:
+    if torch.cuda.is_available():
+        return torch.bfloat16 if torch.cuda.is_bf16_supported() else torch.float16
+    return torch.float32
+
+
+def cleanup_inference_objects(*, model=None, processor=None, loader=None) -> None:
+    del model, processor, loader
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+
+
+def load_probe_dataset(dataset_name: str, split: str, config: str | None):
+    if config is not None or "/" in dataset_name:
+        dataset = load_hf_dataset(dataset_name, config, split)
+        loaded_from = dataset_name
+    else:
+        canonical = canonical_dataset_name(dataset_name)
+        dataset, loaded_from = load_dataset_split(canonical, split, log_fallback=True)
+    schema = infer_schema(dataset, require_answer_field=False)
+    return dataset, schema, loaded_from
+
+
+def load_vlm(model_name: str, dtype: torch.dtype):
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    processor, _, model_type = load_processor_and_tokenizer(
+        model_name,
+        padding_side="right",
+    )
+    if processor is None:
+        raise ValueError(
+            f"Could not load an AutoProcessor for multimodal model {model_name!r}."
+        )
+    model = load_model(
+        model_id=model_name,
+        model_type=model_type or resolve_model_type(model_name),
+        cache_dir=None,
+        attn_implementation="flash_attention_2" if device == "cuda" else "eager",
+        compute_dtype=dtype,
+        trust_remote_code=True,
+        model_kwargs={
+            "device_map": {"": device},
+            "low_cpu_mem_usage": True,
+        },
+    )
+    if hasattr(model.config, "use_cache"):
+        model.config.use_cache = False
+    model.eval()
+    return model, processor, (model_type or "unknown")
+
+
+class ProbeDataset(Dataset):
+    def __init__(self, samples):
+        self.samples = samples
+
+    def __len__(self):
+        return len(self.samples)
+
+    def __getitem__(self, index):
+        return self.samples[index]
+
+
+def build_loader(processor, probe_samples, family, model=None, batch_size: int = 1):
+    del family, model
+    tokenizer = getattr(processor, "tokenizer", None)
+    if tokenizer is None:
+        raise ValueError("This plotting script requires a processor with a tokenizer.")
+
+    def collate_fn(batch):
+        images = [sample["image"] for sample in batch]
+        texts = []
+        answer_lengths = []
+        for sample in batch:
+            answer = sample.get("answer")
+            if answer:
+                texts.append(f"{sample['question']}\n{answer}")
+                answer_lengths.append(len(tokenizer.encode(answer, add_special_tokens=False)))
+            else:
+                texts.append(sample["question"])
+                answer_lengths.append(0)
+
+        model_inputs = processor(
+            images=images,
+            text=texts,
+            return_tensors="pt",
+            padding=True,
+        )
+
+        if any(answer_lengths):
+            input_ids = model_inputs.get("input_ids")
+            attention_mask = model_inputs.get("attention_mask")
+            if input_ids is not None:
+                answer_token_mask = torch.zeros_like(input_ids, dtype=torch.bool)
+                for row_index, answer_length in enumerate(answer_lengths):
+                    if answer_length <= 0:
+                        continue
+                    valid_length = (
+                        int(attention_mask[row_index].sum().item())
+                        if attention_mask is not None
+                        else int(input_ids.shape[1])
+                    )
+                    start = max(valid_length - answer_length, 0)
+                    answer_token_mask[row_index, start:valid_length] = True
+                model_inputs["answer_token_mask"] = answer_token_mask
+        return dict(model_inputs)
+
+    return DataLoader(
+        ProbeDataset(probe_samples),
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=collate_fn,
+    )
+
+
+def prepare_forward_inputs(model, batch):
+    parameter = next(model.parameters())
+    model_device = parameter.device
+    model_dtype = parameter.dtype
+    inputs = {}
+    for key, value in batch.items():
+        if not isinstance(value, torch.Tensor):
+            inputs[key] = value
+            continue
+        tensor = value.to(model_device)
+        if torch.is_floating_point(tensor):
+            tensor = tensor.to(model_dtype)
+        inputs[key] = tensor
+    return inputs
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -175,7 +312,7 @@ def pick_probe_samples(
 
         try:
             image = extract_image_as_pil(row.get(schema["image_field"]))
-        except Exception:
+        except (OSError, TypeError, ValueError):
             continue
 
         dataset_question_id = row.get(id_field) if id_field else None
@@ -532,8 +669,7 @@ def extract_model_layers(
 ):
     model = processor = loader = None
     try:
-        model, family = load_vlm(model_name, dtype)
-        processor = load_vlm_processor(model_name, family, model)
+        model, processor, family = load_vlm(model_name, dtype)
         loader = build_loader(processor, probe_samples, family, model=model)
         metadata = {
             "model_name": model_name,
@@ -600,7 +736,7 @@ def build_cka_matrix(records_a, records_b):
     matrix = np.zeros((len(records_a), len(records_b)), dtype=np.float32)
     for row_index, record_a in enumerate(records_a):
         for col_index, record_b in enumerate(records_b):
-            cka, *_ = compute_skc_from_matrices(
+            cka = compute_cka_from_matrices(
                 record_a["representations"],
                 record_b["representations"],
             )

@@ -6,12 +6,16 @@ from typing import Dict, Optional
 from src.constants import IGNORE_INDEX
 from .data_utils import pad_sequence
 
+# These placeholder image shapes mirror the dummy tensors created in the dataset.
+# The non-obvious 13x384x384 layout is the current SmolVLM image packing format.
 _DUMMY_PIXEL_VALUES = (1, 13, 3, 384, 384)
 _DUMMY_PIXEL_MASK = (1, 13, 384, 384)
 
 
 def _pad_frames(tensors, pad_value=0):
     """Pad a list of (1, T, ...) tensors to (B, T_max, ...) along the frame dim."""
+    # Per-example encoders keep a leading singleton batch dim, so collation only
+    # pads the time/frame axis and strips that singleton when writing into `out`.
     T_max = max(t.size(1) for t in tensors)
     out = torch.full(
         (len(tensors), T_max) + tensors[0].shape[2:],
@@ -24,16 +28,6 @@ def _pad_frames(tensors, pad_value=0):
     return out
 
 
-def pad_pixel_values(pixel_values_list, pad_value=0.0):
-    """Pad pixel values along the frame dimension."""
-    return _pad_frames(pixel_values_list, pad_value)
-
-
-def pad_pixel_attention_masks(mask_list, pad_value=0):
-    """Pad pixel attention masks along the frame dimension."""
-    return _pad_frames(mask_list, pad_value)
-
-
 class DataCollatorForSupervisedDataset(object):
     """Collate examples for supervised fine-tuning."""
 
@@ -43,6 +37,7 @@ class DataCollatorForSupervisedDataset(object):
         teacher_pad_token_id: Optional[int] = None,
         teacher_pad_token_ids: Optional[list[Optional[int]]] = None,
     ):
+        """Store student and optional teacher pad ids used during batch collation."""
         self.pad_token_id         = pad_token_id
         self.teacher_pad_token_id = teacher_pad_token_id
         self.teacher_pad_token_ids = teacher_pad_token_ids or []
@@ -98,14 +93,14 @@ class DataCollatorForSupervisedDataset(object):
 
         teacher_pixel_values = [e[pixel_key] for e in examples]
         if teacher_pixel_values[0].dim() == 5:
-            batch_dict[pixel_key] = pad_pixel_values(teacher_pixel_values, pad_value=0.0)
+            batch_dict[pixel_key] = _pad_frames(teacher_pixel_values, pad_value=0.0)
         else:
             batch_dict[pixel_key] = torch.cat(teacher_pixel_values, dim=0)
 
         pixel_attention_key = f"{prefix}_pixel_attention_mask"
         teacher_pixel_attention_masks = [e.get(pixel_attention_key) for e in examples]
         if teacher_pixel_attention_masks[0] is not None:
-            batch_dict[pixel_attention_key] = pad_pixel_attention_masks(
+            batch_dict[pixel_attention_key] = _pad_frames(
                 teacher_pixel_attention_masks,
                 pad_value=0,
             )
@@ -156,8 +151,8 @@ class DataCollatorForSupervisedDataset(object):
         )
         attention_mask = input_ids != self.pad_token_id
         labels         = pad_sequence(batch_label_ids, padding_side='right', padding_value=IGNORE_INDEX)
-        pixel_values   = pad_pixel_values(batch_pixel_values, pad_value=0.0)
-        pixel_attention_mask = pad_pixel_attention_masks(batch_pixel_attention_mask, pad_value=0)
+        pixel_values = _pad_frames(batch_pixel_values, pad_value=0.0)
+        pixel_attention_mask = _pad_frames(batch_pixel_attention_mask, pad_value=0)
 
         batch_dict = dict(
             input_ids=input_ids,

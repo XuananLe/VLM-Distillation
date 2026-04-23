@@ -5,6 +5,7 @@ import numpy as np
 
 
 def load_cka_json(json_path: str):
+    """Load one CKA JSON payload and normalize its matrix and layer metadata."""
     json_path = Path(json_path)
 
     with open(json_path, "r") as file_handle:
@@ -32,6 +33,7 @@ def resolve_student_teacher_similarity(
     student_key: str = "model_b",
     teacher_key: str = "model_a",
 ):
+    """Orient a stored CKA matrix so rows are student layers and columns are teacher layers."""
     cka = payload["cka_matrix"]
     row_key = "model_a"
     col_key = "model_b"
@@ -48,6 +50,7 @@ def resolve_student_teacher_similarity(
         }
 
     if student_key == col_key and teacher_key == row_key:
+        # Stored CKA matrix is model_a x model_b; transpose when student/teacher are swapped.
         return {
             "sim": cka.T,
             "student_name": payload["model_b_name"],
@@ -70,6 +73,7 @@ def topk_soft_match_student_teacher(
     teacher_key: str = "model_a",
     topk: int = 3,
 ):
+    """Keep the top-k teacher layers per student layer and normalize them into soft weights."""
     payload = load_cka_json(json_path)
     resolved = resolve_student_teacher_similarity(
         payload,
@@ -92,6 +96,8 @@ def topk_soft_match_student_teacher(
     k = min(topk, sim.shape[1])
 
     for student_pos, row in enumerate(sim):
+        # Each student layer keeps the top-k teacher layers and normalizes their
+        # CKA scores into a soft mixture over teachers.
         teacher_positions = np.argsort(row)[-k:][::-1]
         teacher_scores = np.asarray(row[teacher_positions], dtype=np.float64)
         teacher_weights = teacher_scores / np.clip(teacher_scores.sum(), a_min=1e-12, a_max=None)

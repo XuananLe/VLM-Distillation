@@ -6,6 +6,7 @@ import ujson as json
 
 
 class TeacherLogitsCache:
+    """Resolve and load precomputed teacher logits from a local cache layout."""
     def __init__(
         self,
         *,
@@ -13,6 +14,7 @@ class TeacherLogitsCache:
         teacher_model_ids: Optional[list[str]],
         expected_num_samples: int,
     ):
+        """Validate the cache layout and bind the per-teacher cache roots used at runtime."""
         self.cache_dir = cache_dir
         shared_metadata = self._load_metadata(cache_dir)
         if shared_metadata is not None:
@@ -30,9 +32,11 @@ class TeacherLogitsCache:
 
     @property
     def teacher_count(self) -> int:
+        """Return the number of teachers represented by the cache."""
         return len(self.teacher_slugs)
 
     def load_sample(self, teacher_index: int, dataset_index: int) -> dict[str, torch.Tensor]:
+        """Load one teacher cache file for a given teacher index and dataset index."""
         teacher_dir = os.path.join(
             self.teacher_cache_roots[teacher_index],
             self.teacher_slugs[teacher_index],
@@ -49,6 +53,7 @@ class TeacherLogitsCache:
 
     @staticmethod
     def _load_metadata(cache_root: str) -> Optional[dict]:
+        """Load one metadata.json file when it exists."""
         metadata_path = os.path.join(cache_root, "metadata.json")
         if not os.path.exists(metadata_path):
             return None
@@ -62,6 +67,7 @@ class TeacherLogitsCache:
         expected_num_samples: int,
         cache_root: str,
     ) -> None:
+        """Ensure the cache sample count matches the dataset currently being trained on."""
         cached_num_samples = metadata.get("num_samples")
         if cached_num_samples is not None and int(cached_num_samples) != expected_num_samples:
             raise ValueError(
@@ -77,6 +83,7 @@ class TeacherLogitsCache:
         teacher_model_ids: Optional[list[str]],
         expected_num_samples: int,
     ) -> None:
+        """Initialize cache state when all teachers live under one shared metadata root."""
         cached_teacher_ids = list(metadata.get("teacher_model_ids") or [])
         if teacher_model_ids and cached_teacher_ids and list(teacher_model_ids) != cached_teacher_ids:
             raise ValueError(
@@ -104,6 +111,7 @@ class TeacherLogitsCache:
         teacher_model_ids: Optional[list[str]],
         expected_num_samples: int,
     ) -> None:
+        """Resolve per-teacher child cache roots when the top-level cache has no shared metadata."""
         if not teacher_model_ids:
             raise FileNotFoundError(
                 "Teacher-logits cache metadata not found at the cache root and no "

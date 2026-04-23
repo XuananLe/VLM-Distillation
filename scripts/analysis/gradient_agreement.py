@@ -32,8 +32,8 @@ from src.dataset.vqa_loading import (
 )
 from src.params import DataArguments
 from src.train.train_utils import (
-    load_processor_and_tokenizer_backend,
-    load_vision_language_model,
+    load_model,
+    load_processor_and_tokenizer,
 )
 
 
@@ -207,7 +207,7 @@ def load_model_and_processor(
     attn_implementation: str,
     cache_dir: str | None,
 ):
-    processor, _, model_type = load_processor_and_tokenizer_backend(
+    processor, _, model_type = load_processor_and_tokenizer(
         model_id,
         cache_dir=cache_dir,
         padding_side="right",
@@ -216,7 +216,7 @@ def load_model_and_processor(
         raise ValueError(
             f"Could not load an AutoProcessor for multimodal model {model_id!r}."
         )
-    model = load_vision_language_model(
+    model = load_model(
         model_id=model_id,
         model_type=model_type,
         cache_dir=cache_dir,

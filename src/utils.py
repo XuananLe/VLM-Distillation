@@ -1,12 +1,9 @@
-from peft import PeftModel
 import torch
-from transformers import AutoConfig, BitsAndBytesConfig
-import warnings
-import os
+from transformers import BitsAndBytesConfig
 
 from src.train.model_setup import (
-    load_processor_and_tokenizer_backend,
-    load_vision_language_model,
+    load_model,
+    load_processor_and_tokenizer,
     resolve_model_type,
 )
 
@@ -32,8 +29,16 @@ def create_quantization_config(load_4bit=True, compute_dtype=torch.float16,
     )
 
 # This code is borrowed from LLaVA
-def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, load_4bit=False, 
-                          device_map="auto", device="cuda", use_flash_attn=False, **kwargs):
+def load_pretrained_model(
+    model_path,
+    load_8bit=False,
+    load_4bit=False,
+    device_map="auto",
+    device="cuda",
+    use_flash_attn=False,
+    **kwargs,
+):
+    """Load a multimodal model plus processor for inference-style utilities."""
     kwargs = dict(kwargs)
     kwargs["device_map"] = device_map
     
@@ -49,74 +54,33 @@ def load_pretrained_model(model_path, model_base, model_name, load_8bit=False, l
 
     attn_implementation = 'flash_attention_2' if use_flash_attn else 'eager'
     cache_dir = kwargs.pop("cache_dir", None)
-    processor_source = model_base or model_path
-    processor, _, _ = load_processor_and_tokenizer_backend(
-        processor_source,
+    processor, _, _ = load_processor_and_tokenizer(
+        model_path,
         cache_dir=cache_dir,
     )
     if processor is None:
         raise ValueError(
-            f"Could not load an AutoProcessor for multimodal model {processor_source!r}."
+            f"Could not load an AutoProcessor for multimodal model {model_path!r}."
         )
 
-    if 'lora' in model_name.lower() and model_base is None:
-        warnings.warn('There is `lora` in model name but no `model_base` is provided. If you are loading a LoRA model, please provide the `model_base` argument.')
-    if 'lora' in model_name.lower() and model_base is not None:
-        lora_cfg_pretrained = AutoConfig.from_pretrained(model_path)
-        if hasattr(lora_cfg_pretrained, 'quantization_config'):
-            del lora_cfg_pretrained.quantization_config
-        print('Loading base vision-language model...')
-        model = load_vision_language_model(
-            model_id=model_base,
-            model_type=resolve_model_type(model_base),
-            cache_dir=cache_dir,
-            attn_implementation=attn_implementation,
-            compute_dtype=kwargs.get("torch_dtype", torch.float16),
-            trust_remote_code=True,
-            model_kwargs={
-                **kwargs,
-                "low_cpu_mem_usage": True,
-                "config": lora_cfg_pretrained,
-            },
-        )
-        token_num, tokem_dim = model.lm_head.out_features, model.lm_head.in_features
-        if model.lm_head.weight.shape[0] != token_num:
-            model.lm_head.weight = torch.nn.Parameter(torch.empty(token_num, tokem_dim, device=model.device, dtype=model.dtype))
-            model.model.embed_tokens.weight = torch.nn.Parameter(torch.empty(token_num, tokem_dim, device=model.device, dtype=model.dtype))
-
-        print('Loading additional non-LoRA weights...')
-        non_lora_trainables = torch.load(os.path.join(model_path, 'non_lora_state_dict.bin'), map_location='cpu')
-        non_lora_trainables = {(k[11:] if k.startswith('base_model.') else k): v for k, v in non_lora_trainables.items()}
-        if any(k.startswith('model.model.') for k in non_lora_trainables):
-            non_lora_trainables = {(k[6:] if k.startswith('model.') else k): v for k, v in non_lora_trainables.items()}
-        model.load_state_dict(non_lora_trainables, strict=False)
-    
-        print('Loading LoRA weights...')
-        model = PeftModel.from_pretrained(model, model_path)
-
-        print('Merging LoRA weights...')
-        model = model.merge_and_unload()
-
-        print('Model Loaded!!!')
-
-    else:
-        model = load_vision_language_model(
-            model_id=model_path,
-            model_type=resolve_model_type(model_path),
-            cache_dir=cache_dir,
-            attn_implementation=attn_implementation,
-            compute_dtype=kwargs.get("torch_dtype", torch.float16),
-            trust_remote_code=True,
-            model_kwargs={
-                **kwargs,
-                "low_cpu_mem_usage": True,
-            },
-        )
+    model = load_model(
+        model_id=model_path,
+        model_type=resolve_model_type(model_path),
+        cache_dir=cache_dir,
+        attn_implementation=attn_implementation,
+        compute_dtype=kwargs.get("torch_dtype", torch.float16),
+        trust_remote_code=True,
+        model_kwargs={
+            **kwargs,
+            "low_cpu_mem_usage": True,
+        },
+    )
 
     return processor, model
 
 
 def get_model_name_from_path(model_path):
+    """Return a readable model/checkpoint name from a local path."""
     model_path = model_path.strip("/")
     model_paths = model_path.split("/")
     if model_paths[-1].startswith('checkpoint-'):
@@ -126,6 +90,7 @@ def get_model_name_from_path(model_path):
 
 
 def resolve_module_path(module, path):
+    """Resolve a dotted attribute/index path against a nested module tree."""
     current = module
     if not path:
         return current
@@ -139,6 +104,7 @@ def resolve_module_path(module, path):
 
 
 def detect_architecture(model):
+    """Infer the broad VLM architecture family from the model class name."""
     model_name = model.__class__.__name__.lower()
 
     if "llava" in model_name:
@@ -153,6 +119,7 @@ def detect_architecture(model):
 
 
 def find_nested_vision_encoder(model):
+    """Search named modules for the deepest vision-like encoder that exposes transformer layers."""
     best_match = (None, None, 0)
     for name, module in model.named_modules():
         lowered_name = name.lower()
@@ -167,6 +134,7 @@ def find_nested_vision_encoder(model):
 
 
 def extract_clip_style_layers(vision_encoder):
+    """Extract ordered transformer layers from CLIP-style vision encoders."""
     layers = []
 
     if hasattr(vision_encoder, "vision_model"):
@@ -187,6 +155,7 @@ def extract_clip_style_layers(vision_encoder):
 
 
 def extract_qwenvl_layers(vision_encoder):
+    """Extract ordered transformer layers from Qwen-VL style vision encoders."""
     layers = []
 
     if hasattr(vision_encoder, "transformer"):
@@ -205,6 +174,7 @@ def extract_qwenvl_layers(vision_encoder):
 
 
 def extract_internvl_layers(vision_encoder):
+    """Extract ordered transformer layers from InternVL-style vision encoders."""
     layers = []
 
     if hasattr(vision_encoder, "blocks"):
@@ -226,6 +196,7 @@ def extract_internvl_layers(vision_encoder):
 
 
 def extract_generic_layers(vision_encoder):
+    """Extract ordered layers from generic iterable vision backbones."""
     layers = []
     layer_containers = ["layers", "blocks", "encoder", "transformer"]
 
@@ -247,6 +218,7 @@ def extract_generic_layers(vision_encoder):
 
 
 def extract_layers_by_architecture(vision_encoder, architecture_type):
+    """Dispatch to the architecture-specific vision-layer extractor with fallbacks."""
     if architecture_type in ["llava", "clip", "siglip"]:
         layers = extract_clip_style_layers(vision_encoder)
     elif architecture_type == "qwen-vl":
@@ -267,6 +239,7 @@ def extract_layers_by_architecture(vision_encoder, architecture_type):
 
 
 def find_vision_layer_indices(model, architecture_type="auto"):
+    """Locate the vision encoder on a model and return its ordered layer metadata."""
     vision_layers = {
         "layer_names": [],
         "layer_indices": [],
@@ -330,6 +303,7 @@ def find_vision_layer_indices(model, architecture_type="auto"):
 
 
 def get_specific_layer(model, layer_index):
+    """Return one resolved vision layer module and its name by index."""
     vision_info = find_vision_layer_indices(model)
     architecture_type = detect_architecture(model)
 

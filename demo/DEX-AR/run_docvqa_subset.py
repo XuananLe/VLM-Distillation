@@ -419,7 +419,7 @@ def main() -> None:
                     if torch.cuda.is_available():
                         torch.cuda.empty_cache()
                     break
-                except Exception as sample_exc:  # noqa: PERF203
+                except (OSError, RuntimeError, TypeError, ValueError) as sample_exc:  # noqa: PERF203
                     last_error = sample_exc
                     print(f"  retry after {image_prep} failed: {sample_exc}")
                     if torch.cuda.is_available():
@@ -427,7 +427,7 @@ def main() -> None:
             else:
                 assert last_error is not None
                 raise last_error
-        except Exception as exc:  # noqa: PERF203
+        except (OSError, RuntimeError, TypeError, ValueError) as exc:  # noqa: PERF203
             failure = {
                 "row_index": row_index,
                 "sample_id": str(sample_id),

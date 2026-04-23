@@ -1,9 +1,8 @@
-import gc
 import contextlib
 from types import SimpleNamespace
 
 import torch
-from einops import rearrange
+from einops import rearrange, reduce
 
 from src.components.forward_utils import (
     forward_with_kwarg_retry,
@@ -22,40 +21,8 @@ REQUIRED_TEACHER_INPUTS = ("input_ids", "attention_mask", "pixel_values")
 OPTIONAL_TEACHER_INPUTS = ("pixel_attention_mask", "image_grid_thw", "image_flags", "image_sizes")
 
 
-def release_eval_memory() -> None:
-    gc.collect()
-    if torch.cuda.is_available():
-        torch.cuda.empty_cache()
-        if hasattr(torch.cuda, "ipc_collect"):
-            torch.cuda.ipc_collect()
-
-
-def _infer_model_device_and_dtype(teacher_model):
-    try:
-        param = next(teacher_model.parameters())
-    except StopIteration:
-        return getattr(teacher_model, "device", None), None
-    dtype = param.dtype if param.is_floating_point() else None
-    return param.device, dtype
-
-
-def prepare_teacher_model_inputs(teacher_model, teacher_inputs):
-    model_device, model_dtype = _infer_model_device_and_dtype(teacher_model)
-    prepared_inputs = {}
-    for key, value in teacher_inputs.items():
-        if not torch.is_tensor(value):
-            prepared_inputs[key] = value
-            continue
-
-        target_dtype = model_dtype if model_dtype is not None and value.is_floating_point() else value.dtype
-        if model_device is None:
-            prepared_inputs[key] = value.to(dtype=target_dtype)
-        else:
-            prepared_inputs[key] = value.to(device=model_device, dtype=target_dtype)
-    return prepared_inputs
-
-
 def get_base_model(model):
+    """Unwrap common trainer/model wrappers and return the underlying base model."""
     current = model
     while hasattr(current, "module"):
         current = current.module
@@ -68,6 +35,7 @@ def get_base_model(model):
 
 
 def resolve_layer_indices(total_layers: int, layer_indices: list[int], label: str) -> list[int]:
+    """Resolve possibly negative layer indices and validate them against a layer count."""
     resolved = []
     for layer_index in layer_indices:
         normalized = total_layers + layer_index if layer_index < 0 else layer_index
@@ -86,6 +54,7 @@ def prepare_vision_layer_distillation(
     student_layer_indices: list[int],
     teacher_layer_indices: list[int],
 ) -> tuple[list[int], list[list[tuple[int, int]]]]:
+    """Resolve student/teacher vision-layer pairs for direct vision-layer distillation."""
     student_vision_info = find_vision_layer_indices(get_base_model(student_model))
     resolved_student_layer_indices = resolve_layer_indices(
         student_vision_info["total_layers"],
@@ -108,6 +77,7 @@ def prepare_vision_layer_distillation(
 
 @contextlib.contextmanager
 def capture_layer_outputs(model, layer_indices: list[int]):
+    """Temporarily register forward hooks and capture raw outputs for selected layers."""
     raw_outputs = {}
     layer_model = get_base_model(model)
 
@@ -116,7 +86,9 @@ def capture_layer_outputs(model, layer_indices: list[int]):
             layer, _ = get_specific_layer(layer_model, layer_index)
 
             def make_hook(index: int):
+                """Build one hook closure that stores a selected layer output by index."""
                 def hook(module, hook_inputs, output):
+                    """Store one hooked layer output after unwrapping nested tensors."""
                     del module, hook_inputs
                     raw_outputs[index] = unwrap_tensor(output)
                 return hook
@@ -132,6 +104,7 @@ def pool_vision_representations(
     batch_size: int,
     model_inputs,
 ) -> dict[int, torch.Tensor]:
+    """Pool captured vision-layer outputs into one vector per sample and layer."""
     group_counts = infer_vision_group_counts(model_inputs, batch_size)
     return {
         layer_index: pool_vision_features(
@@ -144,6 +117,7 @@ def pool_vision_representations(
 
 
 def build_teacher_batches(inputs, student_inputs, num_teachers: int, *, fallback_to_student_inputs: bool = True):
+    """Collect live-teacher input batches from a collated batch dict."""
     prefixes = []
     if "teacher_input_ids" in inputs:
         prefixes.append("teacher")
@@ -177,6 +151,7 @@ def build_teacher_batches(inputs, student_inputs, num_teachers: int, *, fallback
 
 
 def build_cached_teacher_batches(inputs, num_teachers: int):
+    """Collect cached teacher-logit batches from a collated batch dict."""
     prefixes = []
     if "teacher_cached_logits" in inputs:
         prefixes.append("teacher")
@@ -207,6 +182,7 @@ def setup_layer_matching(
     student_layer_indices,
     teacher_layer_indices,
 ):
+    """Resolve the student-to-teacher layer matches used by auxiliary layer distillation."""
     teacher_layer_soft_matches = []
 
     if layer_match_json_path:
@@ -262,6 +238,7 @@ def compute_student_representations(
     student_layer_outputs,
     student_outputs,
 ):
+    """Build pooled student representations for the configured layer-distillation source."""
     if layer_distill_source == "vision":
         student_batch_size = infer_batch_size(student_inputs)
         return pool_vision_representations(
@@ -288,6 +265,7 @@ def compute_teacher_forward_and_layer_distillation(
     output_hidden_states,
     suppress_stdout=False,
 ):
+    """Run one live teacher forward and optionally compute its auxiliary layer-matching loss."""
     teacher_hook_context = contextlib.nullcontext(None)
     teacher_layer_indices = sorted(
         {
@@ -339,14 +317,15 @@ def compute_teacher_forward_and_layer_distillation(
                 )
             ]
             if weighted_losses:
-                soft_match_losses.append(torch.stack(weighted_losses).sum())
+                soft_match_losses.append(reduce(torch.stack(weighted_losses), "t ->", "sum"))
         if soft_match_losses:
-            layer_loss = torch.stack(soft_match_losses).mean()
+            layer_loss = reduce(torch.stack(soft_match_losses), "t ->", "mean")
 
     return teacher_outputs, layer_loss
 
 
 def select_supervised_logit_positions(labels: torch.Tensor) -> torch.Tensor | None:
+    """Return shared supervised token positions when labels expose an answer-only subset."""
     if labels.ndim != 2:
         return None
 
@@ -360,6 +339,7 @@ def select_labels_at_positions(
     labels: torch.Tensor,
     positions: torch.Tensor | None,
 ) -> torch.Tensor:
+    """Select labels at explicit sequence positions or return the full label tensor unchanged."""
     if positions is None:
         return labels
     return labels.index_select(dim=1, index=positions.to(device=labels.device))
@@ -369,6 +349,7 @@ def _slice_hidden_states_for_logits(
     hidden_states: torch.Tensor,
     logits_to_keep: int | torch.Tensor,
 ) -> torch.Tensor:
+    """Slice hidden states to the positions requested by a logits_to_keep hint."""
     if isinstance(logits_to_keep, int):
         if logits_to_keep == 0:
             return hidden_states
@@ -391,6 +372,7 @@ def _compute_teacher_forward_with_manual_logit_slice(
     output_hidden_states: bool,
     logits_to_keep: int | torch.Tensor,
 ):
+    """Emulate logits_to_keep for backends that ignore it but expose a usable hidden-state path."""
     model_type = getattr(getattr(teacher_model, "config", None), "model_type", None)
     if model_type != "qwen2_vl":
         return None
@@ -415,10 +397,30 @@ def compute_teacher_forward(
     suppress_stdout: bool = False,
     logits_to_keep: int | torch.Tensor | None = None,
 ):
+    """Run a teacher forward with device/dtype alignment and optional logit slicing."""
     import io
     from contextlib import nullcontext, redirect_stdout
 
-    prepared_teacher_inputs = prepare_teacher_model_inputs(teacher_model, teacher_inputs)
+    try:
+        model_param = next(teacher_model.parameters())
+    except StopIteration:
+        model_device = getattr(teacher_model, "device", None)
+        model_dtype = None
+    else:
+        model_device = model_param.device
+        model_dtype = model_param.dtype if model_param.is_floating_point() else None
+
+    prepared_teacher_inputs = {
+        key: (
+            value
+            if not torch.is_tensor(value)
+            else value.to(
+                device=model_device if model_device is not None else value.device,
+                dtype=model_dtype if model_dtype is not None and value.is_floating_point() else value.dtype,
+            )
+        )
+        for key, value in teacher_inputs.items()
+    }
 
     call_inputs = {
         **prepared_teacher_inputs,

@@ -41,6 +41,7 @@ def build_distillation_train_metrics(
     reinforced_selection_metrics: dict[str, float] | None,
     grace_warmup_active: bool,
 ) -> dict[str, float]:
+    """Assemble the scalar metrics logged for one distillation training step."""
     metrics = {
         "loss": loss.item(),
         "distillation_loss": distillation_loss.item(),

@@ -4,12 +4,10 @@ export PYTHONPATH=src:$PYTHONPATH
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
 TEACHER_MODEL="Qwen/Qwen2-VL-2B-Instruct"
-TEACHER_MODEL_IDS="[\"${TEACHER_MODEL}\"]"
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 DISTILLATION_LOSS="uld_loss"
-TEMPERATURE=1.0
-STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-$TEMPERATURE}"
-TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-$TEMPERATURE}"
+STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-1.0}"
+TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-1.0}"
 ALPHA=0.5
 DATASET_NAME="textvqa"
 EVAL_SPLIT="validation"
@@ -20,7 +18,7 @@ OUTPUT_DIR="/output/${DISTILLATION_LOSS}_single_teacher_${TEACHER_NAME}_${STUDEN
 deepspeed src/train/train_distillation.py \
     --deepspeed scripts/deepspeed/zero2.json \
     --student_model_id "$STUDENT_MODEL" \
-    --teacher_model_ids "$TEACHER_MODEL_IDS" \
+    --teacher_model_ids "$TEACHER_MODEL" \
     --data_path /data/${DATASET_NAME}/train_llava.json \
     --eval_data_path /data/${DATASET_NAME}/${EVAL_SPLIT}_llava.json \
     --image_folder /data/${DATASET_NAME}/images \
@@ -29,7 +27,6 @@ deepspeed src/train/train_distillation.py \
     --fp16 False \
     --disable_flash_attn2 False \
     --output_dir "$OUTPUT_DIR" \
-    --temperature "$TEMPERATURE" \
     --student_temperature "$STUDENT_TEMPERATURE" \
     --teacher_temperature "$TEACHER_TEMPERATURE" \
     --alpha "$ALPHA" \
@@ -41,9 +38,6 @@ deepspeed src/train/train_distillation.py \
     --connector_lr 1e-5 \
     --warmup_ratio 0.03 \
     --lr_scheduler_type cosine \
-    --freeze_vision_tower False \
-    --freeze_llm False \
-    --freeze_connector False \
     --tf32 True \
     --gradient_checkpointing True \
     --lazy_preprocess True \

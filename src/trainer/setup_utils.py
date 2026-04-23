@@ -2,108 +2,13 @@ from src.components.teacher_gate import Gate
 from src.components.reinforced_teacher_selection import ReinforcedTeacherSelectionPolicy
 
 
-def validate_distillation_trainer_args(
-    *,
-    alpha: float,
-    layer_distill_source: str,
-    layer_distill_weight: float,
-    layer_match_topk: int,
-    teacher_gate_balance_alpha: float,
-    teacher_gate_top_k: int,
-    teacher_gate_capacity_factor: float,
-    teacher_gate_bias_update_rate: float,
-    teacher_gate_temperature: float,
-    teacher_gate_noise_std: float,
-    teacher_gate_entropy_alpha: float,
-    teacher_gate_router_z_loss_alpha: float,
-    teacher_gate_hard_routing_warmup_ratio: float,
-    grace_warmup_ratio: float,
-    grace_epsilon: float,
-    grace_softmax_beta: float,
-    grace_router_blend_lambda: float,
-    grace_ema_decay: float,
-    reinforced_selection_warmup_ratio: float,
-    reinforced_selection_reward_type: str,
-    reinforced_selection_reward_ema_decay: float,
-    reinforced_selection_policy_alpha: float,
-    teacher_weighting_strategy: str,
-    trie_wasserstein_rho: float,
-    trie_wasserstein_topk: int,
-    loss_function: str,
-    distillation_loss_module,
-) -> None:
-    if alpha < 0.0:
-        raise ValueError("DistillationTrainer requires `alpha >= 0`.")
-    if layer_distill_source not in {"none", "vision", "model"}:
-        raise ValueError(
-            "DistillationTrainer requires `layer_distill_source` to be "
-            "`none`, `vision`, or `model`."
-        )
-    if layer_distill_weight < 0.0:
-        raise ValueError("DistillationTrainer requires `layer_distill_weight >= 0`.")
-    if layer_match_topk < 1:
-        raise ValueError("DistillationTrainer requires `layer_match_topk >= 1`.")
-    if teacher_gate_balance_alpha < 0.0:
-        raise ValueError("DistillationTrainer requires `teacher_gate_balance_alpha >= 0`.")
-    if teacher_gate_top_k < 1:
-        raise ValueError("DistillationTrainer requires `teacher_gate_top_k >= 1`.")
-    if teacher_gate_capacity_factor <= 0.0:
-        raise ValueError("DistillationTrainer requires `teacher_gate_capacity_factor > 0`.")
-    if teacher_gate_bias_update_rate < 0.0:
-        raise ValueError("DistillationTrainer requires `teacher_gate_bias_update_rate >= 0`.")
-    if teacher_gate_temperature <= 0.0:
-        raise ValueError("DistillationTrainer requires `teacher_gate_temperature > 0`.")
-    if teacher_gate_noise_std < 0.0:
-        raise ValueError("DistillationTrainer requires `teacher_gate_noise_std >= 0`.")
-    if teacher_gate_entropy_alpha < 0.0:
-        raise ValueError("DistillationTrainer requires `teacher_gate_entropy_alpha >= 0`.")
-    if teacher_gate_router_z_loss_alpha < 0.0:
-        raise ValueError(
-            "DistillationTrainer requires `teacher_gate_router_z_loss_alpha >= 0`."
-        )
-    if teacher_gate_hard_routing_warmup_ratio < 0.0:
-        raise ValueError(
-            "DistillationTrainer requires `teacher_gate_hard_routing_warmup_ratio >= 0`."
-        )
-    if grace_warmup_ratio < 0.0:
-        raise ValueError("DistillationTrainer requires `grace_warmup_ratio >= 0`.")
-    if grace_epsilon < 0.0:
-        raise ValueError("DistillationTrainer requires `grace_epsilon >= 0`.")
-    if grace_softmax_beta <= 0.0:
-        raise ValueError("DistillationTrainer requires `grace_softmax_beta > 0`.")
-    if not 0.0 <= grace_router_blend_lambda <= 1.0:
-        raise ValueError(
-            "DistillationTrainer requires `0 <= grace_router_blend_lambda <= 1`."
-        )
-    if not 0.0 <= grace_ema_decay < 1.0:
-        raise ValueError("DistillationTrainer requires `0 <= grace_ema_decay < 1`.")
-    if reinforced_selection_warmup_ratio < 0.0:
-        raise ValueError("DistillationTrainer requires `reinforced_selection_warmup_ratio >= 0`.")
-    if reinforced_selection_reward_type not in {"reward1", "reward2"}:
-        raise ValueError(
-            "DistillationTrainer requires `reinforced_selection_reward_type` to be "
-            "`reward1` or `reward2`."
-        )
-    if not 0.0 <= reinforced_selection_reward_ema_decay < 1.0:
-        raise ValueError(
-            "DistillationTrainer requires `0 <= reinforced_selection_reward_ema_decay < 1`."
-        )
-    if reinforced_selection_policy_alpha < 0.0:
-        raise ValueError("DistillationTrainer requires `reinforced_selection_policy_alpha >= 0`.")
-    if trie_wasserstein_rho <= 0.0 or trie_wasserstein_rho >= 1.0:
-        raise ValueError("DistillationTrainer requires `0 < trie_wasserstein_rho < 1`.")
-    if trie_wasserstein_topk < 1:
-        raise ValueError("DistillationTrainer requires `trie_wasserstein_topk >= 1`.")
-    if loss_function != "trie_wasserstein_loss" and not hasattr(distillation_loss_module, loss_function):
-        raise ValueError(f"Unknown distillation loss: {loss_function!r}")
-    if teacher_weighting_strategy not in {"routing", "uniform_mean", "reinforced_selection"}:
-        raise ValueError(
-            "DistillationTrainer requires `teacher_weighting_strategy` to be "
-            "`routing`, `uniform_mean`, or `reinforced_selection`."
-        )
-
-
 def normalize_teacher_models(teacher_model, teacher_count: int | None):
+    """Normalize teacher input into a frozen teacher-model list and resolved count.
+
+    Input: a teacher model, list/tuple of teacher models, or None, plus optional
+    teacher_count. Output: (teacher_models, teacher_count). Exists so the trainer
+    can accept one or many live teachers through one code path.
+    """
     if teacher_model is None:
         teacher_models = []
     else:
@@ -122,6 +27,8 @@ def normalize_teacher_models(teacher_model, teacher_count: int | None):
             "teacher_count must match the number of teacher models when both are provided."
         )
 
+    # Live teachers are inference-only in the trainer: keep them in eval mode and
+    # freeze gradients so only the student path participates in optimization.
     for model in teacher_models:
         model.eval()
         for param in model.parameters():
@@ -139,9 +46,17 @@ def maybe_create_teacher_gate(
     teacher_gate_temperature: float,
     teacher_gate_noise_std: float,
 ):
+    """Build the routing gate only for multi-teacher routing runs.
+
+    Input: student model and routing hyperparameters. Output: Gate or None.
+    Exists to keep gate setup out of the trainer constructor body when routing
+    is disabled.
+    """
     if num_teachers <= 1 or teacher_weighting_strategy != "routing":
         return None
 
+    # The gate is attached to the student model so its forward hook can reuse the
+    # same hidden state captured immediately before the student's lm_head.
     teacher_gate = Gate(
         model,
         num_teachers,
@@ -159,9 +74,17 @@ def maybe_create_reinforced_teacher_selector(
     num_teachers: int,
     teacher_weighting_strategy: str,
 ):
+    """Build the REINFORCE selector only for reinforced-selection runs.
+
+    Input: student model, teacher count, and weighting strategy. Output:
+    ReinforcedTeacherSelectionPolicy or None. Exists to keep optional policy
+    setup out of the main trainer flow.
+    """
     if num_teachers <= 1 or teacher_weighting_strategy != "reinforced_selection":
         return None
 
+    # The reinforced selector follows the same pattern as the gate: register once
+    # on the student and let the training step query it when that strategy is active.
     selector = ReinforcedTeacherSelectionPolicy(
         model,
         num_teachers,
@@ -210,6 +133,12 @@ def log_distillation_trainer_setup(
     trie_wasserstein_rho: float,
     trie_wasserstein_topk: int,
 ) -> None:
+    """Print the trainer-side distillation config summary.
+
+    Input: resolved trainer knobs after model/layer setup. Output: None.
+    Exists so one place reports which optional distillation path is actually
+    active after constructor normalization.
+    """
     print("Distillation Trainer initialized:")
     print(f"  - Teachers: {num_teachers}")
     if num_teachers > 1 and teacher_weighting_strategy == "routing":
@@ -294,5 +223,4 @@ __all__ = [
     "maybe_create_teacher_gate",
     "maybe_create_reinforced_teacher_selector",
     "normalize_teacher_models",
-    "validate_distillation_trainer_args",
 ]

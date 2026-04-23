@@ -42,6 +42,7 @@ def compute_teacher_loss_matrix(
     list[torch.Tensor] | None,
     list[torch.Tensor] | None,
 ]:
+    """Compute per-teacher KD losses and optional GRACE signals for one student batch."""
     teacher_losses = []
     grace_scores = []
     grace_active = []
@@ -57,6 +58,8 @@ def compute_teacher_loss_matrix(
             )
 
     if cached_teacher_batches is not None:
+        # Cached and live-teacher paths intentionally return the same tensor contract
+        # so routing, GRACE, and reinforced selection can ignore the teacher source.
         for teacher_index, (cached_teacher_logits, cached_teacher_labels) in enumerate(cached_teacher_batches):
             prepared_teacher_logits = prepare_input_fn(cached_teacher_logits).to(
                 dtype=student_logits.dtype
@@ -128,6 +131,8 @@ def compute_teacher_loss_matrix(
         prepared_teacher_labels = prepare_input_fn(teacher_labels)
         teacher_logit_positions = select_supervised_logit_positions(prepared_teacher_labels)
         if teacher_logit_positions is None and not prepared_teacher_labels.ne(-100).any():
+            # Some teacher encodings may contain no supervised answer tokens; treat
+            # them as zero-contribution teachers instead of branching downstream.
             zero_losses = student_logits.new_zeros((student_logits.size(0),))
             teacher_losses.append(zero_losses)
             if pooled_ce_grace_grad is not None:
@@ -150,6 +155,8 @@ def compute_teacher_loss_matrix(
             prepared_teacher_labels,
             teacher_logit_positions,
         )
+        # `logits_to_keep` may shrink the teacher sequence to answer-only positions.
+        # When a backend ignores that hint, fall back to the original label layout.
         effective_teacher_labels = (
             selected_teacher_labels
             if selected_teacher_labels.size(1) == teacher_logits.size(1)

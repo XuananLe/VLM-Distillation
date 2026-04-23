@@ -26,6 +26,7 @@ SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI flags for converting a VQA dataset split into LLaVA-style JSON."""
     parser = argparse.ArgumentParser(description="Convert VQA datasets to LLaVA JSON")
     parser.add_argument(
         "--dataset",
@@ -61,11 +62,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def _default_output_paths(dataset_name: str, split: str, output_root: Path) -> tuple[Path, Path]:
+    """Return the default JSON and image-output paths for one dataset split."""
     base = output_root / dataset_name
     return base / f"{split}_llava.json", base / "images"
 
 
 def _print_schema_info(dataset: Any, resolved_schema: dict[str, str | None]) -> None:
+    """Print the raw dataset schema and the inferred fields used by conversion."""
     print("Pulled schema from dataset.features:")
     for name, feature in dataset.features.items():
         print(f"  - {name}: {feature}")
@@ -75,15 +78,18 @@ def _print_schema_info(dataset: Any, resolved_schema: dict[str, str | None]) -> 
 
 
 def _sanitize_for_filename(raw_value: Any) -> str:
+    """Sanitize an arbitrary id-like value into a filesystem-safe filename stem."""
     return SAFE_FILENAME_RE.sub("_", str(raw_value))
 
 
 def _pick_first_answer(answer_value: Any) -> str | None:
+    """Return the first non-empty textual answer from a scalar or sequence answer field."""
     values = answer_value if isinstance(answer_value, (list, tuple)) else (answer_value,)
     return next((text for text in (pick_first_text(value) for value in values) if text), None)
 
 
 def _chartqa_split_label(sample: dict[str, Any]) -> str | None:
+    """Normalize ChartQA's human/machine split marker into a readable label."""
     raw_value = sample.get("human_or_machine")
     if raw_value is None:
         return None
@@ -101,6 +107,7 @@ def convert_dataset_to_llava(
     output_json: Path,
     image_dir: Path,
 ) -> dict[str, int]:
+    """Convert one VQA dataset split into saved JPEG images plus LLaVA-style chat JSON."""
     dataset, loaded_from = load_dataset_split(dataset_name, split, log_fallback=True)
     print(f"Loaded dataset: {loaded_from} (split={split})")
 
@@ -153,7 +160,7 @@ def convert_dataset_to_llava(
                     quality=95,
                 )
                 image_id_to_filename[image_id] = image_filename
-            except Exception as e:
+            except (OSError, TypeError, ValueError) as e:
                 print(f"  Warning: skipping row {row_idx} — image error: {e}")
                 stats["skipped_image_error"] += 1
                 continue
@@ -181,6 +188,7 @@ def convert_dataset_to_llava(
 
 
 def main() -> None:
+    """Run the dataset-conversion CLI end to end."""
     args = parse_args()
 
     dataset_name = canonical_dataset_name(args.dataset)

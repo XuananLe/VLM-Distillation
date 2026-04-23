@@ -13,7 +13,7 @@ The implemented training stack is centered on cache-backed distillation: teacher
 - `GRACE` routing refinement on top of the router
 - logits-space KD losses including `uld_loss`, `trie_wasserstein_loss`, KL/JS variants, and `cka_loss`
 - optional hidden-state / layer distillation in addition to cached-logit KD
-- full SFT and LoRA SFT launchers
+- full SFT launchers
 - a separate evaluation stack under `src/eval/`
 
 ## Documentation
@@ -69,7 +69,7 @@ pip install num2words
 
 ### 2. Prepare LLaVA-style training data
 
-Training expects JSON samples containing either `image` or `video`, plus `conversations`.
+Training expects JSON samples containing `image` plus `conversations`.
 
 Example:
 
@@ -95,7 +95,6 @@ Example:
 Notes:
 
 - image paths can be absolute or resolved relative to `--image_folder`
-- video samples are decoded into frame lists at load time
 - the loader converts LLaVA-style conversations into the processor-specific chat format during training
 
 ### 3. Cache teacher logits
@@ -167,7 +166,7 @@ The SFT launchers do not use teacher logits.
 bash scripts/train/sft_full.sh
 ```
 
-See the runtime guide for LoRA, vision LoRA, and video variants.
+See the checked-in training scripts for the current SFT variants.
 
 ## Training Modes
 
@@ -176,9 +175,6 @@ See the runtime guide for LoRA, vision LoRA, and video variants.
 | Multi-teacher distillation | [`scripts/train/distill_multi_teachers.sh`](scripts/train/distill_multi_teachers.sh) | Most up-to-date checked-in distillation launcher |
 | Single-teacher distillation | [`src/train/train_distillation.py`](src/train/train_distillation.py) | Current distillation runtime is still cache-backed even for one teacher |
 | Full SFT | [`scripts/train/sft_full.sh`](scripts/train/sft_full.sh) | Standard fine-tuning |
-| LoRA SFT | [`scripts/train/sft_lora.sh`](scripts/train/sft_lora.sh) | LLM LoRA with explicit freeze settings |
-| Vision LoRA SFT | [`scripts/train/sft_lora_vision.sh`](scripts/train/sft_lora_vision.sh) | Vision-tower LoRA path |
-| Video SFT | [`scripts/train/sft_video.sh`](scripts/train/sft_video.sh) | Frame-based training with `max_num_frames` |
 
 ## Distillation At A Glance
 

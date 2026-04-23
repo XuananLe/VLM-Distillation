@@ -2,14 +2,18 @@ import re
 from typing import Dict
 
 import torch
+from einops import rearrange, reduce
 
 
 def forward_with_kwarg_retry(model, call_inputs):
+    """Call a model forward while dropping unsupported kwargs one at a time."""
     inputs = dict(call_inputs)
     while True:
         try:
             return model(**inputs)
         except TypeError as exc:
+            # Different VLM families accept slightly different forward kwargs; drop
+            # unsupported ones one by one instead of maintaining per-model call sites.
             match = re.search(r"unexpected keyword argument '([^']+)'", str(exc))
             if not match:
                 raise
@@ -20,6 +24,7 @@ def forward_with_kwarg_retry(model, call_inputs):
 
 
 def unwrap_tensor(output):
+    """Return the first tensor found inside a nested model output structure."""
     if isinstance(output, torch.Tensor):
         return output
     if isinstance(output, (tuple, list)):
@@ -45,6 +50,7 @@ def unwrap_tensor(output):
 
 
 def get_hidden_states_from_outputs(outputs):
+    """Extract the hidden-state tuple from a Hugging Face style forward output."""
     hidden_states = getattr(outputs, "hidden_states", None)
     if hidden_states is not None:
         return tuple(hidden_states)
@@ -80,29 +86,43 @@ def get_hidden_states_from_outputs(outputs):
 
 
 def get_decoder_hidden_states(outputs):
+    """Return transformer-block hidden states and skip embeddings when they are exposed."""
     hidden_states = get_hidden_states_from_outputs(outputs)
     if not hidden_states:
         raise RuntimeError("Model returned an empty hidden_states tuple.")
+    # Decoder-style models often expose embeddings at index 0; the layer-distillation
+    # path wants actual transformer blocks, so skip that entry when present.
     return list(hidden_states if len(hidden_states) == 1 else hidden_states[1:])
 
 
 def pool_model_hidden_states(hidden_states: torch.Tensor, attention_mask) -> torch.Tensor:
+    """Pool hidden states into one vector per sample for matching or diagnostics."""
     if hidden_states.ndim == 1:
-        return hidden_states.unsqueeze(0)
+        return rearrange(hidden_states, "d -> 1 d")
     if hidden_states.ndim == 2:
-        return hidden_states.mean(dim=0, keepdim=True)
+        return reduce(hidden_states, "t d -> 1 d", "mean")
     if hidden_states.ndim != 3:
         raise ValueError(
             f"Unsupported hidden-state shape for model-layer pooling: {tuple(hidden_states.shape)}"
         )
 
     if attention_mask is not None and attention_mask.ndim == 2 and attention_mask.shape == hidden_states.shape[:2]:
-        mask = attention_mask.to(device=hidden_states.device, dtype=hidden_states.dtype).unsqueeze(-1)
-        return (hidden_states * mask).sum(dim=1) / mask.sum(dim=1).clamp_min(1.0)
-    return hidden_states.mean(dim=1)
+        # Masked mean over valid sequence positions.
+        mask = rearrange(
+            attention_mask.to(device=hidden_states.device, dtype=hidden_states.dtype),
+            "b t -> b t 1",
+        )
+        masked_hidden_states = hidden_states * mask
+        return reduce(masked_hidden_states, "b t d -> b d", "sum") / reduce(
+            mask,
+            "b t d -> b d",
+            "sum",
+        ).clamp_min(1.0)
+    return reduce(hidden_states, "b t d -> b d", "mean")
 
 
 def infer_batch_size(inputs: Dict[str, torch.Tensor]) -> int:
+    """Infer batch size from the first non-scalar tensor in a model input dict."""
     for value in inputs.values():
         if isinstance(value, torch.Tensor) and value.ndim > 0:
             return int(value.shape[0])

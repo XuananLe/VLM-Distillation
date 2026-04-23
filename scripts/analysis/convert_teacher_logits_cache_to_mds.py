@@ -11,9 +11,6 @@ if str(ROOT_DIR) not in sys.path:
 import torch
 from streaming import MDSWriter
 
-from src.train.arg_utils import parse_model_id_list
-
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Repack per-sample teacher-logits caches into sharded MDS datasets."
@@ -31,7 +28,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--teacher-model-ids",
         required=True,
-        help="Python list literal or comma-separated teacher model IDs.",
+        nargs="+",
+        help="Teacher model IDs passed as repeated values.",
     )
     parser.add_argument(
         "--remote-output-uri",
@@ -149,7 +147,7 @@ def _write_teacher_dataset(
 
 def main() -> None:
     args = parse_args()
-    teacher_model_ids = parse_model_id_list(args.teacher_model_ids, arg_name="--teacher-model-ids")
+    teacher_model_ids = list(args.teacher_model_ids)
     input_dir = Path(args.input_dir).expanduser().resolve()
     output_dir = Path(args.output_dir).expanduser().resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
