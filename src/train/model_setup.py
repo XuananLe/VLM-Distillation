@@ -1,6 +1,7 @@
 import importlib
 
 import torch
+from PIL import Image, ImageFile
 from transformers import (
     AutoConfig,
     AutoModel,
@@ -10,12 +11,9 @@ from transformers import (
     Gemma3ForConditionalGeneration,
 )
 
-try:
-    importlib.import_module("pillow_avif")
-
-    _AVIF_SUPPORT = True
-except ModuleNotFoundError:
-    _AVIF_SUPPORT = False
+importlib.import_module("pillow_avif")
+ImageFile.LOAD_TRUNCATED_IMAGES = True
+Image.MAX_IMAGE_PIXELS = None
 
 try:
     from transformers import AutoModelForVision2Seq
@@ -73,6 +71,9 @@ def load_processor_and_tokenizer(
         model_id,
         **processor_kwargs,
     )
+    if hasattr(processor, "image_processor"):
+        processor.image_processor.image_format = "AVIF"
+        processor.image_processor.do_convert_rgb = True
     tokenizer = getattr(processor, "tokenizer", None)
     return processor, (tokenizer if tokenizer is not None else processor), model_type
 
@@ -190,13 +191,11 @@ def load_teacher_model_and_processor(
                 cache_dir=cache_dir,
                 attn_implementation=attn_implementation,
                 compute_dtype=compute_dtype,
-                trust_remote_code=True,
                 model_kwargs={"device_map": {"": device}},
             )
 
     if hasattr(teacher_model.config, "use_cache"):
         teacher_model.config.use_cache = False
-    teacher_model._suppress_forward_stdout = "internvl" in model_id.lower()
     return teacher_model, teacher_processor
 
 
@@ -224,18 +223,7 @@ def resolve_component_module(model, component: str):
                 return module
     raise AttributeError(f"Could not resolve {component} module on the model.")
 
-def configure_vision_tower(model, processor, compute_dtype, device):
-    """Move the vision tower to the training device/dtype and align processor image settings."""
-    if processor is not None and hasattr(processor, "image_processor"):
-        processor.image_processor.image_format = "AVIF" if _AVIF_SUPPORT else "JPEG"
-        processor.image_processor.do_convert_rgb = True
-
-    vision_tower = resolve_component_module(model, "vision")
-    vision_tower.to(dtype=compute_dtype, device=device)
-
-
 __all__ = [
-    "configure_vision_tower",
     "load_model",
     "load_processor_and_tokenizer",
     "load_teacher_model_and_processor",

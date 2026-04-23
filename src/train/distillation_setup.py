@@ -1,8 +1,10 @@
-from dataclasses import dataclass, field
+from dataclasses import field
+
+from pydantic import model_validator
+from pydantic.dataclasses import dataclass
 
 @dataclass
 class DistillationArguments:
-    """CLI arguments that control teacher loading, KD loss, routing, and layer distillation."""
     student_model_id: str = field(
         metadata={"help": "Student model ID or path."}
     )
@@ -203,93 +205,93 @@ class DistillationArguments:
         default=1.0,
         metadata={"help": "Weight on the reinforced teacher-selection policy loss."},
     )
-def validate_distillation_args(distillation_args) -> None:
-    """Validate distillation CLI arguments before any heavy model or cache loading starts."""
-    if not distillation_args.teacher_model_ids:
-        raise ValueError("At least one teacher model ID must be provided via --teacher_model_ids.")
-    if (
-        distillation_args.teacher_logits_cache_dir is None
-        and distillation_args.teacher_logits_remote_uri is None
-    ):
-        raise ValueError(
-            "Teacher logits require either --teacher_logits_cache_dir (for example /cache "
-            "or a writable /tmp path) or --teacher_logits_remote_uri (remote raw cache root)."
-        )
-    if distillation_args.teacher_weighting_strategy not in {"routing", "uniform_mean", "reinforced_selection"}:
-        raise ValueError("--teacher_weighting_strategy must be `routing`, `uniform_mean`, or `reinforced_selection`.")
-    if not 0.0 < distillation_args.trie_wasserstein_rho < 1.0:
-        raise ValueError("--trie_wasserstein_rho must be in (0, 1).")
-    if distillation_args.trie_wasserstein_topk < 1:
-        raise ValueError("--trie_wasserstein_topk must be >= 1.")
-    if distillation_args.layer_distill_source not in {"none", "vision", "model"}:
-        raise ValueError("--layer_distill_source must be `none`, `vision`, or `model`.")
-    if distillation_args.layer_distill_weight < 0.0:
-        raise ValueError("--layer_distill_weight must be >= 0.")
-    if distillation_args.layer_match_topk < 1:
-        raise ValueError("--layer_match_topk must be >= 1.")
-    if distillation_args.alpha < 0.0:
-        raise ValueError("--alpha must be >= 0.")
-    if distillation_args.teacher_gate_balance_alpha < 0.0:
-        raise ValueError("--teacher_gate_balance_alpha must be >= 0.")
-    if distillation_args.teacher_gate_top_k < 1:
-        raise ValueError("--teacher_gate_top_k must be >= 1.")
-    if distillation_args.teacher_gate_capacity_factor <= 0.0:
-        raise ValueError("--teacher_gate_capacity_factor must be > 0.")
-    if distillation_args.teacher_gate_bias_update_rate < 0.0:
-        raise ValueError("--teacher_gate_bias_update_rate must be >= 0.")
-    if distillation_args.teacher_gate_temperature <= 0.0:
-        raise ValueError("--teacher_gate_temperature must be > 0.")
-    if distillation_args.teacher_gate_noise_std < 0.0:
-        raise ValueError("--teacher_gate_noise_std must be >= 0.")
-    if distillation_args.teacher_gate_entropy_alpha < 0.0:
-        raise ValueError("--teacher_gate_entropy_alpha must be >= 0.")
-    if distillation_args.teacher_gate_router_z_loss_alpha < 0.0:
-        raise ValueError("--teacher_gate_router_z_loss_alpha must be >= 0.")
-    if distillation_args.teacher_gate_hard_routing_warmup_ratio < 0.0:
-        raise ValueError("--teacher_gate_hard_routing_warmup_ratio must be >= 0.")
-    if distillation_args.grace_warmup_ratio < 0.0:
-        raise ValueError("--grace_warmup_ratio must be >= 0.")
-    if distillation_args.grace_epsilon < 0.0:
-        raise ValueError("--grace_epsilon must be >= 0.")
-    if distillation_args.grace_softmax_beta <= 0.0:
-        raise ValueError("--grace_softmax_beta must be > 0.")
-    if not 0.0 <= distillation_args.grace_router_blend_lambda <= 1.0:
-        raise ValueError("--grace_router_blend_lambda must be between 0 and 1.")
-    if not 0.0 <= distillation_args.grace_ema_decay < 1.0:
-        raise ValueError("--grace_ema_decay must be in [0, 1).")
-    if distillation_args.reinforced_selection_warmup_ratio < 0.0:
-        raise ValueError("--reinforced_selection_warmup_ratio must be >= 0.")
-    if distillation_args.reinforced_selection_reward_type not in {"reward1", "reward2"}:
-        raise ValueError("--reinforced_selection_reward_type must be `reward1` or `reward2`.")
-    if not 0.0 <= distillation_args.reinforced_selection_reward_ema_decay < 1.0:
-        raise ValueError("--reinforced_selection_reward_ema_decay must be in [0, 1).")
-    if distillation_args.reinforced_selection_policy_alpha < 0.0:
-        raise ValueError("--reinforced_selection_policy_alpha must be >= 0.")
-    if distillation_args.student_temperature <= 0:
-        raise ValueError("--student_temperature must be > 0.")
-    if distillation_args.teacher_temperature <= 0:
-        raise ValueError("--teacher_temperature must be > 0.")
-    if (
-        distillation_args.layer_distill_source in {"vision", "model"}
-        and distillation_args.layer_distill_weight > 0.0
-        and (
-            distillation_args.student_layer_indices
-            or distillation_args.layer_match_json_path
-        )
-    ):
-        if (
-            not distillation_args.teacher_layer_indices
-            and not distillation_args.layer_match_json_path
-        ):
-            raise ValueError("--teacher_layer_indices must be provided when layer distillation is enabled.")
-        if (
-            distillation_args.student_layer_indices
-            and distillation_args.teacher_layer_indices
-            and len(distillation_args.student_layer_indices) != len(distillation_args.teacher_layer_indices)
-        ):
+
+    @model_validator(mode="after")
+    def validate(self):
+        """Validate CLI arguments immediately after Hugging Face builds this dataclass."""
+        if not self.teacher_model_ids:
+            raise ValueError("At least one teacher model ID must be provided via --teacher_model_ids.")
+        if self.teacher_logits_cache_dir is None and self.teacher_logits_remote_uri is None:
             raise ValueError(
-                "--student_layer_indices and --teacher_layer_indices must have the same length."
+                "Teacher logits require either --teacher_logits_cache_dir (for example /cache "
+                "or a writable /tmp path) or --teacher_logits_remote_uri (remote raw cache root)."
             )
+
+        allowed_values = (
+            (
+                "--teacher_weighting_strategy",
+                self.teacher_weighting_strategy,
+                {"routing", "uniform_mean", "reinforced_selection"},
+            ),
+            ("--layer_distill_source", self.layer_distill_source, {"none", "vision", "model"}),
+            ("--reinforced_selection_reward_type", self.reinforced_selection_reward_type, {"reward1", "reward2"}),
+        )
+        for arg_name, value, allowed in allowed_values:
+            if value not in allowed:
+                choices = ", ".join(f"`{choice}`" for choice in sorted(allowed))
+                raise ValueError(f"{arg_name} must be one of: {choices}.")
+
+        if not 0.0 < self.trie_wasserstein_rho < 1.0:
+            raise ValueError("--trie_wasserstein_rho must be in (0, 1).")
+        for arg_name, value in (
+            ("--trie_wasserstein_topk", self.trie_wasserstein_topk),
+            ("--layer_match_topk", self.layer_match_topk),
+            ("--teacher_gate_top_k", self.teacher_gate_top_k),
+        ):
+            if value < 1:
+                raise ValueError(f"{arg_name} must be >= 1.")
+
+        for arg_name, value in (
+            ("--teacher_gate_capacity_factor", self.teacher_gate_capacity_factor),
+            ("--teacher_gate_temperature", self.teacher_gate_temperature),
+            ("--grace_softmax_beta", self.grace_softmax_beta),
+            ("--student_temperature", self.student_temperature),
+            ("--teacher_temperature", self.teacher_temperature),
+        ):
+            if value <= 0.0:
+                raise ValueError(f"{arg_name} must be > 0.")
+
+        for arg_name, value in (
+            ("--layer_distill_weight", self.layer_distill_weight),
+            ("--alpha", self.alpha),
+            ("--teacher_gate_balance_alpha", self.teacher_gate_balance_alpha),
+            ("--teacher_gate_bias_update_rate", self.teacher_gate_bias_update_rate),
+            ("--teacher_gate_noise_std", self.teacher_gate_noise_std),
+            ("--teacher_gate_entropy_alpha", self.teacher_gate_entropy_alpha),
+            ("--teacher_gate_router_z_loss_alpha", self.teacher_gate_router_z_loss_alpha),
+            ("--teacher_gate_hard_routing_warmup_ratio", self.teacher_gate_hard_routing_warmup_ratio),
+            ("--grace_warmup_ratio", self.grace_warmup_ratio),
+            ("--grace_epsilon", self.grace_epsilon),
+            ("--reinforced_selection_warmup_ratio", self.reinforced_selection_warmup_ratio),
+            ("--reinforced_selection_policy_alpha", self.reinforced_selection_policy_alpha),
+        ):
+            if value < 0.0:
+                raise ValueError(f"{arg_name} must be >= 0.")
+
+        if not 0.0 <= self.grace_router_blend_lambda <= 1.0:
+            raise ValueError("--grace_router_blend_lambda must be between 0 and 1.")
+        if not 0.0 <= self.grace_ema_decay < 1.0:
+            raise ValueError("--grace_ema_decay must be in [0, 1).")
+        if not 0.0 <= self.reinforced_selection_reward_ema_decay < 1.0:
+            raise ValueError("--reinforced_selection_reward_ema_decay must be in [0, 1).")
+
+        layer_distillation_enabled = (
+            self.layer_distill_source in {"vision", "model"}
+            and self.layer_distill_weight > 0.0
+            and (self.student_layer_indices or self.layer_match_json_path)
+        )
+        if layer_distillation_enabled:
+            if not self.teacher_layer_indices and not self.layer_match_json_path:
+                raise ValueError("--teacher_layer_indices must be provided when layer distillation is enabled.")
+            if (
+                self.student_layer_indices
+                and self.teacher_layer_indices
+                and len(self.student_layer_indices) != len(self.teacher_layer_indices)
+            ):
+                raise ValueError(
+                    "--student_layer_indices and --teacher_layer_indices must have the same length."
+                )
+        return self
 
 
 def log_distillation_setup(

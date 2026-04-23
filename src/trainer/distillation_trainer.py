@@ -6,9 +6,6 @@ from transformers import PreTrainedModel, Trainer
 from transformers.trainer import PREFIX_CHECKPOINT_DIR
 
 from src.train.save_utils import _save_processing_assets
-from src.trainer.checkpoint_utils import (
-    update_best_checkpoint_by_train_ce,
-)
 from src.trainer.metrics_utils import build_distillation_train_metrics
 from src.trainer.setup_utils import (
     log_distillation_trainer_setup,
@@ -23,7 +20,6 @@ from src.trainer.step_utils import (
     compute_layer_distillation_loss,
     compute_teacher_losses_and_grace,
     compute_total_loss,
-    move_teacher_models_to_device,
     prepare_teacher_batches,
     run_student_forward_and_teacher_gate,
 )
@@ -80,16 +76,17 @@ class DistillationTrainer(Trainer):
         from src.components import loss as distillation_loss_module
 
         self.loss_function = loss_function
-        self.distillation_loss = distillation_loss_module.build_distillation_loss(
+        (
+            self.distillation_prepare_batch_fn,
+            self.distillation_loss_fn,
+            self.distillation_logit_grad_fn,
+        ) = distillation_loss_module.build_distillation_loss(
             loss_function=loss_function,
             student_tokenizer=student_tokenizer,
             teacher_tokenizers=teacher_tokenizers,
             trie_wasserstein_rho=trie_wasserstein_rho,
             trie_wasserstein_topk=trie_wasserstein_topk,
         )
-        self.distillation_prepare_batch_fn = self.distillation_loss.prepare_teacher_batch
-        self.distillation_loss_fn = self.distillation_loss.compute_loss
-        self.distillation_logit_grad_fn = self.distillation_loss.compute_logit_grad
         self.teacher_weighting_strategy = teacher_weighting_strategy
 
         self.teacher_models, self.num_teachers = normalize_teacher_models(
@@ -167,7 +164,6 @@ class DistillationTrainer(Trainer):
         self.trie_wasserstein_rho = trie_wasserstein_rho
         self.trie_wasserstein_topk = trie_wasserstein_topk
         self.last_compute_loss_end_time = None
-        self.latest_train_ce_loss = None
         self.teacher_grace_score_ema = None
         self.reinforced_selection_reward_baseline = None
 
@@ -209,14 +205,6 @@ class DistillationTrainer(Trainer):
             reinforced_selection_policy_alpha=reinforced_selection_policy_alpha,
             trie_wasserstein_rho=trie_wasserstein_rho,
             trie_wasserstein_topk=trie_wasserstein_topk,
-        )
-
-    def tracks_best_checkpoint_by_train_ce(self) -> bool:
-        """Return whether checkpoint selection should track train CE instead of eval metrics."""
-        metric_name = getattr(self.args, "metric_for_best_model", None)
-        return (
-            getattr(self.args, "eval_strategy", "no") == "no"
-            and metric_name in (None, "train_ce_loss", "ce_loss", "train/ce_loss")
         )
 
     @override
@@ -288,7 +276,6 @@ class DistillationTrainer(Trainer):
             if self.last_compute_loss_end_time is None
             else compute_loss_start_time - self.last_compute_loss_end_time
         )
-        move_teacher_models_to_device(self.teacher_models, inputs["input_ids"].device)
 
         student_inputs = {k: v for k, v in inputs.items() if not k.startswith("teacher")}
         teacher_batches, cached_teacher_batches = prepare_teacher_batches(
@@ -318,8 +305,6 @@ class DistillationTrainer(Trainer):
             cached_teacher_batches=cached_teacher_batches,
         )
         ce_loss = student_and_gate["student_outputs"].loss
-        if model.training:
-            self.latest_train_ce_loss = ce_loss.detach().float().item()
         grace_and_loss = apply_grace_and_compute_distillation_loss(
             trainer=self,
             routed_teacher_gate_weights=gate_routing["routed_teacher_gate_weights"],
@@ -395,11 +380,10 @@ class DistillationTrainer(Trainer):
 
     @override
     def _save_checkpoint(self, model, trial):
-        """Save a checkpoint, then refresh the best-checkpoint pointer using train CE."""
+        """Save a checkpoint and include processor/tokenizer assets beside the model."""
         super()._save_checkpoint(model, trial)
         output_dir = os.path.join(
             self._get_output_dir(trial=trial),
             f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}",
         )
         _save_processing_assets(self, output_dir)
-        update_best_checkpoint_by_train_ce(self, trial)

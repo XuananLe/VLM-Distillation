@@ -6,7 +6,6 @@ from einops import einsum
 
 from src.components.grace import apply_grace_routing
 from src.components.reinforced_teacher_selection import compute_reinforced_selection_state
-from src.components.forward_utils import forward_with_kwarg_retry
 from src.trainer.alignment_utils import compute_teacher_loss_matrix
 from src.trainer.routing_utils import (
     apply_teacher_gate_constraints,
@@ -21,14 +20,6 @@ from src.trainer.distillation_utils import (
     compute_student_representations,
     compute_teacher_forward_and_layer_distillation,
 )
-
-
-def move_teacher_models_to_device(teacher_models, target_device) -> None:
-    """Move live teacher models onto the student's current device before a training step."""
-    for index, teacher_model in enumerate(teacher_models):
-        teacher_device = next(teacher_model.parameters()).device
-        if teacher_device != target_device:
-            teacher_models[index] = teacher_model.to(target_device)
 
 
 def prepare_teacher_batches(*, inputs, student_inputs, num_teachers: int, teacher_models):
@@ -71,13 +62,10 @@ def run_student_forward_and_teacher_gate(*, trainer, model, student_inputs):
     )
     student_forward_start_time = time.perf_counter()
     with student_hook_context as student_layer_outputs:
-        student_outputs = forward_with_kwarg_retry(
-            model,
-            {
-                **student_inputs,
-                "return_dict": True,
-                "output_hidden_states": output_hidden_states,
-            },
+        student_outputs = model(
+            **student_inputs,
+            return_dict=True,
+            output_hidden_states=output_hidden_states,
         )
     student_forward_time = time.perf_counter() - student_forward_start_time
     student_logits = student_outputs.logits
@@ -155,7 +143,6 @@ def compute_layer_distillation_loss(
             layer_distill_source=trainer.layer_distill_source,
             student_layer_representations=student_layer_representations,
             output_hidden_states=output_hidden_states,
-            suppress_stdout=getattr(teacher_model, "_suppress_forward_stdout", False),
         )
         if layer_loss is not None:
             layer_distillation_losses.append(layer_loss)
@@ -251,7 +238,6 @@ def compute_teacher_losses_and_grace(
         distillation_prepare_batch_fn=trainer.distillation_prepare_batch_fn,
         distillation_loss_fn=trainer.distillation_loss_fn,
         distillation_logit_grad_fn=trainer.distillation_logit_grad_fn,
-        loss_function=trainer.loss_function,
         student_temperature=trainer.student_temperature,
         teacher_temperature=trainer.teacher_temperature,
         skip_student_eos=trainer.skip_student_eos,
@@ -421,7 +407,6 @@ __all__ = [
     "compute_layer_distillation_loss",
     "compute_teacher_losses_and_grace",
     "compute_total_loss",
-    "move_teacher_models_to_device",
     "prepare_teacher_batches",
     "run_student_forward_and_teacher_gate",
 ]

@@ -417,8 +417,6 @@ class TrieWassersteinLoss(nn.Module):
         teacher_temperature: float = 1.0,
     ) -> torch.Tensor:
         """Compute mean trie-Wasserstein KD over aligned positions; input is student/teacher logits, output is a scalar loss tensor, and this exists as the main cross-tokenizer KD objective."""
-        from src.components.loss import resolve_temperatures
-
         if student_logits.ndim != 2:
             raise ValueError(
                 f"student_logits must have shape (N, V_s), got {tuple(student_logits.shape)}"
@@ -444,10 +442,8 @@ class TrieWassersteinLoss(nn.Module):
             )
 
         self.ensure_device_tensors(student_logits.device)
-        student_temperature, teacher_temperature = resolve_temperatures(
-            student_temperature=student_temperature,
-            teacher_temperature=teacher_temperature,
-        )
+        student_temperature = float(student_temperature)
+        teacher_temperature = float(teacher_temperature)
 
         student_probs = F.softmax(student_logits.float() / student_temperature, dim=-1)
         teacher_probs = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)

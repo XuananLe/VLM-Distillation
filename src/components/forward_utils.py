@@ -1,26 +1,7 @@
-import re
 from typing import Dict
 
 import torch
 from einops import rearrange, reduce
-
-
-def forward_with_kwarg_retry(model, call_inputs):
-    """Call a model forward while dropping unsupported kwargs one at a time."""
-    inputs = dict(call_inputs)
-    while True:
-        try:
-            return model(**inputs)
-        except TypeError as exc:
-            # Different VLM families accept slightly different forward kwargs; drop
-            # unsupported ones one by one instead of maintaining per-model call sites.
-            match = re.search(r"unexpected keyword argument '([^']+)'", str(exc))
-            if not match:
-                raise
-            bad_key = match.group(1)
-            if bad_key not in inputs:
-                raise
-            inputs.pop(bad_key, None)
 
 
 def unwrap_tensor(output):

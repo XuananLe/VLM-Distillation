@@ -1,11 +1,9 @@
 import contextlib
-from types import SimpleNamespace
 
 import torch
 from einops import rearrange, reduce
 
 from src.components.forward_utils import (
-    forward_with_kwarg_retry,
     get_decoder_hidden_states,
     infer_batch_size,
     pool_model_hidden_states,
@@ -263,7 +261,6 @@ def compute_teacher_forward_and_layer_distillation(
     layer_distill_source,
     student_layer_representations,
     output_hidden_states,
-    suppress_stdout=False,
 ):
     """Run one live teacher forward and optionally compute its auxiliary layer-matching loss."""
     teacher_hook_context = contextlib.nullcontext(None)
@@ -283,7 +280,6 @@ def compute_teacher_forward_and_layer_distillation(
             teacher_model,
             teacher_inputs,
             output_hidden_states=output_hidden_states,
-            suppress_stdout=suppress_stdout,
         )
 
     layer_loss = None
@@ -324,91 +320,16 @@ def compute_teacher_forward_and_layer_distillation(
     return teacher_outputs, layer_loss
 
 
-def select_supervised_logit_positions(labels: torch.Tensor) -> torch.Tensor | None:
-    """Return shared supervised token positions when labels expose an answer-only subset."""
-    if labels.ndim != 2:
-        return None
-
-    positions = labels.ne(-100).any(dim=0).nonzero(as_tuple=False).squeeze(-1)
-    if positions.numel() == 0 or positions.numel() == labels.size(1):
-        return None
-    return positions
-
-
-def select_labels_at_positions(
-    labels: torch.Tensor,
-    positions: torch.Tensor | None,
-) -> torch.Tensor:
-    """Select labels at explicit sequence positions or return the full label tensor unchanged."""
-    if positions is None:
-        return labels
-    return labels.index_select(dim=1, index=positions.to(device=labels.device))
-
-
-def _slice_hidden_states_for_logits(
-    hidden_states: torch.Tensor,
-    logits_to_keep: int | torch.Tensor,
-) -> torch.Tensor:
-    """Slice hidden states to the positions requested by a logits_to_keep hint."""
-    if isinstance(logits_to_keep, int):
-        if logits_to_keep == 0:
-            return hidden_states
-        return hidden_states[:, -logits_to_keep:, :]
-
-    if not isinstance(logits_to_keep, torch.Tensor):
-        raise TypeError(f"Unsupported logits_to_keep type: {type(logits_to_keep)!r}")
-
-    positions = rearrange(logits_to_keep, "... -> (...)").to(
-        device=hidden_states.device,
-        dtype=torch.long,
-    )
-    return hidden_states.index_select(dim=1, index=positions)
-
-
-def _compute_teacher_forward_with_manual_logit_slice(
-    teacher_model,
-    teacher_inputs,
-    *,
-    output_hidden_states: bool,
-    logits_to_keep: int | torch.Tensor,
-):
-    """Emulate logits_to_keep for backends that ignore it but expose a usable hidden-state path."""
-    model_type = getattr(getattr(teacher_model, "config", None), "model_type", None)
-    if model_type != "qwen2_vl":
-        return None
-
-    backbone_inputs = {
-        **teacher_inputs,
-        "return_dict": True,
-        "output_hidden_states": output_hidden_states,
-    }
-    backbone_outputs = forward_with_kwarg_retry(teacher_model.model, backbone_inputs)
-    hidden_states = backbone_outputs[0]
-    sliced_hidden_states = _slice_hidden_states_for_logits(hidden_states, logits_to_keep)
-    logits = teacher_model.lm_head(sliced_hidden_states)
-    return SimpleNamespace(logits=logits, hidden_states=backbone_outputs.hidden_states)
-
-
 def compute_teacher_forward(
     teacher_model,
     teacher_inputs,
     *,
     output_hidden_states: bool = False,
-    suppress_stdout: bool = False,
-    logits_to_keep: int | torch.Tensor | None = None,
 ):
-    """Run a teacher forward with device/dtype alignment and optional logit slicing."""
-    import io
-    from contextlib import nullcontext, redirect_stdout
-
-    try:
-        model_param = next(teacher_model.parameters())
-    except StopIteration:
-        model_device = getattr(teacher_model, "device", None)
-        model_dtype = None
-    else:
-        model_device = model_param.device
-        model_dtype = model_param.dtype if model_param.is_floating_point() else None
+    """Run a teacher forward with device/dtype alignment."""
+    model_param = next(teacher_model.parameters())
+    model_device = model_param.device
+    model_dtype = model_param.dtype if model_param.is_floating_point() else None
 
     prepared_teacher_inputs = {
         key: (
@@ -427,20 +348,6 @@ def compute_teacher_forward(
         "return_dict": True,
         "output_hidden_states": output_hidden_states,
     }
-    if logits_to_keep is not None:
-        call_inputs["logits_to_keep"] = logits_to_keep
 
     with torch.no_grad():
-        stdout_context = redirect_stdout(io.StringIO()) if suppress_stdout else nullcontext()
-        with stdout_context:
-            manual_outputs = None
-            if logits_to_keep is not None:
-                manual_outputs = _compute_teacher_forward_with_manual_logit_slice(
-                    teacher_model,
-                    prepared_teacher_inputs,
-                    output_hidden_states=output_hidden_states,
-                    logits_to_keep=logits_to_keep,
-                )
-            if manual_outputs is not None:
-                return manual_outputs
-            return forward_with_kwarg_retry(teacher_model, call_inputs)
+        return teacher_model(**call_inputs)

@@ -1,32 +1,15 @@
+from pathlib import Path
+
 import torch
 from transformers import HfArgumentParser, Trainer
+
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, ModelArguments, TrainingArguments
 from src.train.model_setup import (
-    configure_vision_tower,
     load_model,
     load_processor_and_tokenizer,
 )
 from src.train.save_utils import safe_save_model_for_hf_trainer
-import pathlib
-
-import warnings
-
-# Image handling imports
-from PIL import Image, ImageFile
-
-# AVIF support initialization
-try:
-    from pillow_avif import register_avif_opener
-    register_avif_opener()
-    AVIF_SUPPORT = True 
-except ImportError:
-    AVIF_SUPPORT = False
-    warnings.warn("AVIF support disabled. Install pillow-avif-plugin for AVIF support.")
-
-# Configure image loading
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-Image.MAX_IMAGE_PIXELS = None
 
 def train():
     """Parse args, build the SFT stack, and run one full supervised fine-tuning job."""
@@ -48,28 +31,20 @@ def train():
         padding_side="right",
         cache_dir=training_args.cache_dir,
     )
-    if processor is None:
-        raise ValueError(
-            "Training requires an AutoProcessor, but processor loading failed for "
-            f"{model_args.model_id!r}."
-        )
     model = load_model(
         model_id=model_args.model_id,
         model_type=model_type,
         cache_dir=training_args.cache_dir,
         attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "eager",
         compute_dtype=compute_dtype,
-        trust_remote_code=True,
         model_kwargs={"device_map": {"": training_args.device}},
     )
 
-    configure_vision_tower(model, processor, compute_dtype, training_args.device)
     model.config.use_cache = False
 
     if training_args.gradient_checkpointing:
         model.enable_input_require_grads()
         training_args.gradient_checkpointing_kwargs = {"use_reentrant": True}
-    # model.config.tokenizer_model_max_length = processor.tokenizer.model_max_length
     model.config.tokenizer_padding_side = processor.tokenizer.padding_side
 
     data_module = make_supervised_data_module(processor=processor,
@@ -81,7 +56,7 @@ def train():
         **data_module
     )
 
-    if list(pathlib.Path(training_args.output_dir).glob("checkpoint-*")):
+    if list(Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
     else:
         trainer.train()

@@ -1,6 +1,4 @@
-import os
 import sys
-import importlib
 from pathlib import Path
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -18,22 +16,13 @@ from src.params import DataArguments, TrainingArguments
 from src.train.distillation_setup import (
     DistillationArguments,
     log_distillation_setup,
-    validate_distillation_args,
 )
 from src.train.model_setup import (
-    configure_vision_tower,
     load_model,
     load_processor_and_tokenizer,
     load_teacher_model_and_processor,
 )
 from src.train.save_utils import safe_save_model_for_hf_trainer
-
-from PIL import Image, ImageFile
-
-importlib.import_module("pillow_avif")
-
-ImageFile.LOAD_TRUNCATED_IMAGES = True
-Image.MAX_IMAGE_PIXELS = None
 
 def train_distillation():
     """
@@ -53,7 +42,6 @@ def train_distillation():
     teacher_ids = list(distillation_args.teacher_model_ids)
     student_layer_indices = list(distillation_args.student_layer_indices)
     teacher_layer_indices = list(distillation_args.teacher_layer_indices)
-    validate_distillation_args(distillation_args)
     if (
         distillation_args.layer_distill_source in {"vision", "model"}
         and distillation_args.layer_distill_weight > 0.0
@@ -83,23 +71,16 @@ def train_distillation():
         padding_side="right",
         cache_dir=training_args.cache_dir,
     )
-    if processor is None:
-        raise ValueError(
-            "Training requires an AutoProcessor, but processor loading failed for "
-            f"{distillation_args.student_model_id!r}."
-        )
     student_model = load_model(
         model_id=distillation_args.student_model_id,
         model_type=student_model_type,
         cache_dir=training_args.cache_dir,
         attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "eager",
         compute_dtype=compute_dtype,
-        trust_remote_code=True,
         model_kwargs={"device_map": {"": training_args.device}},
     )
 
     print("Loading student model...")
-    configure_vision_tower(student_model, processor, compute_dtype, training_args.device)
     student_model.config.use_cache = False
 
     if training_args.gradient_checkpointing:
@@ -204,13 +185,6 @@ def train_distillation():
         trainer.train(resume_from_checkpoint=True)
     else:
         trainer.train()
-
-    if trainer.state.best_model_checkpoint is not None:
-        best_metric_name = training_args.metric_for_best_model or "train_ce_loss"
-        print(f"\nLoading best checkpoint based on {best_metric_name}...")
-        print(f"Best checkpoint: {trainer.state.best_model_checkpoint}")
-        print(f"Best {best_metric_name}: {trainer.state.best_metric:.6f}")
-        trainer._load_best_model()
 
     print("\nSaving trained model...")
     trainer.save_state()

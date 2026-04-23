@@ -43,7 +43,6 @@ def compute_pooled_kd_grace_grad(
     teacher_logits: torch.Tensor,
     teacher_labels: torch.Tensor,
     distillation_logit_grad_fn: Callable,
-    loss_function: str,
     student_temperature: float,
     teacher_temperature: float,
     skip_student_eos: bool,
@@ -90,7 +89,6 @@ def compute_pooled_kd_grace_grad(
             student_temperature=student_temperature,
             teacher_temperature=teacher_temperature,
             teacher_index=teacher_index,
-            loss_function=loss_function,
         )
         # Keep the KD gradient on the same scale as the CE reference by normalizing
         # with the student supervised-token count, not just the matched prefix length.
