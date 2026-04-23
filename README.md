@@ -1,44 +1,54 @@
 # VLM Distillation and Fine-Tuning
 
-This repository trains [SmolVLM](https://huggingface.co/HuggingFaceTB/SmolVLM-Instruct) in two modes:
+This repository trains [SmolVLM](https://huggingface.co/HuggingFaceTB/SmolVLM-Instruct) students in two main modes:
 
 - standard supervised fine-tuning
-- teacher-student distillation with one or more VLM teachers
+- teacher-student distillation from one or more VLM teachers
 
-The current distillation stack supports:
+The implemented training stack is centered on cache-backed distillation: teacher logits are precomputed once, then reused during student training. On top of that base workflow, the repo currently supports:
 
 - single-teacher and multi-teacher KD
-- cached teacher-logit training, so teacher weights do not need to be loaded during training
-- router-based teacher weighting
-- reinforced teacher selection
+- cached teacher-logit training from local disk or streamed remote storage
+- teacher weighting via `uniform_mean`, `routing`, or `reinforced_selection`
 - `GRACE` routing refinement on top of the router
-- standard `CE + alpha * KD` optimization
+- logits-space KD losses including `uld_loss`, `trie_wasserstein_loss`, KL/JS variants, and `cka_loss`
+- optional hidden-state / layer distillation in addition to cached-logit KD
+- full SFT and LoRA SFT launchers
+- a separate evaluation stack under `src/eval/`
 
-## What This Repo Is For
+## Documentation
 
-The main research workflow in this repo is:
+- [Runtime and Training Guide](docs/runtime-guide.md)
+  - comprehensive guide to the implemented training stack
+  - covers entrypoints, cache layout, data format, routing, GRACE, and launcher behavior
+- [PLAN.md](PLAN.md)
+  - research notes and method planning
+  - useful for context, but not the runtime source of truth
+- [DEX-AR Demo](demo/DEX-AR/README.md)
+  - separate explainability demo bundled in this repository
 
-1. choose one or more teacher VLMs
-2. optionally cache their logits on the training set
-3. train a smaller student VLM with:
-   - `uniform_mean`
-   - `routing`
-   - `reinforced_selection`
-4. optionally evaluate checkpoints in the separate `src/eval/` stack
+## Source of Truth
 
-If you only care about the current training code, the important entrypoint is:
+If you are trying to understand what currently runs, prioritize these directories:
 
-- [train_distillation.py](/home/automl/VLM-Distillation/src/train/train_distillation.py)
+- `src/train`
+- `src/trainer`
+- `src/dataset`
+- `src/components`
 
-## Installation
+The checked-in docs now describe the implemented runtime, not just the intended research direction. `PLAN.md` is still useful, but it should be treated as planning material rather than a strict runtime specification.
 
-### Environment
+## Quick Start
+
+### 1. Install dependencies
+
+The repo currently targets:
 
 - Ubuntu 22.04
 - CUDA 12.x
-- PyTorch with CUDA
+- Python 3.11 or 3.12
 
-### `requirements.txt`
+`requirements.txt` path:
 
 ```bash
 pip install -r requirements.txt --index-url https://download.pytorch.org/whl/cu126
@@ -47,7 +57,7 @@ pip install pillow-avif-plugin
 pip install num2words
 ```
 
-### `environment.yaml`
+`environment.yaml` path:
 
 ```bash
 conda env create -f environment.yaml
@@ -57,16 +67,9 @@ pip install pillow-avif-plugin
 pip install num2words
 ```
 
-## Dataset Format
+### 2. Prepare LLaVA-style training data
 
-Training expects LLaVA-style JSON.
-
-Each sample contains:
-
-- `image` or `video`
-- `conversations`
-
-The dataset loader converts the conversation into the model-specific processor format at runtime.
+Training expects JSON samples containing either `image` or `video`, plus `conversations`.
 
 Example:
 
@@ -89,238 +92,148 @@ Example:
 ]
 ```
 
-## Main Training Commands
+Notes:
 
-### Multi-teacher distillation
+- image paths can be absolute or resolved relative to `--image_folder`
+- video samples are decoded into frame lists at load time
+- the loader converts LLaVA-style conversations into the processor-specific chat format during training
+
+### 3. Cache teacher logits
+
+The current distillation runtime expects cached teacher logits, either from a local cache root or a remote raw cache URI.
+
+Example:
 
 ```bash
+export PYTHONPATH=src:$PYTHONPATH
+
+python scripts/analysis/cache_teacher_logits.py \
+  --student-model-id HuggingFaceTB/SmolVLM-500M-Instruct \
+  --teacher-model-ids '["Qwen/Qwen2.5-VL-3B-Instruct","Qwen/Qwen2-VL-2B-Instruct"]' \
+  --data-path data/docvqa/train_llava.json \
+  --image-folder data/docvqa/images \
+  --output-dir /path/to/teacher-logits-cache
+```
+
+### 4. Run multi-teacher distillation
+
+The most up-to-date checked-in launcher is:
+
+```bash
+TEACHER_LOGITS_CACHE_DIR=/path/to/teacher-logits-cache \
 bash scripts/train/distill_multi_teachers.sh
 ```
 
-### Single-teacher distillation
+The default script currently trains:
+
+- student: `HuggingFaceTB/SmolVLM-500M-Instruct`
+- teachers:
+  - `Qwen/Qwen2.5-VL-3B-Instruct`
+  - `Qwen/Qwen2-VL-2B-Instruct`
+  - `ibm-granite/granite-vision-3.1-2b-preview`
+  - `google/gemma-3-4b-it`
+- dataset: `docvqa`
+- weighting strategy: `routing`
+- KD loss: `trie_wasserstein_loss`
+
+Useful overrides:
 
 ```bash
-bash scripts/train/distill_single_teacher.sh
+TEACHER_WEIGHTING_STRATEGY=uniform_mean \
+TEACHER_LOGITS_CACHE_DIR=/path/to/cache \
+bash scripts/train/distill_multi_teachers.sh
 ```
 
-### Standard SFT
+```bash
+TRIE_WASSERSTEIN_RHO=0.5 \
+TRIE_WASSERSTEIN_TOPK=128 \
+TEACHER_LOGITS_CACHE_DIR=/path/to/cache \
+bash scripts/train/distill_multi_teachers.sh
+```
+
+```bash
+NUM_TRAIN_EPOCHS=2 \
+PER_DEVICE_TRAIN_BATCH_SIZE=16 \
+GRADIENT_ACCUMULATION_STEPS=4 \
+TEACHER_LOGITS_CACHE_DIR=/path/to/cache \
+bash scripts/train/distill_multi_teachers.sh
+```
+
+### 5. Run standard SFT
+
+The SFT launchers do not use teacher logits.
 
 ```bash
 bash scripts/train/sft_full.sh
 ```
 
-### LoRA SFT
+See the runtime guide for LoRA, vision LoRA, and video variants.
 
-```bash
-bash scripts/train/sft_lora.sh
-```
+## Training Modes
 
-## Cached Teacher Logits Workflow
+| Mode | Entrypoint | Notes |
+| --- | --- | --- |
+| Multi-teacher distillation | [`scripts/train/distill_multi_teachers.sh`](scripts/train/distill_multi_teachers.sh) | Most up-to-date checked-in distillation launcher |
+| Single-teacher distillation | [`src/train/train_distillation.py`](src/train/train_distillation.py) | Current distillation runtime is still cache-backed even for one teacher |
+| Full SFT | [`scripts/train/sft_full.sh`](scripts/train/sft_full.sh) | Standard fine-tuning |
+| LoRA SFT | [`scripts/train/sft_lora.sh`](scripts/train/sft_lora.sh) | LLM LoRA with explicit freeze settings |
+| Vision LoRA SFT | [`scripts/train/sft_lora_vision.sh`](scripts/train/sft_lora_vision.sh) | Vision-tower LoRA path |
+| Video SFT | [`scripts/train/sft_video.sh`](scripts/train/sft_video.sh) | Frame-based training with `max_num_frames` |
 
-If you only use logits for distillation, you can precompute teacher outputs once and train without loading teacher model weights.
+## Distillation At A Glance
 
-### 1. Cache teacher logits
+The implemented distillation path is:
 
-```bash
-python scripts/analysis/cache_teacher_logits.py ...
-```
+1. [`src/train/train_distillation.py`](src/train/train_distillation.py)
+2. [`src/dataset/sft_data.py`](src/dataset/sft_data.py)
+3. [`src/dataset/data_collator.py`](src/dataset/data_collator.py)
+4. [`src/trainer/distillation_trainer.py`](src/trainer/distillation_trainer.py)
+5. [`src/trainer/step_utils.py`](src/trainer/step_utils.py)
+6. [`src/trainer/alignment_utils.py`](src/trainer/alignment_utils.py)
+7. teacher weighting and KD losses from:
+   - [`src/components/teacher_gate.py`](src/components/teacher_gate.py)
+   - [`src/components/grace.py`](src/components/grace.py)
+   - [`src/components/reinforced_teacher_selection.py`](src/components/reinforced_teacher_selection.py)
+   - [`src/components/loss.py`](src/components/loss.py)
 
-This produces a cache directory with:
+One practical consequence of the current design:
 
-- `metadata.json`
-- one subdirectory per teacher
-- one `.pt` file per dataset sample
+- distillation validates that a cache source is present
+- if layer distillation is disabled, teacher model weights are not loaded during training
+- if layer distillation is enabled, live teacher models are loaded in addition to cached teacher logits
 
-### 2. Train from the cache
+## Repository Layout
 
-```bash
-TEACHER_LOGITS_CACHE_DIR=/path/to/cache \
-bash scripts/train/distill_multi_teachers.sh
-```
+- [`src/train`](src/train)
+  - argument parsing, model loading, training entrypoints, trainer callback setup
+- [`src/trainer`](src/trainer)
+  - custom SFT trainer, distillation trainer, per-step loss orchestration, routing helpers
+- [`src/dataset`](src/dataset)
+  - dataset loading, conversation transforms, processor-specific encoding, cache readers, collator
+- [`src/components`](src/components)
+  - KD losses, router, GRACE, reinforced selection, trie-Wasserstein, CKA helpers
+- [`src/eval`](src/eval)
+  - separate evaluation stack
+- [`scripts/train`](scripts/train)
+  - shell launchers for distillation and SFT
+- [`scripts/analysis`](scripts/analysis)
+  - teacher-logit caching and offline analysis helpers
+- [`demo/DEX-AR`](demo/DEX-AR)
+  - separate explainability demo
 
-When `teacher_logits_cache_dir` is set:
+The detailed file-by-file guide lives in [docs/runtime-guide.md](docs/runtime-guide.md).
 
-- the dataset loads cached logits from disk
-- the collator pads cached logits/labels into the batch
-- training uses those tensors directly for KD
-- teacher model weights are not loaded during training
+## Notes and Caveats
 
-## Distillation Methods
-
-### Teacher weighting
-
-- `uniform_mean`
-  - average all teacher KD losses
-- `routing`
-  - learned teacher gate over pooled student hidden states
-  - optional soft routing, capacity control, entropy regularization, and `GRACE`
-- `reinforced_selection`
-  - policy-based teacher selection driven by CE and KD reward signals
-
-### CE vs KD objective combination
-
-- `fixed`
-
-## Repository Guide
-
-The sections below describe what each important file is responsible for.
-
-### Root Files
-
-- [modal_app.py](/home/automl/VLM-Distillation/modal_app.py)
-  - Modal entrypoints for remote training and evaluation jobs.
-- [PLAN.md](/home/automl/VLM-Distillation/PLAN.md)
-  - research notes and method planning, not runtime code.
-- [requirements.txt](/home/automl/VLM-Distillation/requirements.txt)
-  - pip dependencies.
-- [environment.yaml](/home/automl/VLM-Distillation/environment.yaml)
-  - conda environment definition.
-
-### `src/components`
-
-- [forward_utils.py](/home/automl/VLM-Distillation/src/components/forward_utils.py)
-  - safe forward helpers, including retry logic for models that reject unexpected kwargs.
-- [grace.py](/home/automl/VLM-Distillation/src/components/grace.py)
-  - `GRACE` routing refinement.
-  - takes routed teacher weights plus teacher agreement scores and returns final teacher weights.
-- [loss.py](/home/automl/VLM-Distillation/src/components/loss.py)
-  - KD loss implementations and logit-gradient formulas.
-  - includes `uld_loss` and the helper used for KD-gradient computations.
-- [teacher_gate.py](/home/automl/VLM-Distillation/src/components/teacher_gate.py)
-  - learned router for the `routing` strategy.
-  - captures pooled student hidden states and outputs teacher scores.
-
-### `src/dataset`
-
-- [conversation_transforms.py](/home/automl/VLM-Distillation/src/dataset/conversation_transforms.py)
-  - converts LLaVA-style conversations into the internal OpenAI-style message format.
-- [conversation_encoders.py](/home/automl/VLM-Distillation/src/dataset/conversation_encoders.py)
-  - high-level student/teacher encoding entrypoints.
-- [processor_encoders.py](/home/automl/VLM-Distillation/src/dataset/processor_encoders.py)
-  - model-specific tokenization and multimodal packing logic for SmolVLM, Qwen, InternVL, and similar processors.
-- [data_collator.py](/home/automl/VLM-Distillation/src/dataset/data_collator.py)
-  - pads student tensors and teacher tensors.
-  - also pads cached teacher logits and labels.
-- [sft_data.py](/home/automl/VLM-Distillation/src/dataset/sft_data.py)
-  - main dataset class used by training.
-  - loads images/videos, encodes student inputs, and either:
-    - loads cached teacher logits, or
-    - builds live teacher inputs.
-- [teacher_logits_cache.py](/home/automl/VLM-Distillation/src/dataset/teacher_logits_cache.py)
-  - reads the on-disk teacher-logit cache.
-- [internvl_utils.py](/home/automl/VLM-Distillation/src/dataset/internvl_utils.py)
-  - InternVL-specific preprocessing helpers.
-- [vqa_loading.py](/home/automl/VLM-Distillation/src/dataset/vqa_loading.py)
-  - utility loaders for VQA-style data.
-- [data_utils.py](/home/automl/VLM-Distillation/src/dataset/data_utils.py)
-  - lower-level dataset helpers.
-
-### `src/train`
-
-- [distillation_setup.py](/home/automl/VLM-Distillation/src/train/distillation_setup.py)
-  - distillation-specific argument definitions, validation, and setup logging.
-  - this is where most experiment knobs are exposed.
-- [distillation_runtime.py](/home/automl/VLM-Distillation/src/train/distillation_runtime.py)
-  - teacher model loading and trainer callback setup.
-- [model_setup.py](/home/automl/VLM-Distillation/src/train/model_setup.py)
-  - model construction and setup helpers used by training.
-- [save_utils.py](/home/automl/VLM-Distillation/src/train/save_utils.py)
-  - save/checkpoint utilities for training scripts.
-- [train_utils.py](/home/automl/VLM-Distillation/src/train/train_utils.py)
-  - shared training helpers and compatibility glue.
-- [arg_utils.py](/home/automl/VLM-Distillation/src/train/arg_utils.py)
-  - argument parsing helpers.
-- [log_utils.py](/home/automl/VLM-Distillation/src/train/log_utils.py)
-  - training/log formatting helpers.
-- [train_distillation.py](/home/automl/VLM-Distillation/src/train/train_distillation.py)
-  - main distillation entrypoint.
-  - loads student model, optionally loads teachers, builds datasets, and starts `DistillationTrainer`.
-- [train_sft.py](/home/automl/VLM-Distillation/src/train/train_sft.py)
-  - main supervised fine-tuning entrypoint without teacher distillation.
-
-### `src/trainer`
-
-- [distillation_trainer.py](/home/automl/VLM-Distillation/src/trainer/distillation_trainer.py)
-  - thin trainer shell on top of the SFT trainer.
-  - owns training state, trainer configuration, and overall loss orchestration.
-- [step_utils.py](/home/automl/VLM-Distillation/src/trainer/step_utils.py)
-  - per-step training pipeline.
-  - prepares teacher batches, runs the student forward pass, applies teacher weighting, computes KD, applies objective-conflict logic, and builds the total loss.
-- [alignment_utils.py](/home/automl/VLM-Distillation/src/trainer/alignment_utils.py)
-  - builds the per-teacher KD loss matrix and the per-teacher GRACE scores.
-  - works with both cached teacher logits and live teacher forwards.
-- [gradient_utils.py](/home/automl/VLM-Distillation/src/trainer/gradient_utils.py)
-  - computes pooled CE and KD gradient vectors used by `GRACE` and objective-conflict logic.
-- [kd_sequence_utils.py](/home/automl/VLM-Distillation/src/trainer/kd_sequence_utils.py)
-  - aligns student and teacher token sequences for logits KD.
-  - masks unsupervised positions and handles EOS trimming.
-- [routing_utils.py](/home/automl/VLM-Distillation/src/trainer/routing_utils.py)
-  - gate-specific math:
-    - top-k/capacity constraints
-    - load balancing
-    - z-loss
-    - entropy bonus
-- [metrics_utils.py](/home/automl/VLM-Distillation/src/trainer/metrics_utils.py)
-  - assembles the training metrics logged to W&B or the trainer logger.
-- [setup_utils.py](/home/automl/VLM-Distillation/src/trainer/setup_utils.py)
-  - validates trainer args and constructs the teacher gate when needed.
-- [checkpoint_utils.py](/home/automl/VLM-Distillation/src/trainer/checkpoint_utils.py)
-  - checkpoint bookkeeping, including best-checkpoint tracking by training CE.
-- [distillation_utils.py](/home/automl/VLM-Distillation/src/trainer/distillation_utils.py)
-  - generic teacher-batch helpers, cached-logit batch extraction, and eval-memory cleanup.
-- [sft_trainer.py](/home/automl/VLM-Distillation/src/trainer/sft_trainer.py)
-  - base trainer used by both SFT and distillation.
-
-### `scripts/train`
-
-- [distill_multi_teachers.sh](/home/automl/VLM-Distillation/scripts/train/distill_multi_teachers.sh)
-  - main multi-teacher distillation launcher.
-- [distill_single_teacher.sh](/home/automl/VLM-Distillation/scripts/train/distill_single_teacher.sh)
-  - single-teacher variant.
-- [sft_full.sh](/home/automl/VLM-Distillation/scripts/train/sft_full.sh)
-  - full fine-tuning launcher.
-- [sft_lora.sh](/home/automl/VLM-Distillation/scripts/train/sft_lora.sh)
-  - LoRA fine-tuning launcher.
-- [sft_lora_vision.sh](/home/automl/VLM-Distillation/scripts/train/sft_lora_vision.sh)
-  - vision-aware LoRA launcher.
-- [sft_video.sh](/home/automl/VLM-Distillation/scripts/train/sft_video.sh)
-  - video-as-frames training launcher.
-
-### `scripts/analysis`
-
-- [cache_teacher_logits.py](/home/automl/VLM-Distillation/scripts/analysis/cache_teacher_logits.py)
-  - precomputes and saves teacher logits for logits-only KD.
-- [gradient_agreement.py](/home/automl/VLM-Distillation/scripts/analysis/gradient_agreement.py)
-  - offline gradient-agreement analysis.
-- [run_docvqa_gradient_agreement.sh](/home/automl/VLM-Distillation/scripts/analysis/run_docvqa_gradient_agreement.sh)
-  - launcher for the gradient-agreement analysis.
-
-### `src/eval`
-
-The evaluation stack is separate from the training stack and is not described in detail here.
-Use it for checkpoint evaluation after training, not for the core distillation loop.
-
-## Training Flow
-
-The distillation path is:
-
-1. [train_distillation.py](/home/automl/VLM-Distillation/src/train/train_distillation.py)
-2. [sft_data.py](/home/automl/VLM-Distillation/src/dataset/sft_data.py) and [data_collator.py](/home/automl/VLM-Distillation/src/dataset/data_collator.py)
-3. [distillation_trainer.py](/home/automl/VLM-Distillation/src/trainer/distillation_trainer.py)
-4. [step_utils.py](/home/automl/VLM-Distillation/src/trainer/step_utils.py)
-5. [alignment_utils.py](/home/automl/VLM-Distillation/src/trainer/alignment_utils.py)
-6. one of:
-   - [teacher_gate.py](/home/automl/VLM-Distillation/src/components/teacher_gate.py) + [grace.py](/home/automl/VLM-Distillation/src/components/grace.py)
-
-## Notes
-
-- Cached-logit training is the cleanest way to reduce GPU memory when all distillation methods are logits-only.
-- `GRACE` belongs to the `routing` strategy. It refines router weights; it is not a separate teacher-weighting strategy.
-- Training-time eval is optional and the current distillation workflow is designed to run without online teacher loading when cached logits are available.
+- The distillation runtime is cache-first. Provide either `--teacher_logits_cache_dir` or `--teacher_logits_remote_uri`.
+- `GRACE` is part of the `routing` path. It refines routed teacher weights; it is not a separate weighting strategy.
+- `src/eval` is a separate stack and is not part of the core training loop.
+- `modal_app.py` is remote execution glue. Its checked-in local entrypoint currently drops into the DEX-AR demo, not the main training path.
+- Test coverage is currently narrow and mainly exercises the custom DeepSpeed fallback in [`tests/trainer/test_sft_trainer_deepspeed.py`](tests/trainer/test_sft_trainer_deepspeed.py).
 
 ## License
 
-This project is licensed under the Apache-2.0 License. See [LICENSE](/home/automl/VLM-Distillation/LICENSE).
+This project is licensed under the Apache-2.0 License. See [LICENSE](LICENSE).
 
 ## Acknowledgement
 

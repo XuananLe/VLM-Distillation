@@ -22,12 +22,12 @@
 \contentsline {figure}{\numberline {3.5}{\ignorespaces Student-conditioned router sketch in GRACE{}.}}{27}{figure.caption.22}%
 \contentsline {figure}{\numberline {3.6}{\ignorespaces Bias-feedback behavior in GRACE.}}{29}{figure.caption.23}%
 \contentsline {figure}{\numberline {3.7}{\ignorespaces Routing dynamics in GRACE.}}{29}{figure.caption.24}%
-\contentsline {figure}{\numberline {3.8}{\ignorespaces Directional view of gradient descent.}}{30}{figure.caption.25}%
+\contentsline {figure}{\numberline {3.8}{\ignorespaces Directional view of gradient descent.}}{31}{figure.caption.25}%
 \contentsline {figure}{\numberline {3.9}{\ignorespaces EMA smoothing in GRACE.}}{31}{figure.caption.26}%
 \contentsline {figure}{\numberline {3.10}{\ignorespaces Warmup schedule in GRACE.}}{32}{figure.caption.27}%
 \contentsline {figure}{\numberline {3.11}{\ignorespaces GRACE score refinement in GRACE{}.}}{33}{figure.caption.28}%
 \contentsline {figure}{\numberline {3.12}{\ignorespaces GRACE weighting cases.}}{33}{figure.caption.29}%
-\contentsline {figure}{\numberline {3.13}{\ignorespaces Weight refinement in GRACE.}}{33}{figure.caption.30}%
+\contentsline {figure}{\numberline {3.13}{\ignorespaces Weight refinement in GRACE.}}{34}{figure.caption.30}%
 \contentsline {figure}{\numberline {3.14}{\ignorespaces Sample-specific weighting in GRACE.}}{34}{figure.caption.31}%
 \addvspace {10\p@ }
 \contentsline {figure}{\numberline {4.1}{\ignorespaces TextVQA sample image.}}{37}{figure.caption.32}%

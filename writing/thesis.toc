@@ -40,17 +40,18 @@
 \contentsline {subsection}{\numberline {3.2.1}Supervised Answer Tokens}{21}{subsection.3.2.1}%
 \contentsline {subsection}{\numberline {3.2.2}Shared Byte Trie}{23}{subsection.3.2.2}%
 \contentsline {subsection}{\numberline {3.2.3}Sparse Top-\(k\) Support and Tail Edge}{24}{subsection.3.2.3}%
+\contentsline {paragraph}{Complexity Analysis.}{25}{equation.3.2.9}%
 \contentsline {section}{\numberline {3.3}Learned Teacher Gate and Load Balancing}{26}{section.3.3}%
 \contentsline {subsection}{\numberline {3.3.1}Student-Conditioned Router}{26}{subsection.3.3.1}%
 \contentsline {subsection}{\numberline {3.3.2}Top-k, Capacity and Fallback}{27}{subsection.3.3.2}%
 \contentsline {subsection}{\numberline {3.3.3}Balancing Loss and Expert Bias Update}{28}{subsection.3.3.3}%
-\contentsline {section}{\numberline {3.4}GRACE Score Refinement}{29}{section.3.4}%
-\contentsline {subsection}{\numberline {3.4.1}Gradient Proxies}{29}{subsection.3.4.1}%
+\contentsline {section}{\numberline {3.4}GRACE Score Refinement}{30}{section.3.4}%
+\contentsline {subsection}{\numberline {3.4.1}Gradient Proxies}{30}{subsection.3.4.1}%
 \contentsline {subsection}{\numberline {3.4.2}GRACE Scores and Logged Active Flags}{30}{subsection.3.4.2}%
 \contentsline {subsection}{\numberline {3.4.3}Warmup, Score Smoothing and Gradient Weights}{31}{subsection.3.4.3}%
 \contentsline {subsection}{\numberline {3.4.4}Router-Gradient Blend and Uniform Fallback}{32}{subsection.3.4.4}%
-\contentsline {subsection}{\numberline {3.4.5}Sample-Wise KD Aggregation}{34}{subsection.3.4.5}%
-\contentsline {section}{\numberline {3.5}Final Objective}{34}{section.3.5}%
+\contentsline {subsection}{\numberline {3.4.5}Sample-Wise KD Aggregation}{35}{subsection.3.4.5}%
+\contentsline {section}{\numberline {3.5}Final Objective}{35}{section.3.5}%
 \contentsline {chapter}{\numberline {4}Evaluation Methodology}{36}{chapter.4}%
 \contentsline {section}{\numberline {4.1}Experimental Setup}{36}{section.4.1}%
 \contentsline {section}{\numberline {4.2}Datasets}{36}{section.4.2}%
