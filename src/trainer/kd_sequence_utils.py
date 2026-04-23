@@ -66,7 +66,6 @@ def compute_single_teacher_loss(
     teacher_logits: torch.Tensor,
     teacher_labels: torch.Tensor,
     distillation_loss_fn: Callable,
-    temperature: float,
     student_temperature: float,
     teacher_temperature: float,
     skip_student_eos: bool,
@@ -91,7 +90,6 @@ def compute_single_teacher_loss(
                 distillation_loss_fn(
                     student_logits=student_logits_masked,
                     teacher_logits=teacher_logits_masked,
-                    temperature=temperature,
                     student_temperature=student_temperature,
                     teacher_temperature=teacher_temperature,
                     teacher_index=teacher_index,

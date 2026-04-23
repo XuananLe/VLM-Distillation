@@ -1,6 +1,5 @@
 import torch
-from transformers import HfArgumentParser
-from src.trainer.sft_trainer import VisionLanguageSFTTrainer
+from transformers import HfArgumentParser, Trainer
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, ModelArguments, TrainingArguments
 from src.train.model_setup import (
@@ -72,12 +71,11 @@ def train():
         training_args.gradient_checkpointing_kwargs = {"use_reentrant": True}
     # model.config.tokenizer_model_max_length = processor.tokenizer.model_max_length
     model.config.tokenizer_padding_side = processor.tokenizer.padding_side
-    model.config.vision_lr = training_args.vision_lr
 
     data_module = make_supervised_data_module(processor=processor,
                                               data_args=data_args)
 
-    trainer = VisionLanguageSFTTrainer(
+    trainer = Trainer(
         model=model,
         args=training_args,
         **data_module

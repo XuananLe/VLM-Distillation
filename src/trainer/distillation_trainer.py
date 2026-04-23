@@ -1,8 +1,11 @@
+import os
 import time
 from typing import override
 
-from transformers import PreTrainedModel
+from transformers import PreTrainedModel, Trainer
+from transformers.trainer import PREFIX_CHECKPOINT_DIR
 
+from src.train.save_utils import _save_processing_assets
 from src.trainer.checkpoint_utils import (
     update_best_checkpoint_by_train_ce,
 )
@@ -13,7 +16,6 @@ from src.trainer.setup_utils import (
     maybe_create_reinforced_teacher_selector,
     normalize_teacher_models,
 )
-from src.trainer.sft_trainer import VisionLanguageSFTTrainer
 from src.trainer.distillation_utils import setup_layer_matching
 from src.trainer.step_utils import (
     apply_grace_and_compute_distillation_loss,
@@ -27,7 +29,7 @@ from src.trainer.step_utils import (
 )
 
 
-class DistillationTrainer(VisionLanguageSFTTrainer):
+class DistillationTrainer(Trainer):
     """Trainer that combines CE, KD, routing, GRACE, and optional layer distillation."""
     def __init__(
         self,
@@ -43,9 +45,8 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
         layer_match_topk: int = 1,
         student_layer_indices: list[int] | None = None,
         teacher_layer_indices: list[int] | None = None,
-        temperature: float = 2.0,
-        student_temperature: float | None = None,
-        teacher_temperature: float | None = None,
+        student_temperature: float = 2.0,
+        teacher_temperature: float = 2.0,
         skip_student_eos: bool = False,
         skip_teacher_eos: bool = False,
         alpha: float = 1.0,
@@ -139,13 +140,8 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
             teacher_weighting_strategy=self.teacher_weighting_strategy,
         )
 
-        self.temperature = temperature
-        self.student_temperature = (
-            float(temperature) if student_temperature is None else float(student_temperature)
-        )
-        self.teacher_temperature = (
-            float(temperature) if teacher_temperature is None else float(teacher_temperature)
-        )
+        self.student_temperature = float(student_temperature)
+        self.teacher_temperature = float(teacher_temperature)
         self.skip_student_eos = skip_student_eos
         self.skip_teacher_eos = skip_teacher_eos
         self.alpha = alpha
@@ -401,4 +397,9 @@ class DistillationTrainer(VisionLanguageSFTTrainer):
     def _save_checkpoint(self, model, trial):
         """Save a checkpoint, then refresh the best-checkpoint pointer using train CE."""
         super()._save_checkpoint(model, trial)
+        output_dir = os.path.join(
+            self._get_output_dir(trial=trial),
+            f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}",
+        )
+        _save_processing_assets(self, output_dir)
         update_best_checkpoint_by_train_ce(self, trial)

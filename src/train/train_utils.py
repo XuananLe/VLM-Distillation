@@ -1,7 +1,6 @@
 """Compatibility facade for training utilities."""
 
 from src.train.model_setup import (
-    build_component_parameter_id_map,
     configure_vision_tower,
     load_model,
     load_processor_and_tokenizer,
@@ -16,7 +15,6 @@ from src.train.save_utils import (
 
 __all__ = [
     "_save_processing_assets",
-    "build_component_parameter_id_map",
     "configure_vision_tower",
     "load_model",
     "load_processor_and_tokenizer",

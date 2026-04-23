@@ -9,11 +9,6 @@ if str(ROOT_DIR) not in sys.path:
 
 import torch
 from torch.utils.data import Dataset
-from transformers import (
-    AutoModel,
-    AutoTokenizer,
-    Gemma3ForConditionalGeneration,
-)
 
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments
@@ -24,7 +19,7 @@ from src.trainer.distillation_utils import (
     select_supervised_logit_positions,
 )
 from src.train.train_utils import (
-    load_model,
+    load_teacher_model_and_processor,
     load_processor_and_tokenizer,
 )
 
@@ -126,83 +121,21 @@ def load_teachers_and_processors(teacher_ids: list[str], device: str):
         "cpu": torch.float32,
     }
     torch_dtype = dtype_map["cuda"] if device.startswith("cuda") else dtype_map["cpu"]
-    attn_impl = "flash_attention_2" if device.startswith("cuda") else "eager"
     teacher_models = []
     teacher_processors = []
     for teacher_id in teacher_ids:
-        if "internvl" in teacher_id.lower():
-            teacher_model = AutoModel.from_pretrained(
-                teacher_id,
-                torch_dtype=torch_dtype,
-                low_cpu_mem_usage=True,
-                use_flash_attn=device.startswith("cuda"),
-                trust_remote_code=True,
-            ).to(device)
-            teacher_tokenizer = AutoTokenizer.from_pretrained(
-                teacher_id,
-                padding_side="right",
-                trust_remote_code=True,
-                use_fast=False,
-            )
-            img_context_token_id = teacher_tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
-            if hasattr(teacher_model, "img_context_token_id"):
-                teacher_model.img_context_token_id = img_context_token_id
-            vision_config = getattr(teacher_model.config, "vision_config", None)
-            teacher_processors.append(
-                {
-                    "model_id": teacher_id,
-                    "tokenizer": teacher_tokenizer,
-                    "image_size": getattr(teacher_model.config, "force_image_size", None)
-                    or getattr(vision_config, "image_size", 448),
-                    "normalize_type": (
-                        "siglip"
-                        if getattr(vision_config, "model_type", None) == "siglip_vision_model"
-                        else "imagenet"
-                    ),
-                    "max_num_tiles": 6,
-                    "num_image_token": getattr(teacher_model, "num_image_token", 256),
-                    "img_start_token": "<img>",
-                    "img_end_token": "</img>",
-                    "img_context_token": "<IMG_CONTEXT>",
-                }
-            )
-        else:
-            teacher_processor, _, teacher_model_type = load_processor_and_tokenizer(
-                teacher_id,
-                padding_side="right",
-            )
-            if teacher_processor is None:
-                raise ValueError(
-                    f"Could not load an AutoProcessor for teacher model {teacher_id!r}."
-                )
-            if "gemma-3" in teacher_id.lower():
-                teacher_model = Gemma3ForConditionalGeneration.from_pretrained(
-                    teacher_id,
-                    attn_implementation=attn_impl,
-                    torch_dtype=torch_dtype,
-                    trust_remote_code=True,
-                    device_map={"": device},
-                )
-            else:
-                teacher_model = load_model(
-                    model_id=teacher_id,
-                    model_type=teacher_model_type,
-                    cache_dir=None,
-                    attn_implementation=attn_impl,
-                    compute_dtype=torch_dtype,
-                    trust_remote_code=True,
-                    model_kwargs={
-                        "device_map": {"": device},
-                    },
-                )
-            teacher_processors.append(teacher_processor)
-        if hasattr(teacher_model.config, "use_cache"):
-            teacher_model.config.use_cache = False
-        teacher_model._suppress_forward_stdout = "internvl" in teacher_id.lower()
+        teacher_model, teacher_processor = load_teacher_model_and_processor(
+            model_id=teacher_id,
+            cache_dir=None,
+            device=device,
+            compute_dtype=torch_dtype,
+            disable_flash_attn2=not device.startswith("cuda"),
+        )
         teacher_model.eval()
         for param in teacher_model.parameters():
             param.requires_grad_(False)
         teacher_models.append(teacher_model)
+        teacher_processors.append(teacher_processor)
     return teacher_models, teacher_processors
 
 

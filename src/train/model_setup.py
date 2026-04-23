@@ -3,8 +3,11 @@ import importlib
 import torch
 from transformers import (
     AutoConfig,
+    AutoModel,
     AutoModelForImageTextToText,
     AutoProcessor,
+    AutoTokenizer,
+    Gemma3ForConditionalGeneration,
 )
 
 try:
@@ -119,6 +122,84 @@ def load_model(
         )
 
 
+def load_teacher_model_and_processor(
+    *,
+    model_id: str,
+    cache_dir: str | None,
+    device,
+    compute_dtype: torch.dtype,
+    disable_flash_attn2: bool,
+):
+    """Load one live teacher model plus its processor for distillation or logit caching."""
+    attn_implementation = "flash_attention_2" if not disable_flash_attn2 else "eager"
+    if "internvl" in model_id.lower():
+        teacher_model = AutoModel.from_pretrained(
+            model_id,
+            cache_dir=cache_dir,
+            torch_dtype=compute_dtype,
+            low_cpu_mem_usage=True,
+            use_flash_attn=not disable_flash_attn2,
+            trust_remote_code=True,
+        ).to(device)
+        teacher_tokenizer = AutoTokenizer.from_pretrained(
+            model_id,
+            cache_dir=cache_dir,
+            padding_side="right",
+            trust_remote_code=True,
+            use_fast=False,
+        )
+        img_context_token_id = teacher_tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
+        if hasattr(teacher_model, "img_context_token_id"):
+            teacher_model.img_context_token_id = img_context_token_id
+        vision_config = getattr(teacher_model.config, "vision_config", None)
+        teacher_processor = {
+            "model_id": model_id,
+            "tokenizer": teacher_tokenizer,
+            "image_size": getattr(teacher_model.config, "force_image_size", None)
+            or getattr(vision_config, "image_size", 448),
+            "normalize_type": (
+                "siglip"
+                if getattr(vision_config, "model_type", None) == "siglip_vision_model"
+                else "imagenet"
+            ),
+            "max_num_tiles": 6,
+            "num_image_token": getattr(teacher_model, "num_image_token", 256),
+            "img_start_token": "<img>",
+            "img_end_token": "</img>",
+            "img_context_token": "<IMG_CONTEXT>",
+        }
+    else:
+        teacher_processor, _, teacher_model_type = load_processor_and_tokenizer(
+            model_id,
+            padding_side="right",
+            cache_dir=cache_dir,
+        )
+        if "gemma-3" in model_id.lower():
+            teacher_model = Gemma3ForConditionalGeneration.from_pretrained(
+                model_id,
+                cache_dir=cache_dir,
+                attn_implementation=attn_implementation,
+                torch_dtype=compute_dtype,
+                trust_remote_code=True,
+                device_map={"": device},
+            )
+        else:
+            teacher_model = load_model(
+                model_id=model_id,
+                model_type=teacher_model_type,
+                cache_dir=cache_dir,
+                attn_implementation=attn_implementation,
+                compute_dtype=compute_dtype,
+                trust_remote_code=True,
+                model_kwargs={"device_map": {"": device}},
+            )
+
+    if hasattr(teacher_model.config, "use_cache"):
+        teacher_model.config.use_cache = False
+    teacher_model._suppress_forward_stdout = "internvl" in model_id.lower()
+    return teacher_model, teacher_processor
+
+
 def resolve_component_module(model, component: str):
     """Resolve one logical component like vision or connector from the supported VLM wrappers."""
     try:
@@ -143,23 +224,6 @@ def resolve_component_module(model, component: str):
                 return module
     raise AttributeError(f"Could not resolve {component} module on the model.")
 
-def build_component_parameter_id_map(
-    model,
-    *,
-    components: tuple[str, ...] = ("vision", "connector"),
-) -> dict[int, str]:
-    """Map parameter object ids to logical component names for grouped optimizer setup."""
-    parameter_ids: dict[int, str] = {}
-    for component in components:
-        try:
-            module = resolve_component_module(model, component)
-        except AttributeError:
-            continue
-        for parameter in module.parameters():
-            parameter_ids[id(parameter)] = component
-    return parameter_ids
-
-
 def configure_vision_tower(model, processor, compute_dtype, device):
     """Move the vision tower to the training device/dtype and align processor image settings."""
     if processor is not None and hasattr(processor, "image_processor"):
@@ -171,10 +235,10 @@ def configure_vision_tower(model, processor, compute_dtype, device):
 
 
 __all__ = [
-    "build_component_parameter_id_map",
     "configure_vision_tower",
     "load_model",
     "load_processor_and_tokenizer",
+    "load_teacher_model_and_processor",
     "resolve_component_module",
     "resolve_model_type",
 ]

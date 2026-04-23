@@ -413,9 +413,8 @@ class TrieWassersteinLoss(nn.Module):
         self,
         student_logits: torch.Tensor,
         teacher_logits: torch.Tensor,
-        temperature: float = 1.0,
-        student_temperature: float | None = None,
-        teacher_temperature: float | None = None,
+        student_temperature: float = 1.0,
+        teacher_temperature: float = 1.0,
     ) -> torch.Tensor:
         """Compute mean trie-Wasserstein KD over aligned positions; input is student/teacher logits, output is a scalar loss tensor, and this exists as the main cross-tokenizer KD objective."""
         from src.components.loss import resolve_temperatures
@@ -446,7 +445,6 @@ class TrieWassersteinLoss(nn.Module):
 
         self.ensure_device_tensors(student_logits.device)
         student_temperature, teacher_temperature = resolve_temperatures(
-            temperature=temperature,
             student_temperature=student_temperature,
             teacher_temperature=teacher_temperature,
         )
@@ -468,9 +466,8 @@ class TrieWassersteinLoss(nn.Module):
         *,
         student_logits: torch.Tensor,
         teacher_logits: torch.Tensor,
-        temperature: float = 1.0,
-        student_temperature: float | None = None,
-        teacher_temperature: float | None = None,
+        student_temperature: float = 1.0,
+        teacher_temperature: float = 1.0,
     ) -> torch.Tensor:
         """Compute dL/d(student_logits) for trie OT; input is student/teacher logits, output is a gradient tensor, and this exists so GRACE can compare trie-Wasserstein KD directions."""
         self.prepare_runtime_state(
@@ -482,7 +479,6 @@ class TrieWassersteinLoss(nn.Module):
             loss = self.forward(
                 detached_student_logits,
                 teacher_logits=teacher_logits.detach(),
-                temperature=temperature,
                 student_temperature=student_temperature,
                 teacher_temperature=teacher_temperature,
             )

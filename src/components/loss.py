@@ -8,22 +8,12 @@ from src.components.trie_wasserstein import TrieWassersteinLoss
 
 def resolve_temperatures(
     *,
-    temperature: float,
-    student_temperature: float | None,
-    teacher_temperature: float | None,
+    student_temperature: float = 1.0,
+    teacher_temperature: float = 1.0,
 ) -> tuple[float, float]:
-    """Resolve student and teacher temperatures with the shared fallback and epsilon clamp."""
-    base_temperature = max(float(temperature), torch.finfo(torch.float32).eps)
-    resolved_student_temperature = (
-        base_temperature
-        if student_temperature is None
-        else max(float(student_temperature), torch.finfo(torch.float32).eps)
-    )
-    resolved_teacher_temperature = (
-        base_temperature
-        if teacher_temperature is None
-        else max(float(teacher_temperature), torch.finfo(torch.float32).eps)
-    )
+    """Clamp the configured student and teacher temperatures away from zero."""
+    resolved_student_temperature = max(float(student_temperature), torch.finfo(torch.float32).eps)
+    resolved_teacher_temperature = max(float(teacher_temperature), torch.finfo(torch.float32).eps)
     return resolved_student_temperature, resolved_teacher_temperature
 
 
@@ -39,9 +29,8 @@ class FunctionalDistillationLoss:
         *,
         student_logits: torch.Tensor,
         teacher_logits: torch.Tensor,
-        temperature: float = 1.0,
-        student_temperature: float | None = None,
-        teacher_temperature: float | None = None,
+        student_temperature: float = 1.0,
+        teacher_temperature: float = 1.0,
         teacher_index: int | None = None,
     ) -> torch.Tensor:
         """Compute one function-based KD loss for aligned student and teacher logits."""
@@ -49,7 +38,6 @@ class FunctionalDistillationLoss:
         return self.loss_fn(
             student_logits=student_logits,
             teacher_logits=teacher_logits,
-            temperature=temperature,
             student_temperature=student_temperature,
             teacher_temperature=teacher_temperature,
         )
@@ -59,9 +47,8 @@ class FunctionalDistillationLoss:
         *,
         student_logits: torch.Tensor,
         teacher_logits: torch.Tensor,
-        temperature: float = 1.0,
-        student_temperature: float | None = None,
-        teacher_temperature: float | None = None,
+        student_temperature: float = 1.0,
+        teacher_temperature: float = 1.0,
         teacher_index: int | None = None,
         loss_function: str | None = None,
     ) -> torch.Tensor:
@@ -71,7 +58,6 @@ class FunctionalDistillationLoss:
             self.loss_function,
             student_logits=student_logits,
             teacher_logits=teacher_logits,
-            temperature=temperature,
             student_temperature=student_temperature,
             teacher_temperature=teacher_temperature,
         )
@@ -139,9 +125,8 @@ class TrieWassersteinDistillationLoss:
         *,
         student_logits: torch.Tensor,
         teacher_logits: torch.Tensor,
-        temperature: float = 1.0,
-        student_temperature: float | None = None,
-        teacher_temperature: float | None = None,
+        student_temperature: float = 1.0,
+        teacher_temperature: float = 1.0,
         teacher_index: int | None = None,
     ) -> torch.Tensor:
         """Compute trie-Wasserstein KD against the selected teacher tokenizer."""
@@ -153,7 +138,6 @@ class TrieWassersteinDistillationLoss:
         return loss_module(
             student_logits=student_logits,
             teacher_logits=teacher_logits,
-            temperature=temperature,
             student_temperature=student_temperature,
             teacher_temperature=teacher_temperature,
         )
@@ -163,9 +147,8 @@ class TrieWassersteinDistillationLoss:
         *,
         student_logits: torch.Tensor,
         teacher_logits: torch.Tensor,
-        temperature: float = 1.0,
-        student_temperature: float | None = None,
-        teacher_temperature: float | None = None,
+        student_temperature: float = 1.0,
+        teacher_temperature: float = 1.0,
         teacher_index: int | None = None,
         loss_function: str | None = None,
     ) -> torch.Tensor:
@@ -179,7 +162,6 @@ class TrieWassersteinDistillationLoss:
         return loss_module.compute_logit_grad(
             student_logits=student_logits,
             teacher_logits=teacher_logits,
-            temperature=temperature,
             student_temperature=student_temperature,
             teacher_temperature=teacher_temperature,
         )
@@ -210,9 +192,8 @@ def distillation_logit_grad(
     loss_function: str,
     student_logits: torch.Tensor,
     teacher_logits: torch.Tensor,
-    temperature: float = 1.0,
-    student_temperature: float | None = None,
-    teacher_temperature: float | None = None,
+    student_temperature: float = 1.0,
+    teacher_temperature: float = 1.0,
 ) -> torch.Tensor:
     """Return dL/d(student_logits) for the configured KD loss in aligned logit space."""
     if loss_function == "cka_loss":
@@ -221,14 +202,12 @@ def distillation_logit_grad(
             loss = cka_loss(
                 student_logits=logits_for_grad,
                 teacher_logits=teacher_logits,
-                temperature=temperature,
                 student_temperature=student_temperature,
                 teacher_temperature=teacher_temperature,
             )
             return torch.autograd.grad(loss, logits_for_grad, retain_graph=False)[0].float()
 
     student_temperature, teacher_temperature = resolve_temperatures(
-        temperature=temperature,
         student_temperature=student_temperature,
         teacher_temperature=teacher_temperature,
     )
@@ -273,9 +252,8 @@ def distillation_logit_grad(
 def cka_loss(
     student_logits: torch.Tensor,
     teacher_logits: torch.Tensor,
-    temperature: float = 1.0,
-    student_temperature: float | None = None,
-    teacher_temperature: float | None = None,
+    student_temperature: float = 1.0,
+    teacher_temperature: float = 1.0,
 ) -> torch.Tensor:
     """
     Logits-space linear CKA loss using softened token distributions.
@@ -284,7 +262,6 @@ def cka_loss(
     samples, so student and teacher vocabulary sizes may differ.
     """
     student_temperature, teacher_temperature = resolve_temperatures(
-        temperature=temperature,
         student_temperature=student_temperature,
         teacher_temperature=teacher_temperature,
     )
@@ -298,9 +275,8 @@ def cka_loss(
 def uld_loss(
     student_logits: torch.Tensor,
     teacher_logits: torch.Tensor,
-    temperature: float = 1.0,
-    student_temperature: float | None = None,
-    teacher_temperature: float | None = None,
+    student_temperature: float = 1.0,
+    teacher_temperature: float = 1.0,
 ) -> torch.Tensor:
     """
     Universal Logit Distillation (ULD) loss via Wasserstein-1 distance.
@@ -312,11 +288,10 @@ def uld_loss(
 
     student_logits: (N, V_s) — N tokens, student vocab size V_s
     teacher_logits: (N, V_t) — N tokens, teacher vocab size V_t
-    temperature:    softmax temperature (default 1.0 per paper)
+    student_temperature / teacher_temperature: softmax temperatures for the two distributions
     returns scalar Wasserstein-1 loss averaged over tokens
     """
     student_temperature, teacher_temperature = resolve_temperatures(
-        temperature=temperature,
         student_temperature=student_temperature,
         teacher_temperature=teacher_temperature,
     )
@@ -343,13 +318,11 @@ def uld_loss(
 def forward_kl(
     student_logits: torch.Tensor,
     teacher_logits: torch.Tensor,
-    temperature: float = 1.0,
-    student_temperature: float | None = None,
-    teacher_temperature: float | None = None,
+    student_temperature: float = 1.0,
+    teacher_temperature: float = 1.0,
 ) -> torch.Tensor:
     """Compute forward KL distillation when student and teacher share a vocab."""
     student_temperature, teacher_temperature = resolve_temperatures(
-        temperature=temperature,
         student_temperature=student_temperature,
         teacher_temperature=teacher_temperature,
     )
@@ -364,13 +337,11 @@ def forward_kl(
 def reverse_kl(
     student_logits: torch.Tensor,
     teacher_logits: torch.Tensor,
-    temperature: float = 1.0,
-    student_temperature: float | None = None,
-    teacher_temperature: float | None = None,
+    student_temperature: float = 1.0,
+    teacher_temperature: float = 1.0,
 ) -> torch.Tensor:
     """Compute reverse KL distillation when student and teacher share a vocab."""
     student_temperature, teacher_temperature = resolve_temperatures(
-        temperature=temperature,
         student_temperature=student_temperature,
         teacher_temperature=teacher_temperature,
     )
@@ -386,13 +357,11 @@ def reverse_kl(
 def jensen_shannon_divergence(
     student_logits: torch.Tensor,
     teacher_logits: torch.Tensor,
-    temperature: float = 1.0,
-    student_temperature: float | None = None,
-    teacher_temperature: float | None = None,
+    student_temperature: float = 1.0,
+    teacher_temperature: float = 1.0,
 ) -> torch.Tensor:
     """Compute Jensen-Shannon divergence between matched student and teacher distributions."""
     student_temperature, teacher_temperature = resolve_temperatures(
-        temperature=temperature,
         student_temperature=student_temperature,
         teacher_temperature=teacher_temperature,
     )

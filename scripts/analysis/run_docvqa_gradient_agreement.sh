@@ -17,7 +17,8 @@ SPLIT="${SPLIT:-train}"
 SUBSET_SIZE="${SUBSET_SIZE:-1000}"
 OFFSET="${OFFSET:-0}"
 BATCH_SIZE="${BATCH_SIZE:-1}"
-TEMPERATURE="${TEMPERATURE:-2.0}"
+STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-2.0}"
+TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-2.0}"
 LOSS_FUNCTION="${LOSS_FUNCTION:-uld_loss}"
 DTYPE="${DTYPE:-bfloat16}"
 DEVICE="${DEVICE:-cuda}"
@@ -37,7 +38,8 @@ cmd=(
   --subset-size "$SUBSET_SIZE" \
   --offset "$OFFSET" \
   --batch-size "$BATCH_SIZE" \
-  --temperature "$TEMPERATURE" \
+  --student-temperature "$STUDENT_TEMPERATURE" \
+  --teacher-temperature "$TEACHER_TEMPERATURE" \
   --loss-function "$LOSS_FUNCTION" \
   --dtype "$DTYPE" \
   --device "$DEVICE" \

@@ -46,7 +46,8 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--subset-size", type=int, default=1000, help="Number of valid samples to evaluate.")
     parser.add_argument("--offset", type=int, default=0, help="Starting raw row offset before filtering.")
     parser.add_argument("--batch-size", type=int, default=1, help="Batch size for the agreement run.")
-    parser.add_argument("--temperature", type=float, default=2.0, help="KD temperature.")
+    parser.add_argument("--student-temperature", type=float, default=2.0, help="Student KD temperature.")
+    parser.add_argument("--teacher-temperature", type=float, default=2.0, help="Teacher KD temperature.")
     parser.add_argument(
         "--loss-function",
         default="uld_loss",
@@ -297,7 +298,8 @@ def compute_single_teacher_uld_loss(
     student_labels: torch.Tensor,
     teacher_logits: torch.Tensor,
     teacher_labels: torch.Tensor,
-    temperature: float,
+    student_temperature: float,
+    teacher_temperature: float,
 ) -> tuple[torch.Tensor, list[torch.Tensor]]:
     student_mask = student_labels != -100
     teacher_mask = teacher_labels != -100
@@ -320,7 +322,8 @@ def compute_single_teacher_uld_loss(
             uld_loss(
                 student_logits=student_slice,
                 teacher_logits=teacher_slice,
-                temperature=temperature,
+                student_temperature=student_temperature,
+                teacher_temperature=teacher_temperature,
             )
         )
     if not sample_losses:
@@ -522,7 +525,8 @@ def main() -> None:
             student_labels=student_inputs["labels"],
             teacher_logits=teacher_logits,
             teacher_labels=teacher_labels,
-            temperature=args.temperature,
+            student_temperature=args.student_temperature,
+            teacher_temperature=args.teacher_temperature,
         )
 
         g_ce = torch.autograd.grad(ce_loss, student_logits, retain_graph=True)[0]

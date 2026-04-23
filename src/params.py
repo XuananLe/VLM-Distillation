@@ -42,8 +42,6 @@ class TrainingArguments(HFTrainingArguments):
                 "Maximum sequence length. Sequences will be right padded (and possibly truncated)."
         },
     )
-    vision_lr: Optional[float] = None
-    connector_lr: Optional[float] = None
     def __post_init__(self):
         """Restore compatibility with TRL-mutated TrainingArguments field validation."""
         # TRL 0.17 mutates transformers.training_args._VALID_DICT_FIELDS to include

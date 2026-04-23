@@ -175,8 +175,6 @@ deepspeed src/train/train_distillation.py \
     --per_device_train_batch_size "$PER_DEVICE_TRAIN_BATCH_SIZE" \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
     --learning_rate 1e-5 \
-    --vision_lr 2e-6 \
-    --connector_lr 1e-5 \
     --warmup_ratio 0.03 \
     --lr_scheduler_type cosine \
     --tf32 True \

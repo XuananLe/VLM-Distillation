@@ -252,7 +252,6 @@ def compute_teacher_losses_and_grace(
         distillation_loss_fn=trainer.distillation_loss_fn,
         distillation_logit_grad_fn=trainer.distillation_logit_grad_fn,
         loss_function=trainer.loss_function,
-        temperature=trainer.temperature,
         student_temperature=trainer.student_temperature,
         teacher_temperature=trainer.teacher_temperature,
         skip_student_eos=trainer.skip_student_eos,

@@ -9,9 +9,6 @@ if str(ROOT_DIR) not in sys.path:
 
 import torch
 from transformers import (
-    AutoModel,
-    AutoTokenizer,
-    Gemma3ForConditionalGeneration,
     HfArgumentParser,
 )
 from src.trainer.distillation_trainer import DistillationTrainer
@@ -27,7 +24,7 @@ from src.train.model_setup import (
     configure_vision_tower,
     load_model,
     load_processor_and_tokenizer,
-    resolve_model_type,
+    load_teacher_model_and_processor,
 )
 from src.train.save_utils import safe_save_model_for_hf_trainer
 
@@ -37,97 +34,6 @@ importlib.import_module("pillow_avif")
 
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
-
-
-def load_teachers_and_processors_for_layer_distillation(
-    *,
-    teacher_ids: list[str],
-    training_args,
-    compute_dtype: torch.dtype,
-):
-    """Load live teacher models and processors only for hidden-state layer distillation."""
-    teacher_models = []
-    teacher_processors = []
-    attn_impl = "flash_attention_2" if not training_args.disable_flash_attn2 else "eager"
-
-    for teacher_id in teacher_ids:
-        print(f"Loading live teacher for layer distillation: {teacher_id}")
-        if "internvl" in teacher_id.lower():
-            teacher_model = AutoModel.from_pretrained(
-                teacher_id,
-                cache_dir=training_args.cache_dir,
-                torch_dtype=compute_dtype,
-                low_cpu_mem_usage=True,
-                use_flash_attn=not training_args.disable_flash_attn2,
-                trust_remote_code=True,
-            ).to(training_args.device)
-            teacher_tokenizer = AutoTokenizer.from_pretrained(
-                teacher_id,
-                cache_dir=training_args.cache_dir,
-                padding_side="right",
-                trust_remote_code=True,
-                use_fast=False,
-            )
-            img_context_token_id = teacher_tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
-            if hasattr(teacher_model, "img_context_token_id"):
-                teacher_model.img_context_token_id = img_context_token_id
-            vision_config = getattr(teacher_model.config, "vision_config", None)
-            teacher_processor = {
-                "model_id": teacher_id,
-                "tokenizer": teacher_tokenizer,
-                # These fallbacks mirror the common InternVL defaults used when
-                # model config fields are absent in older or custom checkpoints.
-                "image_size": getattr(teacher_model.config, "force_image_size", None)
-                or getattr(vision_config, "image_size", 448),
-                "normalize_type": (
-                    "siglip"
-                    if getattr(vision_config, "model_type", None) == "siglip_vision_model"
-                    else "imagenet"
-                ),
-                "max_num_tiles": 6,
-                "num_image_token": getattr(teacher_model, "num_image_token", 256),
-                "img_start_token": "<img>",
-                "img_end_token": "</img>",
-                "img_context_token": "<IMG_CONTEXT>",
-            }
-        else:
-            teacher_processor, _, teacher_model_type = load_processor_and_tokenizer(
-                teacher_id,
-                padding_side="right",
-                cache_dir=training_args.cache_dir,
-            )
-            if teacher_processor is None:
-                raise ValueError(
-                    f"Could not load an AutoProcessor for teacher model {teacher_id!r}."
-                )
-            if "gemma-3" in teacher_id.lower():
-                teacher_model = Gemma3ForConditionalGeneration.from_pretrained(
-                    teacher_id,
-                    cache_dir=training_args.cache_dir,
-                    attn_implementation=attn_impl,
-                    torch_dtype=compute_dtype,
-                    trust_remote_code=True,
-                    device_map={"": training_args.device},
-                )
-            else:
-                teacher_model = load_model(
-                    model_id=teacher_id,
-                    model_type=teacher_model_type or resolve_model_type(teacher_id),
-                    cache_dir=training_args.cache_dir,
-                    attn_implementation=attn_impl,
-                    compute_dtype=compute_dtype,
-                    trust_remote_code=True,
-                    model_kwargs={"device_map": {"": training_args.device}},
-                )
-        if hasattr(teacher_model.config, "use_cache"):
-            teacher_model.config.use_cache = False
-        teacher_model._suppress_forward_stdout = "internvl" in teacher_id.lower()
-        teacher_models.append(teacher_model)
-        teacher_processors.append(teacher_processor)
-
-    teacher_models, _ = normalize_teacher_models(teacher_models, len(teacher_models))
-    return teacher_models, teacher_processors
-
 
 def train_distillation():
     """
@@ -204,11 +110,20 @@ def train_distillation():
         print(
             "\nLayer distillation enabled; loading live teacher models in addition to cached teacher logits."
         )
-        teacher_models, teacher_processors = load_teachers_and_processors_for_layer_distillation(
-            teacher_ids=teacher_ids,
-            training_args=training_args,
-            compute_dtype=compute_dtype,
-        )
+        teacher_models = []
+        teacher_processors = []
+        for teacher_id in teacher_ids:
+            print(f"Loading live teacher for layer distillation: {teacher_id}")
+            teacher_model, teacher_processor = load_teacher_model_and_processor(
+                model_id=teacher_id,
+                cache_dir=training_args.cache_dir,
+                device=training_args.device,
+                compute_dtype=compute_dtype,
+                disable_flash_attn2=training_args.disable_flash_attn2,
+            )
+            teacher_models.append(teacher_model)
+            teacher_processors.append(teacher_processor)
+        teacher_models, _ = normalize_teacher_models(teacher_models, len(teacher_models))
     else:
         print("\nUsing cached teacher logits; skipping online teacher model loading.")
         teacher_models, teacher_processors = [], []
@@ -250,7 +165,6 @@ def train_distillation():
         layer_match_topk=distillation_args.layer_match_topk,
         student_layer_indices=student_layer_indices,
         teacher_layer_indices=teacher_layer_indices,
-        temperature=distillation_args.student_temperature,
         student_temperature=distillation_args.student_temperature,
         teacher_temperature=distillation_args.teacher_temperature,
         skip_student_eos=distillation_args.skip_student_eos,
