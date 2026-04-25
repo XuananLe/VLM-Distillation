@@ -6,19 +6,29 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
+from src.constants import TOKENIZER_VOCAB_SIZES
+
 
 EOS_SENTINEL = 256
 # Byte values live in [0, 255], so 256 is a clean end-of-token marker for the trie.
 
+def normalize_model_id(model_id) -> str | None:
+    """Return a canonical model id string when the tokenizer exposes one."""
+    if not isinstance(model_id, str) or not model_id:
+        return None
+    return model_id.rstrip("/")
+
 
 def resolve_vocab_size(tokenizer) -> int:
-    """Return tokenizer vocabulary size; input is a tokenizer-like object, output is an int, and this exists to normalize tokenizer APIs used by trie OT."""
-    if hasattr(tokenizer, "__len__"):
-        return int(len(tokenizer))
-    vocab_size = getattr(tokenizer, "vocab_size", None)
-    if vocab_size is None:
-        raise ValueError("Tokenizer must define either __len__() or vocab_size.")
-    return int(vocab_size)
+    """Return the fixed tokenizer size for one supported VLM tokenizer."""
+    model_id = normalize_model_id(getattr(tokenizer, "name_or_path", None))
+    try:
+        return TOKENIZER_VOCAB_SIZES[model_id]
+    except KeyError as exc:
+        raise ValueError(
+            f"Unsupported tokenizer for trie OT: {model_id!r}. "
+            f"Supported models: {sorted(TOKENIZER_VOCAB_SIZES)}"
+        ) from exc
 
 
 def token_piece_to_bytes(tokenizer, token_id: int) -> bytes:
@@ -371,7 +381,7 @@ class TrieWassersteinLoss(nn.Module):
 
         valid_labels = teacher_labels[teacher_labels != -100]
         if valid_labels.numel() == 0:
-            return
+            raise ValueError("Teacher labels contain no supervised answer tokens for trie OT.")
 
         max_label = int(valid_labels.max().item())
         if max_label >= self.teacher_tokenizer_vocab_size:
@@ -454,7 +464,7 @@ class TrieWassersteinLoss(nn.Module):
             for index in range(student_probs.size(0))
         ]
         if not step_losses:
-            return student_logits.new_zeros((), dtype=torch.float32)
+            raise ValueError("Trie Wasserstein loss received no aligned supervised token positions.")
         return torch.stack(step_losses, dim=0).mean()
 
     def compute_logit_grad(

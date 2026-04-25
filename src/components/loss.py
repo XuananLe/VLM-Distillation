@@ -94,10 +94,10 @@ def build_distillation_loss(
 
         return prepare_teacher_batch, compute_loss, compute_logit_grad
 
-    if loss_function not in globals():
+    if loss_function not in DISTILLATION_LOSSES:
         raise ValueError(f"Unknown distillation loss: {loss_function!r}")
     configured_loss_function = loss_function
-    loss_fn = globals()[configured_loss_function]
+    loss_fn = DISTILLATION_LOSSES[configured_loss_function]
 
     def prepare_teacher_batch(
         *,
@@ -198,7 +198,10 @@ def distillation_logit_grad(
         return student_probs * (grad_probs - grad_dot) / student_temperature
 
     if student_logits.size(-1) != teacher_logits.size(-1):
-        return torch.zeros_like(student_logits, dtype=torch.float32)
+        raise ValueError(
+            "KL-style logit gradients require matching vocabulary sizes. "
+            f"student={student_logits.size(-1)}, teacher={teacher_logits.size(-1)}"
+        )
 
     teacher_probs = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
     # For KL-style losses in matched vocab space, the pooled logit gradient reduces to
@@ -321,3 +324,12 @@ def jensen_shannon_divergence(
         F.kl_div(s.log(), m, reduction='batchmean') +
         F.kl_div(t.log(), m, reduction='batchmean')
     ) * student_temperature ** 2
+
+
+DISTILLATION_LOSSES = {
+    "cka_loss": cka_loss,
+    "uld_loss": uld_loss,
+    "forward_kl": forward_kl,
+    "reverse_kl": reverse_kl,
+    "jensen_shannon_divergence": jensen_shannon_divergence,
+}

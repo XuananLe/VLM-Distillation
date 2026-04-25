@@ -1,11 +1,6 @@
 import torch
 from transformers import BitsAndBytesConfig
 
-from src.train.model_setup import (
-    load_model,
-    load_processor_and_tokenizer,
-    resolve_model_type,
-)
 
 def create_quantization_config(load_4bit=True, compute_dtype=torch.float16,
                              use_double_quant=True, quant_type='nf4'):
@@ -27,66 +22,6 @@ def create_quantization_config(load_4bit=True, compute_dtype=torch.float16,
         bnb_4bit_use_double_quant=use_double_quant,
         bnb_4bit_quant_type=quant_type
     )
-
-# This code is borrowed from LLaVA
-def load_pretrained_model(
-    model_path,
-    load_8bit=False,
-    load_4bit=False,
-    device_map="auto",
-    device="cuda",
-    use_flash_attn=False,
-    **kwargs,
-):
-    """Load a multimodal model plus processor for inference-style utilities."""
-    kwargs = dict(kwargs)
-    kwargs["device_map"] = device_map
-    
-    if device != "cuda":
-        kwargs['device_map'] = {"":device}
-    
-    if load_8bit:
-        kwargs['load_in_8bit'] = True
-    elif load_4bit:
-        kwargs['quantization_config'] = create_quantization_config()
-    else:
-        kwargs['torch_dtype'] = torch.float16
-
-    attn_implementation = 'flash_attention_2' if use_flash_attn else 'eager'
-    cache_dir = kwargs.pop("cache_dir", None)
-    processor, _, _ = load_processor_and_tokenizer(
-        model_path,
-        cache_dir=cache_dir,
-    )
-    if processor is None:
-        raise ValueError(
-            f"Could not load an AutoProcessor for multimodal model {model_path!r}."
-        )
-
-    model = load_model(
-        model_id=model_path,
-        model_type=resolve_model_type(model_path),
-        cache_dir=cache_dir,
-        attn_implementation=attn_implementation,
-        compute_dtype=kwargs.get("torch_dtype", torch.float16),
-        trust_remote_code=True,
-        model_kwargs={
-            **kwargs,
-            "low_cpu_mem_usage": True,
-        },
-    )
-
-    return processor, model
-
-
-def get_model_name_from_path(model_path):
-    """Return a readable model/checkpoint name from a local path."""
-    model_path = model_path.strip("/")
-    model_paths = model_path.split("/")
-    if model_paths[-1].startswith('checkpoint-'):
-        return model_paths[-2] + "_" + model_paths[-1]
-    else:
-        return model_paths[-1]
 
 
 def resolve_module_path(module, path):

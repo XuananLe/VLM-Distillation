@@ -9,21 +9,18 @@ def masked_mean_pool_sequence(
     attention_mask: torch.Tensor | None,
     ignore_index: int = -100,
 ) -> torch.Tensor:
-    """Mean-pool a sequence over supervised tokens with an attention-mask fallback."""
+    """Mean-pool a sequence over supervised answer tokens."""
     label_mask = labels.ne(ignore_index)
-    fallback_mask = (
-        attention_mask.bool()
-        if attention_mask is not None
-        else torch.ones_like(label_mask, dtype=torch.bool)
-    )
+    del attention_mask
 
     pool_mask = label_mask
     missing_supervised = ~pool_mask.any(dim=1)
     if missing_supervised.any():
-        # Some prompts may contain no supervised answer tokens after masking; in that
-        # case fall back to the general attention mask so the sample still has context.
-        pool_mask = pool_mask.clone()
-        pool_mask[missing_supervised] = fallback_mask[missing_supervised]
+        bad_indices = missing_supervised.nonzero(as_tuple=True)[0].tolist()
+        raise ValueError(
+            "Cannot pool sequence: samples contain no supervised answer tokens. "
+            f"indices={bad_indices}"
+        )
 
     pool_mask = pool_mask.to(dtype=tensor.dtype)
     # Mean-pool over selected sequence positions.

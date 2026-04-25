@@ -114,7 +114,7 @@ def pool_vision_representations(
     }
 
 
-def build_teacher_batches(inputs, student_inputs, num_teachers: int, *, fallback_to_student_inputs: bool = True):
+def build_teacher_batches(inputs, num_teachers: int):
     """Collect live-teacher input batches from a collated batch dict."""
     prefixes = []
     if "teacher_input_ids" in inputs:
@@ -126,14 +126,7 @@ def build_teacher_batches(inputs, student_inputs, num_teachers: int, *, fallback
     )
 
     if not prefixes:
-        if not fallback_to_student_inputs:
-            return None
-        return [
-            (
-                {key: value for key, value in student_inputs.items() if key != "labels"},
-                student_inputs.get("labels"),
-            )
-        ]
+        raise ValueError("No live teacher inputs were found in the batch.")
 
     batches = []
     for prefix in prefixes:
@@ -276,11 +269,19 @@ def compute_teacher_forward_and_layer_distillation(
         teacher_hook_context = capture_layer_outputs(teacher_model, teacher_layer_indices)
 
     with teacher_hook_context as teacher_layer_outputs:
-        teacher_outputs = compute_teacher_forward(
-            teacher_model,
-            teacher_inputs,
-            output_hidden_states=output_hidden_states,
-        )
+        model_param = next(teacher_model.parameters())
+        model_dtype = model_param.dtype if model_param.is_floating_point() else None
+        prepared_teacher_inputs = dict(teacher_inputs)
+        for key, value in prepared_teacher_inputs.items():
+            if torch.is_tensor(value):
+                target_dtype = model_dtype if model_dtype is not None and value.is_floating_point() else value.dtype
+                prepared_teacher_inputs[key] = value.to(device=model_param.device, dtype=target_dtype)
+        with torch.no_grad():
+            teacher_outputs = teacher_model(
+                **prepared_teacher_inputs,
+                return_dict=True,
+                output_hidden_states=output_hidden_states,
+            )
 
     layer_loss = None
     if student_layer_representations is not None:
@@ -318,36 +319,3 @@ def compute_teacher_forward_and_layer_distillation(
             layer_loss = reduce(torch.stack(soft_match_losses), "t ->", "mean")
 
     return teacher_outputs, layer_loss
-
-
-def compute_teacher_forward(
-    teacher_model,
-    teacher_inputs,
-    *,
-    output_hidden_states: bool = False,
-):
-    """Run a teacher forward with device/dtype alignment."""
-    model_param = next(teacher_model.parameters())
-    model_device = model_param.device
-    model_dtype = model_param.dtype if model_param.is_floating_point() else None
-
-    prepared_teacher_inputs = {
-        key: (
-            value
-            if not torch.is_tensor(value)
-            else value.to(
-                device=model_device if model_device is not None else value.device,
-                dtype=model_dtype if model_dtype is not None and value.is_floating_point() else value.dtype,
-            )
-        )
-        for key, value in teacher_inputs.items()
-    }
-
-    call_inputs = {
-        **prepared_teacher_inputs,
-        "return_dict": True,
-        "output_hidden_states": output_hidden_states,
-    }
-
-    with torch.no_grad():
-        return teacher_model(**call_inputs)

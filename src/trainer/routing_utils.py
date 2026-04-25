@@ -119,26 +119,3 @@ def build_topk_assignment_mask(
         topk_teachers,
         num_classes=num_teachers,
     )
-
-
-def build_capacity_limited_assignment_mask(
-    *,
-    topk_scores: torch.Tensor,
-    topk_indices: torch.Tensor,
-    num_teachers: int,
-    capacity: int,
-    reference_weights: torch.Tensor,
-) -> torch.Tensor:
-    """Prune top-k teacher assignments down to the configured per-teacher capacity."""
-    assignment_mask = torch.zeros_like(reference_weights, dtype=torch.bool)
-    for teacher_index in range(num_teachers):
-        candidate_mask = topk_indices == teacher_index
-        if not candidate_mask.any():
-            continue
-        sample_indices, topk_slots = candidate_mask.nonzero(as_tuple=True)
-        candidate_scores = topk_scores[sample_indices, topk_slots]
-        if candidate_scores.numel() > capacity:
-            keep_indices = candidate_scores.topk(capacity, largest=True, sorted=False).indices
-            sample_indices = sample_indices[keep_indices]
-        assignment_mask[sample_indices, teacher_index] = True
-    return assignment_mask

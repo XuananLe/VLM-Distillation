@@ -6,7 +6,7 @@ from einops import einsum
 
 from src.components.grace import apply_grace_routing
 from src.components.reinforced_teacher_selection import compute_reinforced_selection_state
-from src.trainer.alignment_utils import compute_teacher_loss_matrix
+from src.trainer.teacher_loss_utils import compute_teacher_loss_matrix
 from src.trainer.routing_utils import (
     apply_teacher_gate_constraints,
     compute_teacher_gate_balance_loss,
@@ -22,7 +22,7 @@ from src.trainer.distillation_utils import (
 )
 
 
-def prepare_teacher_batches(*, inputs, student_inputs, num_teachers: int, teacher_models):
+def prepare_teacher_batches(*, inputs, num_teachers: int, teacher_models):
     """Resolve live-teacher batches and cached-teacher batches from the current trainer inputs."""
     cached_teacher_batches = build_cached_teacher_batches(inputs, num_teachers)
     if cached_teacher_batches is not None and len(cached_teacher_batches) != num_teachers:
@@ -34,9 +34,7 @@ def prepare_teacher_batches(*, inputs, student_inputs, num_teachers: int, teache
     if teacher_models:
         teacher_batches = build_teacher_batches(
             inputs,
-            student_inputs,
             num_teachers,
-            fallback_to_student_inputs=cached_teacher_batches is None,
         )
     elif cached_teacher_batches is None:
         raise ValueError(
@@ -147,11 +145,9 @@ def compute_layer_distillation_loss(
         if layer_loss is not None:
             layer_distillation_losses.append(layer_loss)
 
-    if layer_distillation_losses:
-        layer_distillation_loss = torch.stack(layer_distillation_losses).mean()
-    else:
-        reference_tensor = next(iter(student_layer_representations.values()))
-        layer_distillation_loss = reference_tensor.new_zeros(())
+    if not layer_distillation_losses:
+        raise ValueError("Layer distillation is enabled but no layer losses were produced.")
+    layer_distillation_loss = torch.stack(layer_distillation_losses).mean()
 
     return {
         "layer_distillation_loss": layer_distillation_loss,
@@ -313,10 +309,12 @@ def apply_grace_and_compute_distillation_loss(
         # the component that turns those routed slots into non-uniform final weights.
         if routed_teacher_gate_weights is not None:
             available_teacher_mask = routed_teacher_gate_weights.gt(0)
-            if not available_teacher_mask.any():
-                available_teacher_mask = torch.ones_like(
-                    routed_teacher_gate_weights,
-                    dtype=torch.bool,
+            missing_rows = ~available_teacher_mask.any(dim=-1)
+            if missing_rows.any():
+                bad_indices = missing_rows.nonzero(as_tuple=True)[0].tolist()
+                raise ValueError(
+                    "Router produced no available teacher assignments for samples "
+                    f"{bad_indices}."
                 )
             effective_teacher_gate_weights = available_teacher_mask.to(
                 dtype=teacher_loss_matrix.dtype,
@@ -385,7 +383,6 @@ def compute_total_loss(
     teacher_gate_z_loss,
     teacher_selection_policy_loss=None,
 ):
-    """Combine CE, KD, routing, policy, and layer-distillation terms into one scalar loss."""
     base_kd_loss = trainer.alpha * distillation_loss
     loss = ce_loss + base_kd_loss
     if layer_distillation_loss is not None:

@@ -6,11 +6,6 @@ from typing import Dict, Optional
 from src.constants import IGNORE_INDEX
 from .data_utils import pad_sequence
 
-# These placeholder image shapes mirror the dummy tensors created in the dataset.
-# The non-obvious 13x384x384 layout is the current SmolVLM image packing format.
-_DUMMY_PIXEL_VALUES = (1, 13, 3, 384, 384)
-_DUMMY_PIXEL_MASK = (1, 13, 384, 384)
-
 
 def _pad_frames(tensors, pad_value=0):
     """Pad a list of (1, T, ...) tensors to (B, T_max, ...) along the frame dim."""

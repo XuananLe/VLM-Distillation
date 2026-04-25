@@ -19,12 +19,6 @@ from .conversation_transforms import llava_to_openai
 from .data_collator import DataCollatorForSupervisedDataset
 from .streaming_teacher_logits_cache import StreamingTeacherLogitsCache
 
-# Text-only samples still flow through multimodal models, so the dataset injects
-# zero image tensors with the same packed SmolVLM layout used for real images.
-DUMMY_PIXEL_VALUES = (1, 13, 3, 384, 384)
-DUMMY_PIXEL_MASK = (1, 13, 384, 384)
-
-
 class SupervisedDataset(Dataset):
     """Dataset for supervised fine-tuning."""
 
@@ -62,7 +56,6 @@ class SupervisedDataset(Dataset):
                 expected_num_samples=len(self.list_data_dict),
                 dataset_name=dataset_name,
                 remote_uri=teacher_logits_remote_uri,
-                local_cache_dir=teacher_logits_cache_dir,
             )
 
         processor_teacher_count = len(self.teacher_processors)
@@ -83,14 +76,6 @@ class SupervisedDataset(Dataset):
         return len(self.list_data_dict)
 
     @staticmethod
-    def _dummy_pixel_tensors():
-        """Return zero image tensors for text-only samples in multimodal models."""
-        return (
-            torch.zeros(DUMMY_PIXEL_VALUES),
-            torch.zeros(DUMMY_PIXEL_MASK),
-        )
-
-    @staticmethod
     def _infer_dataset_name(data_path: str | list) -> str | None:
         """Infer a dataset name from the data path so remote cache layout can match training data."""
         if not isinstance(data_path, str):
@@ -104,12 +89,11 @@ class SupervisedDataset(Dataset):
         images,
         teacher_processor,
     ) -> Dict[str, torch.Tensor]:
-        """Encode one sample for a live teacher with the dataset's shared dummy-image fallback."""
+        """Encode one image sample for a live teacher."""
         return encode_teacher_data(
             sources,
             images,
             teacher_processor,
-            self._dummy_pixel_tensors,
         )
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
@@ -139,9 +123,7 @@ class SupervisedDataset(Dataset):
 
         data_dict = encode_student_data(sources, images, self.processor)
         if data_dict["pixel_values"] is None:
-            pixel_values, pixel_attention_mask = self._dummy_pixel_tensors()
-            data_dict["pixel_values"] = pixel_values
-            data_dict["pixel_attention_mask"] = pixel_attention_mask
+            raise ValueError("Student encoder did not produce image tensors for an image-only sample.")
 
         if self.teacher_logits_cache is not None:
             # Cached teacher logits short-circuit the live teacher encoding path,

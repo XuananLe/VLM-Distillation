@@ -10,7 +10,6 @@ from transformers import (
     HfArgumentParser,
 )
 from src.trainer.distillation_trainer import DistillationTrainer
-from src.trainer.setup_utils import normalize_teacher_models
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, TrainingArguments
 from src.train.distillation_setup import (
@@ -18,11 +17,9 @@ from src.train.distillation_setup import (
     log_distillation_setup,
 )
 from src.train.model_setup import (
-    load_model,
+    load_model_and_processor,
     load_processor_and_tokenizer,
-    load_teacher_model_and_processor,
 )
-from src.train.save_utils import safe_save_model_for_hf_trainer
 
 def train_distillation():
     """
@@ -66,22 +63,14 @@ def train_distillation():
         gradient_checkpointing_kwargs=gradient_checkpointing_kwargs,
     )
 
-    processor, _, student_model_type = load_processor_and_tokenizer(
-        distillation_args.student_model_id,
-        padding_side="right",
-        cache_dir=training_args.cache_dir,
-    )
-    student_model = load_model(
-        model_id=distillation_args.student_model_id,
-        model_type=student_model_type,
-        cache_dir=training_args.cache_dir,
-        attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "eager",
-        compute_dtype=compute_dtype,
-        model_kwargs={"device_map": {"": training_args.device}},
-    )
-
     print("Loading student model...")
-    student_model.config.use_cache = False
+    student_model, processor, _, _ = load_model_and_processor(
+        model_id=distillation_args.student_model_id,
+        cache_dir=training_args.cache_dir,
+        device=training_args.device,
+        compute_dtype=compute_dtype,
+        disable_flash_attn2=training_args.disable_flash_attn2,
+    )
 
     if training_args.gradient_checkpointing:
         student_model.enable_input_require_grads()
@@ -95,7 +84,7 @@ def train_distillation():
         teacher_processors = []
         for teacher_id in teacher_ids:
             print(f"Loading live teacher for layer distillation: {teacher_id}")
-            teacher_model, teacher_processor = load_teacher_model_and_processor(
+            teacher_model, teacher_processor, _, _ = load_model_and_processor(
                 model_id=teacher_id,
                 cache_dir=training_args.cache_dir,
                 device=training_args.device,
@@ -104,7 +93,6 @@ def train_distillation():
             )
             teacher_models.append(teacher_model)
             teacher_processors.append(teacher_processor)
-        teacher_models, _ = normalize_teacher_models(teacher_models, len(teacher_models))
     else:
         print("\nUsing cached teacher logits; skipping online teacher model loading.")
         teacher_models, teacher_processors = [], []
@@ -190,10 +178,7 @@ def train_distillation():
     trainer.save_state()
     student_model.config.use_cache = True
 
-    safe_save_model_for_hf_trainer(
-        trainer=trainer,
-        output_dir=training_args.output_dir
-    )
+    trainer.save_model(training_args.output_dir)
 
     print("\n" + "=" * 80)
     print("Training completed successfully!")

@@ -1,13 +1,10 @@
-from typing import Callable, Dict, Optional
+from typing import Dict, Optional
 
 import torch
 import transformers
 
 from .processor_encoders import (
-    DICT_TEACHER_ENCODERS,
-    INTERNVL3_DUMMY_IMAGE_FLAGS,
     PROCESSOR_ENCODERS,
-    QWEN_PROCESSORS,
     internvl3_encode_conversation,
     is_internvl_teacher_model_id,
 )
@@ -38,9 +35,7 @@ def encode_student_data(
 
 def _finalize_teacher_data(
     teacher_data: Dict[str, torch.Tensor],
-    teacher_processor,
     teacher_model_id: Optional[str],
-    dummy_pixel_tensors: Callable[[], tuple[torch.Tensor, torch.Tensor]],
 ) -> Dict[str, torch.Tensor]:
     """Fill teacher-side defaults so every teacher batch exposes the expected multimodal fields."""
     if teacher_data["attention_mask"] is None:
@@ -49,47 +44,29 @@ def _finalize_teacher_data(
     if teacher_data["pixel_values"] is not None:
         return teacher_data
 
-    if is_internvl_teacher_model_id(teacher_model_id):
-        # InternVL expects a single image tensor even for text-only turns, so it
-        # gets a minimal zero image instead of the packed SmolVLM-style dummy batch.
-        image_size = teacher_processor.get("image_size", 448)
-        teacher_data["pixel_values"] = torch.zeros((1, 3, image_size, image_size))
-        teacher_data["image_flags"] = torch.zeros(INTERNVL3_DUMMY_IMAGE_FLAGS, dtype=torch.long)
-        return teacher_data
-
-    if type(teacher_processor) not in QWEN_PROCESSORS:
-        pixel_values, pixel_attention_mask = dummy_pixel_tensors()
-        teacher_data["pixel_values"] = pixel_values
-        teacher_data["pixel_attention_mask"] = pixel_attention_mask
-
-    return teacher_data
+    raise ValueError(
+        "Teacher encoder did not produce image tensors. "
+        f"teacher_model_id={teacher_model_id!r}"
+    )
 
 
 def encode_teacher_data(
     sources,
     images,
     teacher_processor,
-    dummy_pixel_tensors: Callable[[], tuple[torch.Tensor, torch.Tensor]],
 ) -> Dict[str, torch.Tensor]:
     """Encode one sample for a live teacher and normalize its optional multimodal fields."""
     teacher_model_id = teacher_processor.get("model_id") if isinstance(teacher_processor, dict) else None
     if isinstance(teacher_processor, dict):
-        encoder = (
-            internvl3_encode_conversation
-            if is_internvl_teacher_model_id(teacher_model_id)
-            else DICT_TEACHER_ENCODERS.get(teacher_model_id)
-        )
-        if encoder is None:
+        if not is_internvl_teacher_model_id(teacher_model_id):
             raise ValueError(f"Unsupported dict teacher processor for {teacher_model_id!r}.")
-        teacher_data = encoder(sources, images, teacher_processor)
+        teacher_data = internvl3_encode_conversation(sources, images, teacher_processor)
     else:
         teacher_data = encode_with_processor(sources, images, teacher_processor, role="teacher")
 
     return _finalize_teacher_data(
         teacher_data,
-        teacher_processor,
         teacher_model_id,
-        dummy_pixel_tensors,
     )
 
 

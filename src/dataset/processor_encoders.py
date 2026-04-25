@@ -8,8 +8,6 @@ from src.constants import IGNORE_INDEX, LLAVA_IMAGE_TOKEN
 from .internvl_utils import _build_internvl_pixel_values
 
 EOS_TOKEN = "<end_of_utterance>"
-INTERNVL3_1B_MODEL_ID = "OpenGVLab/InternVL3-1B"
-INTERNVL3_DUMMY_IMAGE_FLAGS = (1, 1)
 
 IDEFICS3_PROCESSOR = getattr(transformers, "Idefics3Processor", None)
 SMOLVLM_PROCESSOR = getattr(transformers, "SmolVLMProcessor", None)
@@ -451,27 +449,8 @@ PROCESSOR_ENCODERS = {
     if processor_type is not None
 }
 
-QWEN_PROCESSORS = {
-    processor_type
-    for processor_type in (
-        QWEN2_VL_PROCESSOR,
-        QWEN2_5_VL_PROCESSOR,
-        QWEN3_VL_PROCESSOR,
-    )
-    if processor_type is not None
-}
-
-DICT_TEACHER_ENCODERS = {
-    INTERNVL3_1B_MODEL_ID: internvl3_encode_conversation,
-}
-
-
 __all__ = [
-    "DICT_TEACHER_ENCODERS",
-    "INTERNVL3_1B_MODEL_ID",
-    "INTERNVL3_DUMMY_IMAGE_FLAGS",
     "PROCESSOR_ENCODERS",
-    "QWEN_PROCESSORS",
     "gemma3_encode_conversation",
     "llava_next_encode_conversation",
     "internvl3_encode_conversation",

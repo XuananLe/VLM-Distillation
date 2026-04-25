@@ -14,12 +14,10 @@ from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments
 from src.trainer.distillation_utils import (
     build_teacher_batches,
-    compute_teacher_forward,
-    select_labels_at_positions,
-    select_supervised_logit_positions,
 )
+from src.trainer.setup_utils import normalize_teacher_models
 from src.train.train_utils import (
-    load_teacher_model_and_processor,
+    load_model_and_processor,
     load_processor_and_tokenizer,
 )
 
@@ -124,18 +122,16 @@ def load_teachers_and_processors(teacher_ids: list[str], device: str):
     teacher_models = []
     teacher_processors = []
     for teacher_id in teacher_ids:
-        teacher_model, teacher_processor = load_teacher_model_and_processor(
+        teacher_model, teacher_processor, _, _ = load_model_and_processor(
             model_id=teacher_id,
             cache_dir=None,
             device=device,
             compute_dtype=torch_dtype,
             disable_flash_attn2=not device.startswith("cuda"),
         )
-        teacher_model.eval()
-        for param in teacher_model.parameters():
-            param.requires_grad_(False)
         teacher_models.append(teacher_model)
         teacher_processors.append(teacher_processor)
+    teacher_models, _ = normalize_teacher_models(teacher_models, len(teacher_models))
     return teacher_models, teacher_processors
 
 
@@ -199,34 +195,33 @@ def main() -> None:
         example = dataset[dataset_index]
         original_dataset_index = int(example.pop("dataset_index"))
         batch = data_collator([example])
-        student_inputs = {k: v for k, v in batch.items() if not k.startswith("teacher")}
-        teacher_batches = build_teacher_batches(batch, student_inputs, len(teacher_models))
+        teacher_batches = build_teacher_batches(batch, len(teacher_models))
 
         for teacher_idx, (teacher_model, (teacher_inputs, teacher_labels)) in enumerate(
             zip(teacher_models, teacher_batches)
         ):
+            model_param = next(teacher_model.parameters())
+            model_dtype = model_param.dtype if model_param.is_floating_point() else None
             prepared_inputs = {}
             for key, value in teacher_inputs.items():
                 if torch.is_tensor(value):
-                    prepared_inputs[key] = value.to(device)
+                    target_dtype = model_dtype if model_dtype is not None and value.is_floating_point() else value.dtype
+                    prepared_inputs[key] = value.to(
+                        device=model_param.device,
+                        dtype=target_dtype,
+                    )
                 else:
                     prepared_inputs[key] = value
-            prepared_labels = teacher_labels.to(device)
+            prepared_labels = teacher_labels.to(model_param.device)
 
-            logit_positions = select_supervised_logit_positions(prepared_labels)
-            teacher_outputs = compute_teacher_forward(
-                teacher_model,
-                prepared_inputs,
-                output_hidden_states=False,
-                logits_to_keep=logit_positions,
-            )
+            with torch.no_grad():
+                teacher_outputs = teacher_model(
+                    **prepared_inputs,
+                    return_dict=True,
+                    output_hidden_states=False,
+                )
             teacher_logits = teacher_outputs.logits.detach()
-            selected_labels = select_labels_at_positions(prepared_labels, logit_positions)
-            effective_labels = (
-                selected_labels
-                if selected_labels.size(1) == teacher_logits.size(1)
-                else prepared_labels
-            )
+            effective_labels = prepared_labels
 
             sample_mask = effective_labels[0].ne(-100)
             sample_logits = teacher_logits[0][sample_mask].to(
@@ -251,7 +246,6 @@ def main() -> None:
 
             del teacher_outputs
             del teacher_logits
-            del selected_labels
             del effective_labels
 
         total_samples += 1

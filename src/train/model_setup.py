@@ -21,14 +21,9 @@ except ImportError:
     AutoModelForVision2Seq = None
 
 
-COMPONENT_ATTRIBUTE_ALIASES = {
-    "vision": ("vision_model", "vision_tower"),
-    "connector": ("connector", "multi_modal_projector"),
-    "text": ("text_model", "language_model"),
-}
+SMOLVLM_MODEL_TYPES = {"smolvlm", "smolvlm2", "idefics3"}
 SUPPORTED_AUTO_MODEL_TYPES = {
-    "smolvlm",
-    "smolvlm2",
+    *SMOLVLM_MODEL_TYPES,
     "qwen2_vl",
     "qwen2_5_vl",
     "qwen3_vl",
@@ -97,7 +92,9 @@ def load_model(
             "(loaded in Transformers as `llava_next`). InternVL uses its dedicated loading path."
         )
     loader_kwargs = dict(model_kwargs or {})
-    if model_type in {"smolvlm", "smolvlm2"} or AutoModelForVision2Seq is None:
+    if model_type == "gemma3":
+        loader_cls = Gemma3ForConditionalGeneration
+    elif model_type in SMOLVLM_MODEL_TYPES or AutoModelForVision2Seq is None:
         loader_cls = AutoModelForImageTextToText
     else:
         loader_cls = AutoModelForVision2Seq
@@ -123,18 +120,21 @@ def load_model(
         )
 
 
-def load_teacher_model_and_processor(
+def load_model_and_processor(
     *,
     model_id: str,
     cache_dir: str | None,
     device,
     compute_dtype: torch.dtype,
     disable_flash_attn2: bool,
+    padding_side: str = "right",
+    model_kwargs: dict | None = None,
 ):
-    """Load one live teacher model plus its processor for distillation or logit caching."""
+    """Load one supported VLM plus its processor/tokenizer bundle."""
     attn_implementation = "flash_attention_2" if not disable_flash_attn2 else "eager"
     if "internvl" in model_id.lower():
-        teacher_model = AutoModel.from_pretrained(
+        model_type = "internvl"
+        model = AutoModel.from_pretrained(
             model_id,
             cache_dir=cache_dir,
             torch_dtype=compute_dtype,
@@ -142,21 +142,21 @@ def load_teacher_model_and_processor(
             use_flash_attn=not disable_flash_attn2,
             trust_remote_code=True,
         ).to(device)
-        teacher_tokenizer = AutoTokenizer.from_pretrained(
+        tokenizer = AutoTokenizer.from_pretrained(
             model_id,
             cache_dir=cache_dir,
-            padding_side="right",
+            padding_side=padding_side,
             trust_remote_code=True,
             use_fast=False,
         )
-        img_context_token_id = teacher_tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
-        if hasattr(teacher_model, "img_context_token_id"):
-            teacher_model.img_context_token_id = img_context_token_id
-        vision_config = getattr(teacher_model.config, "vision_config", None)
-        teacher_processor = {
+        img_context_token_id = tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
+        if hasattr(model, "img_context_token_id"):
+            model.img_context_token_id = img_context_token_id
+        vision_config = getattr(model.config, "vision_config", None)
+        processor = {
             "model_id": model_id,
-            "tokenizer": teacher_tokenizer,
-            "image_size": getattr(teacher_model.config, "force_image_size", None)
+            "tokenizer": tokenizer,
+            "image_size": getattr(model.config, "force_image_size", None)
             or getattr(vision_config, "image_size", 448),
             "normalize_type": (
                 "siglip"
@@ -164,69 +164,35 @@ def load_teacher_model_and_processor(
                 else "imagenet"
             ),
             "max_num_tiles": 6,
-            "num_image_token": getattr(teacher_model, "num_image_token", 256),
+            "num_image_token": getattr(model, "num_image_token", 256),
             "img_start_token": "<img>",
             "img_end_token": "</img>",
             "img_context_token": "<IMG_CONTEXT>",
         }
     else:
-        teacher_processor, _, teacher_model_type = load_processor_and_tokenizer(
+        processor, tokenizer, model_type = load_processor_and_tokenizer(
             model_id,
-            padding_side="right",
+            padding_side=padding_side,
             cache_dir=cache_dir,
         )
-        if "gemma-3" in model_id.lower():
-            teacher_model = Gemma3ForConditionalGeneration.from_pretrained(
-                model_id,
-                cache_dir=cache_dir,
-                attn_implementation=attn_implementation,
-                torch_dtype=compute_dtype,
-                trust_remote_code=True,
-                device_map={"": device},
-            )
-        else:
-            teacher_model = load_model(
-                model_id=model_id,
-                model_type=teacher_model_type,
-                cache_dir=cache_dir,
-                attn_implementation=attn_implementation,
-                compute_dtype=compute_dtype,
-                model_kwargs={"device_map": {"": device}},
-            )
+        loader_kwargs = {"device_map": {"": device}}
+        loader_kwargs.update(model_kwargs or {})
+        model = load_model(
+            model_id=model_id,
+            model_type=model_type,
+            cache_dir=cache_dir,
+            attn_implementation=attn_implementation,
+            compute_dtype=compute_dtype,
+            model_kwargs=loader_kwargs,
+        )
 
-    if hasattr(teacher_model.config, "use_cache"):
-        teacher_model.config.use_cache = False
-    return teacher_model, teacher_processor
-
-
-def resolve_component_module(model, component: str):
-    """Resolve one logical component like vision or connector from the supported VLM wrappers."""
-    try:
-        aliases = COMPONENT_ATTRIBUTE_ALIASES[component]
-    except KeyError as exc:
-        raise ValueError(f"Unknown model component: {component!r}") from exc
-
-    roots = [
-        model,
-        getattr(model, "model", None),
-        getattr(model, "base_model", None),
-        getattr(getattr(model, "model", None), "base_model", None),
-    ]
-    seen: set[int] = set()
-    for root in roots:
-        if root is None or id(root) in seen:
-            continue
-        seen.add(id(root))
-        for alias in aliases:
-            module = getattr(root, alias, None)
-            if module is not None:
-                return module
-    raise AttributeError(f"Could not resolve {component} module on the model.")
+    if hasattr(model.config, "use_cache"):
+        model.config.use_cache = False
+    return model, processor, tokenizer, model_type
 
 __all__ = [
     "load_model",
+    "load_model_and_processor",
     "load_processor_and_tokenizer",
-    "load_teacher_model_and_processor",
-    "resolve_component_module",
     "resolve_model_type",
 ]

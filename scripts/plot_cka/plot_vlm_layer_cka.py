@@ -22,7 +22,6 @@ if str(ROOT) not in sys.path:
 
 from src.components.cka import compute_cka_from_matrices
 from src.components.forward_utils import (
-    forward_with_kwarg_retry,
     infer_batch_size,
     unwrap_tensor,
 )
@@ -544,7 +543,7 @@ def collect_layer_representations(model, loader, layer_indices: list[int], model
             inputs = prepare_forward_inputs(model, batch)
             batch_size = infer_batch_size(inputs)
             with torch.inference_mode():
-                forward_with_kwarg_retry(model, inputs)
+                model(**inputs)
 
             for layer_index in layer_indices:
                 payload = raw_outputs.get(layer_index)
@@ -607,7 +606,7 @@ def collect_model_layer_representations(
         inputs["use_cache"] = False
 
         with torch.inference_mode():
-            outputs = forward_with_kwarg_retry(model, inputs)
+            outputs = model(**inputs)
 
         hidden_states = get_decoder_hidden_states(outputs)
         if total_layers is None:

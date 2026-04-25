@@ -8,9 +8,6 @@ from src.trainer.gradient_utils import (
     compute_pooled_kd_grace_grad,
 )
 from src.trainer.kd_sequence_utils import compute_single_teacher_loss
-from src.trainer.distillation_utils import (
-    compute_teacher_forward,
-)
 
 
 def compute_teacher_loss_matrix(
@@ -123,21 +120,21 @@ def compute_teacher_loss_matrix(
     for teacher_index, (teacher_model, (teacher_inputs, teacher_labels)) in enumerate(zip(teacher_models, teacher_batches)):
         prepared_teacher_labels = prepare_input_fn(teacher_labels)
         if not prepared_teacher_labels.ne(-100).any():
-            # Some teacher encodings may contain no supervised answer tokens; treat
-            # them as zero-contribution teachers instead of branching downstream.
-            zero_losses = student_logits.new_zeros((student_logits.size(0),))
-            teacher_losses.append(zero_losses)
-            if pooled_ce_grace_grad is not None:
-                zero_grace = pooled_ce_grace_grad.new_zeros((student_logits.size(0),))
-                grace_scores.append(zero_grace)
-                grace_active.append(zero_grace > grace_threshold)
-            continue
+            raise ValueError(f"Teacher {teacher_index} labels contain no supervised answer tokens.")
 
-        teacher_outputs = compute_teacher_forward(
-            teacher_model,
-            prepare_input_fn(teacher_inputs),
-            output_hidden_states=False,
-        )
+        prepared_teacher_inputs = prepare_input_fn(teacher_inputs)
+        model_param = next(teacher_model.parameters())
+        model_dtype = model_param.dtype if model_param.is_floating_point() else None
+        for key, value in prepared_teacher_inputs.items():
+            if torch.is_tensor(value):
+                target_dtype = model_dtype if model_dtype is not None and value.is_floating_point() else value.dtype
+                prepared_teacher_inputs[key] = value.to(device=model_param.device, dtype=target_dtype)
+        with torch.no_grad():
+            teacher_outputs = teacher_model(
+                **prepared_teacher_inputs,
+                return_dict=True,
+                output_hidden_states=False,
+            )
         teacher_logits = teacher_outputs.logits.detach()
         del teacher_outputs
         if collect_teacher_target_batches:

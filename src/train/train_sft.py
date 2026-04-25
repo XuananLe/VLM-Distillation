@@ -5,11 +5,7 @@ from transformers import HfArgumentParser, Trainer
 
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, ModelArguments, TrainingArguments
-from src.train.model_setup import (
-    load_model,
-    load_processor_and_tokenizer,
-)
-from src.train.save_utils import safe_save_model_for_hf_trainer
+from src.train.model_setup import load_model_and_processor
 
 def train():
     """Parse args, build the SFT stack, and run one full supervised fine-tuning job."""
@@ -26,21 +22,13 @@ def train():
         else torch.bfloat16 if training_args.bf16
         else torch.float32
     )
-    processor, _, model_type = load_processor_and_tokenizer(
-        model_args.model_id,
-        padding_side="right",
-        cache_dir=training_args.cache_dir,
-    )
-    model = load_model(
+    model, processor, _, _ = load_model_and_processor(
         model_id=model_args.model_id,
-        model_type=model_type,
         cache_dir=training_args.cache_dir,
-        attn_implementation="flash_attention_2" if not training_args.disable_flash_attn2 else "eager",
+        device=training_args.device,
         compute_dtype=compute_dtype,
-        model_kwargs={"device_map": {"": training_args.device}},
+        disable_flash_attn2=training_args.disable_flash_attn2,
     )
-
-    model.config.use_cache = False
 
     if training_args.gradient_checkpointing:
         model.enable_input_require_grads()
@@ -53,6 +41,7 @@ def train():
     trainer = Trainer(
         model=model,
         args=training_args,
+        processing_class=processor,
         **data_module
     )
 
@@ -64,8 +53,7 @@ def train():
     trainer.save_state()
 
     model.config.use_cache = True
-    
-    safe_save_model_for_hf_trainer(trainer, output_dir=training_args.output_dir)
+    trainer.save_model(training_args.output_dir)
 
 
 

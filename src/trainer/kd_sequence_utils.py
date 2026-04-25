@@ -34,10 +34,8 @@ def prepare_distillation_sequences(
         min_len = min(min_len, ce_grad_masked.size(0))
  
     if min_len == 0:
-        return (
-            student_logits.new_zeros((0, student_logits.size(-1))),
-            teacher_logits.new_zeros((0, teacher_logits.size(-1))),
-            None if ce_grad_masked is None else ce_grad.new_zeros((0, ce_grad.size(-1))),
+        raise ValueError(
+            "Student and teacher labels have no aligned supervised answer tokens after masking."
         )
 
     return (
@@ -85,20 +83,17 @@ def compute_single_teacher_loss(
             skip_student_eos=skip_student_eos,
             skip_teacher_eos=skip_teacher_eos,
         )
-        if student_logits_masked.size(0) > 0:
-            sample_losses.append(
-                distillation_loss_fn(
-                    student_logits=student_logits_masked,
-                    teacher_logits=teacher_logits_masked,
-                    student_temperature=student_temperature,
-                    teacher_temperature=teacher_temperature,
-                    teacher_index=teacher_index,
-                )
+        sample_losses.append(
+            distillation_loss_fn(
+                student_logits=student_logits_masked,
+                teacher_logits=teacher_logits_masked,
+                student_temperature=student_temperature,
+                teacher_temperature=teacher_temperature,
+                teacher_index=teacher_index,
             )
-        else:
-            sample_losses.append(student_logits.new_zeros(()))
+        )
     if not sample_losses:
-        return student_logits.new_zeros((student_logits.size(0),))
+        raise ValueError("Cannot compute teacher loss for an empty student batch.")
     return torch.stack(sample_losses)
 
 

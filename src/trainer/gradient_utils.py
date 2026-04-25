@@ -16,13 +16,11 @@ def compute_pooled_ce_grace_grad(
     # parameter gradients. The pooled vector stays in vocab space: [batch, vocab].
     pooled_grads = []
     vocab_size = student_logits.size(-1)
-    zero_grad = student_logits.new_zeros((vocab_size,), dtype=torch.float32)
 
     for sample_index in range(student_logits.size(0)):
         positions = get_supervised_positions(student_labels[sample_index])
         if positions.numel() == 0:
-            pooled_grads.append(zero_grad)
-            continue
+            raise ValueError("Student labels contain no supervised answer tokens.")
 
         sample_labels = student_labels[sample_index, positions]
         # For CE, dL/dlogits = p - y. GRACE only needs one direction per sample, so
@@ -32,7 +30,7 @@ def compute_pooled_ce_grace_grad(
         pooled_grads.append(sample_grad.sum(dim=0) / positions.numel())
 
     if not pooled_grads:
-        return student_logits.new_zeros((0, vocab_size), dtype=torch.float32)
+        raise ValueError("Cannot compute CE GRACE gradient for an empty student batch.")
     return torch.stack(pooled_grads, dim=0)
 
 
@@ -52,15 +50,13 @@ def compute_pooled_kd_grace_grad(
     """Pool KD logit gradients into one vocab-space direction per sample for GRACE."""
     pooled_grads = []
     vocab_size = student_logits.size(-1)
-    zero_grad = student_logits.new_zeros((vocab_size,), dtype=torch.float32)
 
     for sample_index in range(student_logits.size(0)):
         # Use the original student supervised-token count as the normalization
         # anchor so KD and CE pooled gradients stay on a comparable scale.
         supervised_student_count = int(student_labels[sample_index].ne(-100).sum().item())
         if supervised_student_count == 0:
-            pooled_grads.append(zero_grad)
-            continue
+            raise ValueError("Student labels contain no supervised answer tokens.")
 
         student_positions = get_supervised_positions(
             student_labels[sample_index],
@@ -73,8 +69,7 @@ def compute_pooled_kd_grace_grad(
 
         matched_tokens = min(student_positions.numel(), teacher_positions.numel())
         if matched_tokens == 0:
-            pooled_grads.append(zero_grad)
-            continue
+            raise ValueError("Student and teacher labels have no matched supervised answer tokens.")
 
         # KD alignment here is intentionally simple: compare only the shared prefix
         # of supervised positions after optional EOS dropping on each side.
@@ -95,7 +90,7 @@ def compute_pooled_kd_grace_grad(
         pooled_grads.append(sample_kd_grad.sum(dim=0) / supervised_student_count)
 
     if not pooled_grads:
-        return student_logits.new_zeros((0, vocab_size), dtype=torch.float32)
+        raise ValueError("Cannot compute KD GRACE gradient for an empty student batch.")
     return torch.stack(pooled_grads, dim=0)
 
 

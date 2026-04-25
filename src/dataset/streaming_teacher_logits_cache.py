@@ -81,12 +81,9 @@ class StreamingTeacherLogitsCache:
         expected_num_samples: int,
         dataset_name: str | None,
         remote_uri: str | None = None,
-        local_cache_dir: str | None = None,
         cache_limit: str | int | None = None,
-        predownload: int | None = None,
     ):
         """Configure local or remote teacher-logit loading for one training dataset."""
-        del local_cache_dir, predownload
         if not teacher_model_ids:
             raise ValueError("teacher_model_ids must be provided for teacher logits.")
 

@@ -35,11 +35,13 @@ def pool_vision_features(
             hidden_size = features.shape[-1]
             pooled = []
             start = 0
-            for count in group_counts:
+            for sample_index, count in enumerate(group_counts):
                 count = int(count)
                 if count <= 0:
-                    pooled.append(features.new_zeros(hidden_size))
-                    continue
+                    raise ValueError(
+                        "Vision grouping produced no vision features for sample "
+                        f"{sample_index}."
+                    )
                 stop = start + count
                 # Collapse all vision groups that belong to one sample into a single vector.
                 pooled_chunk = rearrange(features[start:stop], "... d -> (...) d")

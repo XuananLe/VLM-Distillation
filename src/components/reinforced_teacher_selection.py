@@ -19,13 +19,15 @@ def compute_reinforced_teacher_descriptor_stats(
     """Summarize one teacher batch into confidence/entropy descriptors; input is teacher logits and labels, output is per-sample stats, and this exists to give the policy teacher-side signals beyond KD loss."""
     # Build simple per-sample teacher descriptors from supervised answer positions only.
     stats = []
-    for sample_logits, sample_labels in zip(teacher_logits, teacher_labels):
+    for sample_index, (sample_logits, sample_labels) in enumerate(zip(teacher_logits, teacher_labels)):
         positions = sample_labels.ne(-100).nonzero(as_tuple=False).squeeze(-1)
         if skip_teacher_eos and positions.numel() > 0:
             positions = positions[:-1]
         if positions.numel() == 0:
-            stats.append(sample_logits.new_zeros((2,), dtype=torch.float32))
-            continue
+            raise ValueError(
+                "Teacher labels contain no supervised answer tokens for reinforced selection "
+                f"at sample {sample_index}."
+            )
 
         supervised_logits = sample_logits.index_select(dim=0, index=positions)
         teacher_probs = F.softmax(supervised_logits.float() / teacher_temperature, dim=-1)

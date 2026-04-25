@@ -1,11 +1,8 @@
-import os
 import time
 from typing import override
 
 from transformers import PreTrainedModel, Trainer
-from transformers.trainer import PREFIX_CHECKPOINT_DIR
 
-from src.train.save_utils import _save_processing_assets
 from src.trainer.metrics_utils import build_distillation_train_metrics
 from src.trainer.setup_utils import (
     log_distillation_trainer_setup,
@@ -280,7 +277,6 @@ class DistillationTrainer(Trainer):
         student_inputs = {k: v for k, v in inputs.items() if not k.startswith("teacher")}
         teacher_batches, cached_teacher_batches = prepare_teacher_batches(
             inputs=inputs,
-            student_inputs=student_inputs,
             num_teachers=self.num_teachers,
             teacher_models=self.teacher_models,
         )
@@ -377,13 +373,3 @@ class DistillationTrainer(Trainer):
             self.log(metrics)
 
         return (loss, student_and_gate["student_outputs"]) if return_outputs else loss
-
-    @override
-    def _save_checkpoint(self, model, trial):
-        """Save a checkpoint and include processor/tokenizer assets beside the model."""
-        super()._save_checkpoint(model, trial)
-        output_dir = os.path.join(
-            self._get_output_dir(trial=trial),
-            f"{PREFIX_CHECKPOINT_DIR}-{self.state.global_step}",
-        )
-        _save_processing_assets(self, output_dir)

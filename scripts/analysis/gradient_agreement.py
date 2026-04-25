@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
 from src.components.loss import uld_loss
-from src.components.forward_utils import forward_with_kwarg_retry
+from src.dataset.conversation_encoders import encode_student_data
 from src.dataset.data_collator import DataCollatorForSupervisedDataset
 from src.dataset.sft_data import SupervisedDataset
 from src.dataset.vqa_loading import (
@@ -147,25 +147,25 @@ class DocVQAGradientAgreementDataset(Dataset):
             {"content": selected.answer},
         ]
 
-        data_dict = self.encoder_dataset._encode_conversation(
+        data_dict = encode_student_data(
             sources,
             [image],
             self.encoder_dataset.processor,
         )
         if data_dict["pixel_values"] is None:
-            pixel_values, pixel_attention_mask = self.encoder_dataset._dummy_pixel_tensors()
-            data_dict["pixel_values"] = pixel_values
-            data_dict["pixel_attention_mask"] = pixel_attention_mask
+            raise ValueError("Student encoder did not produce image tensors for an image-only sample.")
 
         teacher_count = len(self.encoder_dataset.teacher_processors)
         for teacher_index, teacher_processor in enumerate(self.encoder_dataset.teacher_processors):
             teacher_data = self.encoder_dataset._encode_teacher_data(sources, [image], teacher_processor)
-            prefix = self.encoder_dataset._teacher_prefix(teacher_index, teacher_count)
+            prefix = "teacher" if teacher_count == 1 else f"teacher_{teacher_index}"
             data_dict[f"{prefix}_input_ids"] = teacher_data["input_ids"]
             data_dict[f"{prefix}_labels"] = teacher_data["labels"]
             data_dict[f"{prefix}_attention_mask"] = teacher_data["attention_mask"]
             data_dict[f"{prefix}_pixel_values"] = teacher_data["pixel_values"]
             data_dict[f"{prefix}_pixel_attention_mask"] = teacher_data["pixel_attention_mask"]
+            if teacher_data.get("image_sizes") is not None:
+                data_dict[f"{prefix}_image_sizes"] = teacher_data["image_sizes"]
             if teacher_data.get("image_grid_thw") is not None:
                 data_dict[f"{prefix}_image_grid_thw"] = teacher_data["image_grid_thw"]
             if teacher_data.get("image_flags") is not None:
@@ -312,8 +312,10 @@ def compute_single_teacher_uld_loss(
         student_answer_positions.append(student_positions)
 
         if student_positions.numel() == 0 or teacher_positions.numel() == 0:
-            sample_losses.append(student_logits.new_zeros(()))
-            continue
+            raise ValueError(
+                "Student and teacher labels have no supervised answer tokens "
+                f"for sample {sample_index}."
+            )
 
         student_slice = student_logits[sample_index, student_positions]
         teacher_slice = teacher_logits[sample_index, teacher_positions]
@@ -327,7 +329,7 @@ def compute_single_teacher_uld_loss(
             )
         )
     if not sample_losses:
-        return student_logits.new_zeros(()), student_answer_positions
+        raise ValueError("Cannot compute ULD loss for an empty student batch.")
     return torch.stack(sample_losses).mean(), student_answer_positions
 
 
@@ -506,17 +508,11 @@ def main() -> None:
         teacher_inputs = move_batch_to_model_device(teacher_model, teacher_inputs)
         teacher_labels = move_batch_to_model_device(teacher_model, {"labels": teacher_labels})["labels"]
 
-        student_outputs = forward_with_kwarg_retry(
-            student_model,
-            {**student_inputs, "return_dict": True},
-        )
+        student_outputs = student_model(**student_inputs, return_dict=True)
         student_logits = student_outputs.logits
 
         with torch.no_grad():
-            teacher_outputs = forward_with_kwarg_retry(
-                teacher_model,
-                {**teacher_inputs, "return_dict": True},
-            )
+            teacher_outputs = teacher_model(**teacher_inputs, return_dict=True)
         teacher_logits = teacher_outputs.logits.detach()
 
         ce_loss = student_outputs.loss
