@@ -4,22 +4,23 @@ import torch
 from PIL import Image, ImageFile
 from transformers import (
     AutoConfig,
-    AutoModel,
     AutoModelForImageTextToText,
     AutoProcessor,
     AutoTokenizer,
     Gemma3ForConditionalGeneration,
 )
 
+from src.dataset.internvl_utils import (
+    INTERNVL_IMAGE_SIZE,
+    INTERNVL_IMG_CONTEXT_TOKEN,
+    INTERNVL_MAX_NUM_TILES,
+    INTERNVL_NUM_IMAGE_TOKEN,
+)
+from src.train.internvl_compat import load_internvl_model
+
 importlib.import_module("pillow_avif")
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 Image.MAX_IMAGE_PIXELS = None
-
-try:
-    from transformers import AutoModelForVision2Seq
-except ImportError:
-    AutoModelForVision2Seq = None
-
 
 SMOLVLM_MODEL_TYPES = {"smolvlm", "smolvlm2", "idefics3"}
 SUPPORTED_AUTO_MODEL_TYPES = {
@@ -53,10 +54,12 @@ def load_processor_and_tokenizer(
         raise ValueError(
             "Unsupported model family for the generic processor loader: "
             f"model_id={model_id!r}, model_type={model_type!r}. "
-            "Supported generic families are SmolVLM, Qwen-VL, Gemma 3, and Granite Vision "
-            "(loaded in Transformers as `llava_next`). InternVL uses its dedicated loading path."
+            "Supported generic families are SmolVLM, Qwen-VL, Gemma 3, and Granite Vision."
         )
-    processor_kwargs = {"trust_remote_code": True}
+    processor_kwargs = {
+        "trust_remote_code": True,
+        "use_fast": False,
+    }
     if padding_side is not None:
         processor_kwargs["padding_side"] = padding_side
     if cache_dir is not None:
@@ -88,36 +91,22 @@ def load_model(
         raise ValueError(
             "Unsupported model family for the generic model loader: "
             f"model_id={model_id!r}, model_type={model_type!r}. "
-            "Supported generic families are SmolVLM, Qwen-VL, Gemma 3, and Granite Vision "
-            "(loaded in Transformers as `llava_next`). InternVL uses its dedicated loading path."
+            "Supported generic families are SmolVLM, Qwen-VL, Gemma 3, and Granite Vision."
         )
+
     loader_kwargs = dict(model_kwargs or {})
     if model_type == "gemma3":
         loader_cls = Gemma3ForConditionalGeneration
-    elif model_type in SMOLVLM_MODEL_TYPES or AutoModelForVision2Seq is None:
-        loader_cls = AutoModelForImageTextToText
     else:
-        loader_cls = AutoModelForVision2Seq
-    try:
-        return loader_cls.from_pretrained(
-            model_id,
-            cache_dir=cache_dir,
-            attn_implementation=attn_implementation,
-            torch_dtype=compute_dtype,
-            trust_remote_code=trust_remote_code,
-            **loader_kwargs,
-        )
-    except TypeError as exc:
-        if "attn_implementation" not in str(exc):
-            raise
-        return loader_cls.from_pretrained(
-            model_id,
-            cache_dir=cache_dir,
-            _attn_implementation=attn_implementation,
-            torch_dtype=compute_dtype,
-            trust_remote_code=trust_remote_code,
-            **loader_kwargs,
-        )
+        loader_cls = AutoModelForImageTextToText
+    return loader_cls.from_pretrained(
+        model_id,
+        cache_dir=cache_dir,
+        attn_implementation=attn_implementation,
+        dtype=compute_dtype,
+        trust_remote_code=trust_remote_code,
+        **loader_kwargs,
+    )
 
 
 def load_model_and_processor(
@@ -130,18 +119,16 @@ def load_model_and_processor(
     padding_side: str = "right",
     model_kwargs: dict | None = None,
 ):
-    """Load one supported VLM plus its processor/tokenizer bundle."""
     attn_implementation = "flash_attention_2" if not disable_flash_attn2 else "eager"
     if "internvl" in model_id.lower():
         model_type = "internvl"
-        model = AutoModel.from_pretrained(
-            model_id,
+        model = load_internvl_model(
+            model_id=model_id,
             cache_dir=cache_dir,
-            torch_dtype=compute_dtype,
-            low_cpu_mem_usage=True,
+            device=device,
+            compute_dtype=compute_dtype,
             use_flash_attn=not disable_flash_attn2,
-            trust_remote_code=True,
-        ).to(device)
+        )
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,
             cache_dir=cache_dir,
@@ -149,25 +136,20 @@ def load_model_and_processor(
             trust_remote_code=True,
             use_fast=False,
         )
-        img_context_token_id = tokenizer.convert_tokens_to_ids("<IMG_CONTEXT>")
-        if hasattr(model, "img_context_token_id"):
-            model.img_context_token_id = img_context_token_id
+        model.img_context_token_id = tokenizer.convert_tokens_to_ids(INTERNVL_IMG_CONTEXT_TOKEN)
         vision_config = getattr(model.config, "vision_config", None)
         processor = {
             "model_id": model_id,
             "tokenizer": tokenizer,
             "image_size": getattr(model.config, "force_image_size", None)
-            or getattr(vision_config, "image_size", 448),
+            or getattr(vision_config, "image_size", INTERNVL_IMAGE_SIZE),
             "normalize_type": (
                 "siglip"
                 if getattr(vision_config, "model_type", None) == "siglip_vision_model"
                 else "imagenet"
             ),
-            "max_num_tiles": 6,
-            "num_image_token": getattr(model, "num_image_token", 256),
-            "img_start_token": "<img>",
-            "img_end_token": "</img>",
-            "img_context_token": "<IMG_CONTEXT>",
+            "max_num_tiles": INTERNVL_MAX_NUM_TILES,
+            "num_image_token": getattr(model, "num_image_token", INTERNVL_NUM_IMAGE_TOKEN),
         }
     else:
         processor, tokenizer, model_type = load_processor_and_tokenizer(

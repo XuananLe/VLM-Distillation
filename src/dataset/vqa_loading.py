@@ -4,6 +4,9 @@ import io
 import re
 from typing import Any
 
+from datasets import load_dataset
+from PIL import Image
+
 DATASET_SOURCES = {
     "textvqa": {
         "hub": "lmms-lab/textvqa",
@@ -57,11 +60,6 @@ def canonical_dataset_name(dataset_name: str) -> str:
 
 def load_hf_dataset(dataset_id: str, config: str | None, split: str):
     """Load one Hugging Face dataset split with an optional config name."""
-    try:
-        from datasets import load_dataset
-    except ImportError as exc:
-        raise ImportError("Missing dependency `datasets`. Install it with: pip install datasets") from exc
-
     if config is None:
         return load_dataset(dataset_id, split=split)
     return load_dataset(dataset_id, config, split=split)
@@ -190,11 +188,6 @@ def pick_first_text(value: Any) -> str | None:
 
 def extract_image_as_pil(image_value: Any) -> Any:
     """Convert a dataset image field into an RGB PIL image."""
-    try:
-        from PIL import Image
-    except ImportError as exc:
-        raise ImportError("Missing dependency `Pillow`. Install it with: pip install Pillow") from exc
-
     if isinstance(image_value, Image.Image):
         return image_value.convert("RGB")
     if isinstance(image_value, dict) and image_value.get("bytes") is not None:

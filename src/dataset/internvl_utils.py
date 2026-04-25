@@ -7,6 +7,12 @@ INTERNVL_MEAN = (0.485, 0.456, 0.406)
 INTERNVL_STD = (0.229, 0.224, 0.225)
 INTERNVL_SIGLIP_MEAN = (0.5, 0.5, 0.5)
 INTERNVL_SIGLIP_STD = (0.5, 0.5, 0.5)
+INTERNVL_IMAGE_SIZE = 448
+INTERNVL_MAX_NUM_TILES = 12
+INTERNVL_NUM_IMAGE_TOKEN = 256
+INTERNVL_IMG_START_TOKEN = "<img>"
+INTERNVL_IMG_END_TOKEN = "</img>"
+INTERNVL_IMG_CONTEXT_TOKEN = "<IMG_CONTEXT>"
 
 
 def _build_internvl_transform(input_size: int, normalize_type: str) -> T.Compose:
@@ -90,10 +96,8 @@ def _dynamic_preprocess_internvl(
 
 def _build_internvl_pixel_values(image: Image.Image, teacher_processor: dict) -> torch.Tensor:
     """Convert one image into the stacked tensor tiles expected by InternVL teachers."""
-    # 448 and 6 are the repo's fallback InternVL preprocessing defaults when the
-    # live teacher config does not expose force_image_size / tiling metadata.
-    image_size = teacher_processor.get("image_size", 448)
-    max_num_tiles = teacher_processor.get("max_num_tiles", 6)
+    image_size = teacher_processor.get("image_size", INTERNVL_IMAGE_SIZE)
+    max_num_tiles = teacher_processor.get("max_num_tiles", INTERNVL_MAX_NUM_TILES)
     normalize_type = teacher_processor.get("normalize_type", "imagenet")
     transform = _build_internvl_transform(image_size, normalize_type)
     processed_images = _dynamic_preprocess_internvl(

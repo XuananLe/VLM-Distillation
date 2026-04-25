@@ -31,7 +31,7 @@ from src.dataset.vqa_loading import (
     pick_first_text,
 )
 from src.params import DataArguments
-from src.train.train_utils import (
+from src.train.model_setup import (
     load_model,
     load_processor_and_tokenizer,
 )

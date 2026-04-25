@@ -15,7 +15,6 @@ def compute_pooled_ce_grace_grad(
     # GRACE compares one pooled logit-space direction per sample, not full
     # parameter gradients. The pooled vector stays in vocab space: [batch, vocab].
     pooled_grads = []
-    vocab_size = student_logits.size(-1)
 
     for sample_index in range(student_logits.size(0)):
         positions = get_supervised_positions(student_labels[sample_index])
@@ -40,7 +39,7 @@ def compute_pooled_kd_grace_grad(
     student_labels: torch.Tensor,
     teacher_logits: torch.Tensor,
     teacher_labels: torch.Tensor,
-    distillation_logit_grad_fn: Callable,
+    distillation_logit_grad_fn: Callable | None,
     student_temperature: float,
     teacher_temperature: float,
     skip_student_eos: bool,
@@ -48,8 +47,10 @@ def compute_pooled_kd_grace_grad(
     teacher_index: int | None = None,
 ) -> torch.Tensor:
     """Pool KD logit gradients into one vocab-space direction per sample for GRACE."""
+    if distillation_logit_grad_fn is None:
+        raise ValueError("GRACE KD-gradient routing requires trie_wasserstein_loss.")
+
     pooled_grads = []
-    vocab_size = student_logits.size(-1)
 
     for sample_index in range(student_logits.size(0)):
         # Use the original student supervised-token count as the normalization

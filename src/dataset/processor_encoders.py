@@ -5,7 +5,13 @@ import transformers
 
 from src.constants import IGNORE_INDEX, LLAVA_IMAGE_TOKEN
 
-from .internvl_utils import _build_internvl_pixel_values
+from .internvl_utils import (
+    INTERNVL_IMG_CONTEXT_TOKEN,
+    INTERNVL_IMG_END_TOKEN,
+    INTERNVL_IMG_START_TOKEN,
+    INTERNVL_NUM_IMAGE_TOKEN,
+    _build_internvl_pixel_values,
+)
 
 EOS_TOKEN = "<end_of_utterance>"
 
@@ -357,12 +363,10 @@ def internvl3_encode_conversation(
 ) -> Dict[str, torch.Tensor]:
     """Encode one conversation for InternVL by expanding image placeholders into context tokens."""
     tokenizer = teacher_processor["tokenizer"]
-    # InternVL expands each image into a fixed run of context placeholders before
-    # the image features are inserted, and 256 is the common fallback width.
-    num_image_token = teacher_processor.get("num_image_token", 256)
-    img_start_token = teacher_processor.get("img_start_token", "<img>")
-    img_end_token = teacher_processor.get("img_end_token", "</img>")
-    img_context_token = teacher_processor.get("img_context_token", "<IMG_CONTEXT>")
+    num_image_token = teacher_processor.get("num_image_token", INTERNVL_NUM_IMAGE_TOKEN)
+    img_start_token = teacher_processor.get("img_start_token", INTERNVL_IMG_START_TOKEN)
+    img_end_token = teacher_processor.get("img_end_token", INTERNVL_IMG_END_TOKEN)
+    img_context_token = teacher_processor.get("img_context_token", INTERNVL_IMG_CONTEXT_TOKEN)
 
     all_input_ids = [torch.tensor([tokenizer.bos_token_id or 1])]
     all_labels = [torch.tensor([IGNORE_INDEX])]

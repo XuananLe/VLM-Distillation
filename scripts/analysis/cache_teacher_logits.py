@@ -16,7 +16,7 @@ from src.trainer.distillation_utils import (
     build_teacher_batches,
 )
 from src.trainer.setup_utils import normalize_teacher_models
-from src.train.train_utils import (
+from src.train.model_setup import (
     load_model_and_processor,
     load_processor_and_tokenizer,
 )

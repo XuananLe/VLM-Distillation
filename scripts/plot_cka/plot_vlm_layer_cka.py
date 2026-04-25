@@ -34,7 +34,7 @@ from src.dataset.vqa_loading import (
     load_hf_dataset,
     pick_first_text,
 )
-from src.train.train_utils import (
+from src.train.model_setup import (
     load_model,
     load_processor_and_tokenizer,
     resolve_model_type,

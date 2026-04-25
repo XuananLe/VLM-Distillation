@@ -1,6 +1,5 @@
 import torch
 import torch.nn.functional as F
-from einops import einsum
 
 from src.components.cka import linear_cka_loss
 from src.components.trie_wasserstein import TrieWassersteinLoss
@@ -14,7 +13,7 @@ def build_distillation_loss(
     trie_wasserstein_rho: float = 0.7,
     trie_wasserstein_topk: int = 64,
 ):
-    """Return prepare, loss, and logit-gradient callables for the configured KD loss."""
+    """Return prepare, loss, and optional logit-gradient callables for the configured KD loss."""
     if loss_function == "trie_wasserstein_loss":
         if student_tokenizer is None:
             raise ValueError("Trie Wasserstein loss requires a student tokenizer.")
@@ -96,8 +95,7 @@ def build_distillation_loss(
 
     if loss_function not in DISTILLATION_LOSSES:
         raise ValueError(f"Unknown distillation loss: {loss_function!r}")
-    configured_loss_function = loss_function
-    loss_fn = DISTILLATION_LOSSES[configured_loss_function]
+    loss_fn = DISTILLATION_LOSSES[loss_function]
 
     def prepare_teacher_batch(
         *,
@@ -126,87 +124,7 @@ def build_distillation_loss(
             teacher_temperature=teacher_temperature,
         )
 
-    def compute_logit_grad(
-        *,
-        student_logits: torch.Tensor,
-        teacher_logits: torch.Tensor,
-        student_temperature: float = 1.0,
-        teacher_temperature: float = 1.0,
-        teacher_index: int | None = None,
-    ) -> torch.Tensor:
-        """Return the student-logit gradient for a function-based KD loss."""
-        del teacher_index
-        return distillation_logit_grad(
-            configured_loss_function,
-            student_logits=student_logits,
-            teacher_logits=teacher_logits,
-            student_temperature=student_temperature,
-            teacher_temperature=teacher_temperature,
-        )
-
-    return prepare_teacher_batch, compute_loss, compute_logit_grad
-
-
-def distillation_logit_grad(
-    loss_function: str,
-    student_logits: torch.Tensor,
-    teacher_logits: torch.Tensor,
-    student_temperature: float = 1.0,
-    teacher_temperature: float = 1.0,
-) -> torch.Tensor:
-    """Return dL/d(student_logits) for the configured KD loss in aligned logit space."""
-    if loss_function == "cka_loss":
-        with torch.enable_grad():
-            logits_for_grad = student_logits.detach().clone().requires_grad_(True)
-            loss = cka_loss(
-                student_logits=logits_for_grad,
-                teacher_logits=teacher_logits,
-                student_temperature=student_temperature,
-                teacher_temperature=teacher_temperature,
-            )
-            return torch.autograd.grad(loss, logits_for_grad, retain_graph=False)[0].float()
-
-    student_temperature = float(student_temperature)
-    teacher_temperature = float(teacher_temperature)
-    student_probs = F.softmax(student_logits.float() / student_temperature, dim=-1)
-
-    if loss_function == "uld_loss":
-        # ULD compares sorted probability masses, so its logit gradient is built in
-        # sorted-probability space and then mapped back through the softmax Jacobian.
-        student_sorted, sort_idx = student_probs.sort(dim=-1, descending=True)
-        teacher_probs = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
-        teacher_sorted = teacher_probs.sort(dim=-1, descending=True).values
-
-        student_vocab = student_sorted.size(-1)
-        teacher_vocab = teacher_sorted.size(-1)
-        if student_vocab < teacher_vocab:
-            padded_student_sorted = F.pad(student_sorted, (0, teacher_vocab - student_vocab))
-            grad_sorted = (padded_student_sorted - teacher_sorted).sign()[..., :student_vocab]
-        else:
-            if teacher_vocab < student_vocab:
-                teacher_sorted = F.pad(teacher_sorted, (0, student_vocab - teacher_vocab))
-            grad_sorted = (student_sorted - teacher_sorted).sign()
-
-        grad_probs = torch.zeros_like(student_probs)
-        grad_probs.scatter_(dim=-1, index=sort_idx, src=grad_sorted)
-        grad_dot = einsum(
-            grad_probs,
-            student_probs,
-            "... vocab, ... vocab -> ...",
-        ).unsqueeze(-1)
-        # For softmax p = softmax(z / T), dL/dz = p * (dL/dp - <dL/dp, p>) / T.
-        return student_probs * (grad_probs - grad_dot) / student_temperature
-
-    if student_logits.size(-1) != teacher_logits.size(-1):
-        raise ValueError(
-            "KL-style logit gradients require matching vocabulary sizes. "
-            f"student={student_logits.size(-1)}, teacher={teacher_logits.size(-1)}"
-        )
-
-    teacher_probs = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
-    # For KL-style losses in matched vocab space, the pooled logit gradient reduces to
-    # (p_student - p_teacher) / T.
-    return (student_probs - teacher_probs) / student_temperature
+    return prepare_teacher_batch, compute_loss, None
 
 
 def cka_loss(

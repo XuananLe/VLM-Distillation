@@ -33,37 +33,23 @@ TEACHER_WEIGHTING_STRATEGY="${TEACHER_WEIGHTING_STRATEGY:-routing}"
 DISTILLATION_LOSS="trie_wasserstein_loss"
 STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-1.0}"
 TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-1.0}"
-# Trie-loss sensitivity knobs
-TRIE_WASSERSTEIN_RHO="${TRIE_WASSERSTEIN_RHO:-0.7}"
-TRIE_WASSERSTEIN_TOPK="${TRIE_WASSERSTEIN_TOPK:-64}"
+# Fixed trie-loss setting for alpha-scaling runs.
+TRIE_WASSERSTEIN_RHO="${TRIE_WASSERSTEIN_RHO:-0.9}"
+TRIE_WASSERSTEIN_TOPK="${TRIE_WASSERSTEIN_TOPK:-32}"
 
-# For fixed weighting strategy and as a base alpha for other strategies
-ALPHA=0.5
+# Alpha-scaling knob. Override with `ALPHA=0.3 bash scripts/train/distill_multi_teachers.sh`.
+ALPHA="${ALPHA:-0.1}"
 
 # Router-based weighting knobs
 TEACHER_GATE_TOP_K="${TEACHER_GATE_TOP_K:-2}"
-TEACHER_GATE_BALANCE_ALPHA="${TEACHER_GATE_BALANCE_ALPHA:-0.01}"
-TEACHER_GATE_CAPACITY_FACTOR="${TEACHER_GATE_CAPACITY_FACTOR:-1.25}"
 TEACHER_GATE_BIAS_UPDATE_RATE="${TEACHER_GATE_BIAS_UPDATE_RATE:-5e-4}"
-TEACHER_GATE_TEMPERATURE="${TEACHER_GATE_TEMPERATURE:-1.5}"
-TEACHER_GATE_NOISE_STD="${TEACHER_GATE_NOISE_STD:-0.01}"
-TEACHER_GATE_ENTROPY_ALPHA="${TEACHER_GATE_ENTROPY_ALPHA:-1e-3}"
-TEACHER_GATE_ROUTER_Z_LOSS_ALPHA="${TEACHER_GATE_ROUTER_Z_LOSS_ALPHA:-1e-3}"
-TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO="${TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO:-0.2}"
 
 # GRACE weighting knobs
 GRACE_THRESHOLD="${GRACE_THRESHOLD:--0.005}"
 GRACE_WARMUP_RATIO="${GRACE_WARMUP_RATIO:-0.01}"
 GRACE_EPSILON="${GRACE_EPSILON:-5e-4}"
-GRACE_SOFTMAX_BETA="${GRACE_SOFTMAX_BETA:-20.0}"
 GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.4}"
 GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.0}"
-
-# Reinforced teacher-selection knobs
-REINFORCED_SELECTION_WARMUP_RATIO="${REINFORCED_SELECTION_WARMUP_RATIO:-0.1}"
-REINFORCED_SELECTION_REWARD_TYPE="${REINFORCED_SELECTION_REWARD_TYPE:-reward2}"
-REINFORCED_SELECTION_REWARD_EMA_DECAY="${REINFORCED_SELECTION_REWARD_EMA_DECAY:-0.9}"
-REINFORCED_SELECTION_POLICY_ALPHA="${REINFORCED_SELECTION_POLICY_ALPHA:-1.0}"
 
 # Teacher logits can be read either from a local cache root (for example /cache)
 # or directly from the remote raw .pt cache layout.
@@ -92,7 +78,8 @@ TEACHER_NAME_2="${TEACHER_MODEL_2##*/}"
 TEACHER_NAME_3="${TEACHER_MODEL_3##*/}"
 TEACHER_NAME_4="${TEACHER_MODEL_4##*/}"
 TRIE_WASSERSTEIN_RHO_TAG="${TRIE_WASSERSTEIN_RHO//./p}"
-RUN_TAG="${RUN_TAG:-trie_sensitivity_rho${TRIE_WASSERSTEIN_RHO_TAG}_topk${TRIE_WASSERSTEIN_TOPK}_$(date +%Y%m%d_%H%M)}"
+ALPHA_TAG="${ALPHA//./p}"
+RUN_TAG="${RUN_TAG:-alpha_scaling${TRIE_WASSERSTEIN_RHO_TAG}_topk${TRIE_WASSERSTEIN_TOPK}_alpha${ALPHA_TAG}_$(date +%Y%m%d_%H%M)}"
 OUTPUT_DIR="output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${TEACHER_NAME_3}_${TEACHER_NAME_4}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
 
 EXTRA_ARGS=(
@@ -146,31 +133,17 @@ deepspeed src/train/train_distillation.py \
     --trie_wasserstein_rho "$TRIE_WASSERSTEIN_RHO" \
     --trie_wasserstein_topk "$TRIE_WASSERSTEIN_TOPK" \
     --bf16 True \
-    --fp16 False \
-    --disable_flash_attn2 False \
     --output_dir "$OUTPUT_DIR" \
     --student_temperature "$STUDENT_TEMPERATURE" \
     --teacher_temperature "$TEACHER_TEMPERATURE" \
     --alpha "$ALPHA" \
-    --teacher_gate_balance_alpha "$TEACHER_GATE_BALANCE_ALPHA" \
     --teacher_gate_top_k "$TEACHER_GATE_TOP_K" \
-    --teacher_gate_capacity_factor "$TEACHER_GATE_CAPACITY_FACTOR" \
     --teacher_gate_bias_update_rate "$TEACHER_GATE_BIAS_UPDATE_RATE" \
-    --teacher_gate_temperature "$TEACHER_GATE_TEMPERATURE" \
-    --teacher_gate_noise_std "$TEACHER_GATE_NOISE_STD" \
-    --teacher_gate_entropy_alpha "$TEACHER_GATE_ENTROPY_ALPHA" \
-    --teacher_gate_router_z_loss_alpha "$TEACHER_GATE_ROUTER_Z_LOSS_ALPHA" \
-    --teacher_gate_hard_routing_warmup_ratio "$TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO" \
     --grace_threshold "$GRACE_THRESHOLD" \
     --grace_warmup_ratio "$GRACE_WARMUP_RATIO" \
     --grace_epsilon "$GRACE_EPSILON" \
-    --grace_softmax_beta "$GRACE_SOFTMAX_BETA" \
     --grace_router_blend_lambda "$GRACE_ROUTER_BLEND_LAMBDA" \
     --grace_ema_decay "$GRACE_EMA_DECAY" \
-    --reinforced_selection_warmup_ratio "$REINFORCED_SELECTION_WARMUP_RATIO" \
-    --reinforced_selection_reward_type "$REINFORCED_SELECTION_REWARD_TYPE" \
-    --reinforced_selection_reward_ema_decay "$REINFORCED_SELECTION_REWARD_EMA_DECAY" \
-    --reinforced_selection_policy_alpha "$REINFORCED_SELECTION_POLICY_ALPHA" \
     --num_train_epochs "$NUM_TRAIN_EPOCHS" \
     --per_device_train_batch_size "$PER_DEVICE_TRAIN_BATCH_SIZE" \
     --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
@@ -179,13 +152,10 @@ deepspeed src/train/train_distillation.py \
     --lr_scheduler_type cosine \
     --tf32 True \
     --gradient_checkpointing True \
-    --lazy_preprocess True \
     --logging_steps "$LOGGING_STEPS" \
     --save_strategy steps \
     --save_steps 150 \
     --save_total_limit 100 \
-    --save_only_model False \
-    --eval_strategy no \
     --dataloader_num_workers 4 \
     --remove_unused_columns False \
     --report_to wandb \

@@ -84,6 +84,8 @@ class DistillationTrainer(Trainer):
             trie_wasserstein_rho=trie_wasserstein_rho,
             trie_wasserstein_topk=trie_wasserstein_topk,
         )
+        if self.distillation_logit_grad_fn is None and grace_warmup_ratio > 0.0:
+            raise ValueError("GRACE routing requires trie_wasserstein_loss.")
         self.teacher_weighting_strategy = teacher_weighting_strategy
 
         self.teacher_models, self.num_teachers = normalize_teacher_models(

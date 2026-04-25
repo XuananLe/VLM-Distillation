@@ -23,7 +23,7 @@ def compute_teacher_loss_matrix(
     grace_threshold: float,
     distillation_prepare_batch_fn: Callable,
     distillation_loss_fn: Callable,
-    distillation_logit_grad_fn: Callable,
+    distillation_logit_grad_fn: Callable | None,
     student_temperature: float,
     teacher_temperature: float,
     skip_student_eos: bool,
