@@ -13,7 +13,7 @@ def build_distillation_loss(
     trie_wasserstein_rho: float = 0.7,
     trie_wasserstein_topk: int = 64,
 ):
-    """Return prepare, loss, and optional logit-gradient callables for the configured KD loss."""
+    """Return prepare and loss callables for the configured KD loss."""
     if loss_function == "trie_wasserstein_loss":
         if student_tokenizer is None:
             raise ValueError("Trie Wasserstein loss requires a student tokenizer.")
@@ -70,28 +70,7 @@ def build_distillation_loss(
                 teacher_temperature=teacher_temperature,
             )
 
-        def compute_logit_grad(
-            *,
-            student_logits: torch.Tensor,
-            teacher_logits: torch.Tensor,
-            student_temperature: float = 1.0,
-            teacher_temperature: float = 1.0,
-            teacher_index: int | None = None,
-        ) -> torch.Tensor:
-            """Return dL/d(student_logits) for the selected trie-Wasserstein module."""
-            loss_module = select_loss_module(teacher_index)
-            loss_module.prepare_runtime_state(
-                student_vocab_size=student_logits.size(-1),
-                teacher_vocab_size=teacher_logits.size(-1),
-            )
-            return loss_module.compute_logit_grad(
-                student_logits=student_logits,
-                teacher_logits=teacher_logits,
-                student_temperature=student_temperature,
-                teacher_temperature=teacher_temperature,
-            )
-
-        return prepare_teacher_batch, compute_loss, compute_logit_grad
+        return prepare_teacher_batch, compute_loss
 
     if loss_function not in DISTILLATION_LOSSES:
         raise ValueError(f"Unknown distillation loss: {loss_function!r}")
@@ -124,7 +103,7 @@ def build_distillation_loss(
             teacher_temperature=teacher_temperature,
         )
 
-    return prepare_teacher_batch, compute_loss, None
+    return prepare_teacher_batch, compute_loss
 
 
 def cka_loss(

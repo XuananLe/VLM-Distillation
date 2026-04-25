@@ -76,7 +76,6 @@ class DistillationTrainer(Trainer):
         (
             self.distillation_prepare_batch_fn,
             self.distillation_loss_fn,
-            self.distillation_logit_grad_fn,
         ) = distillation_loss_module.build_distillation_loss(
             loss_function=loss_function,
             student_tokenizer=student_tokenizer,
@@ -84,8 +83,6 @@ class DistillationTrainer(Trainer):
             trie_wasserstein_rho=trie_wasserstein_rho,
             trie_wasserstein_topk=trie_wasserstein_topk,
         )
-        if self.distillation_logit_grad_fn is None and grace_warmup_ratio > 0.0:
-            raise ValueError("GRACE routing requires trie_wasserstein_loss.")
         self.teacher_weighting_strategy = teacher_weighting_strategy
 
         self.teacher_models, self.num_teachers = normalize_teacher_models(
@@ -295,14 +292,16 @@ class DistillationTrainer(Trainer):
             teacher_gate_weights=student_and_gate["teacher_gate_weights"],
             teacher_gate_routing_scores=student_and_gate["teacher_gate_routing_scores"],
         )
+        ce_loss = student_and_gate["student_outputs"].loss
         teacher_losses = compute_teacher_losses_and_grace(
             trainer=self,
+            model=model,
             student_logits=student_and_gate["student_logits"],
             student_labels=student_inputs["labels"],
+            ce_loss=ce_loss,
             teacher_batches=teacher_batches,
             cached_teacher_batches=cached_teacher_batches,
         )
-        ce_loss = student_and_gate["student_outputs"].loss
         grace_and_loss = apply_grace_and_compute_distillation_loss(
             trainer=self,
             routed_teacher_gate_weights=gate_routing["routed_teacher_gate_weights"],

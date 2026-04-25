@@ -1,11 +1,11 @@
 from collections.abc import Callable, Iterable
 
 import torch
-import torch.nn.functional as F
 
 from src.trainer.gradient_utils import (
-    compute_pooled_ce_grace_grad,
-    compute_pooled_kd_grace_grad,
+    compute_parameter_grads,
+    parameter_gradient_cosine,
+    trainable_parameters,
 )
 from src.trainer.kd_sequence_utils import compute_single_teacher_loss
 
@@ -14,6 +14,8 @@ def compute_teacher_loss_matrix(
     *,
     student_logits: torch.Tensor,
     student_labels: torch.Tensor,
+    model,
+    ce_loss: torch.Tensor,
     teacher_models: Iterable | None,
     teacher_batches,
     cached_teacher_batches=None,
@@ -23,7 +25,6 @@ def compute_teacher_loss_matrix(
     grace_threshold: float,
     distillation_prepare_batch_fn: Callable,
     distillation_loss_fn: Callable,
-    distillation_logit_grad_fn: Callable | None,
     student_temperature: float,
     teacher_temperature: float,
     skip_student_eos: bool,
@@ -42,13 +43,31 @@ def compute_teacher_loss_matrix(
     teacher_logit_batches = [] if collect_teacher_target_batches else None
     teacher_label_batches = [] if collect_teacher_target_batches else None
 
-    pooled_ce_grace_grad = None
+    grace_parameters = None
+    ce_parameter_grads = None
     if collect_grace_tensors:
-        with torch.no_grad():
-            pooled_ce_grace_grad = compute_pooled_ce_grace_grad(
-                student_logits=student_logits.detach(),
-                student_labels=student_labels,
-            )
+        grace_parameters = trainable_parameters(model)
+        ce_parameter_grads = compute_parameter_grads(
+            loss=ce_loss,
+            parameters=grace_parameters,
+        )
+
+    def append_parameter_grace_score(teacher_loss: torch.Tensor) -> None:
+        """Compare full student-parameter gradients for CE and this teacher's KD loss."""
+        if grace_parameters is None or ce_parameter_grads is None:
+            return
+        kd_parameter_grads = compute_parameter_grads(
+            loss=teacher_loss.mean(),
+            parameters=grace_parameters,
+        )
+        agreement = parameter_gradient_cosine(
+            ce_parameter_grads,
+            kd_parameter_grads,
+            loss=teacher_loss,
+        ).to(device=student_logits.device)
+        per_sample_agreement = agreement.expand(student_logits.size(0))
+        grace_scores.append(per_sample_agreement)
+        grace_active.append(per_sample_agreement > grace_threshold)
 
     if cached_teacher_batches is not None:
         # Cached and live-teacher paths intentionally return the same tensor contract
@@ -67,38 +86,20 @@ def compute_teacher_loss_matrix(
                 teacher_labels=prepared_teacher_labels,
                 teacher_index=teacher_index,
             )
-            teacher_losses.append(
-                compute_single_teacher_loss(
-                    student_logits=student_logits,
-                    student_labels=student_labels,
-                    teacher_logits=prepared_teacher_logits,
-                    teacher_labels=prepared_teacher_labels,
-                    distillation_loss_fn=distillation_loss_fn,
-                    student_temperature=student_temperature,
-                    teacher_temperature=teacher_temperature,
-                    skip_student_eos=skip_student_eos,
-                    skip_teacher_eos=skip_teacher_eos,
-                    teacher_index=teacher_index,
-                )
+            teacher_loss = compute_single_teacher_loss(
+                student_logits=student_logits,
+                student_labels=student_labels,
+                teacher_logits=prepared_teacher_logits,
+                teacher_labels=prepared_teacher_labels,
+                distillation_loss_fn=distillation_loss_fn,
+                student_temperature=student_temperature,
+                teacher_temperature=teacher_temperature,
+                skip_student_eos=skip_student_eos,
+                skip_teacher_eos=skip_teacher_eos,
+                teacher_index=teacher_index,
             )
-            if pooled_ce_grace_grad is not None:
-                with torch.no_grad():
-                    pooled_kd_grad = compute_pooled_kd_grace_grad(
-                        student_logits=student_logits.detach(),
-                        student_labels=student_labels,
-                        teacher_logits=prepared_teacher_logits,
-                        teacher_labels=prepared_teacher_labels,
-                        distillation_logit_grad_fn=distillation_logit_grad_fn,
-                        student_temperature=student_temperature,
-                        teacher_temperature=teacher_temperature,
-                        skip_student_eos=skip_student_eos,
-                        skip_teacher_eos=skip_teacher_eos,
-                        teacher_index=teacher_index,
-                    )
-                    agreement = F.cosine_similarity(pooled_ce_grace_grad, pooled_kd_grad, dim=-1, eps=1e-8)
-                grace_scores.append(agreement)
-                grace_active.append(agreement > grace_threshold)
-                del pooled_kd_grad
+            teacher_losses.append(teacher_loss)
+            append_parameter_grace_score(teacher_loss)
 
         teacher_loss_matrix = torch.stack(teacher_losses, dim=-1)
         if not grace_scores:
@@ -146,38 +147,20 @@ def compute_teacher_loss_matrix(
             teacher_labels=prepared_teacher_labels,
             teacher_index=teacher_index,
         )
-        teacher_losses.append(
-            compute_single_teacher_loss(
-                student_logits=student_logits,
-                student_labels=student_labels,
-                teacher_logits=teacher_logits,
-                teacher_labels=prepared_teacher_labels,
-                distillation_loss_fn=distillation_loss_fn,
-                student_temperature=student_temperature,
-                teacher_temperature=teacher_temperature,
-                skip_student_eos=skip_student_eos,
-                skip_teacher_eos=skip_teacher_eos,
-                teacher_index=teacher_index,
-            )
+        teacher_loss = compute_single_teacher_loss(
+            student_logits=student_logits,
+            student_labels=student_labels,
+            teacher_logits=teacher_logits,
+            teacher_labels=prepared_teacher_labels,
+            distillation_loss_fn=distillation_loss_fn,
+            student_temperature=student_temperature,
+            teacher_temperature=teacher_temperature,
+            skip_student_eos=skip_student_eos,
+            skip_teacher_eos=skip_teacher_eos,
+            teacher_index=teacher_index,
         )
-        if pooled_ce_grace_grad is not None:
-            with torch.no_grad():
-                pooled_kd_grad = compute_pooled_kd_grace_grad(
-                    student_logits=student_logits.detach(),
-                    student_labels=student_labels,
-                    teacher_logits=teacher_logits,
-                    teacher_labels=prepared_teacher_labels,
-                    distillation_logit_grad_fn=distillation_logit_grad_fn,
-                    student_temperature=student_temperature,
-                    teacher_temperature=teacher_temperature,
-                    skip_student_eos=skip_student_eos,
-                    skip_teacher_eos=skip_teacher_eos,
-                    teacher_index=teacher_index,
-                )
-                agreement = F.cosine_similarity(pooled_ce_grace_grad, pooled_kd_grad, dim=-1, eps=1e-8)
-            grace_scores.append(agreement)
-            grace_active.append(agreement > grace_threshold)
-            del pooled_kd_grad
+        teacher_losses.append(teacher_loss)
+        append_parameter_grace_score(teacher_loss)
         del teacher_logits
 
     teacher_loss_matrix = torch.stack(teacher_losses, dim=-1)

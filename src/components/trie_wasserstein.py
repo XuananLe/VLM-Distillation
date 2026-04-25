@@ -467,31 +467,6 @@ class TrieWassersteinLoss(nn.Module):
             raise ValueError("Trie Wasserstein loss received no aligned supervised token positions.")
         return torch.stack(step_losses, dim=0).mean()
 
-    def compute_logit_grad(
-        self,
-        *,
-        student_logits: torch.Tensor,
-        teacher_logits: torch.Tensor,
-        student_temperature: float = 1.0,
-        teacher_temperature: float = 1.0,
-    ) -> torch.Tensor:
-        """Compute dL/d(student_logits) for trie OT; input is student/teacher logits, output is a gradient tensor, and this exists so GRACE can compare trie-Wasserstein KD directions."""
-        self.prepare_runtime_state(
-            student_vocab_size=student_logits.size(-1),
-            teacher_vocab_size=teacher_logits.size(-1),
-        )
-        with torch.enable_grad():
-            detached_student_logits = student_logits.detach().clone().requires_grad_(True)
-            loss = self.forward(
-                detached_student_logits,
-                teacher_logits=teacher_logits.detach(),
-                student_temperature=student_temperature,
-                teacher_temperature=teacher_temperature,
-            )
-            grad, = torch.autograd.grad(loss, detached_student_logits, create_graph=False)
-        return grad.detach()
-
-
 __all__ = [
     "TrieWassersteinLoss",
 ]

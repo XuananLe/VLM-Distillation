@@ -208,8 +208,10 @@ def apply_teacher_gate_routing(*, trainer, model, teacher_gate_logits, teacher_g
 def compute_teacher_losses_and_grace(
     *,
     trainer,
+    model,
     student_logits,
     student_labels,
+    ce_loss,
     teacher_batches,
     cached_teacher_batches,
 ):
@@ -224,6 +226,8 @@ def compute_teacher_losses_and_grace(
     ) = compute_teacher_loss_matrix(
         student_logits=student_logits,
         student_labels=student_labels,
+        model=model,
+        ce_loss=ce_loss,
         teacher_models=trainer.teacher_models,
         teacher_batches=teacher_batches,
         cached_teacher_batches=cached_teacher_batches,
@@ -233,7 +237,6 @@ def compute_teacher_losses_and_grace(
         grace_threshold=trainer.grace_threshold,
         distillation_prepare_batch_fn=trainer.distillation_prepare_batch_fn,
         distillation_loss_fn=trainer.distillation_loss_fn,
-        distillation_logit_grad_fn=trainer.distillation_logit_grad_fn,
         student_temperature=trainer.student_temperature,
         teacher_temperature=trainer.teacher_temperature,
         skip_student_eos=trainer.skip_student_eos,

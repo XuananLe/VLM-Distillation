@@ -1,101 +1,59 @@
-from collections.abc import Callable
-
 import torch
-import torch.nn.functional as F
-
-from src.trainer.kd_sequence_utils import get_supervised_positions
 
 
-def compute_pooled_ce_grace_grad(
+def trainable_parameters(model) -> tuple[torch.nn.Parameter, ...]:
+    """Return all trainable student parameters used for parameter-space GRACE."""
+    parameters = tuple(parameter for parameter in model.parameters() if parameter.requires_grad)
+    if not parameters:
+        raise ValueError("GRACE parameter gradients require at least one trainable student parameter.")
+    return parameters
+
+
+def compute_parameter_grads(
     *,
-    student_logits: torch.Tensor,
-    student_labels: torch.Tensor,
-) -> torch.Tensor:
-    """Pool CE logit gradients into one vocab-space direction per sample for GRACE."""
-    # GRACE compares one pooled logit-space direction per sample, not full
-    # parameter gradients. The pooled vector stays in vocab space: [batch, vocab].
-    pooled_grads = []
-
-    for sample_index in range(student_logits.size(0)):
-        positions = get_supervised_positions(student_labels[sample_index])
-        if positions.numel() == 0:
-            raise ValueError("Student labels contain no supervised answer tokens.")
-
-        sample_labels = student_labels[sample_index, positions]
-        # For CE, dL/dlogits = p - y. GRACE only needs one direction per sample, so
-        # the per-token gradients are averaged over supervised answer positions.
-        sample_grad = F.softmax(student_logits[sample_index, positions].float(), dim=-1)
-        sample_grad[torch.arange(sample_labels.numel(), device=sample_labels.device), sample_labels] -= 1.0
-        pooled_grads.append(sample_grad.sum(dim=0) / positions.numel())
-
-    if not pooled_grads:
-        raise ValueError("Cannot compute CE GRACE gradient for an empty student batch.")
-    return torch.stack(pooled_grads, dim=0)
+    loss: torch.Tensor,
+    parameters: tuple[torch.nn.Parameter, ...],
+) -> tuple[torch.Tensor | None, ...]:
+    """Compute d(loss)/d(student parameters) without writing into .grad."""
+    return tuple(
+        None if grad is None else grad.detach()
+        for grad in torch.autograd.grad(
+            loss,
+            parameters,
+            retain_graph=True,
+            allow_unused=True,
+        )
+    )
 
 
-def compute_pooled_kd_grace_grad(
+def parameter_gradient_cosine(
+    reference_grads: tuple[torch.Tensor | None, ...],
+    candidate_grads: tuple[torch.Tensor | None, ...],
     *,
-    student_logits: torch.Tensor,
-    student_labels: torch.Tensor,
-    teacher_logits: torch.Tensor,
-    teacher_labels: torch.Tensor,
-    distillation_logit_grad_fn: Callable | None,
-    student_temperature: float,
-    teacher_temperature: float,
-    skip_student_eos: bool,
-    skip_teacher_eos: bool,
-    teacher_index: int | None = None,
+    loss: torch.Tensor,
+    eps: float = 1e-8,
 ) -> torch.Tensor:
-    """Pool KD logit gradients into one vocab-space direction per sample for GRACE."""
-    if distillation_logit_grad_fn is None:
-        raise ValueError("GRACE KD-gradient routing requires trie_wasserstein_loss.")
+    """Compute cosine similarity over full parameter-gradient tuples without concatenating them."""
+    dot = loss.new_zeros((), dtype=torch.float32)
+    reference_norm = loss.new_zeros((), dtype=torch.float32)
+    candidate_norm = loss.new_zeros((), dtype=torch.float32)
 
-    pooled_grads = []
+    for reference_grad, candidate_grad in zip(reference_grads, candidate_grads):
+        if reference_grad is not None:
+            reference = reference_grad.float()
+            reference_norm = reference_norm + reference.square().sum().to(reference_norm.device)
+        if candidate_grad is not None:
+            candidate = candidate_grad.float()
+            candidate_norm = candidate_norm + candidate.square().sum().to(candidate_norm.device)
+        if reference_grad is not None and candidate_grad is not None:
+            dot = dot + (reference * candidate).sum().to(dot.device)
 
-    for sample_index in range(student_logits.size(0)):
-        # Use the original student supervised-token count as the normalization
-        # anchor so KD and CE pooled gradients stay on a comparable scale.
-        supervised_student_count = int(student_labels[sample_index].ne(-100).sum().item())
-        if supervised_student_count == 0:
-            raise ValueError("Student labels contain no supervised answer tokens.")
-
-        student_positions = get_supervised_positions(
-            student_labels[sample_index],
-            skip_last=skip_student_eos,
-        )
-        teacher_positions = get_supervised_positions(
-            teacher_labels[sample_index],
-            skip_last=skip_teacher_eos,
-        )
-
-        matched_tokens = min(student_positions.numel(), teacher_positions.numel())
-        if matched_tokens == 0:
-            raise ValueError("Student and teacher labels have no matched supervised answer tokens.")
-
-        # KD alignment here is intentionally simple: compare only the shared prefix
-        # of supervised positions after optional EOS dropping on each side.
-        student_positions = student_positions[:matched_tokens]
-        teacher_positions = teacher_positions[:matched_tokens]
-        sample_kd_grad = distillation_logit_grad_fn(
-            student_logits=student_logits[sample_index, student_positions],
-            teacher_logits=teacher_logits[sample_index, teacher_positions].to(
-                device=student_logits.device,
-                dtype=student_logits.dtype,
-            ),
-            student_temperature=student_temperature,
-            teacher_temperature=teacher_temperature,
-            teacher_index=teacher_index,
-        )
-        # Keep the KD gradient on the same scale as the CE reference by normalizing
-        # with the student supervised-token count, not just the matched prefix length.
-        pooled_grads.append(sample_kd_grad.sum(dim=0) / supervised_student_count)
-
-    if not pooled_grads:
-        raise ValueError("Cannot compute KD GRACE gradient for an empty student batch.")
-    return torch.stack(pooled_grads, dim=0)
+    denominator = reference_norm.sqrt() * candidate_norm.sqrt()
+    return dot / denominator.clamp_min(eps)
 
 
 __all__ = [
-    "compute_pooled_ce_grace_grad",
-    "compute_pooled_kd_grace_grad",
+    "compute_parameter_grads",
+    "parameter_gradient_cosine",
+    "trainable_parameters",
 ]
