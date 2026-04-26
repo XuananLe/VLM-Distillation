@@ -1,3 +1,4 @@
+import json
 import sys
 from pathlib import Path
 
@@ -30,6 +31,18 @@ def train_distillation():
     )
 
     data_args, training_args, distillation_args = parser.parse_args_into_dataclasses()
+    if distillation_args.grace_warmup_ratio > 0.0 and training_args.deepspeed:
+        deepspeed_config = training_args.deepspeed
+        if isinstance(deepspeed_config, str):
+            deepspeed_config = json.loads(Path(deepspeed_config).read_text())
+        zero_config = deepspeed_config.get("zero_optimization", {})
+        zero_stage = 0 if not zero_config else int(zero_config.get("stage", 0))
+        if zero_stage > 0:
+            raise ValueError(
+                "Parameter-space GRACE uses torch.autograd.grad and is incompatible "
+                "with DeepSpeed ZeRO. Use --deepspeed scripts/deepspeed/no_zero.json "
+                "or set --grace_warmup_ratio 0."
+            )
 
     compute_dtype = (
         torch.float16 if training_args.fp16
@@ -51,7 +64,7 @@ def train_distillation():
         layer_distillation_enabled = False
     gradient_checkpointing_kwargs = dict(training_args.gradient_checkpointing_kwargs or {})
     if "use_reentrant" not in gradient_checkpointing_kwargs:
-        gradient_checkpointing_kwargs["use_reentrant"] = True
+        gradient_checkpointing_kwargs["use_reentrant"] = False
 
     log_distillation_setup(
         teacher_ids=teacher_ids,

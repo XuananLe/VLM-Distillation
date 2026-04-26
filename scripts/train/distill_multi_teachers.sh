@@ -38,7 +38,7 @@ TRIE_WASSERSTEIN_RHO="${TRIE_WASSERSTEIN_RHO:-0.9}"
 TRIE_WASSERSTEIN_TOPK="${TRIE_WASSERSTEIN_TOPK:-32}"
 
 # Alpha-scaling knob. Override with `ALPHA=0.3 bash scripts/train/distill_multi_teachers.sh`.
-ALPHA="${ALPHA:-0.1}"
+ALPHA="${ALPHA:-0.5}"
 
 # Router-based weighting knobs
 TEACHER_GATE_TOP_K="${TEACHER_GATE_TOP_K:-2}"
@@ -49,7 +49,7 @@ GRACE_THRESHOLD="${GRACE_THRESHOLD:--0.005}"
 GRACE_WARMUP_RATIO="${GRACE_WARMUP_RATIO:-0.01}"
 GRACE_EPSILON="${GRACE_EPSILON:-5e-4}"
 GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.4}"
-GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.0}"
+GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.9}"
 
 # Teacher logits can be read either from a local cache root (for example /cache)
 # or directly from the remote raw .pt cache layout.
@@ -70,6 +70,7 @@ PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-80}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 LOGGING_STEPS="${LOGGING_STEPS:-5}"
 AUTO_STOP_VAST_INSTANCE="${AUTO_STOP_VAST_INSTANCE:-1}"
+DEEPSPEED_CONFIG="${DEEPSPEED_CONFIG:-scripts/deepspeed/no_zero.json}"
 
 # Naming
 STUDENT_NAME="${STUDENT_MODEL##*/}"
@@ -123,7 +124,7 @@ stop_vast_instance() {
 }
 
 deepspeed src/train/train_distillation.py \
-    --deepspeed scripts/deepspeed/zero2.json \
+    --deepspeed "$DEEPSPEED_CONFIG" \
     --student_model_id "$STUDENT_MODEL" \
     --teacher_model_ids "${TEACHER_MODEL_IDS[@]}" \
     --teacher_weighting_strategy "$TEACHER_WEIGHTING_STRATEGY" \
