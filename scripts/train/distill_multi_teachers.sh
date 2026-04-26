@@ -70,7 +70,6 @@ PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-80}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 LOGGING_STEPS="${LOGGING_STEPS:-5}"
 AUTO_STOP_VAST_INSTANCE="${AUTO_STOP_VAST_INSTANCE:-1}"
-DEEPSPEED_CONFIG="${DEEPSPEED_CONFIG:-scripts/deepspeed/no_zero.json}"
 
 # Naming
 STUDENT_NAME="${STUDENT_MODEL##*/}"
@@ -123,8 +122,7 @@ stop_vast_instance() {
     fi
 }
 
-deepspeed src/train/train_distillation.py \
-    --deepspeed "$DEEPSPEED_CONFIG" \
+python src/train/train_distillation.py \
     --student_model_id "$STUDENT_MODEL" \
     --teacher_model_ids "${TEACHER_MODEL_IDS[@]}" \
     --teacher_weighting_strategy "$TEACHER_WEIGHTING_STRATEGY" \
