@@ -35,7 +35,7 @@ STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-1.0}"
 TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-1.0}"
 # Fixed trie-loss setting for alpha-scaling runs.
 TRIE_WASSERSTEIN_RHO="${TRIE_WASSERSTEIN_RHO:-0.9}"
-TRIE_WASSERSTEIN_TOPK="${TRIE_WASSERSTEIN_TOPK:-32}"
+TRIE_WASSERSTEIN_TOPK="${TRIE_WASSERSTEIN_TOPK:-64}"
 
 # Alpha-scaling knob. Override with `ALPHA=0.3 bash scripts/train/distill_multi_teachers.sh`.
 ALPHA="${ALPHA:-0.5}"

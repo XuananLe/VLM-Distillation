@@ -1455,6 +1455,7 @@ INPUT ./figures/kaplan_scaling_law_chart.png
 INPUT figures/kaplan_scaling_law_chart.png
 INPUT ./figures/kaplan_scaling_law_chart.png
 INPUT ./figures/kaplan_scaling_law_chart.png
+INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vnbxti10.tfm
 INPUT ./figures/smolvlm_memory_blog.png
 INPUT ./figures/smolvlm_memory_blog.png
 INPUT figures/smolvlm_memory_blog.png
@@ -1487,6 +1488,7 @@ INPUT ./figures/knowledge_distillation_example.png
 INPUT ./figures/knowledge_distillation_example.png
 INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vnr12.tfm
 INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vnbx12.tfm
+INPUT /usr/share/texlive/texmf-dist/fonts/tfm/jknappen/ec/tcrm1200.tfm
 INPUT ./chapters/c2/c2_chapter.tex
 INPUT ./chapters/c2/c2_chapter.tex
 INPUT ./chapters/c2/c2_chapter.tex
@@ -1527,11 +1529,11 @@ INPUT ./figures/llava_architecture_family.png
 INPUT figures/llava_architecture_family.png
 INPUT ./figures/llava_architecture_family.png
 INPUT ./figures/llava_architecture_family.png
-INPUT ./figures/continuous_optimal_transport_wikimedia.png
-INPUT ./figures/continuous_optimal_transport_wikimedia.png
-INPUT figures/continuous_optimal_transport_wikimedia.png
-INPUT ./figures/continuous_optimal_transport_wikimedia.png
-INPUT ./figures/continuous_optimal_transport_wikimedia.png
+INPUT ./figures/wasserstein_geometry.png
+INPUT ./figures/wasserstein_geometry.png
+INPUT figures/wasserstein_geometry.png
+INPUT ./figures/wasserstein_geometry.png
+INPUT ./figures/wasserstein_geometry.png
 INPUT ./figures/tree_wasserstein_stw_paper.png
 INPUT ./figures/tree_wasserstein_stw_paper.png
 INPUT figures/tree_wasserstein_stw_paper.png
@@ -1554,6 +1556,11 @@ INPUT ./figures/deepseek_moe_wikimedia.png
 INPUT figures/deepseek_moe_wikimedia.png
 INPUT ./figures/deepseek_moe_wikimedia.png
 INPUT ./figures/deepseek_moe_wikimedia.png
+INPUT ./figures/gradient_conflict.png
+INPUT ./figures/gradient_conflict.png
+INPUT figures/gradient_conflict.png
+INPUT ./figures/gradient_conflict.png
+INPUT ./figures/gradient_conflict.png
 INPUT ./chapters/c3/c3_chapter.tex
 INPUT ./chapters/c3/c3_chapter.tex
 INPUT ./chapters/c3/c3_chapter.tex
@@ -1609,7 +1616,6 @@ INPUT ./figures/deep-router.pdf
 INPUT figures/deep-router.pdf
 INPUT ./figures/deep-router.pdf
 INPUT ./figures/deep-router.pdf
-INPUT /usr/share/texlive/texmf-dist/fonts/tfm/jknappen/ec/tcrm1200.tfm
 INPUT ./figures/grace_bias_feedback.png
 INPUT ./figures/grace_bias_feedback.png
 INPUT figures/grace_bias_feedback.png
@@ -1772,6 +1778,13 @@ INPUT chapters/conclusion.tex
 INPUT ./chapters/conclusion.tex
 INPUT ./chapters/conclusion.tex
 INPUT chapters/conclusion.tex
+INPUT ./chapters/appendix_tree_wasserstein.tex
+INPUT ./chapters/appendix_tree_wasserstein.tex
+INPUT ./chapters/appendix_tree_wasserstein.tex
+INPUT chapters/appendix_tree_wasserstein.tex
+INPUT ./chapters/appendix_tree_wasserstein.tex
+INPUT ./chapters/appendix_tree_wasserstein.tex
+INPUT chapters/appendix_tree_wasserstein.tex
 INPUT ./thesis.bbl
 INPUT thesis.bbl
 INPUT ./thesis.bbl
@@ -1804,6 +1817,7 @@ INPUT /usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.p
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnbx10.pfb
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnbx12.pfb
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnbx8.pfb
+INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnbxti10.pfb
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnr10.pfb
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnr12.pfb
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnr8.pfb

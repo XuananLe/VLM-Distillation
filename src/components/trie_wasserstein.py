@@ -4,7 +4,6 @@ from dataclasses import dataclass, field
 
 import torch
 from torch import nn
-import torch.nn.functional as F
 
 from src.constants import TOKENIZER_VOCAB_SIZES
 
@@ -150,6 +149,18 @@ class TrieWassersteinLoss(nn.Module):
 
         self.tail_edge_id = len(edge_weights)
         edge_weights.append(1.0)
+        self.num_edges = len(edge_weights)
+
+        student_path_lengths = student_paths.path_offsets[1:] - student_paths.path_offsets[:-1]
+        teacher_path_lengths = teacher_paths.path_offsets[1:] - teacher_paths.path_offsets[:-1]
+        self.student_valid_count = int((~student_paths.ignored_mask).sum().item())
+        self.teacher_valid_count = int((~teacher_paths.ignored_mask).sum().item())
+        self.student_max_path_len = (
+            int(student_path_lengths.max().item()) if student_path_lengths.numel() else 0
+        )
+        self.teacher_max_path_len = (
+            int(teacher_path_lengths.max().item()) if teacher_path_lengths.numel() else 0
+        )
 
         self.register_buffer(
             "edge_weights_cpu",
@@ -171,6 +182,8 @@ class TrieWassersteinLoss(nn.Module):
         self.teacher_path_flat_device: torch.Tensor | None = None
         self.teacher_path_offsets_device: torch.Tensor | None = None
         self.teacher_ignored_mask_device: torch.Tensor | None = None
+        self.student_path_arange_device: torch.Tensor | None = None
+        self.teacher_path_arange_device: torch.Tensor | None = None
 
     def invalidate_device_cache(self) -> None:
         """Clear cached device-side trie tensors; input/output are None, and this exists because vocab extension invalidates earlier device copies."""
@@ -182,6 +195,8 @@ class TrieWassersteinLoss(nn.Module):
         self.teacher_path_flat_device = None
         self.teacher_path_offsets_device = None
         self.teacher_ignored_mask_device = None
+        self.student_path_arange_device = None
+        self.teacher_path_arange_device = None
 
     def extend_vocab_state_with_ignored_tokens(
         self,
@@ -299,52 +314,69 @@ class TrieWassersteinLoss(nn.Module):
         self.teacher_path_flat_device = self.teacher_path_flat_cpu.to(device=device, non_blocking=True)
         self.teacher_path_offsets_device = self.teacher_path_offsets_cpu.to(device=device, non_blocking=True)
         self.teacher_ignored_mask_device = self.teacher_ignored_mask_cpu.to(device=device, non_blocking=True)
+        self.student_path_arange_device = torch.arange(
+            self.student_max_path_len,
+            device=device,
+            dtype=torch.long,
+        )
+        self.teacher_path_arange_device = torch.arange(
+            self.teacher_max_path_len,
+            device=device,
+            dtype=torch.long,
+        )
 
-    def build_signed_edge_contributions(
+    def build_batched_signed_edge_contributions(
         self,
         *,
-        probs: torch.Tensor,
+        scaled_logits: torch.Tensor,
         path_flat: torch.Tensor,
         path_offsets: torch.Tensor,
         ignored_mask: torch.Tensor,
+        valid_count: int,
+        max_path_len: int,
+        path_arange: torch.Tensor,
+        sign: float,
     ) -> tuple[torch.Tensor, torch.Tensor]:
-        """Expand a sparse token distribution into trie-edge masses; input is token probabilities plus path tables, output is (edge_ids, edge_masses), and this exists to express token mass on trie edges."""
-        valid_mask = ~ignored_mask
-        num_valid = int(valid_mask.sum().item())
-        tail_edge = torch.tensor([self.tail_edge_id], device=probs.device, dtype=torch.long)
+        """Expand a batch of token distributions into signed row-edge masses."""
+        num_rows = scaled_logits.size(0)
+        device = scaled_logits.device
+        dtype = scaled_logits.dtype
+        row_base = torch.arange(num_rows, device=device, dtype=torch.long) * self.num_edges
+        tail_keys = row_base + self.tail_edge_id
 
-        if num_valid == 0:
-            tail_mass = probs.sum().unsqueeze(0)
-            return tail_edge, tail_mass
+        if valid_count == 0 or max_path_len == 0:
+            tail_masses = scaled_logits.new_full((num_rows,), float(sign))
+            return tail_keys, tail_masses
 
-        k = min(self.topk, num_valid)
-        masked_probs = probs.masked_fill(ignored_mask, float("-inf"))
-        kept_values, kept_token_ids = torch.topk(masked_probs, k=k, dim=-1)
-        # Everything outside the sparse top-k is routed to one synthetic TAIL edge.
-        tail_mass = (1.0 - kept_values.sum()).clamp_min(0.0)
+        k = min(self.topk, valid_count)
+        masked_logits = scaled_logits.masked_fill(ignored_mask, float("-inf"))
+        kept_logits, kept_token_ids = torch.topk(
+            masked_logits,
+            k=k,
+            dim=-1,
+            sorted=False,
+        )
 
-        edge_chunks: list[torch.Tensor] = []
-        mass_chunks: list[torch.Tensor] = []
+        log_z = torch.logsumexp(scaled_logits, dim=-1, keepdim=True)
+        kept_masses = (kept_logits - log_z).exp()
+        tail_masses = (1.0 - kept_masses.sum(dim=-1)).clamp_min(0.0)
 
-        for token_id, prob in zip(kept_token_ids.tolist(), kept_values.unbind(0)):
-            start = int(path_offsets[token_id].item())
-            end = int(path_offsets[token_id + 1].item())
-            if end <= start:
-                tail_mass = tail_mass + prob
-                continue
+        starts = path_offsets[kept_token_ids]
+        ends = path_offsets[kept_token_ids + 1]
+        lengths = ends - starts
+        rel = path_arange.view(1, 1, max_path_len)
+        valid_path = rel < lengths.unsqueeze(-1)
 
-            token_edge_ids = path_flat[start:end]
-            edge_chunks.append(token_edge_ids)
-            mass_chunks.append(prob.expand(token_edge_ids.numel()))
+        flat_positions = (starts.unsqueeze(-1) + rel).clamp_max(path_flat.numel() - 1)
+        edge_ids = path_flat[flat_positions]
+        keys = row_base.view(num_rows, 1, 1) + edge_ids
+        masses = kept_masses.unsqueeze(-1).expand(num_rows, k, max_path_len)
+        masses = masses * valid_path.to(dtype) * float(sign)
 
-        tail_mass_tensor = tail_mass.unsqueeze(0)
-
-        if edge_chunks:
-            return (
-                torch.cat([*edge_chunks, tail_edge], dim=0),
-                torch.cat([*mass_chunks, tail_mass_tensor], dim=0),
-            )
-        return tail_edge, tail_mass_tensor
+        return (
+            torch.cat([keys.reshape(-1), tail_keys], dim=0),
+            torch.cat([masses.reshape(-1), tail_masses * float(sign)], dim=0),
+        )
 
     def prepare_runtime_state(
         self,
@@ -390,35 +422,6 @@ class TrieWassersteinLoss(nn.Module):
                 f"max label {max_label} >= tokenizer vocab {self.teacher_tokenizer_vocab_size}"
             )
 
-    def single_step_loss(
-        self,
-        student_probs: torch.Tensor,
-        teacher_probs: torch.Tensor,
-    ) -> torch.Tensor:
-        """Compute trie OT for one aligned token position; input is student/teacher probability vectors, output is a scalar loss tensor, and this exists to isolate per-position edge balancing."""
-        student_edges, student_masses = self.build_signed_edge_contributions(
-            probs=student_probs,
-            path_flat=self.student_path_flat_device,
-            path_offsets=self.student_path_offsets_device,
-            ignored_mask=self.student_ignored_mask_device,
-        )
-        teacher_edges, teacher_masses = self.build_signed_edge_contributions(
-            probs=teacher_probs,
-            path_flat=self.teacher_path_flat_device,
-            path_offsets=self.teacher_path_offsets_device,
-            ignored_mask=self.teacher_ignored_mask_device,
-        )
-
-        all_edges = torch.cat([student_edges, teacher_edges], dim=0)
-        signed_masses = torch.cat([student_masses, -teacher_masses], dim=0)
-        active_edges, inverse = torch.unique(all_edges, sorted=False, return_inverse=True)
-        signed_edge_balance = signed_masses.new_zeros(active_edges.size(0))
-        signed_edge_balance.index_add_(0, inverse, signed_masses)
-        # Tree OT here is the weighted L1 imbalance over active trie edges.
-        return (
-            self.edge_weights_device.index_select(0, active_edges) * signed_edge_balance.abs()
-        ).sum()
-
     def forward(
         self,
         student_logits: torch.Tensor,
@@ -440,6 +443,8 @@ class TrieWassersteinLoss(nn.Module):
                 "student and teacher must have the same token dimension, got "
                 f"{student_logits.size(0)} and {teacher_logits.size(0)}"
             )
+        if student_logits.size(0) == 0:
+            raise ValueError("Trie Wasserstein loss received no aligned supervised token positions.")
         if student_logits.size(-1) != self.student_vocab_size:
             raise ValueError(
                 "student logits vocab size does not match the trie state: "
@@ -455,17 +460,40 @@ class TrieWassersteinLoss(nn.Module):
         student_temperature = float(student_temperature)
         teacher_temperature = float(teacher_temperature)
 
-        student_probs = F.softmax(student_logits.float() / student_temperature, dim=-1)
-        teacher_probs = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
+        student_scaled_logits = student_logits.float() / student_temperature
+        teacher_scaled_logits = teacher_logits.detach().float() / teacher_temperature
 
-        # Loss is averaged over aligned supervised token positions.
-        step_losses = [
-            self.single_step_loss(student_probs[index], teacher_probs[index])
-            for index in range(student_probs.size(0))
-        ]
-        if not step_losses:
-            raise ValueError("Trie Wasserstein loss received no aligned supervised token positions.")
-        return torch.stack(step_losses, dim=0).mean()
+        student_keys, student_masses = self.build_batched_signed_edge_contributions(
+            scaled_logits=student_scaled_logits,
+            path_flat=self.student_path_flat_device,
+            path_offsets=self.student_path_offsets_device,
+            ignored_mask=self.student_ignored_mask_device,
+            valid_count=self.student_valid_count,
+            max_path_len=self.student_max_path_len,
+            path_arange=self.student_path_arange_device,
+            sign=1.0,
+        )
+        teacher_keys, teacher_masses = self.build_batched_signed_edge_contributions(
+            scaled_logits=teacher_scaled_logits,
+            path_flat=self.teacher_path_flat_device,
+            path_offsets=self.teacher_path_offsets_device,
+            ignored_mask=self.teacher_ignored_mask_device,
+            valid_count=self.teacher_valid_count,
+            max_path_len=self.teacher_max_path_len,
+            path_arange=self.teacher_path_arange_device,
+            sign=-1.0,
+        )
+
+        all_keys = torch.cat([student_keys, teacher_keys], dim=0)
+        signed_masses = torch.cat([student_masses, teacher_masses], dim=0)
+        active_keys, inverse = torch.unique(all_keys, return_inverse=True)
+        signed_edge_balance = signed_masses.new_zeros(active_keys.numel())
+        signed_edge_balance.index_add_(0, inverse, signed_masses)
+        active_edges = active_keys.remainder(self.num_edges)
+        total_loss = (
+            self.edge_weights_device.index_select(0, active_edges) * signed_edge_balance.abs()
+        ).sum()
+        return total_loss / student_logits.size(0)
 
 __all__ = [
     "TrieWassersteinLoss",

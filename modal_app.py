@@ -239,28 +239,38 @@ def _exec_cmd_impl(cmd: str) -> None:
         raise subprocess.CalledProcessError(returncode, cmd)
 
 
-@app.function(gpu="T4", timeout=60 * 60 * 24)
+@app.function(gpu="L4", timeout=60 * 60 * 24)
 def exec_cmd(cmd: str) -> None:
     _exec_cmd_impl(cmd)
 
 
 @app.local_entrypoint()
 def run(
-cmd = r"""
-cd /root/VLM-Distillation/demo/DEX-AR
+    cmd: str = r"""
+cd /root/VLM-Distillation/src/eval/ || exit 1
 
-export MPLBACKEND=Agg
-export DEXAR_SHOW_PLOTS=0
-export DEXAR_DEVICE=cuda
-export DEXAR_MODEL_NAME=HuggingFaceTB/SmolVLM-256M-Instruct
-export DEXAR_LAYER_INDEX=0
-export DEXAR_OUTPUT_DIR=/output/dexar-demo/smolvlm_256m
+pids=()
+ckpts=(564 150 300 450)
 
-python playground.py
+for ckpt in "${ckpts[@]}"; do
+  CUDA_VISIBLE_DEVICES=0 python run.py \
+    --data DocVQA_VAL \
+    --model SmolVLM-500M-Trie-Loss-Checkpoint-${ckpt} \
+    --smolvlm-runtime fast \
+    --work-dir /output/vlmeval/SmolVLM-500M-Trie-Loss-Checkpoint-${ckpt}_docvqa_val &
+  pids+=("$!")
+done
 
-find /output/dexar-demo/smolvlm_256m -maxdepth 2 -type f | sort
+status=0
+for i in "${!pids[@]}"; do
+  if ! wait "${pids[$i]}"; then
+    echo "checkpoint ${ckpts[$i]} failed" >&2
+    status=1
+  fi
+done
+exit "$status"
 """
-
-):
+) -> None:
     call = exec_cmd.spawn(cmd)
     print(f"Triggered Modal function call: {getattr(call, 'object_id', call)}")
+    call.get()

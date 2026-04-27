@@ -28,6 +28,7 @@ def build_distillation_loss(
             )
             for teacher_tokenizer in teacher_tokenizers
         ]
+        prepared_vocab_shapes: dict[int, tuple[int, int]] = {}
 
         def select_loss_module(teacher_index: int | None) -> TrieWassersteinLoss:
             """Return the trie loss module associated with one teacher index."""
@@ -43,11 +44,16 @@ def build_distillation_loss(
             teacher_index: int | None = None,
         ) -> None:
             """Prepare the selected trie module for the current teacher batch."""
-            select_loss_module(teacher_index).prepare_runtime_state(
-                student_vocab_size=student_logits.size(-1),
-                teacher_vocab_size=teacher_logits.size(-1),
+            loss_module = select_loss_module(teacher_index)
+            teacher_key = int(teacher_index)
+            student_vocab_size = student_logits.size(-1)
+            teacher_vocab_size = teacher_logits.size(-1)
+            loss_module.prepare_runtime_state(
+                student_vocab_size=student_vocab_size,
+                teacher_vocab_size=teacher_vocab_size,
                 teacher_labels=teacher_labels,
             )
+            prepared_vocab_shapes[teacher_key] = (student_vocab_size, teacher_vocab_size)
 
         def compute_loss(
             *,
@@ -59,10 +65,16 @@ def build_distillation_loss(
         ) -> torch.Tensor:
             """Compute trie-Wasserstein KD against the selected teacher tokenizer."""
             loss_module = select_loss_module(teacher_index)
-            loss_module.prepare_runtime_state(
-                student_vocab_size=student_logits.size(-1),
-                teacher_vocab_size=teacher_logits.size(-1),
-            )
+            teacher_key = int(teacher_index)
+            student_vocab_size = student_logits.size(-1)
+            teacher_vocab_size = teacher_logits.size(-1)
+            vocab_shape = (student_vocab_size, teacher_vocab_size)
+            if prepared_vocab_shapes.get(teacher_key) != vocab_shape:
+                loss_module.prepare_runtime_state(
+                    student_vocab_size=student_vocab_size,
+                    teacher_vocab_size=teacher_vocab_size,
+                )
+                prepared_vocab_shapes[teacher_key] = vocab_shape
             return loss_module(
                 student_logits=student_logits,
                 teacher_logits=teacher_logits,
@@ -179,10 +191,12 @@ def forward_kl(
     teacher_temperature = float(teacher_temperature)
     assert student_logits.shape == teacher_logits.shape, "student_logits and teacher_logits must have the same shape"
     # L = T^2 * KL(p_teacher || p_student) with p_student = softmax(z_s / T_s).
+    with torch.no_grad():
+        teacher_probs = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
     return F.kl_div(
-        F.log_softmax(student_logits / student_temperature, dim=-1),
-        F.softmax(teacher_logits / teacher_temperature, dim=-1),
-        reduction='batchmean'
+        F.log_softmax(student_logits.float() / student_temperature, dim=-1),
+        teacher_probs,
+        reduction="batchmean",
     ) * student_temperature ** 2
 
 def reverse_kl(
@@ -196,10 +210,12 @@ def reverse_kl(
     teacher_temperature = float(teacher_temperature)
     assert student_logits.shape == teacher_logits.shape, "student_logits and teacher_logits must have the same shape"
     # L = T^2 * KL(p_student || p_teacher).
+    with torch.no_grad():
+        teacher_log_probs = F.log_softmax(teacher_logits.float() / teacher_temperature, dim=-1)
     return F.kl_div(
-        F.log_softmax(teacher_logits / teacher_temperature, dim=-1),
-        F.softmax(student_logits / student_temperature, dim=-1),
-        reduction='batchmean'
+        teacher_log_probs,
+        F.softmax(student_logits.float() / student_temperature, dim=-1),
+        reduction="batchmean",
     ) * student_temperature ** 2
 
 
@@ -213,13 +229,14 @@ def jensen_shannon_divergence(
     student_temperature = float(student_temperature)
     teacher_temperature = float(teacher_temperature)
     assert student_logits.shape == teacher_logits.shape, "student_logits and teacher_logits must have the same shape"
-    s = F.softmax(student_logits / student_temperature, dim=-1)
-    t = F.softmax(teacher_logits / teacher_temperature, dim=-1)
+    s = F.softmax(student_logits.float() / student_temperature, dim=-1)
+    with torch.no_grad():
+        t = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
     m = 0.5 * (s + t)
     # JSD(s, t) = 0.5 * KL(s || m) + 0.5 * KL(t || m), where m = 0.5 * (s + t).
     return 0.5 * (
-        F.kl_div(s.log(), m, reduction='batchmean') +
-        F.kl_div(t.log(), m, reduction='batchmean')
+        F.kl_div(s.log(), m, reduction="batchmean") +
+        F.kl_div(t.log(), m, reduction="batchmean")
     ) * student_temperature ** 2
 
 

@@ -245,7 +245,7 @@ The bar chart in Figure~\ref{fig:c5-results-bars} compresses the main ranking:
 benchmarks and for both student sizes.
 
 For the qualitative analysis below, we use DEX-AR
-\cite{bousselham2026dexar}. For token \(t\), layer \(l\), and head \(h\),
+\cite{bousselham2026dexar}. For token \(t\), layer \(l\) and head \(h\),
 DEX-AR forms a gradient-based attribution map
 \[
 \mathbf{G}_{t}^{(l,h)}
@@ -512,7 +512,7 @@ Teacher and student can remain relatively close in both the language and vision
 stacks, as Figures~\ref{fig:exp-cka-multi-dataset} and
 \ref{fig:exp-cka-vision-multi-dataset} indicate.
 
-However, Tables~\ref{tab:textvqa-comparison}, \ref{tab:docvqa-comparison}, and
+However, Tables~\ref{tab:textvqa-comparison}, \ref{tab:docvqa-comparison} and
 \ref{tab:chartqa-comparison} still show a clear benchmark gap between compact
 students and stronger models. The layer-wise baseline also fails to
 consistently outperform output-level distillation.
@@ -565,7 +565,7 @@ that sparse routing alone does not explain the final improvement.
 
 The table also reveals two distinct post-routing gains. On SmolVLM-500M,
 moving from routing-only weights to router-only weights (\(\lambda=1.0\))
-already adds 7.22 points (63.23 \(\rightarrow\) 70.45), and full GRACE adds
+already adds 7.22 points (63.23 \(\rightarrow\) 70.45) and full GRACE adds
 another 2.66 points (70.45 \(\rightarrow\) 73.11). On SmolVLM-256M, the
 router-only gain is only 0.52 points (57.45 \(\rightarrow\) 57.97), while
 gradient-based refinement adds 2.51 points (57.97 \(\rightarrow\) 60.48). This

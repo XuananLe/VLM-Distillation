@@ -49,7 +49,7 @@ score that measures directional agreement with the supervised CE update.
 
 Before GRACE warmup, the method uses uniform KD weights over the teachers that
 remain after routing. After warmup, GRACE smooths the scores with an EMA,
-converts them to a score softmax, blends them with the routed weights, and
+converts them to a score softmax, blends them with the routed weights and
 falls back to a uniform distribution only when the score spread is too small to
 justify a strong preference.
 
@@ -201,7 +201,7 @@ where \(\tau_s\) and \(\tau_t\) are the student and teacher temperatures.
 
 The implementation does not compare these distributions by token ID or
 sorted rank. Instead, the method decodes each single-token vocabulary entry to
-a string, converts that string to UTF-8 bytes, appends an EOS sentinel, and
+a string, converts that string to UTF-8 bytes, appends an EOS sentinel and
 inserts the resulting byte path into one shared
 trie. If \(e\) is a trie edge at depth \(d(e)\), its transport weight is
 \begin{equation}
@@ -253,16 +253,16 @@ token IDs.} The example in Figure~\ref{fig:grace-trie-shared} uses the pair
     \coordinate (eosrece) at (6.0, 0.35);
     \coordinate (eosreceipt) at (8.6, 0.35);
 
-    \draw[edge] (root) -- (d) node[midway, above left=1pt, font=\scriptsize, text=black!55] {1};
-    \draw[edge] (d) -- (o) node[midway, above=1pt, font=\scriptsize, text=black!55] {\(\rho\)};
-    \draw[edge] (o) -- (c) node[midway, above=1pt, font=\scriptsize, text=black!55] {\(\rho^2\)};
-    \draw[edge] (c) -- (u) -- (m) -- (e) -- (n) -- (t);
-    \draw[edge] (c) -- (eosdoc);
-    \draw[edge] (t) -- (eosdocument);
+    \draw[edge] (root) to node[midway, above left=1pt, font=\scriptsize, text=black!55] {1} (d);
+    \draw[edge] (d) to node[midway, above=1pt, font=\scriptsize, text=black!55] {\(\rho\)} (o);
+    \draw[edge] (o) to node[midway, above=1pt, font=\scriptsize, text=black!55] {\(\rho^2\)} (c);
+    \draw[edge] (c) to (u) to (m) to (e) to (n) to (t);
+    \draw[edge] (c) to (eosdoc);
+    \draw[edge] (t) to (eosdocument);
 
-    \draw[edge] (root) -- (r) -- (e2) -- (c2) -- (e3);
-    \draw[edge] (c2) -- (eosrece);
-    \draw[edge] (e3) -- (eosreceipt);
+    \draw[edge] (root) to (r) to (e2) to (c2) to (e3);
+    \draw[edge] (c2) to (eosrece);
+    \draw[edge] (e3) to (eosreceipt);
 
     \foreach \p/\lbl in {
         root/$\emptyset$, d/d, o/o, c/c, u/u, m/m, e/e, n/n, t/t,
@@ -285,9 +285,30 @@ In Figure~\ref{fig:grace-trie-shared}, shorter teacher pieces terminate earlier
 with EOS, while longer student pieces continue deeper in the trie, so the
 mismatch becomes structural instead of purely symbolic token matching.
 
+\paragraph{Closed-form tree metric.}
+The shared byte trie induces a tree metric over decoded token strings.
+Therefore, the \(W_1\) optimal transport distance between teacher and student
+token distributions on this trie can be written as a weighted sum of
+subtree-mass imbalances:
+\begin{equation}
+W_T(p_s,p_t)
+=
+\sum_{e\in E}
+w(e)\left|m_s(e)-m_t(e)\right|.
+\label{eq:closed_form_tw}
+\end{equation}
+A formal proof is provided in
+Appendix~\ref{app:tree-wasserstein-proof}. The sparse top-\(k\) and TAIL
+construction below applies this formula to an active sparse support for
+efficiency.
+
 \subsection{Sparse \texorpdfstring{Top-\(k\)}{Top-k} Support and Tail Edge}
 
-For efficiency, the loss keeps only the top-\(k_{TW}\) non-ignored student and
+The closed form above applies to the full trie distribution. For efficiency,
+the implementation evaluates the same subtree-mass formula on a sparse active
+support and collapses the remaining probability into a TAIL edge.
+
+The loss keeps only the top-\(k_{TW}\) non-ignored student and
 teacher tokens at each supervised position. Let
 \(\mathcal{K}_{s,j}^{(b)}\) and \(\mathcal{K}_{t,j}^{(b,i)}\) be those retained
 token sets. The code then collapses the remaining probability mass into a
@@ -330,6 +351,10 @@ m_{s,j}^{(b)}(e)-m_{t,j}^{(b,i)}(e)
 \end{equation}
 where \(\mathcal{E}_{act,j}^{(b,i)}\) contains the active student edges, active
 teacher edges and the TAIL edge.
+The equality to \(W_1\) on a tree metric follows from the closed-form
+tree-Wasserstein derivation in
+Appendix~\ref{app:tree-wasserstein-proof}. The top-\(k\)+TAIL version is the
+sparse augmented-tree form used for efficient training.
 
 The per-sample, per-teacher KD loss remains the mean over supervised answer
 tokens:
@@ -397,9 +422,9 @@ residual low-probability mass in one term.
     \coordinate (t) at (10.4, 1.15);
     \coordinate (eos) at (4.4, 2.18);
 
-    \draw[shared] (r) -- (d) -- (o) -- (c);
-    \draw[student] (c) -- (u) -- (m) -- (e) -- (n) -- (t);
-    \draw[teacher] (c) -- (eos);
+    \draw[shared] (r) to (d) to (o) to (c);
+    \draw[student] (c) to (u) to (m) to (e) to (n) to (t);
+    \draw[teacher] (c) to (eos);
 
     \foreach \p/\lbl in {r/$\emptyset$, d/d, o/o, c/c, u/u, m/m, e/e, n/n, t/t}{
         \node[trie] at (\p) {\scriptsize \lbl};
@@ -497,7 +522,7 @@ assignments, each teacher is additionally limited by a capacity
 \begin{equation}
 C_t = \left\lceil \phi \frac{Bk_t}{N}\right\rceil,
 \end{equation}
-where \(B\) is the mini-batch size, \(N\) is the number of teachers, and
+where \(B\) is the mini-batch size, \(N\) is the number of teachers and
 \(\phi > 0\) is the capacity factor.
 
 Let \(m_i^{(b)} \in \{0,1\}\) denote the resulting assignment mask after top-\(k\)
@@ -594,6 +619,11 @@ pattern with explicit load statistics.
 \end{figure}
 
 \section{GRACE Score Refinement}
+
+As discussed in Section~\ref{subsec:gradient-conflict-teacher-agreement},
+routed teachers may still conflict with the supervised objective after teacher
+selection. \methodname{} addresses this issue by refining routed teacher weights
+using gradient-based agreement scores.
 
 \subsection{Gradient Proxies}
 

@@ -1329,17 +1329,10 @@ idefics_series = {
 
 smolvlm_series = {
     "SmolVLM-256M": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-256M-Instruct"),
-
-    "SmolVLM-500M-Grace-Checkpoint-600" : partial(SmolVLM, model_path="/output/trie_wasserstein_loss_3_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260414_0812/checkpoint-600"),
-    "SmolVLM-500M-Grace-Checkpoint-750" : partial(SmolVLM, model_path="/output/trie_wasserstein_loss_3_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260414_0812/checkpoint-750"),
-    "SmolVLM-500M-Grace-Checkpoint-900" : partial(SmolVLM, model_path="/output/trie_wasserstein_loss_3_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260414_0812/checkpoint-900"),
-    "SmolVLM-500M-Grace-Checkpoint-988" : partial(SmolVLM, model_path="/output/trie_wasserstein_loss_3_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_granite-vision-3.1-2b-preview_SmolVLM-500M-Instruct_docvqa_20260414_0812/checkpoint-988"),
-
-
-    "SmolVLM-500M-Reinforce-Checkpoint-150" : partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_SmolVLM-500M-Instruct_textvqa_20260415_0715/checkpoint-150"),
-    "SmolVLM-500M-Reinforce-Checkpoint-217" : partial(SmolVLM, model_path="/output/uld_loss_3_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_gemma-3-4b-it_SmolVLM-500M-Instruct_textvqa_20260415_0715/checkpoint-750"),
-
-
+    "SmolVLM-500M-Trie-Loss-Checkpoint-150" : partial(SmolVLM, model_path="/output/trie_wasserstein_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_granite-vision-3.1-2b-preview_gemma-3-4b-it_SmolVLM-500M-Instruct_docvqa_alpha_scaling0p9_topk32_alpha0p5_20260426_0714/checkpoint-150"),
+    "SmolVLM-500M-Trie-Loss-Checkpoint-300" : partial(SmolVLM, model_path="/output/trie_wasserstein_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_granite-vision-3.1-2b-preview_gemma-3-4b-it_SmolVLM-500M-Instruct_docvqa_alpha_scaling0p9_topk32_alpha0p5_20260426_0714/checkpoint-300"),
+    "SmolVLM-500M-Trie-Loss-Checkpoint-450" : partial(SmolVLM, model_path="/output/trie_wasserstein_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_granite-vision-3.1-2b-preview_gemma-3-4b-it_SmolVLM-500M-Instruct_docvqa_alpha_scaling0p9_topk32_alpha0p5_20260426_0714/checkpoint-450"),
+    "SmolVLM-500M-Trie-Loss-Checkpoint-564" : partial(SmolVLM, model_path="/output/trie_wasserstein_loss_4_teachers_Qwen2.5-VL-3B-Instruct_Qwen2-VL-2B-Instruct_granite-vision-3.1-2b-preview_gemma-3-4b-it_SmolVLM-500M-Instruct_docvqa_alpha_scaling0p9_topk32_alpha0p5_20260426_0714/checkpoint-564"),
 
     "SmolVLM": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-Instruct"),
     "SmolVLM-DPO": partial(SmolVLM, model_path="HuggingFaceTB/SmolVLM-Instruct-DPO"),
@@ -1372,7 +1365,7 @@ deepseekvl2_series = {
     "deepseek_vl2_small": partial(
         DeepSeekVL2, model_path="deepseek-ai/deepseek-vl2-small"
     ),
-    "deepseek_vl2": partial(DeepSeekVL2, model_path="deepseek-ai/deepseek-vl2"),
+    "deepseek_vl2": partial(DeepSeekVL2, model_path="deepseek-ai/deepseek-vl2"),    
 }
 
 janus_series = {

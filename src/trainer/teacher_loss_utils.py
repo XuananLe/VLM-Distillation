@@ -36,7 +36,7 @@ def compute_teacher_loss_matrix(
     list[torch.Tensor] | None,
     list[torch.Tensor] | None,
 ]:
-    """Compute per-teacher KD losses and optional GRACE signals for one student batch."""
+    """Compute per-teacher KD losses and optional parameter-space GRACE signals."""
     teacher_losses = []
     grace_scores = []
     grace_active = []

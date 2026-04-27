@@ -9,20 +9,9 @@
 \bibitem{radford2021learningtransferablevisualmodels}
 Alec Radford, Jong~Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh,
   Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark,
-  Gretchen Krueger, and Ilya Sutskever.
+  Gretchen Krueger and Ilya Sutskever.
 \newblock Learning transferable visual models from natural language
   supervision, 2021.
-
-\bibitem{wikimedia_continuous_optimal_transport_image}
-Nicolas Papadakis.
-\newblock File: Continuous optimal transport.png.
-\newblock Wikimedia Commons, 2018.
-\newblock CC BY-SA 4.0. Source image from N. Papadakis, \emph{Optimal Transport
-  for Image Processing}, 2015. Accessed: 2026-04-15.
-
-\bibitem{peyre2019computationaloptimaltransport}
-Gabriel Peyr{\'e} and Marco Cuturi.
-\newblock Computational optimal transport, 2019.
 
 \bibitem{alayrac2022flamingovisuallanguagemodel}
 Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech, Iain Barr,
@@ -30,52 +19,41 @@ Jean-Baptiste Alayrac, Jeff Donahue, Pauline Luc, Antoine Miech, Iain Barr,
   Roman Ring, Eliza Rutherford, Serkan Cabi, Tengda Han, Zhitao Gong, Sina
   Samangooei, Marianne Monteiro, Jacob Menick, Sebastian Borgeaud, Andrew
   Brock, Aida Nematzadeh, Sahand Sharifzadeh, Mikolaj Binkowski, Ricardo
-  Barreira, Oriol Vinyals, Andrew Zisserman, and Karen Simonyan.
+  Barreira, Oriol Vinyals, Andrew Zisserman and Karen Simonyan.
 \newblock Flamingo: a visual language model for few-shot learning, 2022.
 
 \bibitem{li2023blip2bootstrappinglanguageimagepretraining}
-Junnan Li, Dongxu Li, Silvio Savarese, and Steven Hoi.
+Junnan Li, Dongxu Li, Silvio Savarese and Steven Hoi.
 \newblock Blip-2: Bootstrapping language-image pre-training with frozen image
   encoders and large language models, 2023.
 
 \bibitem{liu2023visualinstructiontuning}
-Haotian Liu, Chunyuan Li, Qingyang Wu, and Yong~Jae Lee.
+Haotian Liu, Chunyuan Li, Qingyang Wu and Yong~Jae Lee.
 \newblock Visual instruction tuning, 2023.
 
 \bibitem{hu2024visualprogramdistillation}
 Yushi Hu, Otilia Stretcu, Chun-Ta Lu, Krishnamurthy Viswanathan, Kenji Hata,
-  Enming Luo, Ranjay Krishna, and Ariel Fuxman.
+  Enming Luo, Ranjay Krishna and Ariel Fuxman.
 \newblock Visual program distillation: Distilling tools and programmatic
   reasoning into vision-language models, 2024.
 
 \bibitem{singh2019vqamodelsread}
 Amanpreet Singh, Vivek Natarajan, Meet Shah, Yu~Jiang, Xinlei Chen, Dhruv
-  Batra, Devi Parikh, and Marcus Rohrbach.
+  Batra, Devi Parikh and Marcus Rohrbach.
 \newblock Towards vqa models that can read, 2019.
 
 \bibitem{mathew2021docvqadatasetvqadocument}
-Minesh Mathew, Dimosthenis Karatzas, and C.~V. Jawahar.
+Minesh Mathew, Dimosthenis Karatzas and C.~V. Jawahar.
 \newblock Docvqa: A dataset for vqa on document images, 2021.
 
 \bibitem{masry2022chartqabenchmarkquestionanswering}
-Ahmed Masry, Do~Xuan Long, Jia~Qing Tan, Shafiq Joty, and Enamul Hoque.
+Ahmed Masry, Do~Xuan Long, Jia~Qing Tan, Shafiq Joty and Enamul Hoque.
 \newblock Chartqa: A benchmark for question answering about charts with visual
   and logical reasoning, 2022.
 
-\bibitem{chu2023mobilevlm}
-Xiangxiang Chu, Limeng Qiao, Xinyang Lin, Shuang Xu, Yang Yang, Yiming Hu, Fei
-  Wei, Xinyu Zhang, Bo~Zhang, Xiaolin Wei, and Chunhua Shen.
-\newblock Mobilevlm: A fast, strong and open vision language assistant for
-  mobile devices, 2023.
-
-\bibitem{zhou2024tinyllava}
-Baichuan Zhou, Ying Hu, Xi~Weng, Junlong Jia, Jie Luo, Xien Liu, Ji~Wu, and Lei
-  Huang.
-\newblock Tinyllava: A framework of small-scale large multimodal models, 2024.
-
 \bibitem{kaplan2020scalinglaws}
 Jared Kaplan, Sam McCandlish, Tom Henighan, Tom~B. Brown, Benjamin Chess, Rewon
-  Child, Scott Gray, Alec Radford, Jeffrey Wu, and Dario Amodei.
+  Child, Scott Gray, Alec Radford, Jeffrey Wu and Dario Amodei.
 \newblock Scaling laws for neural language models, 2020.
 
 \bibitem{hoffmann2022trainingcomputeoptimal}
@@ -83,25 +61,36 @@ Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor
   Cai, Eliza Rutherford, Diego de~Las~Casas, Lisa~Anne Hendricks, Johannes
   Welbl, Aidan Clark, Tom Hennigan, Eric Noland, Katie Millican, George van~den
   Driessche, Bogdan Damoc, Aurelia Guy, Simon Osindero, Karen Simonyan, Erich
-  Elsen, Jack~W. Rae, Oriol Vinyals, and Laurent Sifre.
+  Elsen, Jack~W. Rae, Oriol Vinyals and Laurent Sifre.
 \newblock Training compute-optimal large language models, 2022.
+
+\bibitem{chu2023mobilevlm}
+Xiangxiang Chu, Limeng Qiao, Xinyang Lin, Shuang Xu, Yang Yang, Yiming Hu, Fei
+  Wei, Xinyu Zhang, Bo~Zhang, Xiaolin Wei and Chunhua Shen.
+\newblock Mobilevlm: A fast, strong and open vision language assistant for
+  mobile devices, 2023.
+
+\bibitem{zhou2024tinyllava}
+Baichuan Zhou, Ying Hu, Xi~Weng, Junlong Jia, Jie Luo, Xien Liu, Ji~Wu and Lei
+  Huang.
+\newblock Tinyllava: A framework of small-scale large multimodal models, 2024.
 
 \bibitem{vaswani2023attentionneed}
 Ashish Vaswani, Noam Shazeer, Niki Parmar, Jakob Uszkoreit, Llion Jones,
-  Aidan~N. Gomez, Lukasz Kaiser, and Illia Polosukhin.
+  Aidan~N. Gomez, Lukasz Kaiser and Illia Polosukhin.
 \newblock Attention is all you need.
 \newblock In {\em Advances in Neural Information Processing Systems 30 (NeurIPS
-  2017)}, pages 5998--6008, 2017.
+  2017)}, page 5998{\textendash}6008, 2017.
 
 \bibitem{marafioti2025smolvlm}
 Andr{\'e}s Marafioti, Orr Zohar, Miquel Farr{\'e}, Merve Noyan, Elie Bakouch,
   Pedro Cuenca, Cyril Zakka, Loubna~Ben Allal, Anton Lozhkov, Nouamane Tazi,
   Vaibhav Srivastav, Joshua Lochner, Hugo Larcher, Mathieu Morlon, Lewis
-  Tunstall, Leandro von Werra, and Thomas Wolf.
+  Tunstall, Leandro von Werra and Thomas Wolf.
 \newblock Smolvlm: Redefining small and efficient multimodal models, 2025.
 
 \bibitem{smolvlm_blog}
-Andr{\'e}s Marafioti, Merve Noyan, Miquel Farr{\'e}, Elie Bakouch, and Pedro
+Andr{\'e}s Marafioti, Merve Noyan, Miquel Farr{\'e}, Elie Bakouch and Pedro
   Cuenca.
 \newblock Smolvlm - small yet mighty vision language model.
 \newblock Hugging Face Blog, 2024.
@@ -126,12 +115,12 @@ Andr{\'e}s Marafioti, Merve Noyan, Miquel Farr{\'e}, Elie Bakouch, and Pedro
 \newblock Self-reported leaderboard. Accessed: 2026-04-02.
 
 \bibitem{hinton2015distillingknowledgeneuralnetwork}
-Geoffrey Hinton, Oriol Vinyals, and Jeff Dean.
+Geoffrey Hinton, Oriol Vinyals and Jeff Dean.
 \newblock Distilling the knowledge in a neural network, 2015.
 
 \bibitem{xu2024surveyknowledgedistillationlarge}
 Xiaohan Xu, Ming Li, Chongyang Tao, Tao Shen, Reynold Cheng, Jinyang Li, Can
-  Xu, Dacheng Tao, and Tianyi Zhou.
+  Xu, Dacheng Tao and Tianyi Zhou.
 \newblock A survey on knowledge distillation of large language models, 2024.
 
 \bibitem{wang2021blackboxkd}
@@ -139,27 +128,27 @@ Zi~Wang.
 \newblock Zero-shot knowledge distillation from a decision-based black-box
   model.
 \newblock In {\em Proceedings of the 38th International Conference on Machine
-  Learning}, volume 139 of {\em Proceedings of Machine Learning Research},
-  pages 10675--10685. PMLR, 2021.
+  Learning}, volume 139 of {\em Proceedings of Machine Learning Research}, page
+  10675{\textendash}10685. PMLR, 2021.
 
 \bibitem{ma2024blackboxkd}
-Wenhao Ma, Jie Li, Bo~Han, and Xiaojuan Qi.
+Wenhao Ma, Jie Li, Bo~Han and Xiaojuan Qi.
 \newblock B2kd: A unified framework for knowledge distillation from black-box
   models.
 \newblock In {\em Proceedings of the IEEE/CVF Conference on Computer Vision and
-  Pattern Recognition (CVPR)}, pages 15313--15323, 2024.
+  Pattern Recognition (CVPR)}, page 15313{\textendash}15323, 2024.
 
 \bibitem{boizard2024towardscrosstokenizerdistillation}
-Nicolas Boizard, Kevin~El Haddad, Pierre Colombo, and Chlo{\'e} Clavel.
+Nicolas Boizard, Kevin~El Haddad, Pierre Colombo and Chlo{\'e} Clavel.
 \newblock Towards cross-tokenizer distillation: The universal logit
   distillation loss for llms, 2024.
 
 \bibitem{takezawa2021supervisedtreewasserstein}
-Yuki Takezawa, Ryoma Sato, and Makoto Yamada.
+Yuki Takezawa, Ryoma Sato and Makoto Yamada.
 \newblock Supervised tree-wasserstein distance.
 \newblock In {\em Proceedings of the 38th International Conference on Machine
-  Learning}, volume 139 of {\em Proceedings of Machine Learning Research},
-  pages 10086--10095. PMLR, 2021.
+  Learning}, volume 139 of {\em Proceedings of Machine Learning Research}, page
+  10086{\textendash}10095. PMLR, 2021.
 
 \bibitem{dasgupta2025improving}
 Sayantan Dasgupta and Trevor Cohn.
@@ -167,42 +156,29 @@ Sayantan Dasgupta and Trevor Cohn.
 \newblock In {\em International Conference on Learning Representations}, 2025.
 
 \bibitem{frantar2022gptq}
-Elias Frantar, Saleh Ashkboos, Torsten Hoefler, and Dan Alistarh.
+Elias Frantar, Saleh Ashkboos, Torsten Hoefler and Dan Alistarh.
 \newblock Gptq: Accurate post-training quantization for generative pre-trained
   transformers, 2022.
 
 \bibitem{xiao2023smoothquant}
-Guangxuan Xiao, Ji~Lin, Mickael Seznec, Hao Wu, Julien Demouth, and Song Han.
+Guangxuan Xiao, Ji~Lin, Mickael Seznec, Hao Wu, Julien Demouth and Song Han.
 \newblock Smoothquant: Accurate and efficient post-training quantization for
   large language models.
 \newblock In {\em Proceedings of the 40th International Conference on Machine
-  Learning}, pages 38087--38099, 2023.
+  Learning}, page 38087{\textendash}38099, 2023.
 
 \bibitem{lin2024awq}
 Ji~Lin, Jiaming Tang, Haotian Tang, Shang Yang, Wei-Ming Chen, Wei-Chen Wang,
-  Guangxuan Xiao, Xingyu Dang, Chuang Gan, and Song Han.
+  Guangxuan Xiao, Xingyu Dang, Chuang Gan and Song Han.
 \newblock Awq: Activation-aware weight quantization for llm compression and
   acceleration, 2024.
 
 \bibitem{li2025mbq}
 Shiyao Li, Yingchun Hu, Xuefei Ning, Xihui Liu, Ke~Hong, Xiaotao Jia, Xiuhong
-  Li, Yaqi Yan, Pei Ran, Guohao Dai, Shengen Yan, Huazhong Yang, and Yu~Wang.
+  Li, Yaqi Yan, Pei Ran, Guohao Dai, Shengen Yan, Huazhong Yang and Yu~Wang.
 \newblock Mbq: Modality-balanced quantization for large vision-language models.
 \newblock In {\em Proceedings of the IEEE/CVF Conference on Computer Vision and
-  Pattern Recognition}, pages 4167--4177, 2025.
-
-\bibitem{fang2021compressingvlm}
-Zhiyuan Fang, Jianfeng Wang, Xiaowei Hu, Lijuan Wang, Yezhou Yang, and Zicheng
-  Liu.
-\newblock Compressing visual-linguistic model via knowledge distillation.
-\newblock In {\em Proceedings of the IEEE/CVF International Conference on
-  Computer Vision (ICCV)}, pages 1428--1438, 2021.
-
-\bibitem{yang2024clipcid}
-Kaicheng Yang, Tiancheng Gu, Xiang An, Haiqiang Jiang, Xiangzi Dai, Ziyong
-  Feng, Weidong Cai, and Jiankang Deng.
-\newblock Clip-cid: Efficient clip distillation via cluster-instance
-  discrimination, 2024.
+  Pattern Recognition}, page 4167{\textendash}4177, 2025.
 
 \bibitem{wikimedia_knowledge_distillation_example}
 {Wikimedia Commons contributors}.
@@ -212,47 +188,64 @@ Kaicheng Yang, Tiancheng Gu, Xiang An, Haiqiang Jiang, Xiangzi Dai, Ziyong
   Accessed: 2026-03-07.
 
 \bibitem{yuan2020reinforcedmultiteacherselection}
-Fei Yuan, Linjun Shou, Jian Pei, Wutao Lin, Ming Gong, Yan Fu, and Daxin Jiang.
+Fei Yuan, Linjun Shou, Jian Pei, Wutao Lin, Ming Gong, Yan Fu and Daxin Jiang.
 \newblock Reinforced multi-teacher selection for knowledge distillation, 2020.
 
 \bibitem{zhang2023adaptivemultiteachermetalearning}
-Hailin Zhang, Defang Chen, and Can Wang.
+Hailin Zhang, Defang Chen and Can Wang.
 \newblock Adaptive multi-teacher knowledge distillation with meta-learning,
   2023.
 
-\bibitem{yu2024selectdistill}
-Yu-Chu Yu, Chi-Pin Huang, Jr-Jen Chen, Kai-Po Chang, Yung-Hsuan Lai, Fu-En
-  Yang, and Yu-Chiang~Frank Wang.
-\newblock Select and distill: Selective dual-teacher knowledge transfer for
-  continual learning on vision-language models, 2024.
+\bibitem{fang2021compressingvlm}
+Zhiyuan Fang, Jianfeng Wang, Xiaowei Hu, Lijuan Wang, Yezhou Yang and Zicheng
+  Liu.
+\newblock Compressing visual-linguistic model via knowledge distillation.
+\newblock In {\em Proceedings of the IEEE/CVF International Conference on
+  Computer Vision (ICCV)}, page 1428{\textendash}1438, 2021.
+
+\bibitem{yang2024clipcid}
+Kaicheng Yang, Tiancheng Gu, Xiang An, Haiqiang Jiang, Xiangzi Dai, Ziyong
+  Feng, Weidong Cai and Jiankang Deng.
+\newblock Clip-cid: Efficient clip distillation via cluster-instance
+  discrimination, 2024.
 
 \bibitem{leyamadafukumizucuturi2019treesliced}
-Tuan Le, Makoto Yamada, Kenji Fukumizu, and Marco Cuturi.
+Tuan Le, Makoto Yamada, Kenji Fukumizu and Marco Cuturi.
 \newblock Tree-sliced variants of wasserstein distances.
 \newblock In {\em Advances in Neural Information Processing Systems},
   volume~32, 2019.
 
+\bibitem{peyre2019computationaloptimaltransport}
+Gabriel Peyr{\'e} and Marco Cuturi.
+\newblock Computational optimal transport, 2019.
+
 \bibitem{kornblith2019similarityrepresentations}
-Simon Kornblith, Mohammad Norouzi, Honglak Lee, and Geoffrey Hinton.
+Simon Kornblith, Mohammad Norouzi, Honglak Lee and Geoffrey Hinton.
 \newblock Similarity of neural network representations revisited.
 \newblock In {\em Proceedings of the 36th International Conference on Machine
-  Learning}, volume~97 of {\em Proceedings of Machine Learning Research}, pages
-  3519--3529. PMLR, 2019.
+  Learning}, volume~97 of {\em Proceedings of Machine Learning Research}, page
+  3519{\textendash}3529. PMLR, 2019.
+
+\bibitem{yu2024selectdistill}
+Yu-Chu Yu, Chi-Pin Huang, Jr-Jen Chen, Kai-Po Chang, Yung-Hsuan Lai, Fu-En
+  Yang and Yu-Chiang~Frank Wang.
+\newblock Select and distill: Selective dual-teacher knowledge transfer for
+  continual learning on vision-language models, 2024.
 
 \bibitem{shazeer2017outrageouslylargeneuralnetworks}
 Noam Shazeer, Azalia Mirhoseini, Krzysztof Maziarz, Andy Davis, Quoc Le,
-  Geoffrey Hinton, and Jeff Dean.
+  Geoffrey Hinton and Jeff Dean.
 \newblock Outrageously large neural networks: The sparsely-gated
   mixture-of-experts layer, 2017.
 
 \bibitem{fedus2022switchtransformersscalingtrillion}
-William Fedus, Barret Zoph, and Noam Shazeer.
+William Fedus, Barret Zoph and Noam Shazeer.
 \newblock Switch transformers: Scaling to trillion parameter models with simple
   and efficient sparsity, 2022.
 
 \bibitem{zhou2022mixtureofexpertswithexpertchoice}
 Yanqi Zhou, Tao Lei, Hanxiao Liu, Nan Du, Yanping Huang, Vincent Zhao, Andrew
-  Dai, Zhifeng Chen, Quoc Le, and James Laudon.
+  Dai, Zhifeng Chen, Quoc Le and James Laudon.
 \newblock Mixture-of-experts with expert choice routing, 2022.
 
 \bibitem{zhu2021studentcustomized}
@@ -260,12 +253,12 @@ Yichen Zhu and Yi~Wang.
 \newblock Student customized knowledge distillation: Bridging the gap between
   student and teacher.
 \newblock In {\em Proceedings of the IEEE/CVF International Conference on
-  Computer Vision}, pages 5057--5066, 2021.
+  Computer Vision}, page 5057{\textendash}5066, 2021.
 
 \bibitem{dosovitskiy2021imageworth16x16words}
 Alexey Dosovitskiy, Lucas Beyer, Alexander Kolesnikov, Dirk Weissenborn,
   Xiaohua Zhai, Thomas Unterthiner, Mostafa Dehghani, Matthias Minderer, Georg
-  Heigold, Sylvain Gelly, Jakob Uszkoreit, and Neil Houlsby.
+  Heigold, Sylvain Gelly, Jakob Uszkoreit and Neil Houlsby.
 \newblock An image is worth 16x16 words: Transformers for image recognition at
   scale, 2021.
 
@@ -286,6 +279,12 @@ Jianhua Lin.
 \newblock Divergence measures based on the shannon entropy.
 \newblock {\em IEEE Transactions on Information Theory}, 37(1), 1991.
 
+\bibitem{flamary_otml_2019}
+R{\'e}mi Flamary and Nicolas Courty.
+\newblock Optimal transport for machine learning: Introduction to optimal
+  transport, 2019.
+\newblock Tutorial at ISBI 2019.
+
 \bibitem{wikimedia_optimal_transport_matrix_image}
 {Wikimedia Commons contributors}.
 \newblock File: Optimal transport matrix.png.
@@ -294,7 +293,7 @@ Jianhua Lin.
 
 \bibitem{deepseekai2024deepseekv2strongeconomicalefficient}
 {DeepSeek-AI}.
-\newblock Deepseek-v2: A strong, economical, and efficient mixture-of-experts
+\newblock Deepseek-v2: A strong, economical and efficient mixture-of-experts
   language model, 2024.
 
 \bibitem{wikimedia_deepseek_moe_mla_image}
@@ -333,12 +332,12 @@ Haodong Duan, Xinyu Fang, Junming Yang, et~al.
 \newblock CC BY-SA 4.0. Accessed: 2026-03-06.
 
 \bibitem{rajbhandari2020zero}
-Samyam Rajbhandari, Jeff Rasley, Olatunji Ruwase, and Yuxiong He.
+Samyam Rajbhandari, Jeff Rasley, Olatunji Ruwase and Yuxiong He.
 \newblock Zero: Memory optimizations toward training trillion parameter models,
   2020.
 
 \bibitem{chen2016sublinear}
-Tianqi Chen, Bing Xu, Chiyuan Zhang, and Carlos Guestrin.
+Tianqi Chen, Bing Xu, Chiyuan Zhang and Carlos Guestrin.
 \newblock Training deep nets with sublinear memory cost, 2016.
 
 \bibitem{smolvlm2_modelcard}
@@ -348,25 +347,24 @@ Tianqi Chen, Bing Xu, Chiyuan Zhang, and Carlos Guestrin.
 \newblock Accessed: 2026-04-02.
 
 \bibitem{cui2024sinkhorn}
-Yifan Cui, Wei Wang, Yifei Wang, Yao Lu, Haoyu Wang, Fuzhen Zhuang, Qing He,
-  and Chuan Shi.
+Yifan Cui, Wei Wang, Yifei Wang, Yao Lu, Haoyu Wang, Fuzhen Zhuang, Qing He and Chuan Shi.
 \newblock Sinkhorn distance minimization for knowledge distillation.
 \newblock In {\em Findings of the Association for Computational Linguistics:
-  ACL 2024}, pages 11046--11060. Association for Computational Linguistics,
-  2024.
+  ACL 2024}, page 11046{\textendash}11060. Association for Computational
+  Linguistics, 2024.
 
 \bibitem{williams1992simple}
 Ronald~J. Williams.
 \newblock Simple statistical gradient-following algorithms for connectionist
   reinforcement learning.
-\newblock {\em Machine Learning}, 8(3):229--256, 1992.
+\newblock {\em Machine Learning}, 8(3):229{\textendash}256, 1992.
 
 \bibitem{wen2023fdistill}
-Yuqiao Wen, Zichao Li, Wenyu Du, and Lili Mou.
+Yuqiao Wen, Zichao Li, Wenyu Du and Lili Mou.
 \newblock f-divergence minimization for sequence-level knowledge distillation.
 \newblock In {\em Proceedings of the 61st Annual Meeting of the Association for
-  Computational Linguistics (Volume 1: Long Papers)}, pages 10817--10834.
-  Association for Computational Linguistics, 2023.
+  Computational Linguistics (Volume 1: Long Papers)}, page
+  10817{\textendash}10834. Association for Computational Linguistics, 2023.
 
 \bibitem{cloudflare_r2_overview}
 {Cloudflare}.
@@ -393,8 +391,7 @@ Yuqiao Wen, Zichao Li, Wenyu Du, and Lili Mou.
 \newblock Accessed: 2026-04-09.
 
 \bibitem{bousselham2026dexar}
-Walid Bousselham, Rishikesh Jadhav, Simon de~Mathelin, Fran{\c{c}}ois Fleuret,
-  and Pascal Frossard.
+Walid Bousselham, Rishikesh Jadhav, Simon de~Mathelin, Fran{\c{c}}ois Fleuret and Pascal Frossard.
 \newblock Dex-ar: Explainability in multimodal large language models with deep
   expectation and attention rollout, 2026.
 

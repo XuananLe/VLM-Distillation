@@ -2,7 +2,6 @@ import torch
 
 
 def trainable_parameters(model) -> tuple[torch.nn.Parameter, ...]:
-    """Return all trainable student parameters used for parameter-space GRACE."""
     parameters = tuple(parameter for parameter in model.parameters() if parameter.requires_grad)
     if not parameters:
         raise ValueError("GRACE parameter gradients require at least one trainable student parameter.")
@@ -14,7 +13,6 @@ def compute_parameter_grads(
     loss: torch.Tensor,
     parameters: tuple[torch.nn.Parameter, ...],
 ) -> tuple[torch.Tensor | None, ...]:
-    """Compute d(loss)/d(student parameters) without writing into .grad."""
     return tuple(
         None if grad is None else grad.detach()
         for grad in torch.autograd.grad(
@@ -33,7 +31,6 @@ def parameter_gradient_cosine(
     loss: torch.Tensor,
     eps: float = 1e-8,
 ) -> torch.Tensor:
-    """Compute cosine similarity over full parameter-gradient tuples without concatenating them."""
     dot = loss.new_zeros((), dtype=torch.float32)
     reference_norm = loss.new_zeros((), dtype=torch.float32)
     candidate_norm = loss.new_zeros((), dtype=torch.float32)
