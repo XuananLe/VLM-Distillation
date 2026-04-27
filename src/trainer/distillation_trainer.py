@@ -46,7 +46,6 @@ class DistillationTrainer(Trainer):
         teacher_gate_balance_alpha: float = 1e-2,
         teacher_gate_top_k: int = 1,
         teacher_gate_capacity_factor: float = 1.25,
-        teacher_gate_bias_update_rate: float = 1e-3,
         teacher_gate_temperature: float = 1.5,
         teacher_gate_noise_std: float = 0.01,
         teacher_gate_entropy_alpha: float = 1e-3,
@@ -123,7 +122,6 @@ class DistillationTrainer(Trainer):
             model=self.model,
             num_teachers=self.num_teachers,
             teacher_weighting_strategy=self.teacher_weighting_strategy,
-            teacher_gate_bias_update_rate=teacher_gate_bias_update_rate,
             teacher_gate_temperature=teacher_gate_temperature,
             teacher_gate_noise_std=teacher_gate_noise_std,
         )
@@ -141,7 +139,6 @@ class DistillationTrainer(Trainer):
         self.teacher_gate_balance_alpha = teacher_gate_balance_alpha
         self.teacher_gate_top_k = teacher_gate_top_k
         self.teacher_gate_capacity_factor = teacher_gate_capacity_factor
-        self.teacher_gate_bias_update_rate = teacher_gate_bias_update_rate
         self.teacher_gate_temperature = teacher_gate_temperature
         self.teacher_gate_noise_std = teacher_gate_noise_std
         self.teacher_gate_entropy_alpha = teacher_gate_entropy_alpha
@@ -183,7 +180,6 @@ class DistillationTrainer(Trainer):
             teacher_gate_balance_alpha=teacher_gate_balance_alpha,
             teacher_gate_top_k=teacher_gate_top_k,
             teacher_gate_capacity_factor=teacher_gate_capacity_factor,
-            teacher_gate_bias_update_rate=teacher_gate_bias_update_rate,
             teacher_gate_temperature=teacher_gate_temperature,
             teacher_gate_noise_std=teacher_gate_noise_std,
             teacher_gate_entropy_alpha=teacher_gate_entropy_alpha,
@@ -287,7 +283,6 @@ class DistillationTrainer(Trainer):
         )
         gate_routing = apply_teacher_gate_routing(
             trainer=self,
-            model=model,
             teacher_gate_logits=student_and_gate["teacher_gate_logits"],
             teacher_gate_weights=student_and_gate["teacher_gate_weights"],
             teacher_gate_routing_scores=student_and_gate["teacher_gate_routing_scores"],
@@ -362,7 +357,6 @@ class DistillationTrainer(Trainer):
                 teacher_gate_soft_load=gate_routing["teacher_gate_soft_load"],
                 teacher_gate_hard_load=gate_routing["teacher_gate_hard_load"],
                 teacher_gate_assignment_rate=gate_routing["teacher_gate_assignment_rate"],
-                teacher_gate_bias=None if self.teacher_gate is None else self.teacher_gate.expert_bias,
                 teacher_grace_scores=grace_and_loss["teacher_grace_scores"],
                 teacher_grace_active=grace_and_loss["teacher_grace_active"],
                 teacher_grace_score_ema=self.teacher_grace_score_ema,

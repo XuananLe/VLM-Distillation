@@ -155,7 +155,7 @@ def compute_layer_distillation_loss(
     }
 
 
-def apply_teacher_gate_routing(*, trainer, model, teacher_gate_logits, teacher_gate_weights, teacher_gate_routing_scores):
+def apply_teacher_gate_routing(*, trainer, teacher_gate_logits, teacher_gate_weights, teacher_gate_routing_scores):
     """Apply gate constraints and auxiliary routing losses to the current teacher-gate outputs."""
     state = {
         "teacher_gate_balance_loss": None,
@@ -198,9 +198,6 @@ def apply_teacher_gate_routing(*, trainer, model, teacher_gate_logits, teacher_g
             routing_scores=teacher_gate_routing_scores,
             assignment_mask=state["teacher_gate_assignment_mask"],
         )
-        if model.training:
-            trainer.teacher_gate.update_expert_bias(state["teacher_gate_expert_load"].detach())
-
     state["routing_constraint_time"] = time.perf_counter() - routing_constraint_start_time
     return state
 

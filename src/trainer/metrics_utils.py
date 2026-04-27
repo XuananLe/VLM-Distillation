@@ -32,7 +32,6 @@ def build_distillation_train_metrics(
     teacher_gate_soft_load: torch.Tensor | None,
     teacher_gate_hard_load: torch.Tensor | None,
     teacher_gate_assignment_rate: torch.Tensor | None,
-    teacher_gate_bias: torch.Tensor | None,
     teacher_grace_scores: torch.Tensor | None,
     teacher_grace_active: torch.Tensor | None,
     teacher_grace_score_ema: torch.Tensor | None,
@@ -118,13 +117,6 @@ def build_distillation_train_metrics(
             for teacher_index, rate in enumerate(teacher_gate_assignment_rate.detach())
         }
     )
-    metrics.update(
-        {
-            f"teacher_gate_bias_{teacher_index}": bias.item()
-            for teacher_index, bias in enumerate(teacher_gate_bias.detach())
-        }
-    )
-
     if teacher_grace_scores is not None and teacher_grace_active is not None:
         metrics.update(
             summarize_teacher_vector("teacher_grace_score", teacher_grace_scores)

@@ -120,11 +120,6 @@ class DistillationArguments:
         metadata={"help": "Capacity multiplier used by the teacher-gate routing constraints."},
     )
 
-    teacher_gate_bias_update_rate: float = field(
-        default=1e-3,
-        metadata={"help": "Feedback update rate for the teacher-gate expert bias."},
-    )
-
     teacher_gate_temperature: float = field(
         default=1.5,
         metadata={"help": "Softmax temperature applied to router scores before teacher-gate weighting."},
@@ -255,7 +250,6 @@ class DistillationArguments:
             ("--layer_distill_weight", self.layer_distill_weight),
             ("--alpha", self.alpha),
             ("--teacher_gate_balance_alpha", self.teacher_gate_balance_alpha),
-            ("--teacher_gate_bias_update_rate", self.teacher_gate_bias_update_rate),
             ("--teacher_gate_noise_std", self.teacher_gate_noise_std),
             ("--teacher_gate_entropy_alpha", self.teacher_gate_entropy_alpha),
             ("--teacher_gate_router_z_loss_alpha", self.teacher_gate_router_z_loss_alpha),
@@ -345,7 +339,6 @@ def log_distillation_setup(
         print(f"Teacher Gate Balance Alpha: {distillation_args.teacher_gate_balance_alpha}")
         print(f"Teacher Gate Top-k: {distillation_args.teacher_gate_top_k}")
         print(f"Teacher Gate Capacity Factor: {distillation_args.teacher_gate_capacity_factor}")
-        print(f"Teacher Gate Bias Update Rate: {distillation_args.teacher_gate_bias_update_rate}")
         print(f"Teacher Gate Temperature: {distillation_args.teacher_gate_temperature}")
         print(f"Teacher Gate Noise Std: {distillation_args.teacher_gate_noise_std}")
         print(f"Teacher Gate Entropy Alpha: {distillation_args.teacher_gate_entropy_alpha}")

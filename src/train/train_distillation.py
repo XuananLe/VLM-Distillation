@@ -148,7 +148,6 @@ def train_distillation():
         teacher_gate_balance_alpha=distillation_args.teacher_gate_balance_alpha,
         teacher_gate_top_k=distillation_args.teacher_gate_top_k,
         teacher_gate_capacity_factor=distillation_args.teacher_gate_capacity_factor,
-        teacher_gate_bias_update_rate=distillation_args.teacher_gate_bias_update_rate,
         teacher_gate_temperature=distillation_args.teacher_gate_temperature,
         teacher_gate_noise_std=distillation_args.teacher_gate_noise_std,
         teacher_gate_entropy_alpha=distillation_args.teacher_gate_entropy_alpha,

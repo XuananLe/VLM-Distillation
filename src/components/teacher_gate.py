@@ -48,7 +48,6 @@ class Gate(nn.Module):
         self,
         model: nn.Module,
         num_teachers: int,
-        bias_update_rate: float = 0.0,
         router_temperature: float = 1.0,
         router_noise_std: float = 0.0,
     ):
@@ -57,11 +56,9 @@ class Gate(nn.Module):
         hidden_size, hook_module = self.resolve_gate_source(model)
         self.router = DeepRouter(hidden_size, num_teachers)
 
-        self.bias_update_rate = bias_update_rate
         self.router_temperature = router_temperature
         self.router_noise_std = router_noise_std
         self.hidden_state = None
-        self.register_buffer("expert_bias", torch.zeros(num_teachers))
         # Capture the hidden state immediately before lm_head so routing uses the
         # same student context as the token prediction head.
         self.hook_handle = hook_module.register_forward_pre_hook(self.capture_hidden_state)
@@ -148,27 +145,12 @@ class Gate(nn.Module):
         self.prepare_router_module(pooled_features)
         return self.router(pooled_features)
 
-    def apply_expert_bias(self, router_logits: torch.Tensor) -> torch.Tensor:
-        """Add the load-balancing expert bias; input is router logits, output is biased logits, and this exists to discourage chronic expert overload."""
-        return router_logits + self.expert_bias.to(device=router_logits.device, dtype=router_logits.dtype)
-
     def prepare_routing_scores(self, router_logits: torch.Tensor) -> torch.Tensor:
         """Turn raw logits into routing scores; input is router logits, output is temperature/noise-adjusted scores, and this exists to separate scoring policy from final softmax."""
-        routing_scores = self.apply_expert_bias(router_logits)
+        routing_scores = router_logits
         if self.training and self.router_noise_std > 0.0:
             routing_scores = routing_scores + torch.randn_like(routing_scores) * self.router_noise_std
         return routing_scores / self.router_temperature
-
-    @torch.no_grad()
-    def update_expert_bias(self, expert_load: torch.Tensor) -> None:
-        """Update the expert-bias feedback term from observed load; input is per-expert load, output is None, and this exists as a lightweight load-balancing mechanism."""
-        if self.bias_update_rate <= 0.0:
-            return
-        # Negative feedback on overloaded experts; this is a lightweight load-balancing term.
-        violation = expert_load - expert_load.mean()
-        self.expert_bias.sub_(
-            self.bias_update_rate * violation.to(device=self.expert_bias.device, dtype=self.expert_bias.dtype)
-        )
 
     def forward(
         self,

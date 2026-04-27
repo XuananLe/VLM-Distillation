@@ -42,7 +42,6 @@ def maybe_create_teacher_gate(
     model,
     num_teachers: int,
     teacher_weighting_strategy: str,
-    teacher_gate_bias_update_rate: float,
     teacher_gate_temperature: float,
     teacher_gate_noise_std: float,
 ):
@@ -60,7 +59,6 @@ def maybe_create_teacher_gate(
     teacher_gate = Gate(
         model,
         num_teachers,
-        bias_update_rate=teacher_gate_bias_update_rate,
         router_temperature=teacher_gate_temperature,
         router_noise_std=teacher_gate_noise_std,
     )
@@ -114,7 +112,6 @@ def log_distillation_trainer_setup(
     teacher_gate_balance_alpha: float,
     teacher_gate_top_k: int,
     teacher_gate_capacity_factor: float,
-    teacher_gate_bias_update_rate: float,
     teacher_gate_temperature: float,
     teacher_gate_noise_std: float,
     teacher_gate_entropy_alpha: float,
@@ -189,7 +186,6 @@ def log_distillation_trainer_setup(
         print(f"  - Teacher gate balance alpha: {teacher_gate_balance_alpha}")
         print(f"  - Teacher gate top-k: {teacher_gate_top_k}")
         print(f"  - Teacher gate capacity factor: {teacher_gate_capacity_factor}")
-        print(f"  - Teacher gate bias update rate: {teacher_gate_bias_update_rate}")
         print(f"  - Teacher gate temperature: {teacher_gate_temperature}")
         print(f"  - Teacher gate noise std: {teacher_gate_noise_std}")
         print(f"  - Teacher gate entropy alpha: {teacher_gate_entropy_alpha}")

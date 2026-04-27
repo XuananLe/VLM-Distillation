@@ -33,23 +33,23 @@ TEACHER_WEIGHTING_STRATEGY="${TEACHER_WEIGHTING_STRATEGY:-routing}"
 DISTILLATION_LOSS="trie_wasserstein_loss"
 STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-1.0}"
 TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-1.0}"
-# Fixed trie-loss setting for alpha-scaling runs.
-TRIE_WASSERSTEIN_RHO="${TRIE_WASSERSTEIN_RHO:-0.9}"
-TRIE_WASSERSTEIN_TOPK="${TRIE_WASSERSTEIN_TOPK:-64}"
+# Relaxed trie-loss setting: lower rho downweights deep byte-level differences,
+# and smaller top-k reduces per-teacher trie/GRACE cost.
+TRIE_WASSERSTEIN_RHO="${TRIE_WASSERSTEIN_RHO:-0.5}"
+TRIE_WASSERSTEIN_TOPK="${TRIE_WASSERSTEIN_TOPK:-32}"
 
-# Alpha-scaling knob. Override with `ALPHA=0.3 bash scripts/train/distill_multi_teachers.sh`.
-ALPHA="${ALPHA:-0.5}"
+# KD scaling knob. Override with `ALPHA=0.3 bash scripts/train/distill_multi_teachers.sh`.
+ALPHA="${ALPHA:-0.2}"
 
 # Router-based weighting knobs
 TEACHER_GATE_TOP_K="${TEACHER_GATE_TOP_K:-2}"
-TEACHER_GATE_BIAS_UPDATE_RATE="${TEACHER_GATE_BIAS_UPDATE_RATE:-5e-4}"
 
 # GRACE weighting knobs
 GRACE_THRESHOLD="${GRACE_THRESHOLD:--0.005}"
 GRACE_WARMUP_RATIO="${GRACE_WARMUP_RATIO:-0.01}"
-GRACE_EPSILON="${GRACE_EPSILON:-5e-4}"
-GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.4}"
-GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.9}"
+GRACE_EPSILON="${GRACE_EPSILON:-0.005}"
+GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.5}"
+GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.8}"
 
 # Teacher logits can be read either from a local cache root (for example /cache)
 # or directly from the remote raw .pt cache layout.
@@ -66,7 +66,7 @@ fi
 NUM_TEACHERS=4
 DATASET_NAME="docvqa"
 NUM_TRAIN_EPOCHS="${NUM_TRAIN_EPOCHS:-1.0}"
-PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-80}"
+PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-40}"
 GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 LOGGING_STEPS="${LOGGING_STEPS:-5}"
 AUTO_STOP_VAST_INSTANCE="${AUTO_STOP_VAST_INSTANCE:-1}"
@@ -137,7 +137,6 @@ python src/train/train_distillation.py \
     --teacher_temperature "$TEACHER_TEMPERATURE" \
     --alpha "$ALPHA" \
     --teacher_gate_top_k "$TEACHER_GATE_TOP_K" \
-    --teacher_gate_bias_update_rate "$TEACHER_GATE_BIAS_UPDATE_RATE" \
     --grace_threshold "$GRACE_THRESHOLD" \
     --grace_warmup_ratio "$GRACE_WARMUP_RATIO" \
     --grace_epsilon "$GRACE_EPSILON" \
