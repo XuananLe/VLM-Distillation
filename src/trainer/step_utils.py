@@ -305,8 +305,6 @@ def apply_grace_and_compute_distillation_loss(
         }
 
     if not trainer.should_apply_grace_routing():
-        # Router-only mode treats every routed teacher as equally available; GRACE is
-        # the component that turns those routed slots into non-uniform final weights.
         if routed_teacher_gate_weights is not None:
             available_teacher_mask = routed_teacher_gate_weights.gt(0)
             missing_rows = ~available_teacher_mask.any(dim=-1)
@@ -316,8 +314,8 @@ def apply_grace_and_compute_distillation_loss(
                     "Router produced no available teacher assignments for samples "
                     f"{bad_indices}."
                 )
-            effective_teacher_gate_weights = available_teacher_mask.to(
-                dtype=teacher_loss_matrix.dtype,
+            effective_teacher_gate_weights = routed_teacher_gate_weights.to(
+                dtype=teacher_loss_matrix.dtype
             )
             effective_teacher_gate_weights = effective_teacher_gate_weights / (
                 effective_teacher_gate_weights.sum(dim=-1, keepdim=True).clamp(

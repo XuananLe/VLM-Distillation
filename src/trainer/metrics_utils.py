@@ -38,7 +38,7 @@ def build_distillation_train_metrics(
     teacher_grace_weights: torch.Tensor | None,
     teacher_grace_fallback_rate: torch.Tensor | None,
     reinforced_selection_metrics: dict[str, float] | None,
-    grace_warmup_active: bool,
+    grace_routing_active: bool,
 ) -> dict[str, float]:
     """Assemble the scalar metrics logged for one distillation training step."""
     metrics = {
@@ -74,7 +74,7 @@ def build_distillation_train_metrics(
     if routed_teacher_gate_weights is None:
         return metrics
 
-    metrics.update(summarize_teacher_vector("teacher_gate_w", logged_weights))
+    metrics.update(summarize_teacher_vector("teacher_gate_final_w", logged_weights))
     metrics.update(summarize_teacher_vector("teacher_gate_router_w", teacher_gate_weights))
     metrics.update(summarize_teacher_vector("teacher_gate_routed_w", routed_teacher_gate_weights))
     metrics.update(summarize_teacher_vector("teacher_gate_logit", teacher_gate_logits))
@@ -98,7 +98,7 @@ def build_distillation_train_metrics(
         routed_teacher_gate_weights > 0
     ).to(dtype=logged_weights.dtype).sum(dim=-1).mean().item()
     metrics["teacher_gate_routing_fallback_rate"] = teacher_gate_routing_fallback_rate.item()
-    metrics["teacher_grace_warmup_active"] = float(grace_warmup_active)
+    metrics["teacher_grace_routing_active"] = float(grace_routing_active)
     metrics.update(
         {
             f"teacher_gate_soft_load_{teacher_index}": load.item()

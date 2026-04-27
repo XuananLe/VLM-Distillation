@@ -43,12 +43,20 @@ ALPHA="${ALPHA:-0.2}"
 
 # Router-based weighting knobs
 TEACHER_GATE_TOP_K="${TEACHER_GATE_TOP_K:-2}"
+TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO="${TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO:-0.0}"
+TEACHER_GATE_CAPACITY_FACTOR="${TEACHER_GATE_CAPACITY_FACTOR:-1.25}"
+TEACHER_GATE_TEMPERATURE="${TEACHER_GATE_TEMPERATURE:-1.5}"
+TEACHER_GATE_NOISE_STD="${TEACHER_GATE_NOISE_STD:-0.01}"
+TEACHER_GATE_BALANCE_ALPHA="${TEACHER_GATE_BALANCE_ALPHA:-0.01}"
+TEACHER_GATE_ENTROPY_ALPHA="${TEACHER_GATE_ENTROPY_ALPHA:-0.001}"
+TEACHER_GATE_ROUTER_Z_LOSS_ALPHA="${TEACHER_GATE_ROUTER_Z_LOSS_ALPHA:-0.001}"
 
 # GRACE weighting knobs
-GRACE_THRESHOLD="${GRACE_THRESHOLD:--0.005}"
-GRACE_WARMUP_RATIO="${GRACE_WARMUP_RATIO:-0.01}"
-GRACE_EPSILON="${GRACE_EPSILON:-0.005}"
-GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.5}"
+GRACE_THRESHOLD="${GRACE_THRESHOLD:--0.55}"
+GRACE_WARMUP_RATIO="${GRACE_WARMUP_RATIO:-0.05}"
+GRACE_EPSILON="${GRACE_EPSILON:-0.02}"
+GRACE_SOFTMAX_BETA="${GRACE_SOFTMAX_BETA:-8.0}"
+GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.7}"
 GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.8}"
 
 # Teacher logits can be read either from a local cache root (for example /cache)
@@ -136,10 +144,18 @@ python src/train/train_distillation.py \
     --student_temperature "$STUDENT_TEMPERATURE" \
     --teacher_temperature "$TEACHER_TEMPERATURE" \
     --alpha "$ALPHA" \
+    --teacher_gate_balance_alpha "$TEACHER_GATE_BALANCE_ALPHA" \
     --teacher_gate_top_k "$TEACHER_GATE_TOP_K" \
+    --teacher_gate_capacity_factor "$TEACHER_GATE_CAPACITY_FACTOR" \
+    --teacher_gate_temperature "$TEACHER_GATE_TEMPERATURE" \
+    --teacher_gate_noise_std "$TEACHER_GATE_NOISE_STD" \
+    --teacher_gate_entropy_alpha "$TEACHER_GATE_ENTROPY_ALPHA" \
+    --teacher_gate_router_z_loss_alpha "$TEACHER_GATE_ROUTER_Z_LOSS_ALPHA" \
+    --teacher_gate_hard_routing_warmup_ratio "$TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO" \
     --grace_threshold "$GRACE_THRESHOLD" \
     --grace_warmup_ratio "$GRACE_WARMUP_RATIO" \
     --grace_epsilon "$GRACE_EPSILON" \
+    --grace_softmax_beta "$GRACE_SOFTMAX_BETA" \
     --grace_router_blend_lambda "$GRACE_ROUTER_BLEND_LAMBDA" \
     --grace_ema_decay "$GRACE_EMA_DECAY" \
     --num_train_epochs "$NUM_TRAIN_EPOCHS" \

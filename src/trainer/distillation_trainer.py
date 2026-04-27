@@ -363,7 +363,7 @@ class DistillationTrainer(Trainer):
                 teacher_grace_weights=grace_and_loss["teacher_grace_weights"],
                 teacher_grace_fallback_rate=grace_and_loss["teacher_grace_fallback_rate"],
                 reinforced_selection_metrics=grace_and_loss["reinforced_selection_metrics"],
-                grace_warmup_active=self.should_apply_grace_routing(),
+                grace_routing_active=self.should_apply_grace_routing(),
             )
             self.log(metrics)
 
