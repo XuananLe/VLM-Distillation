@@ -1,15 +1,21 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from functools import lru_cache
 
+from joblib import Memory
 import torch
 from torch import nn
+from transformers import PreTrainedTokenizerBase
 
 from src.constants import TOKENIZER_VOCAB_SIZES
 
 
 EOS_SENTINEL = 256
 # Byte values live in [0, 255], so 256 is a clean end-of-token marker for the trie.
+TRIE_CACHE_VERSION = 1
+DEFAULT_TRIE_CACHE_DIR = "/dev/shm/vlm_distillation_trie_cache"
+
 
 def normalize_model_id(model_id) -> str | None:
     """Return a canonical model id string when the tokenizer exposes one."""
@@ -81,6 +87,218 @@ class TrieBuildResult:
     ignored_mask: torch.Tensor
 
 
+@dataclass(slots=True)
+class TrieRuntimeState:
+    """Static CPU trie state shared by every forward pass for one student/teacher tokenizer pair."""
+    edge_weights_cpu: torch.Tensor
+    student_path_flat_cpu: torch.Tensor
+    student_path_offsets_cpu: torch.Tensor
+    student_ignored_mask_cpu: torch.Tensor
+    teacher_path_flat_cpu: torch.Tensor
+    teacher_path_offsets_cpu: torch.Tensor
+    teacher_ignored_mask_cpu: torch.Tensor
+    tail_edge_id: int
+    num_edges: int
+    student_valid_count: int
+    teacher_valid_count: int
+    student_max_path_len: int
+    teacher_max_path_len: int
+
+
+@lru_cache(maxsize=4)
+def trie_memory(cache_dir: str) -> Memory:
+    """Return one joblib Memory handle per cache directory."""
+    return Memory(location=cache_dir, verbose=0)
+
+
+@lru_cache(maxsize=4)
+def cached_trie_state_builder(cache_dir: str):
+    """Return a joblib-cached trie builder that does not hash tokenizer objects."""
+    return trie_memory(cache_dir).cache(
+        build_trie_state_from_tokenizers,
+        ignore=["student_tokenizer", "teacher_tokenizer"],
+    )
+
+
+def tokenizer_class_name(tokenizer) -> str:
+    """Return a stable tokenizer class name used as part of the trie cache key."""
+    tokenizer_type = type(tokenizer)
+    return f"{tokenizer_type.__module__}.{tokenizer_type.__qualname__}"
+
+
+def can_cache_trie_state(student_tokenizer, teacher_tokenizer) -> bool:
+    """Return whether tokenizers are real Hugging Face tokenizers safe for persistent cache keys."""
+    return isinstance(student_tokenizer, PreTrainedTokenizerBase) and isinstance(
+        teacher_tokenizer,
+        PreTrainedTokenizerBase,
+    )
+
+
+def insert_token_bytes(
+    *,
+    token_bytes: list[int],
+    root: TrieNode,
+    edge_weights: list[float],
+    rho: float,
+) -> list[int]:
+    """Insert one token byte sequence into the shared trie and return its edge-id path."""
+    node = root
+    path: list[int] = []
+    for depth, byte_value in enumerate(token_bytes, start=1):
+        child = node.children.get(byte_value)
+        if child is None:
+            child = TrieNode()
+            child.edge_id = len(edge_weights)
+            edge_weights.append(float(rho) ** (depth - 1))
+            node.children[byte_value] = child
+        path.append(child.edge_id)
+        node = child
+    return path
+
+
+def build_tokenizer_paths(
+    *,
+    tokenizer,
+    vocab_size: int,
+    ignored_token_ids: tuple[int, ...],
+    root: TrieNode,
+    edge_weights: list[float],
+    rho: float,
+) -> TrieBuildResult:
+    """Build flattened trie paths for one tokenizer so runtime path lookup is cheap."""
+    ignored_token_ids_set = set(ignored_token_ids)
+    path_flat: list[int] = []
+    path_offsets = [0]
+    ignored_mask = torch.zeros(vocab_size, dtype=torch.bool)
+
+    for token_id in range(vocab_size):
+        if token_id in ignored_token_ids_set:
+            ignored_mask[token_id] = True
+            path_offsets.append(len(path_flat))
+            continue
+
+        token_bytes = list(token_piece_to_bytes(tokenizer, token_id))
+        # Prefix tokens and longer tokens need distinct terminal paths.
+        token_bytes.append(EOS_SENTINEL)
+        path = insert_token_bytes(
+            token_bytes=token_bytes,
+            root=root,
+            edge_weights=edge_weights,
+            rho=rho,
+        )
+        path_flat.extend(path)
+        path_offsets.append(len(path_flat))
+
+    return TrieBuildResult(
+        path_flat=torch.tensor(path_flat, dtype=torch.long),
+        path_offsets=torch.tensor(path_offsets, dtype=torch.long),
+        ignored_mask=ignored_mask,
+    )
+
+
+def build_trie_state_from_tokenizers(
+    *,
+    cache_version: int,
+    student_model_id: str,
+    teacher_model_id: str,
+    student_tokenizer_class: str,
+    teacher_tokenizer_class: str,
+    student_vocab_size: int,
+    teacher_vocab_size: int,
+    student_ignored_token_ids: tuple[int, ...],
+    teacher_ignored_token_ids: tuple[int, ...],
+    rho: float,
+    student_tokenizer,
+    teacher_tokenizer,
+) -> TrieRuntimeState:
+    """Build static CPU trie state for one student/teacher tokenizer pair."""
+    del cache_version, student_model_id, teacher_model_id
+    del student_tokenizer_class, teacher_tokenizer_class
+
+    root = TrieNode()
+    edge_weights: list[float] = []
+    student_paths = build_tokenizer_paths(
+        tokenizer=student_tokenizer,
+        vocab_size=student_vocab_size,
+        ignored_token_ids=student_ignored_token_ids,
+        root=root,
+        edge_weights=edge_weights,
+        rho=rho,
+    )
+    teacher_paths = build_tokenizer_paths(
+        tokenizer=teacher_tokenizer,
+        vocab_size=teacher_vocab_size,
+        ignored_token_ids=teacher_ignored_token_ids,
+        root=root,
+        edge_weights=edge_weights,
+        rho=rho,
+    )
+
+    tail_edge_id = len(edge_weights)
+    edge_weights.append(1.0)
+    num_edges = len(edge_weights)
+
+    student_path_lengths = student_paths.path_offsets[1:] - student_paths.path_offsets[:-1]
+    teacher_path_lengths = teacher_paths.path_offsets[1:] - teacher_paths.path_offsets[:-1]
+
+    return TrieRuntimeState(
+        edge_weights_cpu=torch.tensor(edge_weights, dtype=torch.float32),
+        student_path_flat_cpu=student_paths.path_flat,
+        student_path_offsets_cpu=student_paths.path_offsets,
+        student_ignored_mask_cpu=student_paths.ignored_mask,
+        teacher_path_flat_cpu=teacher_paths.path_flat,
+        teacher_path_offsets_cpu=teacher_paths.path_offsets,
+        teacher_ignored_mask_cpu=teacher_paths.ignored_mask,
+        tail_edge_id=tail_edge_id,
+        num_edges=num_edges,
+        student_valid_count=int((~student_paths.ignored_mask).sum().item()),
+        teacher_valid_count=int((~teacher_paths.ignored_mask).sum().item()),
+        student_max_path_len=(
+            int(student_path_lengths.max().item()) if student_path_lengths.numel() else 0
+        ),
+        teacher_max_path_len=(
+            int(teacher_path_lengths.max().item()) if teacher_path_lengths.numel() else 0
+        ),
+    )
+
+
+def load_or_build_trie_state(
+    *,
+    student_tokenizer,
+    teacher_tokenizer,
+    student_model_id: str,
+    teacher_model_id: str,
+    student_vocab_size: int,
+    teacher_vocab_size: int,
+    student_ignored_token_ids: tuple[int, ...],
+    teacher_ignored_token_ids: tuple[int, ...],
+    rho: float,
+) -> TrieRuntimeState:
+    """Load static trie state from joblib cache when possible, otherwise build it directly."""
+    builder = build_trie_state_from_tokenizers
+    if (
+        student_model_id is not None
+        and teacher_model_id is not None
+        and can_cache_trie_state(student_tokenizer, teacher_tokenizer)
+    ):
+        builder = cached_trie_state_builder(DEFAULT_TRIE_CACHE_DIR)
+
+    return builder(
+        cache_version=TRIE_CACHE_VERSION,
+        student_model_id=student_model_id,
+        teacher_model_id=teacher_model_id,
+        student_tokenizer_class=tokenizer_class_name(student_tokenizer),
+        teacher_tokenizer_class=tokenizer_class_name(teacher_tokenizer),
+        student_vocab_size=student_vocab_size,
+        teacher_vocab_size=teacher_vocab_size,
+        student_ignored_token_ids=student_ignored_token_ids,
+        teacher_ignored_token_ids=teacher_ignored_token_ids,
+        rho=float(rho),
+        student_tokenizer=student_tokenizer,
+        teacher_tokenizer=teacher_tokenizer,
+    )
+
+
 class TrieWassersteinLoss(nn.Module):
     """
     Tree-Wasserstein distillation on a shared byte trie.
@@ -111,6 +329,8 @@ class TrieWassersteinLoss(nn.Module):
 
         self.student_tokenizer = getattr(student_tokenizer, "tokenizer", None) or student_tokenizer
         self.teacher_tokenizer = getattr(teacher_tokenizer, "tokenizer", None) or teacher_tokenizer
+        self.student_model_id = normalize_model_id(getattr(self.student_tokenizer, "name_or_path", None))
+        self.teacher_model_id = normalize_model_id(getattr(self.teacher_tokenizer, "name_or_path", None))
         self.student_tokenizer_vocab_size = resolve_vocab_size(self.student_tokenizer)
         self.teacher_tokenizer_vocab_size = resolve_vocab_size(self.teacher_tokenizer)
         self.student_vocab_size = self.student_tokenizer_vocab_size
@@ -129,50 +349,48 @@ class TrieWassersteinLoss(nn.Module):
             else {int(token_id) for token_id in ignored_teacher_token_ids}
         )
 
-        root = TrieNode()
-        edge_weights: list[float] = []
-
-        student_paths = self.build_paths(
-            tokenizer=self.student_tokenizer,
-            vocab_size=self.student_vocab_size,
-            ignored_token_ids=ignored_student,
-            root=root,
-            edge_weights=edge_weights,
-        )
-        teacher_paths = self.build_paths(
-            tokenizer=self.teacher_tokenizer,
-            vocab_size=self.teacher_vocab_size,
-            ignored_token_ids=ignored_teacher,
-            root=root,
-            edge_weights=edge_weights,
+        trie_state = load_or_build_trie_state(
+            student_tokenizer=self.student_tokenizer,
+            teacher_tokenizer=self.teacher_tokenizer,
+            student_model_id=self.student_model_id,
+            teacher_model_id=self.teacher_model_id,
+            student_vocab_size=self.student_vocab_size,
+            teacher_vocab_size=self.teacher_vocab_size,
+            student_ignored_token_ids=tuple(sorted(ignored_student)),
+            teacher_ignored_token_ids=tuple(sorted(ignored_teacher)),
+            rho=self.rho,
         )
 
-        self.tail_edge_id = len(edge_weights)
-        edge_weights.append(1.0)
-        self.num_edges = len(edge_weights)
+        self.tail_edge_id = trie_state.tail_edge_id
+        self.num_edges = trie_state.num_edges
+        self.student_valid_count = trie_state.student_valid_count
+        self.teacher_valid_count = trie_state.teacher_valid_count
+        self.student_max_path_len = trie_state.student_max_path_len
+        self.teacher_max_path_len = trie_state.teacher_max_path_len
 
-        student_path_lengths = student_paths.path_offsets[1:] - student_paths.path_offsets[:-1]
-        teacher_path_lengths = teacher_paths.path_offsets[1:] - teacher_paths.path_offsets[:-1]
-        self.student_valid_count = int((~student_paths.ignored_mask).sum().item())
-        self.teacher_valid_count = int((~teacher_paths.ignored_mask).sum().item())
-        self.student_max_path_len = (
-            int(student_path_lengths.max().item()) if student_path_lengths.numel() else 0
-        )
-        self.teacher_max_path_len = (
-            int(teacher_path_lengths.max().item()) if teacher_path_lengths.numel() else 0
-        )
-
+        self.register_buffer("edge_weights_cpu", trie_state.edge_weights_cpu, persistent=True)
+        self.register_buffer("student_path_flat_cpu", trie_state.student_path_flat_cpu, persistent=True)
         self.register_buffer(
-            "edge_weights_cpu",
-            torch.tensor(edge_weights, dtype=torch.float32),
+            "student_path_offsets_cpu",
+            trie_state.student_path_offsets_cpu,
             persistent=True,
         )
-        self.register_buffer("student_path_flat_cpu", student_paths.path_flat, persistent=True)
-        self.register_buffer("student_path_offsets_cpu", student_paths.path_offsets, persistent=True)
-        self.register_buffer("student_ignored_mask_cpu", student_paths.ignored_mask, persistent=True)
-        self.register_buffer("teacher_path_flat_cpu", teacher_paths.path_flat, persistent=True)
-        self.register_buffer("teacher_path_offsets_cpu", teacher_paths.path_offsets, persistent=True)
-        self.register_buffer("teacher_ignored_mask_cpu", teacher_paths.ignored_mask, persistent=True)
+        self.register_buffer(
+            "student_ignored_mask_cpu",
+            trie_state.student_ignored_mask_cpu,
+            persistent=True,
+        )
+        self.register_buffer("teacher_path_flat_cpu", trie_state.teacher_path_flat_cpu, persistent=True)
+        self.register_buffer(
+            "teacher_path_offsets_cpu",
+            trie_state.teacher_path_offsets_cpu,
+            persistent=True,
+        )
+        self.register_buffer(
+            "teacher_ignored_mask_cpu",
+            trie_state.teacher_ignored_mask_cpu,
+            persistent=True,
+        )
 
         self.cached_device: torch.device | None = None
         self.edge_weights_device: torch.Tensor | None = None
@@ -242,65 +460,6 @@ class TrieWassersteinLoss(nn.Module):
             self.teacher_ignored_mask_cpu = extended_ignored_mask
 
         self.invalidate_device_cache()
-
-    def build_paths(
-        self,
-        *,
-        tokenizer,
-        vocab_size: int,
-        ignored_token_ids: set[int],
-        root: TrieNode,
-        edge_weights: list[float],
-    ) -> TrieBuildResult:
-        """Build flattened trie paths for one tokenizer; input is tokenizer state plus shared trie root, output is packed path tables, and this exists to make runtime path lookup cheap."""
-        path_flat: list[int] = []
-        path_offsets = [0]
-        ignored_mask = torch.zeros(vocab_size, dtype=torch.bool)
-
-        for token_id in range(vocab_size):
-            if token_id in ignored_token_ids:
-                ignored_mask[token_id] = True
-                path_offsets.append(len(path_flat))
-                continue
-
-            token_bytes = list(token_piece_to_bytes(tokenizer, token_id))
-            # Append an explicit token terminator so prefix tokens and longer tokens
-            # do not collapse onto the same trie path.
-            token_bytes.append(EOS_SENTINEL)
-            path = self.insert_bytes(
-                token_bytes=token_bytes,
-                root=root,
-                edge_weights=edge_weights,
-            )
-            path_flat.extend(path)
-            path_offsets.append(len(path_flat))
-
-        return TrieBuildResult(
-            path_flat=torch.tensor(path_flat, dtype=torch.long),
-            path_offsets=torch.tensor(path_offsets, dtype=torch.long),
-            ignored_mask=ignored_mask,
-        )
-
-    def insert_bytes(
-        self,
-        *,
-        token_bytes: list[int],
-        root: TrieNode,
-        edge_weights: list[float],
-    ) -> list[int]:
-        """Insert one token byte sequence into the shared trie; input is token bytes plus trie state, output is the edge-id path, and this exists to build weighted token paths offline."""
-        node = root
-        path: list[int] = []
-        for depth, byte_value in enumerate(token_bytes, start=1):
-            child = node.children.get(byte_value)
-            if child is None:
-                child = TrieNode()
-                child.edge_id = len(edge_weights)
-                edge_weights.append(self.rho ** (depth - 1))
-                node.children[byte_value] = child
-            path.append(child.edge_id)
-            node = child
-        return path
 
     def ensure_device_tensors(self, device: torch.device) -> None:
         """Materialize cached trie tensors on a target device; input is a torch device, output is None, and this exists because the trie is built on CPU but used during GPU loss computation."""
