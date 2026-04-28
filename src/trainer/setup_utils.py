@@ -1,4 +1,4 @@
-from src.components.teacher_gate import Gate
+from src.components.teacher_gate import maybe_create_teacher_gate
 from src.components.reinforced_teacher_selection import ReinforcedTeacherSelectionPolicy
 
 
@@ -35,35 +35,6 @@ def normalize_teacher_models(teacher_model, teacher_count: int | None):
             param.requires_grad = False
 
     return teacher_models, int(teacher_count)
-
-
-def maybe_create_teacher_gate(
-    *,
-    model,
-    num_teachers: int,
-    teacher_weighting_strategy: str,
-    teacher_gate_temperature: float,
-    teacher_gate_noise_std: float,
-):
-    """Build the routing gate only for multi-teacher routing runs.
-
-    Input: student model and routing hyperparameters. Output: Gate or None.
-    Exists to keep gate setup out of the trainer constructor body when routing
-    is disabled.
-    """
-    if num_teachers <= 1 or teacher_weighting_strategy != "routing":
-        return None
-
-    # The gate is attached to the student model so its forward hook can reuse the
-    # same hidden state captured immediately before the student's lm_head.
-    teacher_gate = Gate(
-        model,
-        num_teachers,
-        router_temperature=teacher_gate_temperature,
-        router_noise_std=teacher_gate_noise_std,
-    )
-    model.teacher_gate = teacher_gate
-    return teacher_gate
 
 
 def maybe_create_reinforced_teacher_selector(

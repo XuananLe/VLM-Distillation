@@ -1,7 +1,7 @@
 import torch
 
-from src.components import trie_wasserstein as trie
 from src.components.trie_wasserstein import TrieWassersteinLoss
+from src.tokenizer_utils import TOKENIZER_VOCAB_SIZES
 
 
 class TinyTokenizer:
@@ -45,7 +45,7 @@ def build_loss(
         6: "then",
         7: "they",
     }
-    trie.TOKENIZER_VOCAB_SIZES[model_id] = len(pieces)
+    TOKENIZER_VOCAB_SIZES[model_id] = len(pieces)
     tokenizer = TinyTokenizer(model_id, pieces)
     return TrieWassersteinLoss(
         student_tokenizer=tokenizer,
@@ -59,24 +59,13 @@ def build_loss(
 
 def test_topk_equal_vocab_leaves_no_prefix_tail_mass():
     loss = build_loss(topk=99)
-    loss.ensure_device_tensors(torch.device("cpu"))
     logits = torch.randn(2, loss.student_vocab_size)
-    keys, masses = loss.build_batched_signed_edge_contributions(
-        scaled_logits=logits,
-        path_flat=loss.student_path_flat_device,
-        path_offsets=loss.student_path_offsets_device,
-        ignored_mask=loss.student_ignored_mask_device,
-        prefix_bucket_ids=loss.student_prefix_bucket_ids_device,
-        valid_count=loss.student_valid_count,
-        max_path_len=loss.student_max_path_len,
-        path_arange=loss.student_path_arange_device,
-        sign=1.0,
-    )
+    _ = loss(logits, logits)
 
-    del keys
-    exact_count = logits.size(0) * loss.student_valid_count * loss.student_max_path_len
-    tail_masses = masses[exact_count:]
-    assert torch.allclose(tail_masses, torch.zeros_like(tail_masses), atol=1e-6)
+    student_tail_mass = loss.last_prefix_tail_stats["student"].tail_mass_mean
+    teacher_tail_mass = loss.last_prefix_tail_stats["teacher"].tail_mass_mean
+    assert torch.allclose(student_tail_mass, torch.zeros_like(student_tail_mass), atol=1e-6)
+    assert torch.allclose(teacher_tail_mass, torch.zeros_like(teacher_tail_mass), atol=1e-6)
 
 
 def test_same_tokenizer_same_logits_has_zero_loss():

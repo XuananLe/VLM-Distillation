@@ -97,11 +97,11 @@ def build_distillation_loss(
             tail_bucket_counts = []
             for loss_module in loss_modules:
                 for side_stats in loss_module.last_prefix_tail_stats.values():
-                    metric_values["trie_exact_mass_mean"].append(side_stats["exact_mass_mean"])
-                    metric_values["trie_tail_mass_mean"].append(side_stats["tail_mass_mean"])
-                    metric_values["trie_tail_bucket_entropy"].append(side_stats["tail_bucket_entropy"])
-                    metric_values["trie_tail_top_bucket_mass"].append(side_stats["tail_top_bucket_mass"])
-                    tail_bucket_counts.append(float(side_stats["num_tail_buckets"]))
+                    metric_values["trie_exact_mass_mean"].append(side_stats.exact_mass_mean)
+                    metric_values["trie_tail_mass_mean"].append(side_stats.tail_mass_mean)
+                    metric_values["trie_tail_bucket_entropy"].append(side_stats.tail_bucket_entropy)
+                    metric_values["trie_tail_top_bucket_mass"].append(side_stats.tail_top_bucket_mass)
+                    tail_bucket_counts.append(float(side_stats.num_tail_buckets))
             metrics = {
                 key: torch.stack(values).mean().item()
                 for key, values in metric_values.items()

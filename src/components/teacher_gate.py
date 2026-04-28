@@ -63,7 +63,6 @@ class Gate(nn.Module):
         # same student context as the token prediction head.
         self.hook_handle = hook_module.register_forward_pre_hook(self.capture_hidden_state)
 
-
     @staticmethod
     def resolve_gate_source(model: nn.Module) -> tuple[int, nn.Module]:
         """Find the hidden size and hook source for routing; input is the student model, output is (hidden_size, lm_head-like module), and this exists so routing stays model-family agnostic."""
@@ -161,3 +160,34 @@ class Gate(nn.Module):
         """Return soft routing weights over teachers; input is batch masks, output is [batch, teacher] probabilities, and this exists for trainer code that wants ready-to-use gate weights."""
         router_logits = self.compute_router_logits(labels=labels, attention_mask=attention_mask)
         return torch.softmax(self.prepare_routing_scores(router_logits), dim=-1)
+
+
+def maybe_create_teacher_gate(
+    *,
+    model,
+    num_teachers: int,
+    teacher_weighting_strategy: str,
+    teacher_gate_temperature: float,
+    teacher_gate_noise_std: float,
+):
+    """Build and attach the routing gate only for multi-teacher routing runs."""
+    if num_teachers <= 1 or teacher_weighting_strategy != "routing":
+        return None
+
+    # The gate is attached to the student model so its forward hook can reuse the
+    # same hidden state captured immediately before the student's lm_head.
+    teacher_gate = Gate(
+        model,
+        num_teachers,
+        router_temperature=teacher_gate_temperature,
+        router_noise_std=teacher_gate_noise_std,
+    )
+    model.teacher_gate = teacher_gate
+    return teacher_gate
+
+
+__all__ = [
+    "DeepRouter",
+    "Gate",
+    "maybe_create_teacher_gate",
+]
