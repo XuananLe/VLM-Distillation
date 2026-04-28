@@ -58,7 +58,7 @@ def load_processor_and_tokenizer(
         )
     processor_kwargs = {
         "trust_remote_code": True,
-        "use_fast": False,
+        "use_fast": True,
     }
     if padding_side is not None:
         processor_kwargs["padding_side"] = padding_side
@@ -134,7 +134,7 @@ def load_model_and_processor(
             cache_dir=cache_dir,
             padding_side=padding_side,
             trust_remote_code=True,
-            use_fast=False,
+            use_fast=True,
         )
         model.img_context_token_id = tokenizer.convert_tokens_to_ids(INTERNVL_IMG_CONTEXT_TOKEN)
         vision_config = getattr(model.config, "vision_config", None)
