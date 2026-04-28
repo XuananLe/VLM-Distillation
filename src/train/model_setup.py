@@ -58,7 +58,9 @@ def load_processor_and_tokenizer(
         )
     processor_kwargs = {
         "trust_remote_code": True,
-        "use_fast": True,
+        # Keep preprocessing numerically consistent with the checkpoints: HF fast
+        # image processors fall back from Lanczos to Bicubic for tensor inputs.
+        "use_fast": False,
     }
     if padding_side is not None:
         processor_kwargs["padding_side"] = padding_side
