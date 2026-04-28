@@ -26,19 +26,9 @@ TEACHER_MODEL_4="google/gemma-3-4b-it"
 TEACHER_MODEL_IDS=("${TEACHER_MODEL_1}" "${TEACHER_MODEL_2}" "${TEACHER_MODEL_3}" "${TEACHER_MODEL_4}")
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 
-# Distillation strategy
-# Available strategies: uniform_mean, routing, reinforced_selection
-TEACHER_WEIGHTING_STRATEGY="${TEACHER_WEIGHTING_STRATEGY:-routing}"
-
-DISTILLATION_LOSS="trie_wasserstein_loss"
+DISTILLATION_LOSS="uld_loss"
 STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-1.0}"
 TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-1.0}"
-# Relaxed trie-loss setting: lower rho downweights deep byte-level differences,
-# and smaller top-k reduces per-teacher trie/GRACE cost.
-TRIE_WASSERSTEIN_RHO="${TRIE_WASSERSTEIN_RHO:-0.5}"
-TRIE_WASSERSTEIN_TOPK="${TRIE_WASSERSTEIN_TOPK:-64}"
-TRIE_TAIL_DEPTH="${TRIE_TAIL_DEPTH:-1}"
-TRIE_TAIL_WEIGHT="${TRIE_TAIL_WEIGHT:-0.5}"
 
 # KD scaling knob. Override with `ALPHA=0.3 bash scripts/train/distill_multi_teachers.sh`.
 ALPHA="${ALPHA:-0.2}"
@@ -46,17 +36,10 @@ ALPHA="${ALPHA:-0.2}"
 # Router-based weighting knobs
 TEACHER_GATE_TOP_K="${TEACHER_GATE_TOP_K:-2}"
 TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO="${TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO:-0.0}"
-TEACHER_GATE_CAPACITY_FACTOR="${TEACHER_GATE_CAPACITY_FACTOR:-1.25}"
-TEACHER_GATE_TEMPERATURE="${TEACHER_GATE_TEMPERATURE:-1.5}"
-TEACHER_GATE_NOISE_STD="${TEACHER_GATE_NOISE_STD:-0.01}"
-TEACHER_GATE_BALANCE_ALPHA="${TEACHER_GATE_BALANCE_ALPHA:-0.01}"
-TEACHER_GATE_ENTROPY_ALPHA="${TEACHER_GATE_ENTROPY_ALPHA:-0.001}"
-TEACHER_GATE_ROUTER_Z_LOSS_ALPHA="${TEACHER_GATE_ROUTER_Z_LOSS_ALPHA:-0.001}"
 
 # GRACE weighting knobs
 GRACE_THRESHOLD="${GRACE_THRESHOLD:-0.15}"
 GRACE_WARMUP_RATIO="${GRACE_WARMUP_RATIO:-0.05}"
-GRACE_EPSILON="${GRACE_EPSILON:-0.01}"
 GRACE_SOFTMAX_BETA="${GRACE_SOFTMAX_BETA:-4.0}"
 GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.9}"
 GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.8}"
@@ -77,7 +60,6 @@ NUM_TEACHERS=4
 DATASET_NAME="docvqa"
 NUM_TRAIN_EPOCHS="${NUM_TRAIN_EPOCHS:-1.0}"
 PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-40}"
-GRADIENT_ACCUMULATION_STEPS="${GRADIENT_ACCUMULATION_STEPS:-1}"
 LOGGING_STEPS="${LOGGING_STEPS:-5}"
 AUTO_STOP_VAST_INSTANCE="${AUTO_STOP_VAST_INSTANCE:-1}"
 
@@ -87,10 +69,8 @@ TEACHER_NAME_1="${TEACHER_MODEL_1##*/}"
 TEACHER_NAME_2="${TEACHER_MODEL_2##*/}"
 TEACHER_NAME_3="${TEACHER_MODEL_3##*/}"
 TEACHER_NAME_4="${TEACHER_MODEL_4##*/}"
-TRIE_WASSERSTEIN_RHO_TAG="${TRIE_WASSERSTEIN_RHO//./p}"
-TRIE_TAIL_WEIGHT_TAG="${TRIE_TAIL_WEIGHT//./p}"
 ALPHA_TAG="${ALPHA//./p}"
-RUN_TAG="${RUN_TAG:-alpha_scaling${TRIE_WASSERSTEIN_RHO_TAG}_topk${TRIE_WASSERSTEIN_TOPK}_taild${TRIE_TAIL_DEPTH}_tailw${TRIE_TAIL_WEIGHT_TAG}_alpha${ALPHA_TAG}_$(date +%Y%m%d_%H%M)}"
+RUN_TAG="${RUN_TAG:-uld_alpha${ALPHA_TAG}_$(date +%Y%m%d_%H%M)}"
 OUTPUT_DIR="output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${TEACHER_NAME_3}_${TEACHER_NAME_4}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
 
 EXTRA_ARGS=(
@@ -136,36 +116,22 @@ stop_vast_instance() {
 python src/train/train_distillation.py \
     --student_model_id "$STUDENT_MODEL" \
     --teacher_model_ids "${TEACHER_MODEL_IDS[@]}" \
-    --teacher_weighting_strategy "$TEACHER_WEIGHTING_STRATEGY" \
     --data_path data/${DATASET_NAME}/train_llava.json \
     --image_folder data/${DATASET_NAME}/images \
-    --distillation_loss "$DISTILLATION_LOSS" \
-    --trie_wasserstein_rho "$TRIE_WASSERSTEIN_RHO" \
-    --trie_wasserstein_topk "$TRIE_WASSERSTEIN_TOPK" \
-    --trie_tail_depth "$TRIE_TAIL_DEPTH" \
-    --trie_tail_weight "$TRIE_TAIL_WEIGHT" \
     --bf16 True \
     --output_dir "$OUTPUT_DIR" \
     --student_temperature "$STUDENT_TEMPERATURE" \
     --teacher_temperature "$TEACHER_TEMPERATURE" \
     --alpha "$ALPHA" \
-    --teacher_gate_balance_alpha "$TEACHER_GATE_BALANCE_ALPHA" \
     --teacher_gate_top_k "$TEACHER_GATE_TOP_K" \
-    --teacher_gate_capacity_factor "$TEACHER_GATE_CAPACITY_FACTOR" \
-    --teacher_gate_temperature "$TEACHER_GATE_TEMPERATURE" \
-    --teacher_gate_noise_std "$TEACHER_GATE_NOISE_STD" \
-    --teacher_gate_entropy_alpha "$TEACHER_GATE_ENTROPY_ALPHA" \
-    --teacher_gate_router_z_loss_alpha "$TEACHER_GATE_ROUTER_Z_LOSS_ALPHA" \
     --teacher_gate_hard_routing_warmup_ratio "$TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO" \
     --grace_threshold "$GRACE_THRESHOLD" \
     --grace_warmup_ratio "$GRACE_WARMUP_RATIO" \
-    --grace_epsilon "$GRACE_EPSILON" \
     --grace_softmax_beta "$GRACE_SOFTMAX_BETA" \
     --grace_router_blend_lambda "$GRACE_ROUTER_BLEND_LAMBDA" \
     --grace_ema_decay "$GRACE_EMA_DECAY" \
     --num_train_epochs "$NUM_TRAIN_EPOCHS" \
     --per_device_train_batch_size "$PER_DEVICE_TRAIN_BATCH_SIZE" \
-    --gradient_accumulation_steps "$GRADIENT_ACCUMULATION_STEPS" \
     --learning_rate 1e-5 \
     --warmup_ratio 0.03 \
     --lr_scheduler_type cosine \

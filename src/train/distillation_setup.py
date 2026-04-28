@@ -115,29 +115,14 @@ class DistillationArguments:
         metadata={"help": "KD scaling factor in `ce_loss + alpha * kd_loss`."},
     )
 
-    teacher_gate_balance_alpha: float = field(
-        default=1e-2,
-        metadata={"help": "Weight on the teacher-gate balancing loss."},
-    )
-
     teacher_gate_top_k: int = field(
         default=1,
-        metadata={"help": "Top-k teachers retained per sample before applying capacity constraints."},
-    )
-
-    teacher_gate_capacity_factor: float = field(
-        default=1.25,
-        metadata={"help": "Capacity multiplier used by the teacher-gate routing constraints."},
+        metadata={"help": "Top-k teachers retained per sample by the teacher gate."},
     )
 
     teacher_gate_temperature: float = field(
         default=1.5,
         metadata={"help": "Softmax temperature applied to router scores before teacher-gate weighting."},
-    )
-
-    teacher_gate_noise_std: float = field(
-        default=0.01,
-        metadata={"help": "Gaussian noise std added to router scores during training before teacher-gate softmax."},
     )
 
     teacher_gate_entropy_alpha: float = field(
@@ -236,6 +221,12 @@ class DistillationArguments:
                 choices = ", ".join(f"`{choice}`" for choice in sorted(allowed))
                 raise ValueError(f"{arg_name} must be one of: {choices}.")
 
+        if len(self.teacher_model_ids) == 1 and self.teacher_weighting_strategy == "routing":
+            raise ValueError(
+                "Teacher routing requires at least two teachers. "
+                "For one teacher, use single-teacher distillation without `--teacher_weighting_strategy routing`."
+            )
+
         if not 0.0 < self.trie_wasserstein_rho < 1.0:
             raise ValueError("--trie_wasserstein_rho must be in (0, 1).")
         for arg_name, value in (
@@ -248,7 +239,6 @@ class DistillationArguments:
                 raise ValueError(f"{arg_name} must be >= 1.")
 
         for arg_name, value in (
-            ("--teacher_gate_capacity_factor", self.teacher_gate_capacity_factor),
             ("--teacher_gate_temperature", self.teacher_gate_temperature),
             ("--trie_tail_weight", self.trie_tail_weight),
             ("--grace_softmax_beta", self.grace_softmax_beta),
@@ -261,8 +251,6 @@ class DistillationArguments:
         for arg_name, value in (
             ("--layer_distill_weight", self.layer_distill_weight),
             ("--alpha", self.alpha),
-            ("--teacher_gate_balance_alpha", self.teacher_gate_balance_alpha),
-            ("--teacher_gate_noise_std", self.teacher_gate_noise_std),
             ("--teacher_gate_entropy_alpha", self.teacher_gate_entropy_alpha),
             ("--teacher_gate_router_z_loss_alpha", self.teacher_gate_router_z_loss_alpha),
             ("--teacher_gate_hard_routing_warmup_ratio", self.teacher_gate_hard_routing_warmup_ratio),
@@ -321,11 +309,13 @@ def log_distillation_setup(
     if distillation_args.teacher_logits_remote_uri:
         print(f"Teacher Logits Remote URI: {distillation_args.teacher_logits_remote_uri}")
     print(
-        "Teacher Weighting: learned deep gate + balancing + GRACE routing"
+        "Teacher Weighting: learned deep gate + GRACE routing"
         if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing"
         else (
             "Teacher Weighting: reinforced teacher selection"
             if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "reinforced_selection"
+            else "Teacher Weighting: single teacher"
+            if len(teacher_ids) == 1
             else "Teacher Weighting: uniform mean"
         )
     )
@@ -350,11 +340,8 @@ def log_distillation_setup(
     print(f"Skip Student EOS: {distillation_args.skip_student_eos}")
     print(f"Skip Teacher EOS: {distillation_args.skip_teacher_eos}")
     if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing":
-        print(f"Teacher Gate Balance Alpha: {distillation_args.teacher_gate_balance_alpha}")
         print(f"Teacher Gate Top-k: {distillation_args.teacher_gate_top_k}")
-        print(f"Teacher Gate Capacity Factor: {distillation_args.teacher_gate_capacity_factor}")
         print(f"Teacher Gate Temperature: {distillation_args.teacher_gate_temperature}")
-        print(f"Teacher Gate Noise Std: {distillation_args.teacher_gate_noise_std}")
         print(f"Teacher Gate Entropy Alpha: {distillation_args.teacher_gate_entropy_alpha}")
         print(
             f"Teacher Gate Router Z-Loss Alpha: "

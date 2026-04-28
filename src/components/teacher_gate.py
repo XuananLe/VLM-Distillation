@@ -22,7 +22,7 @@ class DeepRouter(nn.Module):
 
     @staticmethod
     def resolve_hidden_size(num_experts: int) -> int:
-        """Choose router width from expert count; input is number of experts, output is an int hidden size, and this exists as a lightweight capacity heuristic."""
+        """Choose router width from expert count."""
         # This size ladder is heuristic: small teacher sets do not need a wide router,
         # but larger mixtures get a wider hidden layer to avoid a severe bottleneck.
         if num_experts <= 4:
@@ -49,7 +49,6 @@ class Gate(nn.Module):
         model: nn.Module,
         num_teachers: int,
         router_temperature: float = 1.0,
-        router_noise_std: float = 0.0,
     ):
         """Initialize routing state and register the pre-lm-head hook; input is the student model plus routing hyperparameters, output is an initialized gate, and this exists to keep routing setup out of trainer code."""
         super().__init__()
@@ -57,7 +56,6 @@ class Gate(nn.Module):
         self.router = DeepRouter(hidden_size, num_teachers)
 
         self.router_temperature = router_temperature
-        self.router_noise_std = router_noise_std
         self.hidden_state = None
         # Capture the hidden state immediately before lm_head so routing uses the
         # same student context as the token prediction head.
@@ -145,11 +143,8 @@ class Gate(nn.Module):
         return self.router(pooled_features)
 
     def prepare_routing_scores(self, router_logits: torch.Tensor) -> torch.Tensor:
-        """Turn raw logits into routing scores; input is router logits, output is temperature/noise-adjusted scores, and this exists to separate scoring policy from final softmax."""
-        routing_scores = router_logits
-        if self.training and self.router_noise_std > 0.0:
-            routing_scores = routing_scores + torch.randn_like(routing_scores) * self.router_noise_std
-        return routing_scores / self.router_temperature
+        """Turn raw logits into routing scores before top-k and softmax."""
+        return router_logits / self.router_temperature
 
     def forward(
         self,
@@ -161,33 +156,7 @@ class Gate(nn.Module):
         router_logits = self.compute_router_logits(labels=labels, attention_mask=attention_mask)
         return torch.softmax(self.prepare_routing_scores(router_logits), dim=-1)
 
-
-def maybe_create_teacher_gate(
-    *,
-    model,
-    num_teachers: int,
-    teacher_weighting_strategy: str,
-    teacher_gate_temperature: float,
-    teacher_gate_noise_std: float,
-):
-    """Build and attach the routing gate only for multi-teacher routing runs."""
-    if num_teachers <= 1 or teacher_weighting_strategy != "routing":
-        return None
-
-    # The gate is attached to the student model so its forward hook can reuse the
-    # same hidden state captured immediately before the student's lm_head.
-    teacher_gate = Gate(
-        model,
-        num_teachers,
-        router_temperature=teacher_gate_temperature,
-        router_noise_std=teacher_gate_noise_std,
-    )
-    model.teacher_gate = teacher_gate
-    return teacher_gate
-
-
 __all__ = [
     "DeepRouter",
     "Gate",
-    "maybe_create_teacher_gate",
 ]

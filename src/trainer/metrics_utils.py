@@ -24,13 +24,8 @@ def build_distillation_train_metrics(
     teacher_gate_weights: torch.Tensor | None,
     teacher_gate_logits: torch.Tensor | None,
     teacher_gate_routing_scores: torch.Tensor | None,
-    teacher_gate_balance_loss: torch.Tensor | None,
     teacher_gate_entropy_loss: torch.Tensor | None,
     teacher_gate_z_loss: torch.Tensor | None,
-    teacher_gate_capacity,
-    teacher_gate_routing_fallback_rate: torch.Tensor | None,
-    teacher_gate_soft_load: torch.Tensor | None,
-    teacher_gate_hard_load: torch.Tensor | None,
     teacher_gate_assignment_rate: torch.Tensor | None,
     teacher_grace_scores: torch.Tensor | None,
     teacher_grace_active: torch.Tensor | None,
@@ -79,14 +74,12 @@ def build_distillation_train_metrics(
     metrics.update(summarize_teacher_vector("teacher_gate_routed_w", routed_teacher_gate_weights))
     metrics.update(summarize_teacher_vector("teacher_gate_logit", teacher_gate_logits))
     metrics.update(summarize_teacher_vector("teacher_gate_score", teacher_gate_routing_scores))
-    metrics["teacher_gate_balance_loss"] = teacher_gate_balance_loss.item()
     metrics["teacher_gate_entropy_loss"] = (
         teacher_gate_entropy_loss.item() if teacher_gate_entropy_loss is not None else 0.0
     )
     metrics["teacher_gate_router_z_loss"] = (
         teacher_gate_z_loss.item() if teacher_gate_z_loss is not None else 0.0
     )
-    metrics["teacher_gate_capacity"] = float(teacher_gate_capacity)
     metrics["teacher_gate_router_entropy"] = mean_categorical_entropy(
         teacher_gate_weights
     ).item()
@@ -97,20 +90,7 @@ def build_distillation_train_metrics(
     metrics["teacher_gate_active_teachers"] = (
         routed_teacher_gate_weights > 0
     ).to(dtype=logged_weights.dtype).sum(dim=-1).mean().item()
-    metrics["teacher_gate_routing_fallback_rate"] = teacher_gate_routing_fallback_rate.item()
     metrics["teacher_grace_routing_active"] = float(grace_routing_active)
-    metrics.update(
-        {
-            f"teacher_gate_soft_load_{teacher_index}": load.item()
-            for teacher_index, load in enumerate(teacher_gate_soft_load.detach())
-        }
-    )
-    metrics.update(
-        {
-            f"teacher_gate_hard_load_{teacher_index}": load.item()
-            for teacher_index, load in enumerate(teacher_gate_hard_load.detach())
-        }
-    )
     metrics.update(
         {
             f"teacher_gate_assignment_rate_{teacher_index}": rate.item()

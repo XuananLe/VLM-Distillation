@@ -8,8 +8,7 @@ from src.components.grace import apply_grace_routing
 from src.components.reinforced_teacher_selection import compute_reinforced_selection_state
 from src.trainer.teacher_loss_utils import compute_teacher_loss_matrix
 from src.trainer.routing_utils import (
-    apply_teacher_gate_constraints,
-    compute_teacher_gate_balance_loss,
+    apply_teacher_gate_topk,
     compute_teacher_gate_entropy_loss,
     compute_teacher_gate_z_loss,
 )
@@ -158,16 +157,9 @@ def compute_layer_distillation_loss(
 def apply_teacher_gate_routing(*, trainer, teacher_gate_logits, teacher_gate_weights, teacher_gate_routing_scores):
     """Apply gate constraints and auxiliary routing losses to the current teacher-gate outputs."""
     state = {
-        "teacher_gate_balance_loss": None,
         "teacher_gate_entropy_loss": None,
         "teacher_gate_z_loss": None,
-        "teacher_gate_soft_load": None,
-        "teacher_gate_hard_load": None,
-        "teacher_gate_capacity": None,
         "teacher_gate_assignment_rate": None,
-        "teacher_gate_expert_load": None,
-        "teacher_gate_routing_fallback_rate": None,
-        "teacher_gate_assignment_mask": None,
         "routed_teacher_gate_weights": teacher_gate_weights,
     }
 
@@ -177,26 +169,11 @@ def apply_teacher_gate_routing(*, trainer, teacher_gate_logits, teacher_gate_wei
         state["teacher_gate_entropy_loss"] = compute_teacher_gate_entropy_loss(teacher_gate_weights)
         (
             state["routed_teacher_gate_weights"],
-            state["teacher_gate_capacity"],
             state["teacher_gate_assignment_rate"],
-            state["teacher_gate_expert_load"],
-            state["teacher_gate_routing_fallback_rate"],
-            state["teacher_gate_assignment_mask"],
-        ) = apply_teacher_gate_constraints(
+        ) = apply_teacher_gate_topk(
             teacher_gate_routing_scores,
             teacher_gate_weights,
             trainer.current_teacher_gate_top_k(),
-            trainer.teacher_gate_capacity_factor,
-        )
-        (
-            state["teacher_gate_balance_loss"],
-            state["teacher_gate_soft_load"],
-            state["teacher_gate_hard_load"],
-        ) = compute_teacher_gate_balance_loss(
-            teacher_gate_weights,
-            trainer.current_teacher_gate_top_k(),
-            routing_scores=teacher_gate_routing_scores,
-            assignment_mask=state["teacher_gate_assignment_mask"],
         )
     state["routing_constraint_time"] = time.perf_counter() - routing_constraint_start_time
     return state
@@ -376,7 +353,6 @@ def compute_total_loss(
     ce_loss,
     distillation_loss,
     layer_distillation_loss,
-    teacher_gate_balance_loss,
     teacher_gate_entropy_loss,
     teacher_gate_z_loss,
     teacher_selection_policy_loss=None,
@@ -385,8 +361,6 @@ def compute_total_loss(
     loss = ce_loss + base_kd_loss
     if layer_distillation_loss is not None:
         loss = loss + layer_distillation_loss * trainer.layer_distill_weight
-    if teacher_gate_balance_loss is not None:
-        loss = loss + teacher_gate_balance_loss * trainer.teacher_gate_balance_alpha
     if teacher_gate_entropy_loss is not None:
         loss = loss + teacher_gate_entropy_loss * trainer.teacher_gate_entropy_alpha
     if teacher_gate_z_loss is not None:

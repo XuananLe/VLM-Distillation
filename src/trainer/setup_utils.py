@@ -1,4 +1,3 @@
-from src.components.teacher_gate import maybe_create_teacher_gate
 from src.components.reinforced_teacher_selection import ReinforcedTeacherSelectionPolicy
 
 
@@ -80,11 +79,8 @@ def log_distillation_trainer_setup(
     skip_teacher_eos: bool,
     alpha: float,
     teacher_gate,
-    teacher_gate_balance_alpha: float,
     teacher_gate_top_k: int,
-    teacher_gate_capacity_factor: float,
     teacher_gate_temperature: float,
-    teacher_gate_noise_std: float,
     teacher_gate_entropy_alpha: float,
     teacher_gate_router_z_loss_alpha: float,
     teacher_gate_hard_routing_warmup_ratio: float,
@@ -112,9 +108,11 @@ def log_distillation_trainer_setup(
     print("Distillation Trainer initialized:")
     print(f"  - Teachers: {num_teachers}")
     if num_teachers > 1 and teacher_weighting_strategy == "routing":
-        print("  - Teacher weighting: learned deep gate + balancing + GRACE routing")
+        print("  - Teacher weighting: learned deep gate + GRACE routing")
     elif num_teachers > 1 and teacher_weighting_strategy == "reinforced_selection":
         print("  - Teacher weighting: reinforced teacher selection")
+    elif num_teachers == 1:
+        print("  - Teacher weighting: single teacher")
     else:
         print("  - Teacher weighting: uniform mean")
     print(f"  - Loss function: {loss_function}")
@@ -158,11 +156,8 @@ def log_distillation_trainer_setup(
     else:
         print("  - Layer distillation: disabled")
     if teacher_gate is not None:
-        print(f"  - Teacher gate balance alpha: {teacher_gate_balance_alpha}")
         print(f"  - Teacher gate top-k: {teacher_gate_top_k}")
-        print(f"  - Teacher gate capacity factor: {teacher_gate_capacity_factor}")
         print(f"  - Teacher gate temperature: {teacher_gate_temperature}")
-        print(f"  - Teacher gate noise std: {teacher_gate_noise_std}")
         print(f"  - Teacher gate entropy alpha: {teacher_gate_entropy_alpha}")
         print(f"  - Teacher gate router z-loss alpha: {teacher_gate_router_z_loss_alpha}")
         print(
@@ -191,7 +186,6 @@ def log_distillation_trainer_setup(
 
 __all__ = [
     "log_distillation_trainer_setup",
-    "maybe_create_teacher_gate",
     "maybe_create_reinforced_teacher_selector",
     "normalize_teacher_models",
 ]

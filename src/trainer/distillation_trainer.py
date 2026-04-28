@@ -3,10 +3,10 @@ from typing import override
 
 from transformers import PreTrainedModel, Trainer
 
+from src.components.teacher_gate import Gate
 from src.trainer.metrics_utils import build_distillation_train_metrics
 from src.trainer.setup_utils import (
     log_distillation_trainer_setup,
-    maybe_create_teacher_gate,
     maybe_create_reinforced_teacher_selector,
     normalize_teacher_models,
 )
@@ -43,11 +43,8 @@ class DistillationTrainer(Trainer):
         skip_student_eos: bool = False,
         skip_teacher_eos: bool = False,
         alpha: float = 1.0,
-        teacher_gate_balance_alpha: float = 1e-2,
         teacher_gate_top_k: int = 1,
-        teacher_gate_capacity_factor: float = 1.25,
         teacher_gate_temperature: float = 1.5,
-        teacher_gate_noise_std: float = 0.01,
         teacher_gate_entropy_alpha: float = 1e-3,
         teacher_gate_router_z_loss_alpha: float = 1e-3,
         teacher_gate_hard_routing_warmup_ratio: float = 0.2,
@@ -122,13 +119,18 @@ class DistillationTrainer(Trainer):
                 list(student_layer_indices or []),
                 self.teacher_layer_indices,
             )
-        self.teacher_gate = maybe_create_teacher_gate(
-            model=self.model,
-            num_teachers=self.num_teachers,
-            teacher_weighting_strategy=self.teacher_weighting_strategy,
-            teacher_gate_temperature=teacher_gate_temperature,
-            teacher_gate_noise_std=teacher_gate_noise_std,
-        )
+        self.teacher_gate = None
+        if self.teacher_weighting_strategy == "routing":
+            if self.num_teachers <= 1:
+                raise ValueError(
+                    "Teacher routing requires at least two teachers; use single-teacher distillation instead."
+                )
+            self.teacher_gate = Gate(
+                self.model,
+                self.num_teachers,
+                router_temperature=teacher_gate_temperature,
+            )
+            self.model.teacher_gate = self.teacher_gate
         self.reinforced_teacher_selector = maybe_create_reinforced_teacher_selector(
             model=self.model,
             num_teachers=self.num_teachers,
@@ -140,11 +142,8 @@ class DistillationTrainer(Trainer):
         self.skip_student_eos = skip_student_eos
         self.skip_teacher_eos = skip_teacher_eos
         self.alpha = alpha
-        self.teacher_gate_balance_alpha = teacher_gate_balance_alpha
         self.teacher_gate_top_k = teacher_gate_top_k
-        self.teacher_gate_capacity_factor = teacher_gate_capacity_factor
         self.teacher_gate_temperature = teacher_gate_temperature
-        self.teacher_gate_noise_std = teacher_gate_noise_std
         self.teacher_gate_entropy_alpha = teacher_gate_entropy_alpha
         self.teacher_gate_router_z_loss_alpha = teacher_gate_router_z_loss_alpha
         self.teacher_gate_hard_routing_warmup_ratio = teacher_gate_hard_routing_warmup_ratio
@@ -183,11 +182,8 @@ class DistillationTrainer(Trainer):
             skip_teacher_eos=self.skip_teacher_eos,
             alpha=alpha,
             teacher_gate=self.teacher_gate,
-            teacher_gate_balance_alpha=teacher_gate_balance_alpha,
             teacher_gate_top_k=teacher_gate_top_k,
-            teacher_gate_capacity_factor=teacher_gate_capacity_factor,
             teacher_gate_temperature=teacher_gate_temperature,
-            teacher_gate_noise_std=teacher_gate_noise_std,
             teacher_gate_entropy_alpha=teacher_gate_entropy_alpha,
             teacher_gate_router_z_loss_alpha=teacher_gate_router_z_loss_alpha,
             teacher_gate_hard_routing_warmup_ratio=teacher_gate_hard_routing_warmup_ratio,
@@ -327,7 +323,6 @@ class DistillationTrainer(Trainer):
             ce_loss=ce_loss,
             distillation_loss=grace_and_loss["distillation_loss"],
             layer_distillation_loss=layer_and_loss["layer_distillation_loss"],
-            teacher_gate_balance_loss=gate_routing["teacher_gate_balance_loss"],
             teacher_gate_entropy_loss=gate_routing["teacher_gate_entropy_loss"],
             teacher_gate_z_loss=gate_routing["teacher_gate_z_loss"],
             teacher_selection_policy_loss=grace_and_loss["teacher_selection_policy_loss"],
@@ -357,13 +352,8 @@ class DistillationTrainer(Trainer):
                 teacher_gate_weights=student_and_gate["teacher_gate_weights"],
                 teacher_gate_logits=student_and_gate["teacher_gate_logits"],
                 teacher_gate_routing_scores=student_and_gate["teacher_gate_routing_scores"],
-                teacher_gate_balance_loss=gate_routing["teacher_gate_balance_loss"],
                 teacher_gate_entropy_loss=gate_routing["teacher_gate_entropy_loss"],
                 teacher_gate_z_loss=gate_routing["teacher_gate_z_loss"],
-                teacher_gate_capacity=gate_routing["teacher_gate_capacity"],
-                teacher_gate_routing_fallback_rate=gate_routing["teacher_gate_routing_fallback_rate"],
-                teacher_gate_soft_load=gate_routing["teacher_gate_soft_load"],
-                teacher_gate_hard_load=gate_routing["teacher_gate_hard_load"],
                 teacher_gate_assignment_rate=gate_routing["teacher_gate_assignment_rate"],
                 teacher_grace_scores=grace_and_loss["teacher_grace_scores"],
                 teacher_grace_active=grace_and_loss["teacher_grace_active"],
