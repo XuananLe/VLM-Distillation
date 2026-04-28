@@ -121,7 +121,7 @@ class DistillationArguments:
     )
 
     teacher_gate_temperature: float = field(
-        default=1.5,
+        default=1.0,
         metadata={"help": "Softmax temperature applied to router scores before teacher-gate weighting."},
     )
 

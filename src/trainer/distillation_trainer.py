@@ -44,7 +44,7 @@ class DistillationTrainer(Trainer):
         skip_teacher_eos: bool = False,
         alpha: float = 1.0,
         teacher_gate_top_k: int = 1,
-        teacher_gate_temperature: float = 1.5,
+        teacher_gate_temperature: float = 1.0,
         teacher_gate_entropy_alpha: float = 1e-3,
         teacher_gate_router_z_loss_alpha: float = 1e-3,
         teacher_gate_hard_routing_warmup_ratio: float = 0.2,
