@@ -13,8 +13,14 @@ from src.constants import TOKENIZER_VOCAB_SIZES
 
 EOS_SENTINEL = 256
 # Byte values live in [0, 255], so 256 is a clean end-of-token marker for the trie.
-TRIE_CACHE_VERSION = 1
+TRIE_CACHE_VERSION = 2
 DEFAULT_TRIE_CACHE_DIR = "/dev/shm/vlm_distillation_trie_cache"
+SMOLVLM_IMAGE_SPECIAL_TOKENS = (
+    "<image>",
+    "<fake_token_around_image>",
+    "<global-img>",
+    *(f"<row_{row}_col_{col}>" for row in range(1, 7) for col in range(1, 7)),
+)
 
 
 def normalize_model_id(model_id) -> str | None:
@@ -64,11 +70,25 @@ def token_piece_to_bytes(tokenizer, token_id: int) -> bytes:
 
 def default_ignored_token_ids(tokenizer) -> set[int]:
     """Return special token ids ignored by trie OT; input is a tokenizer, output is a set of ids, and this exists to skip non-semantic pad/bos tokens."""
-    ignored = set()
-    for attr_name in ("pad_token_id", "bos_token_id"):
+    ignored = set(getattr(tokenizer, "all_special_ids", []) or [])
+    for attr_name in (
+        "pad_token_id",
+        "bos_token_id",
+        "eos_token_id",
+        "unk_token_id",
+    ):
         token_id = getattr(tokenizer, attr_name, None)
         if token_id is not None:
             ignored.add(int(token_id))
+
+    unknown_token_id = getattr(tokenizer, "unk_token_id", None)
+    for token in SMOLVLM_IMAGE_SPECIAL_TOKENS:
+        if not hasattr(tokenizer, "convert_tokens_to_ids"):
+            break
+        token_id = tokenizer.convert_tokens_to_ids(token)
+        if token_id is None or token_id == unknown_token_id:
+            continue
+        ignored.add(int(token_id))
     return ignored
 
 
@@ -85,6 +105,7 @@ class TrieBuildResult:
     path_flat: torch.Tensor
     path_offsets: torch.Tensor
     ignored_mask: torch.Tensor
+    prefix_bucket_ids: torch.Tensor
 
 
 @dataclass(slots=True)
@@ -94,15 +115,20 @@ class TrieRuntimeState:
     student_path_flat_cpu: torch.Tensor
     student_path_offsets_cpu: torch.Tensor
     student_ignored_mask_cpu: torch.Tensor
+    student_prefix_bucket_ids_cpu: torch.Tensor
     teacher_path_flat_cpu: torch.Tensor
     teacher_path_offsets_cpu: torch.Tensor
     teacher_ignored_mask_cpu: torch.Tensor
-    tail_edge_id: int
+    teacher_prefix_bucket_ids_cpu: torch.Tensor
+    prefix_tail_path_flat_cpu: torch.Tensor
+    prefix_tail_path_offsets_cpu: torch.Tensor
     num_edges: int
+    num_prefix_tail_buckets: int
     student_valid_count: int
     teacher_valid_count: int
     student_max_path_len: int
     teacher_max_path_len: int
+    max_prefix_tail_path_len: int
 
 
 @lru_cache(maxsize=4)
@@ -156,6 +182,19 @@ def insert_token_bytes(
     return path
 
 
+def pack_paths(paths: list[list[int]]) -> tuple[torch.Tensor, torch.Tensor]:
+    """Pack variable-length edge-id paths into flat ids plus offsets."""
+    flat: list[int] = []
+    offsets = [0]
+    for path in paths:
+        flat.extend(path)
+        offsets.append(len(flat))
+    return (
+        torch.tensor(flat, dtype=torch.long),
+        torch.tensor(offsets, dtype=torch.long),
+    )
+
+
 def build_tokenizer_paths(
     *,
     tokenizer,
@@ -163,13 +202,18 @@ def build_tokenizer_paths(
     ignored_token_ids: tuple[int, ...],
     root: TrieNode,
     edge_weights: list[float],
+    prefix_bucket_to_id: dict[tuple[int, ...], int],
+    prefix_tail_paths: list[list[int]],
     rho: float,
+    tail_depth: int,
+    tail_weight: float,
 ) -> TrieBuildResult:
     """Build flattened trie paths for one tokenizer so runtime path lookup is cheap."""
     ignored_token_ids_set = set(ignored_token_ids)
     path_flat: list[int] = []
     path_offsets = [0]
     ignored_mask = torch.zeros(vocab_size, dtype=torch.bool)
+    prefix_bucket_ids = torch.zeros(vocab_size, dtype=torch.long)
 
     for token_id in range(vocab_size):
         if token_id in ignored_token_ids_set:
@@ -179,9 +223,9 @@ def build_tokenizer_paths(
 
         token_bytes = list(token_piece_to_bytes(tokenizer, token_id))
         # Prefix tokens and longer tokens need distinct terminal paths.
-        token_bytes.append(EOS_SENTINEL)
+        full_token_bytes = token_bytes + [EOS_SENTINEL]
         path = insert_token_bytes(
-            token_bytes=token_bytes,
+            token_bytes=full_token_bytes,
             root=root,
             edge_weights=edge_weights,
             rho=rho,
@@ -189,10 +233,28 @@ def build_tokenizer_paths(
         path_flat.extend(path)
         path_offsets.append(len(path_flat))
 
+        prefix_bytes = token_bytes[:tail_depth] or [EOS_SENTINEL]
+        prefix_key = tuple(prefix_bytes)
+        prefix_path = insert_token_bytes(
+            token_bytes=prefix_bytes,
+            root=root,
+            edge_weights=edge_weights,
+            rho=rho,
+        )
+        bucket_id = prefix_bucket_to_id.get(prefix_key)
+        if bucket_id is None:
+            bucket_id = len(prefix_tail_paths)
+            prefix_bucket_to_id[prefix_key] = bucket_id
+            tail_edge_id = len(edge_weights)
+            edge_weights.append(float(tail_weight) * (float(rho) ** len(prefix_path)))
+            prefix_tail_paths.append(prefix_path + [tail_edge_id])
+        prefix_bucket_ids[token_id] = bucket_id
+
     return TrieBuildResult(
         path_flat=torch.tensor(path_flat, dtype=torch.long),
         path_offsets=torch.tensor(path_offsets, dtype=torch.long),
         ignored_mask=ignored_mask,
+        prefix_bucket_ids=prefix_bucket_ids,
     )
 
 
@@ -208,6 +270,8 @@ def build_trie_state_from_tokenizers(
     student_ignored_token_ids: tuple[int, ...],
     teacher_ignored_token_ids: tuple[int, ...],
     rho: float,
+    tail_depth: int,
+    tail_weight: float,
     student_tokenizer,
     teacher_tokenizer,
 ) -> TrieRuntimeState:
@@ -217,13 +281,19 @@ def build_trie_state_from_tokenizers(
 
     root = TrieNode()
     edge_weights: list[float] = []
+    prefix_bucket_to_id: dict[tuple[int, ...], int] = {}
+    prefix_tail_paths: list[list[int]] = []
     student_paths = build_tokenizer_paths(
         tokenizer=student_tokenizer,
         vocab_size=student_vocab_size,
         ignored_token_ids=student_ignored_token_ids,
         root=root,
         edge_weights=edge_weights,
+        prefix_bucket_to_id=prefix_bucket_to_id,
+        prefix_tail_paths=prefix_tail_paths,
         rho=rho,
+        tail_depth=tail_depth,
+        tail_weight=tail_weight,
     )
     teacher_paths = build_tokenizer_paths(
         tokenizer=teacher_tokenizer,
@@ -231,26 +301,34 @@ def build_trie_state_from_tokenizers(
         ignored_token_ids=teacher_ignored_token_ids,
         root=root,
         edge_weights=edge_weights,
+        prefix_bucket_to_id=prefix_bucket_to_id,
+        prefix_tail_paths=prefix_tail_paths,
         rho=rho,
+        tail_depth=tail_depth,
+        tail_weight=tail_weight,
     )
 
-    tail_edge_id = len(edge_weights)
-    edge_weights.append(1.0)
+    prefix_tail_path_flat, prefix_tail_path_offsets = pack_paths(prefix_tail_paths)
     num_edges = len(edge_weights)
 
     student_path_lengths = student_paths.path_offsets[1:] - student_paths.path_offsets[:-1]
     teacher_path_lengths = teacher_paths.path_offsets[1:] - teacher_paths.path_offsets[:-1]
+    prefix_tail_path_lengths = prefix_tail_path_offsets[1:] - prefix_tail_path_offsets[:-1]
 
     return TrieRuntimeState(
         edge_weights_cpu=torch.tensor(edge_weights, dtype=torch.float32),
         student_path_flat_cpu=student_paths.path_flat,
         student_path_offsets_cpu=student_paths.path_offsets,
         student_ignored_mask_cpu=student_paths.ignored_mask,
+        student_prefix_bucket_ids_cpu=student_paths.prefix_bucket_ids,
         teacher_path_flat_cpu=teacher_paths.path_flat,
         teacher_path_offsets_cpu=teacher_paths.path_offsets,
         teacher_ignored_mask_cpu=teacher_paths.ignored_mask,
-        tail_edge_id=tail_edge_id,
+        teacher_prefix_bucket_ids_cpu=teacher_paths.prefix_bucket_ids,
+        prefix_tail_path_flat_cpu=prefix_tail_path_flat,
+        prefix_tail_path_offsets_cpu=prefix_tail_path_offsets,
         num_edges=num_edges,
+        num_prefix_tail_buckets=len(prefix_tail_paths),
         student_valid_count=int((~student_paths.ignored_mask).sum().item()),
         teacher_valid_count=int((~teacher_paths.ignored_mask).sum().item()),
         student_max_path_len=(
@@ -258,6 +336,9 @@ def build_trie_state_from_tokenizers(
         ),
         teacher_max_path_len=(
             int(teacher_path_lengths.max().item()) if teacher_path_lengths.numel() else 0
+        ),
+        max_prefix_tail_path_len=(
+            int(prefix_tail_path_lengths.max().item()) if prefix_tail_path_lengths.numel() else 0
         ),
     )
 
@@ -273,6 +354,8 @@ def load_or_build_trie_state(
     student_ignored_token_ids: tuple[int, ...],
     teacher_ignored_token_ids: tuple[int, ...],
     rho: float,
+    tail_depth: int,
+    tail_weight: float,
 ) -> TrieRuntimeState:
     """Load static trie state from joblib cache when possible, otherwise build it directly."""
     builder = build_trie_state_from_tokenizers
@@ -294,6 +377,8 @@ def load_or_build_trie_state(
         student_ignored_token_ids=student_ignored_token_ids,
         teacher_ignored_token_ids=teacher_ignored_token_ids,
         rho=float(rho),
+        tail_depth=int(tail_depth),
+        tail_weight=float(tail_weight),
         student_tokenizer=student_tokenizer,
         teacher_tokenizer=teacher_tokenizer,
     )
@@ -306,7 +391,7 @@ class TrieWassersteinLoss(nn.Module):
     This module restores token identity across mismatched vocabularies by
     placing student and teacher token pieces on a shared UTF-8 byte trie and
     computing the weighted subtree-mass imbalance. The implementation uses a
-    sparse top-k approximation with a dedicated tail edge, which keeps the
+    sparse top-k approximation with prefix-tail buckets, which keeps the
     forward pass proportional to the active trie paths rather than a dense
     cost matrix.
     """
@@ -317,6 +402,8 @@ class TrieWassersteinLoss(nn.Module):
         teacher_tokenizer,
         rho: float = 0.7,
         topk: int = 64,
+        tail_depth: int = 1,
+        tail_weight: float = 0.5,
         ignored_student_token_ids: set[int] | None = None,
         ignored_teacher_token_ids: set[int] | None = None,
     ):
@@ -326,6 +413,10 @@ class TrieWassersteinLoss(nn.Module):
             raise ValueError(f"rho must be in (0, 1), got {rho}")
         if int(topk) < 1:
             raise ValueError(f"topk must be >= 1, got {topk}")
+        if int(tail_depth) < 1:
+            raise ValueError(f"tail_depth must be >= 1, got {tail_depth}")
+        if float(tail_weight) <= 0.0:
+            raise ValueError(f"tail_weight must be > 0, got {tail_weight}")
 
         self.student_tokenizer = getattr(student_tokenizer, "tokenizer", None) or student_tokenizer
         self.teacher_tokenizer = getattr(teacher_tokenizer, "tokenizer", None) or teacher_tokenizer
@@ -337,6 +428,8 @@ class TrieWassersteinLoss(nn.Module):
         self.teacher_vocab_size = self.teacher_tokenizer_vocab_size
         self.rho = float(rho)
         self.topk = int(topk)
+        self.tail_depth = int(tail_depth)
+        self.tail_weight = float(tail_weight)
 
         ignored_student = (
             default_ignored_token_ids(self.student_tokenizer)
@@ -359,14 +452,17 @@ class TrieWassersteinLoss(nn.Module):
             student_ignored_token_ids=tuple(sorted(ignored_student)),
             teacher_ignored_token_ids=tuple(sorted(ignored_teacher)),
             rho=self.rho,
+            tail_depth=self.tail_depth,
+            tail_weight=self.tail_weight,
         )
 
-        self.tail_edge_id = trie_state.tail_edge_id
         self.num_edges = trie_state.num_edges
+        self.num_prefix_tail_buckets = trie_state.num_prefix_tail_buckets
         self.student_valid_count = trie_state.student_valid_count
         self.teacher_valid_count = trie_state.teacher_valid_count
         self.student_max_path_len = trie_state.student_max_path_len
         self.teacher_max_path_len = trie_state.teacher_max_path_len
+        self.max_prefix_tail_path_len = trie_state.max_prefix_tail_path_len
 
         self.register_buffer("edge_weights_cpu", trie_state.edge_weights_cpu, persistent=True)
         self.register_buffer("student_path_flat_cpu", trie_state.student_path_flat_cpu, persistent=True)
@@ -380,6 +476,11 @@ class TrieWassersteinLoss(nn.Module):
             trie_state.student_ignored_mask_cpu,
             persistent=True,
         )
+        self.register_buffer(
+            "student_prefix_bucket_ids_cpu",
+            trie_state.student_prefix_bucket_ids_cpu,
+            persistent=True,
+        )
         self.register_buffer("teacher_path_flat_cpu", trie_state.teacher_path_flat_cpu, persistent=True)
         self.register_buffer(
             "teacher_path_offsets_cpu",
@@ -391,17 +492,38 @@ class TrieWassersteinLoss(nn.Module):
             trie_state.teacher_ignored_mask_cpu,
             persistent=True,
         )
+        self.register_buffer(
+            "teacher_prefix_bucket_ids_cpu",
+            trie_state.teacher_prefix_bucket_ids_cpu,
+            persistent=True,
+        )
+        self.register_buffer(
+            "prefix_tail_path_flat_cpu",
+            trie_state.prefix_tail_path_flat_cpu,
+            persistent=True,
+        )
+        self.register_buffer(
+            "prefix_tail_path_offsets_cpu",
+            trie_state.prefix_tail_path_offsets_cpu,
+            persistent=True,
+        )
 
         self.cached_device: torch.device | None = None
         self.edge_weights_device: torch.Tensor | None = None
         self.student_path_flat_device: torch.Tensor | None = None
         self.student_path_offsets_device: torch.Tensor | None = None
         self.student_ignored_mask_device: torch.Tensor | None = None
+        self.student_prefix_bucket_ids_device: torch.Tensor | None = None
         self.teacher_path_flat_device: torch.Tensor | None = None
         self.teacher_path_offsets_device: torch.Tensor | None = None
         self.teacher_ignored_mask_device: torch.Tensor | None = None
+        self.teacher_prefix_bucket_ids_device: torch.Tensor | None = None
+        self.prefix_tail_path_flat_device: torch.Tensor | None = None
+        self.prefix_tail_path_offsets_device: torch.Tensor | None = None
         self.student_path_arange_device: torch.Tensor | None = None
         self.teacher_path_arange_device: torch.Tensor | None = None
+        self.prefix_tail_path_arange_device: torch.Tensor | None = None
+        self.last_prefix_tail_stats: dict[str, dict[str, torch.Tensor | float]] = {}
 
     def invalidate_device_cache(self) -> None:
         """Clear cached device-side trie tensors; input/output are None, and this exists because vocab extension invalidates earlier device copies."""
@@ -410,11 +532,16 @@ class TrieWassersteinLoss(nn.Module):
         self.student_path_flat_device = None
         self.student_path_offsets_device = None
         self.student_ignored_mask_device = None
+        self.student_prefix_bucket_ids_device = None
         self.teacher_path_flat_device = None
         self.teacher_path_offsets_device = None
         self.teacher_ignored_mask_device = None
+        self.teacher_prefix_bucket_ids_device = None
+        self.prefix_tail_path_flat_device = None
+        self.prefix_tail_path_offsets_device = None
         self.student_path_arange_device = None
         self.teacher_path_arange_device = None
+        self.prefix_tail_path_arange_device = None
 
     def extend_vocab_state_with_ignored_tokens(
         self,
@@ -430,6 +557,7 @@ class TrieWassersteinLoss(nn.Module):
             path_flat = self.student_path_flat_cpu
             path_offsets = self.student_path_offsets_cpu
             ignored_mask = self.student_ignored_mask_cpu
+            prefix_bucket_ids = self.student_prefix_bucket_ids_cpu
         elif side == "teacher":
             current_vocab_size = self.teacher_vocab_size
             if target_vocab_size <= current_vocab_size:
@@ -437,6 +565,7 @@ class TrieWassersteinLoss(nn.Module):
             path_flat = self.teacher_path_flat_cpu
             path_offsets = self.teacher_path_offsets_cpu
             ignored_mask = self.teacher_ignored_mask_cpu
+            prefix_bucket_ids = self.teacher_prefix_bucket_ids_cpu
         else:
             raise ValueError(f"Unknown trie side: {side!r}")
 
@@ -447,17 +576,23 @@ class TrieWassersteinLoss(nn.Module):
             [ignored_mask, torch.ones(extra_tokens, dtype=torch.bool)],
             dim=0,
         )
+        extended_prefix_bucket_ids = torch.cat(
+            [prefix_bucket_ids, torch.zeros(extra_tokens, dtype=torch.long)],
+            dim=0,
+        )
 
         if side == "student":
             self.student_vocab_size = target_vocab_size
             self.student_path_flat_cpu = path_flat
             self.student_path_offsets_cpu = extended_offsets
             self.student_ignored_mask_cpu = extended_ignored_mask
+            self.student_prefix_bucket_ids_cpu = extended_prefix_bucket_ids
         else:
             self.teacher_vocab_size = target_vocab_size
             self.teacher_path_flat_cpu = path_flat
             self.teacher_path_offsets_cpu = extended_offsets
             self.teacher_ignored_mask_cpu = extended_ignored_mask
+            self.teacher_prefix_bucket_ids_cpu = extended_prefix_bucket_ids
 
         self.invalidate_device_cache()
 
@@ -470,9 +605,25 @@ class TrieWassersteinLoss(nn.Module):
         self.student_path_flat_device = self.student_path_flat_cpu.to(device=device, non_blocking=True)
         self.student_path_offsets_device = self.student_path_offsets_cpu.to(device=device, non_blocking=True)
         self.student_ignored_mask_device = self.student_ignored_mask_cpu.to(device=device, non_blocking=True)
+        self.student_prefix_bucket_ids_device = self.student_prefix_bucket_ids_cpu.to(
+            device=device,
+            non_blocking=True,
+        )
         self.teacher_path_flat_device = self.teacher_path_flat_cpu.to(device=device, non_blocking=True)
         self.teacher_path_offsets_device = self.teacher_path_offsets_cpu.to(device=device, non_blocking=True)
         self.teacher_ignored_mask_device = self.teacher_ignored_mask_cpu.to(device=device, non_blocking=True)
+        self.teacher_prefix_bucket_ids_device = self.teacher_prefix_bucket_ids_cpu.to(
+            device=device,
+            non_blocking=True,
+        )
+        self.prefix_tail_path_flat_device = self.prefix_tail_path_flat_cpu.to(
+            device=device,
+            non_blocking=True,
+        )
+        self.prefix_tail_path_offsets_device = self.prefix_tail_path_offsets_cpu.to(
+            device=device,
+            non_blocking=True,
+        )
         self.student_path_arange_device = torch.arange(
             self.student_max_path_len,
             device=device,
@@ -480,6 +631,11 @@ class TrieWassersteinLoss(nn.Module):
         )
         self.teacher_path_arange_device = torch.arange(
             self.teacher_max_path_len,
+            device=device,
+            dtype=torch.long,
+        )
+        self.prefix_tail_path_arange_device = torch.arange(
+            self.max_prefix_tail_path_len,
             device=device,
             dtype=torch.long,
         )
@@ -491,6 +647,7 @@ class TrieWassersteinLoss(nn.Module):
         path_flat: torch.Tensor,
         path_offsets: torch.Tensor,
         ignored_mask: torch.Tensor,
+        prefix_bucket_ids: torch.Tensor,
         valid_count: int,
         max_path_len: int,
         path_arange: torch.Tensor,
@@ -501,11 +658,11 @@ class TrieWassersteinLoss(nn.Module):
         device = scaled_logits.device
         dtype = scaled_logits.dtype
         row_base = torch.arange(num_rows, device=device, dtype=torch.long) * self.num_edges
-        tail_keys = row_base + self.tail_edge_id
 
         if valid_count == 0 or max_path_len == 0:
-            tail_masses = scaled_logits.new_full((num_rows,), float(sign))
-            return tail_keys, tail_masses
+            raise ValueError("Trie Wasserstein loss has no valid token paths for this tokenizer.")
+        if self.num_prefix_tail_buckets == 0 or self.max_prefix_tail_path_len == 0:
+            raise ValueError("Trie Wasserstein loss has no prefix-tail buckets.")
 
         k = min(self.topk, valid_count)
         masked_logits = scaled_logits.masked_fill(ignored_mask, float("-inf"))
@@ -516,9 +673,33 @@ class TrieWassersteinLoss(nn.Module):
             sorted=False,
         )
 
-        log_z = torch.logsumexp(scaled_logits, dim=-1, keepdim=True)
+        log_z = torch.logsumexp(masked_logits, dim=-1, keepdim=True)
         kept_masses = (kept_logits - log_z).exp()
-        tail_masses = (1.0 - kept_masses.sum(dim=-1)).clamp_min(0.0)
+
+        probs = (masked_logits - log_z).exp()
+        probs = torch.nan_to_num(probs, nan=0.0, posinf=0.0, neginf=0.0)
+        bucket_ids = prefix_bucket_ids.view(1, -1).expand(num_rows, -1)
+        bucket_masses = probs.new_zeros(num_rows, self.num_prefix_tail_buckets)
+        bucket_masses.scatter_add_(1, bucket_ids, probs)
+        kept_bucket_ids = prefix_bucket_ids[kept_token_ids]
+        bucket_masses.scatter_add_(1, kept_bucket_ids, -kept_masses)
+        bucket_masses = bucket_masses.clamp_min(0.0)
+        tail_mass = bucket_masses.sum(dim=-1)
+        bucket_distribution = bucket_masses / tail_mass.unsqueeze(-1).clamp(
+            min=torch.finfo(dtype).eps,
+        )
+        bucket_entropy = -(
+            bucket_distribution
+            * bucket_distribution.clamp(min=torch.finfo(dtype).eps).log()
+        ).sum(dim=-1)
+        stats_key = "student" if sign > 0 else "teacher"
+        self.last_prefix_tail_stats[stats_key] = {
+            "exact_mass_mean": kept_masses.sum(dim=-1).detach().mean(),
+            "tail_mass_mean": tail_mass.detach().mean(),
+            "tail_bucket_entropy": bucket_entropy.detach().mean(),
+            "tail_top_bucket_mass": bucket_masses.max(dim=-1).values.detach().mean(),
+            "num_tail_buckets": float(self.num_prefix_tail_buckets),
+        }
 
         starts = path_offsets[kept_token_ids]
         ends = path_offsets[kept_token_ids + 1]
@@ -532,9 +713,38 @@ class TrieWassersteinLoss(nn.Module):
         masses = kept_masses.unsqueeze(-1).expand(num_rows, k, max_path_len)
         masses = masses * valid_path.to(dtype) * float(sign)
 
+        tail_starts = self.prefix_tail_path_offsets_device[:-1]
+        tail_ends = self.prefix_tail_path_offsets_device[1:]
+        tail_lengths = tail_ends - tail_starts
+        tail_rel = self.prefix_tail_path_arange_device.view(1, self.max_prefix_tail_path_len)
+        tail_valid = tail_rel < tail_lengths.unsqueeze(-1)
+        tail_flat_positions = (tail_starts.unsqueeze(-1) + tail_rel).clamp_max(
+            self.prefix_tail_path_flat_device.numel() - 1
+        )
+        tail_edge_ids = self.prefix_tail_path_flat_device[tail_flat_positions]
+        tail_keys = row_base.view(num_rows, 1, 1) + tail_edge_ids.view(
+            1,
+            self.num_prefix_tail_buckets,
+            self.max_prefix_tail_path_len,
+        )
+        tail_masses = bucket_masses.unsqueeze(-1).expand(
+            num_rows,
+            self.num_prefix_tail_buckets,
+            self.max_prefix_tail_path_len,
+        )
+        tail_masses = (
+            tail_masses
+            * tail_valid.view(
+                1,
+                self.num_prefix_tail_buckets,
+                self.max_prefix_tail_path_len,
+            ).to(dtype)
+            * float(sign)
+        )
+
         return (
-            torch.cat([keys.reshape(-1), tail_keys], dim=0),
-            torch.cat([masses.reshape(-1), tail_masses * float(sign)], dim=0),
+            torch.cat([keys.reshape(-1), tail_keys.reshape(-1)], dim=0),
+            torch.cat([masses.reshape(-1), tail_masses.reshape(-1)], dim=0),
         )
 
     def prepare_runtime_state(
@@ -627,6 +837,7 @@ class TrieWassersteinLoss(nn.Module):
             path_flat=self.student_path_flat_device,
             path_offsets=self.student_path_offsets_device,
             ignored_mask=self.student_ignored_mask_device,
+            prefix_bucket_ids=self.student_prefix_bucket_ids_device,
             valid_count=self.student_valid_count,
             max_path_len=self.student_max_path_len,
             path_arange=self.student_path_arange_device,
@@ -637,6 +848,7 @@ class TrieWassersteinLoss(nn.Module):
             path_flat=self.teacher_path_flat_device,
             path_offsets=self.teacher_path_offsets_device,
             ignored_mask=self.teacher_ignored_mask_device,
+            prefix_bucket_ids=self.teacher_prefix_bucket_ids_device,
             valid_count=self.teacher_valid_count,
             max_path_len=self.teacher_max_path_len,
             path_arange=self.teacher_path_arange_device,

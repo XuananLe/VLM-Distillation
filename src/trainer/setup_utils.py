@@ -129,6 +129,8 @@ def log_distillation_trainer_setup(
     reinforced_selection_policy_alpha: float,
     trie_wasserstein_rho: float,
     trie_wasserstein_topk: int,
+    trie_tail_depth: int,
+    trie_tail_weight: float,
 ) -> None:
     """Print the trainer-side distillation config summary.
 
@@ -148,6 +150,8 @@ def log_distillation_trainer_setup(
     if loss_function == "trie_wasserstein_loss":
         print(f"  - Trie Wasserstein rho: {trie_wasserstein_rho}")
         print(f"  - Trie Wasserstein top-k: {trie_wasserstein_topk}")
+        print(f"  - Trie tail depth: {trie_tail_depth}")
+        print(f"  - Trie tail weight: {trie_tail_weight}")
     print(f"  - Student temperature: {student_temperature}")
     print(f"  - Teacher temperature: {teacher_temperature}")
     print(f"  - Skip student EOS: {skip_student_eos}")

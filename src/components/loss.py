@@ -12,6 +12,8 @@ def build_distillation_loss(
     teacher_tokenizers=None,
     trie_wasserstein_rho: float = 0.7,
     trie_wasserstein_topk: int = 64,
+    trie_tail_depth: int = 1,
+    trie_tail_weight: float = 0.5,
 ):
     """Return prepare and loss callables for the configured KD loss."""
     if loss_function == "trie_wasserstein_loss":
@@ -25,6 +27,8 @@ def build_distillation_loss(
                 teacher_tokenizer=teacher_tokenizer,
                 rho=trie_wasserstein_rho,
                 topk=trie_wasserstein_topk,
+                tail_depth=trie_tail_depth,
+                tail_weight=trie_tail_weight,
             )
             for teacher_tokenizer in teacher_tokenizers
         ]
@@ -82,6 +86,32 @@ def build_distillation_loss(
                 teacher_temperature=teacher_temperature,
             )
 
+        def trie_metrics() -> dict[str, float]:
+            """Return aggregate trie prefix-tail diagnostics from the latest logged step."""
+            metric_values: dict[str, list[torch.Tensor]] = {
+                "trie_exact_mass_mean": [],
+                "trie_tail_mass_mean": [],
+                "trie_tail_bucket_entropy": [],
+                "trie_tail_top_bucket_mass": [],
+            }
+            tail_bucket_counts = []
+            for loss_module in loss_modules:
+                for side_stats in loss_module.last_prefix_tail_stats.values():
+                    metric_values["trie_exact_mass_mean"].append(side_stats["exact_mass_mean"])
+                    metric_values["trie_tail_mass_mean"].append(side_stats["tail_mass_mean"])
+                    metric_values["trie_tail_bucket_entropy"].append(side_stats["tail_bucket_entropy"])
+                    metric_values["trie_tail_top_bucket_mass"].append(side_stats["tail_top_bucket_mass"])
+                    tail_bucket_counts.append(float(side_stats["num_tail_buckets"]))
+            metrics = {
+                key: torch.stack(values).mean().item()
+                for key, values in metric_values.items()
+                if values
+            }
+            if tail_bucket_counts:
+                metrics["trie_num_tail_buckets"] = sum(tail_bucket_counts) / len(tail_bucket_counts)
+            return metrics
+
+        compute_loss.trie_metrics = trie_metrics
         return prepare_teacher_batch, compute_loss
 
     if loss_function not in DISTILLATION_LOSSES:

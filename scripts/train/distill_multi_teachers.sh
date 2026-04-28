@@ -36,7 +36,9 @@ TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-1.0}"
 # Relaxed trie-loss setting: lower rho downweights deep byte-level differences,
 # and smaller top-k reduces per-teacher trie/GRACE cost.
 TRIE_WASSERSTEIN_RHO="${TRIE_WASSERSTEIN_RHO:-0.5}"
-TRIE_WASSERSTEIN_TOPK="${TRIE_WASSERSTEIN_TOPK:-32}"
+TRIE_WASSERSTEIN_TOPK="${TRIE_WASSERSTEIN_TOPK:-64}"
+TRIE_TAIL_DEPTH="${TRIE_TAIL_DEPTH:-1}"
+TRIE_TAIL_WEIGHT="${TRIE_TAIL_WEIGHT:-0.5}"
 
 # KD scaling knob. Override with `ALPHA=0.3 bash scripts/train/distill_multi_teachers.sh`.
 ALPHA="${ALPHA:-0.2}"
@@ -52,11 +54,11 @@ TEACHER_GATE_ENTROPY_ALPHA="${TEACHER_GATE_ENTROPY_ALPHA:-0.001}"
 TEACHER_GATE_ROUTER_Z_LOSS_ALPHA="${TEACHER_GATE_ROUTER_Z_LOSS_ALPHA:-0.001}"
 
 # GRACE weighting knobs
-GRACE_THRESHOLD="${GRACE_THRESHOLD:--0.55}"
+GRACE_THRESHOLD="${GRACE_THRESHOLD:-0.15}"
 GRACE_WARMUP_RATIO="${GRACE_WARMUP_RATIO:-0.05}"
-GRACE_EPSILON="${GRACE_EPSILON:-0.02}"
-GRACE_SOFTMAX_BETA="${GRACE_SOFTMAX_BETA:-8.0}"
-GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.7}"
+GRACE_EPSILON="${GRACE_EPSILON:-0.01}"
+GRACE_SOFTMAX_BETA="${GRACE_SOFTMAX_BETA:-4.0}"
+GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.9}"
 GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.8}"
 
 # Teacher logits can be read either from a local cache root (for example /cache)
@@ -86,8 +88,9 @@ TEACHER_NAME_2="${TEACHER_MODEL_2##*/}"
 TEACHER_NAME_3="${TEACHER_MODEL_3##*/}"
 TEACHER_NAME_4="${TEACHER_MODEL_4##*/}"
 TRIE_WASSERSTEIN_RHO_TAG="${TRIE_WASSERSTEIN_RHO//./p}"
+TRIE_TAIL_WEIGHT_TAG="${TRIE_TAIL_WEIGHT//./p}"
 ALPHA_TAG="${ALPHA//./p}"
-RUN_TAG="${RUN_TAG:-alpha_scaling${TRIE_WASSERSTEIN_RHO_TAG}_topk${TRIE_WASSERSTEIN_TOPK}_alpha${ALPHA_TAG}_$(date +%Y%m%d_%H%M)}"
+RUN_TAG="${RUN_TAG:-alpha_scaling${TRIE_WASSERSTEIN_RHO_TAG}_topk${TRIE_WASSERSTEIN_TOPK}_taild${TRIE_TAIL_DEPTH}_tailw${TRIE_TAIL_WEIGHT_TAG}_alpha${ALPHA_TAG}_$(date +%Y%m%d_%H%M)}"
 OUTPUT_DIR="output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${TEACHER_NAME_3}_${TEACHER_NAME_4}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
 
 EXTRA_ARGS=(
@@ -139,6 +142,8 @@ python src/train/train_distillation.py \
     --distillation_loss "$DISTILLATION_LOSS" \
     --trie_wasserstein_rho "$TRIE_WASSERSTEIN_RHO" \
     --trie_wasserstein_topk "$TRIE_WASSERSTEIN_TOPK" \
+    --trie_tail_depth "$TRIE_TAIL_DEPTH" \
+    --trie_tail_weight "$TRIE_TAIL_WEIGHT" \
     --bf16 True \
     --output_dir "$OUTPUT_DIR" \
     --student_temperature "$STUDENT_TEMPERATURE" \

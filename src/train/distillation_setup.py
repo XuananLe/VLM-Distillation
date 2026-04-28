@@ -77,7 +77,17 @@ class DistillationArguments:
 
     trie_wasserstein_topk: int = field(
         default=64,
-        metadata={"help": "Sparse top-k used by trie_wasserstein_loss before routing leftover mass to the TAIL edge."},
+        metadata={"help": "Sparse top-k used by trie_wasserstein_loss before routing leftover mass to prefix-tail buckets."},
+    )
+
+    trie_tail_depth: int = field(
+        default=1,
+        metadata={"help": "Byte-prefix depth used for trie_wasserstein_loss residual prefix-tail buckets."},
+    )
+
+    trie_tail_weight: float = field(
+        default=0.5,
+        metadata={"help": "Weight multiplier for trie_wasserstein_loss synthetic prefix-tail edges."},
     )
 
     student_temperature: float = field(
@@ -230,6 +240,7 @@ class DistillationArguments:
             raise ValueError("--trie_wasserstein_rho must be in (0, 1).")
         for arg_name, value in (
             ("--trie_wasserstein_topk", self.trie_wasserstein_topk),
+            ("--trie_tail_depth", self.trie_tail_depth),
             ("--layer_match_topk", self.layer_match_topk),
             ("--teacher_gate_top_k", self.teacher_gate_top_k),
         ):
@@ -239,6 +250,7 @@ class DistillationArguments:
         for arg_name, value in (
             ("--teacher_gate_capacity_factor", self.teacher_gate_capacity_factor),
             ("--teacher_gate_temperature", self.teacher_gate_temperature),
+            ("--trie_tail_weight", self.trie_tail_weight),
             ("--grace_softmax_beta", self.grace_softmax_beta),
             ("--student_temperature", self.student_temperature),
             ("--teacher_temperature", self.teacher_temperature),
@@ -329,6 +341,8 @@ def log_distillation_setup(
     if distillation_args.distillation_loss == "trie_wasserstein_loss":
         print(f"Trie Wasserstein Rho: {distillation_args.trie_wasserstein_rho}")
         print(f"Trie Wasserstein Top-k: {distillation_args.trie_wasserstein_topk}")
+        print(f"Trie Tail Depth: {distillation_args.trie_tail_depth}")
+        print(f"Trie Tail Weight: {distillation_args.trie_tail_weight}")
     print(f"Alpha: {distillation_args.alpha}")
     print("CE Weight: 1.0")
     print(f"Student Temperature: {distillation_args.student_temperature}")

@@ -63,6 +63,8 @@ class DistillationTrainer(Trainer):
         reinforced_selection_policy_alpha: float = 1.0,
         trie_wasserstein_rho: float = 0.7,
         trie_wasserstein_topk: int = 64,
+        trie_tail_depth: int = 1,
+        trie_tail_weight: float = 0.5,
         *args,
         **kwargs
     ):
@@ -81,6 +83,8 @@ class DistillationTrainer(Trainer):
             teacher_tokenizers=teacher_tokenizers,
             trie_wasserstein_rho=trie_wasserstein_rho,
             trie_wasserstein_topk=trie_wasserstein_topk,
+            trie_tail_depth=trie_tail_depth,
+            trie_tail_weight=trie_tail_weight,
         )
         self.teacher_weighting_strategy = teacher_weighting_strategy
 
@@ -156,6 +160,8 @@ class DistillationTrainer(Trainer):
         self.reinforced_selection_policy_alpha = reinforced_selection_policy_alpha
         self.trie_wasserstein_rho = trie_wasserstein_rho
         self.trie_wasserstein_topk = trie_wasserstein_topk
+        self.trie_tail_depth = trie_tail_depth
+        self.trie_tail_weight = trie_tail_weight
         self.last_compute_loss_end_time = None
         self.teacher_grace_score_ema = None
         self.reinforced_selection_reward_baseline = None
@@ -197,6 +203,8 @@ class DistillationTrainer(Trainer):
             reinforced_selection_policy_alpha=reinforced_selection_policy_alpha,
             trie_wasserstein_rho=trie_wasserstein_rho,
             trie_wasserstein_topk=trie_wasserstein_topk,
+            trie_tail_depth=trie_tail_depth,
+            trie_tail_weight=trie_tail_weight,
         )
 
     @override
@@ -365,6 +373,8 @@ class DistillationTrainer(Trainer):
                 reinforced_selection_metrics=grace_and_loss["reinforced_selection_metrics"],
                 grace_routing_active=self.should_apply_grace_routing(),
             )
+            if hasattr(self.distillation_loss_fn, "trie_metrics"):
+                metrics.update(self.distillation_loss_fn.trie_metrics())
             self.log(metrics)
 
         return (loss, student_and_gate["student_outputs"]) if return_outputs else loss

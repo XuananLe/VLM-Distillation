@@ -165,6 +165,8 @@ def train_distillation():
         reinforced_selection_policy_alpha=distillation_args.reinforced_selection_policy_alpha,
         trie_wasserstein_rho=distillation_args.trie_wasserstein_rho,
         trie_wasserstein_topk=distillation_args.trie_wasserstein_topk,
+        trie_tail_depth=distillation_args.trie_tail_depth,
+        trie_tail_weight=distillation_args.trie_tail_weight,
         processing_class=processor,
         args=training_args,
         **data_module,
