@@ -3,22 +3,6 @@
 export PYTHONPATH=src:$PYTHONPATH
 export PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True
 
-WANDB_RESUME_RUN_PATH=""
-WANDB_RESUME_MODE="${WANDB_RESUME_MODE:-allow}"
-if [[ -n "${WANDB_RESUME_RUN_PATH}" ]]; then
-    IFS='/' read -r WANDB_RESUME_ENTITY WANDB_RESUME_PROJECT WANDB_RESUME_ID <<< "${WANDB_RESUME_RUN_PATH}"
-    if [[ -z "${WANDB_RESUME_ENTITY}" || -z "${WANDB_RESUME_PROJECT}" || -z "${WANDB_RESUME_ID}" ]]; then
-        exit 1
-        echo "Invalid WANDB_RESUME_RUN_PATH: ${WANDB_RESUME_RUN_PATH}" >&2
-        echo "Expected format: <entity>/<project>/<run_id>" >&2
-    fi
-    export WANDB_ENTITY="${WANDB_ENTITY:-$WANDB_RESUME_ENTITY}"
-    export WANDB_PROJECT="${WANDB_PROJECT:-$WANDB_RESUME_PROJECT}"
-    export WANDB_RUN_ID="${WANDB_RUN_ID:-$WANDB_RESUME_ID}"
-    export WANDB_RESUME="${WANDB_RESUME:-$WANDB_RESUME_MODE}"
-fi
-
-# Models
 TEACHER_MODEL_1="Qwen/Qwen2.5-VL-3B-Instruct"
 TEACHER_MODEL_2="Qwen/Qwen2-VL-2B-Instruct"
 TEACHER_MODEL_3="ibm-granite/granite-vision-3.1-2b-preview"
@@ -26,28 +10,23 @@ TEACHER_MODEL_4="google/gemma-3-4b-it"
 TEACHER_MODEL_IDS=("${TEACHER_MODEL_1}" "${TEACHER_MODEL_2}" "${TEACHER_MODEL_3}" "${TEACHER_MODEL_4}")
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
 
+# uld_loss, trie_wasserstein_loss, cka_loss, forward_kl, reverse_kl, jensen_shannon_divergence
 DISTILLATION_LOSS="uld_loss"
 STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-1.0}"
 TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-1.0}"
 
-# KD scaling knob. Override with `ALPHA=0.3 bash scripts/train/distill_multi_teachers.sh`.
+# Loss = ce_loss + alpha * kd_loss
 ALPHA="${ALPHA:-0.2}"
 
-# Router-based weighting knobs
 TEACHER_GATE_TOP_K="${TEACHER_GATE_TOP_K:-2}"
-TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO="${TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO:-0.0}"
 
-# GRACE weighting knobs
+
 GRACE_THRESHOLD="${GRACE_THRESHOLD:-0.15}"
 GRACE_WARMUP_RATIO="${GRACE_WARMUP_RATIO:-0.05}"
 GRACE_SOFTMAX_BETA="${GRACE_SOFTMAX_BETA:-4.0}"
 GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.9}"
 GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.8}"
 
-# Teacher logits can be read either from a local cache root (for example /cache)
-# or directly from the remote raw .pt cache layout.
-# To force local mode, set TEACHER_LOGITS_REMOTE_URI="" and optionally
-# TEACHER_LOGITS_CACHE_DIR=/cache.
 TEACHER_LOGITS_REMOTE_URI="${TEACHER_LOGITS_REMOTE_URI-}"
 if [[ -n "${TEACHER_LOGITS_REMOTE_URI}" ]]; then
     TEACHER_LOGITS_CACHE_DIR="${TEACHER_LOGITS_CACHE_DIR:-/tmp/teacher-logits-streaming}"
@@ -55,22 +34,22 @@ else
     TEACHER_LOGITS_CACHE_DIR="${TEACHER_LOGITS_CACHE_DIR:-/workspace/cache}"
 fi
 
-# Dataset and runtime
 NUM_TEACHERS=4
 DATASET_NAME="docvqa"
 NUM_TRAIN_EPOCHS="${NUM_TRAIN_EPOCHS:-1.0}"
-PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-40}"
+PER_DEVICE_TRAIN_BATCH_SIZE="${PER_DEVICE_TRAIN_BATCH_SIZE:-80}"
 LOGGING_STEPS="${LOGGING_STEPS:-5}"
-AUTO_STOP_VAST_INSTANCE="${AUTO_STOP_VAST_INSTANCE:-1}"
+AUTO_STOP_VAST_INSTANCE="${AUTO_STOP_VAST_INSTANCE:-0}"
 
-# Naming
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME_1="${TEACHER_MODEL_1##*/}"
 TEACHER_NAME_2="${TEACHER_MODEL_2##*/}"
 TEACHER_NAME_3="${TEACHER_MODEL_3##*/}"
 TEACHER_NAME_4="${TEACHER_MODEL_4##*/}"
 ALPHA_TAG="${ALPHA//./p}"
+
 RUN_TAG="${RUN_TAG:-uld_alpha${ALPHA_TAG}_$(date +%Y%m%d_%H%M)}"
+
 OUTPUT_DIR="output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${TEACHER_NAME_3}_${TEACHER_NAME_4}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
 
 EXTRA_ARGS=(
@@ -84,33 +63,15 @@ stop_vast_instance() {
     if [[ "${AUTO_STOP_VAST_INSTANCE}" == "0" ]]; then
         return 0
     fi
-
     local vast_instance_id="${VAST_INSTANCE_ID:-${CONTAINER_ID:-${VAST_CONTAINERLABEL:-}}}"
     vast_instance_id="${vast_instance_id#C.}"
-
-    if [[ -z "${vast_instance_id}" ]]; then
-        echo "Skipping Vast.ai stop: instance id not found in VAST_CONTAINERLABEL/CONTAINER_ID/VAST_INSTANCE_ID." >&2
-        return 0
-    fi
-
-    if ! command -v vastai >/dev/null 2>&1; then
-        echo "Installing Vast.ai CLI before stopping instance ${vast_instance_id}..."
-        if ! python -m pip install --disable-pip-version-check -q vastai; then
-            echo "Failed to install Vast.ai CLI; instance ${vast_instance_id} was not stopped." >&2
-            return 1
-        fi
-    fi
 
     local stop_args=()
     if [[ -n "${CONTAINER_API_KEY:-}" ]]; then
         stop_args+=(--api-key "${CONTAINER_API_KEY}")
     fi
 
-    echo "Stopping Vast.ai instance ${vast_instance_id}..."
-    if ! vastai stop instance "${stop_args[@]}" "${vast_instance_id}"; then
-        echo "Failed to stop Vast.ai instance ${vast_instance_id}." >&2
-        return 1
-    fi
+    vastai stop instance "${stop_args[@]}" "${vast_instance_id}"
 }
 
 python src/train/train_distillation.py \
@@ -124,7 +85,6 @@ python src/train/train_distillation.py \
     --teacher_temperature "$TEACHER_TEMPERATURE" \
     --alpha "$ALPHA" \
     --teacher_gate_top_k "$TEACHER_GATE_TOP_K" \
-    --teacher_gate_hard_routing_warmup_ratio "$TEACHER_GATE_HARD_ROUTING_WARMUP_RATIO" \
     --grace_threshold "$GRACE_THRESHOLD" \
     --grace_warmup_ratio "$GRACE_WARMUP_RATIO" \
     --grace_softmax_beta "$GRACE_SOFTMAX_BETA" \
@@ -148,7 +108,6 @@ python src/train/train_distillation.py \
 
 TRAIN_EXIT_CODE=$?
 if [[ "${TRAIN_EXIT_CODE}" -eq 1 ]]; then
-    echo "Training exited with code 1; leaving the instance running for inspection." >&2
     while true; do
         sleep 60000
     done

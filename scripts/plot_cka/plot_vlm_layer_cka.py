@@ -36,7 +36,7 @@ from src.dataset.vqa_loading import (
 )
 from src.train.model_setup import (
     load_model,
-    load_processor_and_tokenizer,
+    load_processor_bundle,
     resolve_model_type,
 )
 from src.utils import find_vision_layer_indices, get_specific_layer
@@ -70,7 +70,7 @@ def load_probe_dataset(dataset_name: str, split: str, config: str | None):
 
 def load_vlm(model_name: str, dtype: torch.dtype):
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    processor, _, model_type = load_processor_and_tokenizer(
+    processor, _, model_type = load_processor_bundle(
         model_name,
         padding_side="right",
     )

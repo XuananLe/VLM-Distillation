@@ -15,7 +15,6 @@ def extend_vocab_state_with_ignored_tokens(
         path_flat = module.student_path_flat
         path_offsets = module.student_path_offsets
         ignored_mask = module.student_ignored_mask
-        prefix_bucket_ids = module.student_prefix_bucket_ids
     elif side == "teacher":
         current_vocab_size = module.teacher_vocab_size
         if target_vocab_size <= current_vocab_size:
@@ -23,7 +22,6 @@ def extend_vocab_state_with_ignored_tokens(
         path_flat = module.teacher_path_flat
         path_offsets = module.teacher_path_offsets
         ignored_mask = module.teacher_ignored_mask
-        prefix_bucket_ids = module.teacher_prefix_bucket_ids
     else:
         raise ValueError(f"Unknown trie side: {side!r}")
 
@@ -37,20 +35,14 @@ def extend_vocab_state_with_ignored_tokens(
         [ignored_mask, torch.ones(extra_tokens, dtype=torch.bool)],
         dim=0,
     )
-    extended_prefix_bucket_ids = torch.cat(
-        [prefix_bucket_ids, torch.zeros(extra_tokens, dtype=torch.long)],
-        dim=0,
-    )
 
     if side == "student":
         module.student_vocab_size = target_vocab_size
         module.student_path_flat = path_flat
         module.student_path_offsets = extended_offsets
         module.student_ignored_mask = extended_ignored_mask
-        module.student_prefix_bucket_ids = extended_prefix_bucket_ids
     else:
         module.teacher_vocab_size = target_vocab_size
         module.teacher_path_flat = path_flat
         module.teacher_path_offsets = extended_offsets
         module.teacher_ignored_mask = extended_ignored_mask
-        module.teacher_prefix_bucket_ids = extended_prefix_bucket_ids

@@ -13,12 +13,12 @@ from torch.utils.data import Dataset
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments
 from src.trainer.distillation_utils import (
-    build_teacher_batches,
+    build_live_teacher_batches,
 )
 from src.trainer.setup_utils import normalize_teacher_models
 from src.train.model_setup import (
-    load_model_and_processor,
-    load_processor_and_tokenizer,
+    load_processor_bundle,
+    load_vlm_bundle,
 )
 
 
@@ -83,13 +83,13 @@ class IndexedDataset(Dataset):
         return item
 
 
-def make_dataset_and_collator(
+def build_cache_dataset_state(
     args: argparse.Namespace,
     *,
     teacher_ids: list[str],
     teacher_processors,
 ):
-    student_processor, _, _ = load_processor_and_tokenizer(
+    student_processor, _, _ = load_processor_bundle(
         args.student_model_id,
         padding_side="right",
     )
@@ -113,7 +113,7 @@ def make_dataset_and_collator(
     return teacher_ids, indexed_dataset, data_module["data_collator"]
 
 
-def load_teachers_and_processors(teacher_ids: list[str], device: str):
+def load_teacher_bundles(teacher_ids: list[str], device: str):
     dtype_map = {
         "cuda": torch.bfloat16,
         "cpu": torch.float32,
@@ -122,7 +122,7 @@ def load_teachers_and_processors(teacher_ids: list[str], device: str):
     teacher_models = []
     teacher_processors = []
     for teacher_id in teacher_ids:
-        teacher_model, teacher_processor, _, _ = load_model_and_processor(
+        teacher_model, teacher_processor, _, _ = load_vlm_bundle(
             model_id=teacher_id,
             cache_dir=None,
             device=device,
@@ -180,8 +180,8 @@ def main() -> None:
     storage_dtype = prepare_storage_dtype(args.dtype)
 
     teacher_ids = list(args.teacher_model_ids)
-    teacher_models, teacher_processors = load_teachers_and_processors(teacher_ids, device=device)
-    teacher_ids, dataset, data_collator = make_dataset_and_collator(
+    teacher_models, teacher_processors = load_teacher_bundles(teacher_ids, device=device)
+    teacher_ids, dataset, data_collator = build_cache_dataset_state(
         args,
         teacher_ids=teacher_ids,
         teacher_processors=teacher_processors,
@@ -195,10 +195,10 @@ def main() -> None:
         example = dataset[dataset_index]
         original_dataset_index = int(example.pop("dataset_index"))
         batch = data_collator([example])
-        teacher_batches = build_teacher_batches(batch, len(teacher_models))
+        live_teacher_batches = build_live_teacher_batches(batch, len(teacher_models))
 
         for teacher_idx, (teacher_model, (teacher_inputs, teacher_labels)) in enumerate(
-            zip(teacher_models, teacher_batches)
+            zip(teacher_models, live_teacher_batches)
         ):
             model_param = next(teacher_model.parameters())
             model_dtype = model_param.dtype if model_param.is_floating_point() else None
@@ -219,16 +219,16 @@ def main() -> None:
                     **prepared_inputs,
                     return_dict=True,
                     output_hidden_states=False,
-                )
+            )
             teacher_logits = teacher_outputs.logits.detach()
-            effective_labels = prepared_labels
+            supervised_labels = prepared_labels
 
-            sample_mask = effective_labels[0].ne(-100)
+            sample_mask = supervised_labels[0].ne(-100)
             sample_logits = teacher_logits[0][sample_mask].to(
                 dtype=storage_dtype,
                 device="cpu",
             ).contiguous()
-            sample_labels = effective_labels[0][sample_mask].to(device="cpu").contiguous()
+            sample_labels = supervised_labels[0][sample_mask].to(device="cpu").contiguous()
             total_supervised_tokens[teacher_idx] += int(sample_mask.sum().item())
             save_sample(
                 output_root=output_root,
@@ -246,7 +246,7 @@ def main() -> None:
 
             del teacher_outputs
             del teacher_logits
-            del effective_labels
+            del supervised_labels
 
         total_samples += 1
         print(

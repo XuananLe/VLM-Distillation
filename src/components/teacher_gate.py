@@ -4,25 +4,24 @@ import torch.nn.functional as F
 
 from src.components.pooling import masked_mean_pool_sequence
 
+SMOLVLM_MODEL_TYPES = {"smolvlm", "smolvlm2", "idefics3"}
+
 
 class DeepRouter(nn.Module):
-    """Small MLP router over pooled student features; it takes [batch, hidden] inputs, returns [batch, teacher] logits, and exists to learn non-uniform teacher routing."""
     def __init__(self, input_size: int, num_experts: int):
-        """Initialize the router block; input is pooled feature size and teacher count, output is an initialized module, and this exists to keep router architecture local to one class."""
         super().__init__()
         self.hidden_size = self.resolve_hidden_size(num_experts)
         self.normalizer = nn.LayerNorm(input_size)
         self.up_proj = nn.Linear(input_size, self.hidden_size * 2)
         self.down_proj = nn.Linear(self.hidden_size, num_experts)
 
-        nn.init.xavier_uniform_(self.up_proj.weight)
+        nn.init.xavier_uniform_(self.up_proj.weight) # inplace
         nn.init.zeros_(self.up_proj.bias)
         nn.init.xavier_uniform_(self.down_proj.weight)
         nn.init.zeros_(self.down_proj.bias)
 
     @staticmethod
     def resolve_hidden_size(num_experts: int) -> int:
-        """Choose router width from expert count."""
         # This size ladder is heuristic: small teacher sets do not need a wide router,
         # but larger mixtures get a wider hidden layer to avoid a severe bottleneck.
         if num_experts <= 4:
@@ -34,7 +33,6 @@ class DeepRouter(nn.Module):
         return 512
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        """Map pooled features to teacher logits; input is [batch, hidden], output is [batch, teacher], and this exists as the learned routing-score block."""
         hidden = self.normalizer(inputs)
         # Two-projection SwiGLU-style router block before the final expert logits.
         gate, value = self.up_proj(hidden).chunk(2, dim=-1)
@@ -43,19 +41,16 @@ class DeepRouter(nn.Module):
 
 
 class Gate(nn.Module):
-    """Teacher-routing module attached to the student; it reuses the hidden state before lm_head and exists to score teachers without another student forward."""
     def __init__(
         self,
         model: nn.Module,
         num_teachers: int,
-        router_temperature: float = 1.0,
     ):
         """Initialize routing state and register the pre-lm-head hook; input is the student model plus routing hyperparameters, output is an initialized gate, and this exists to keep routing setup out of trainer code."""
         super().__init__()
         hidden_size, hook_module = self.resolve_gate_source(model)
         self.router = DeepRouter(hidden_size, num_teachers)
 
-        self.router_temperature = router_temperature
         self.hidden_state = None
         # Capture the hidden state immediately before lm_head so routing uses the
         # same student context as the token prediction head.
@@ -63,29 +58,31 @@ class Gate(nn.Module):
 
     @staticmethod
     def resolve_gate_source(model: nn.Module) -> tuple[int, nn.Module]:
-        """Find the hidden size and hook source for routing; input is the student model, output is (hidden_size, lm_head-like module), and this exists so routing stays model-family agnostic."""
-        lm_head = getattr(model, "lm_head", None)
-        if lm_head is None:
-            raise ValueError("Teacher gate requires the model to expose `lm_head`.")
+        model_type = model.config.model_type
+        hidden_size = int(model.config.text_config.hidden_size)
+        lm_head = model.lm_head
 
-        config = getattr(model, "config", None)
-        text_config = getattr(config, "text_config", None) if config is not None else None
-        hidden_size = (
-            getattr(text_config, "hidden_size", None)
-            or getattr(config, "hidden_size", None)
-            or getattr(lm_head, "in_features", None)
-        )
-        if hidden_size is None:
-            raise ValueError("Teacher gate could not infer the student hidden size from config or lm_head.")
+        if model_type not in SMOLVLM_MODEL_TYPES:
+            raise ValueError(
+                "Teacher gate only supports SmolVLM-style students, got "
+                f"model_type={model_type!r}."
+            )
+        if not isinstance(lm_head, nn.Linear):
+            raise ValueError(
+                "Teacher gate expects SmolVLM `lm_head` to be an nn.Linear module."
+            )
+        if lm_head.in_features != hidden_size:
+            raise ValueError(
+                "SmolVLM lm_head input size does not match text hidden size: "
+                f"{lm_head.in_features} != {hidden_size}."
+            )
         return int(hidden_size), lm_head
 
     def capture_hidden_state(self, _module, args):
-        """Cache the hidden state seen by lm_head; input is hook args, output is None, and this exists so routing can reuse student context after the main forward."""
         if args:
             self.hidden_state = args[0]
 
     def reset(self) -> None:
-        """Clear the cached hidden state; input/output are None, and this exists to avoid reusing stale routing context across steps."""
         self.hidden_state = None
 
     def pool_tensor(
@@ -95,7 +92,6 @@ class Gate(nn.Module):
         labels: torch.Tensor,
         attention_mask: torch.Tensor | None,
     ) -> torch.Tensor:
-        """Pool a token sequence into one vector per sample; input is [batch, tokens, hidden] plus masks, output is [batch, hidden], and this exists to share pooling behavior with the selector."""
         return masked_mean_pool_sequence(
             tensor,
             labels=labels,
@@ -105,16 +101,16 @@ class Gate(nn.Module):
     def pool_features(
         self,
         *,
-        labels: torch.Tensor,
-        attention_mask: torch.Tensor | None,
+        student_labels: torch.Tensor,
+        student_attention_mask: torch.Tensor | None,
     ) -> torch.Tensor:
-        """Pool the cached student hidden state for routing; input is labels plus optional attention mask, output is [batch, hidden], and this exists to turn token context into router input."""
+        """Pool the cached student hidden state over supervised answer tokens for routing."""
         if self.hidden_state is None:
             raise RuntimeError("Teacher gate hidden state was not captured during the student forward pass.")
         pooled_features = self.pool_tensor(
             self.hidden_state,
-            labels=labels,
-            attention_mask=attention_mask,
+            labels=student_labels,
+            attention_mask=student_attention_mask,
         )
         self.hidden_state = None
         return pooled_features
@@ -134,27 +130,28 @@ class Gate(nn.Module):
     def compute_router_logits(
         self,
         *,
-        labels: torch.Tensor,
-        attention_mask: torch.Tensor | None = None,
+        student_labels: torch.Tensor,
+        student_attention_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Compute raw router logits over teachers; input is batch masks, output is [batch, teacher] logits, and this exists as the main routing-score path."""
-        pooled_features = self.pool_features(labels=labels, attention_mask=attention_mask)
+        pooled_features = self.pool_features(
+            student_labels=student_labels,
+            student_attention_mask=student_attention_mask,
+        )
         self.prepare_router_module(pooled_features)
         return self.router(pooled_features)
-
-    def prepare_routing_scores(self, router_logits: torch.Tensor) -> torch.Tensor:
-        """Turn raw logits into routing scores before top-k and softmax."""
-        return router_logits / self.router_temperature
 
     def forward(
         self,
         *,
-        labels: torch.Tensor,
-        attention_mask: torch.Tensor | None = None,
+        student_labels: torch.Tensor,
+        student_attention_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         """Return soft routing weights over teachers; input is batch masks, output is [batch, teacher] probabilities, and this exists for trainer code that wants ready-to-use gate weights."""
-        router_logits = self.compute_router_logits(labels=labels, attention_mask=attention_mask)
-        return torch.softmax(self.prepare_routing_scores(router_logits), dim=-1)
+        router_logits = self.compute_router_logits(
+            student_labels=student_labels,
+            student_attention_mask=student_attention_mask,
+        )
+        return torch.softmax(router_logits, dim=-1)
 
 __all__ = [
     "DeepRouter",

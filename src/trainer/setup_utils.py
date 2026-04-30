@@ -36,7 +36,7 @@ def normalize_teacher_models(teacher_model, teacher_count: int | None):
     return teacher_models, int(teacher_count)
 
 
-def maybe_create_reinforced_teacher_selector(
+def resolve_reinforced_teacher_selector(
     *,
     model,
     num_teachers: int,
@@ -80,10 +80,8 @@ def log_distillation_trainer_setup(
     alpha: float,
     teacher_gate,
     teacher_gate_top_k: int,
-    teacher_gate_temperature: float,
     teacher_gate_entropy_alpha: float,
     teacher_gate_router_z_loss_alpha: float,
-    teacher_gate_hard_routing_warmup_ratio: float,
     grace_threshold: float,
     grace_warmup_ratio: float,
     grace_epsilon: float,
@@ -96,8 +94,6 @@ def log_distillation_trainer_setup(
     reinforced_selection_policy_alpha: float,
     trie_wasserstein_rho: float,
     trie_wasserstein_topk: int,
-    trie_tail_depth: int,
-    trie_tail_weight: float,
 ) -> None:
     """Print the trainer-side distillation config summary.
 
@@ -119,8 +115,6 @@ def log_distillation_trainer_setup(
     if loss_function == "trie_wasserstein_loss":
         print(f"  - Trie Wasserstein rho: {trie_wasserstein_rho}")
         print(f"  - Trie Wasserstein top-k: {trie_wasserstein_topk}")
-        print(f"  - Trie tail depth: {trie_tail_depth}")
-        print(f"  - Trie tail weight: {trie_tail_weight}")
     print(f"  - Student temperature: {student_temperature}")
     print(f"  - Teacher temperature: {teacher_temperature}")
     print(f"  - Skip student EOS: {skip_student_eos}")
@@ -157,13 +151,8 @@ def log_distillation_trainer_setup(
         print("  - Layer distillation: disabled")
     if teacher_gate is not None:
         print(f"  - Teacher gate top-k: {teacher_gate_top_k}")
-        print(f"  - Teacher gate temperature: {teacher_gate_temperature}")
         print(f"  - Teacher gate entropy alpha: {teacher_gate_entropy_alpha}")
         print(f"  - Teacher gate router z-loss alpha: {teacher_gate_router_z_loss_alpha}")
-        print(
-            "  - Teacher gate hard routing warmup ratio: "
-            f"{teacher_gate_hard_routing_warmup_ratio}"
-        )
         print(f"  - GRACE threshold: {grace_threshold}")
         print(f"  - GRACE warmup ratio: {grace_warmup_ratio}")
         print(f"  - GRACE epsilon: {grace_epsilon}")
@@ -186,6 +175,6 @@ def log_distillation_trainer_setup(
 
 __all__ = [
     "log_distillation_trainer_setup",
-    "maybe_create_reinforced_teacher_selector",
     "normalize_teacher_models",
+    "resolve_reinforced_teacher_selector",
 ]

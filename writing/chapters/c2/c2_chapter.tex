@@ -381,13 +381,10 @@ the router so that different teachers remain usable during training.
 
 Chapter~\ref{chap:proposed-method} instantiates this routing principle with a
 small student-conditioned MLP gate on top of pooled student hidden states. It
-then applies softmax weights, top-\(k\) sparsification and capacity filtering,
-with a short dense warmup before sparse routing starts. The full framework also
-supports optional balancing, entropy regularization and expert-bias updates
-during training.
-
-When enabled, the expert bias term nudges the router toward under-used teachers
-in subsequent batches.
+then applies softmax weights, top-\(k\) sparsification and routed-weight
+renormalization. The active implementation uses entropy and router \(z\)-loss
+terms to regularize the gate, but it does not use capacity filtering or
+expert-bias updates.
 
 This makes the routing stage closer to sparse-expert training than to a static teacher average \cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}.
 
@@ -451,6 +448,6 @@ develops this idea into the \methodname{} score-refinement mechanism.
 \begin{figure}[H]
     \centering
     \includegraphics[width=\textwidth]{figures/gradient_conflict.png}
-    \caption[Gradient conflict in a multi-objective setting.]{Gradient conflict in a multi-objective setting. The first three panels show the multi-task objective and two individual task objectives over the same parameter space. The final panel shows that different objectives can prefer different update directions. In multi-teacher distillation, an analogous conflict arises when a routed teacher's KD gradient disagrees with the student's supervised gradient.}
+    \caption[Gradient conflict in a multi-objective setting.]{Gradient conflict in a multi-objective setting. The first three panels show the multi-task objective and two individual task objectives over the same parameter space. The final panel shows that different objectives can prefer different update directions. In multi-teacher distillation, an analogous conflict arises when a teacher KD gradient disagrees with the student's supervised gradient.}
     \label{fig:gradient-conflict}
 \end{figure}

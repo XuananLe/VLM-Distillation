@@ -16,32 +16,24 @@
 \contentsline {figure}{\numberline {2.6}{\ignorespaces Sparse routing and expert specialization in MoE.}}{18}{figure.caption.15}%
 \contentsline {figure}{\numberline {2.7}{\ignorespaces Gradient conflict in a multi-objective setting.}}{19}{figure.caption.16}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {3.1}{\ignorespaces Architecture view of GRACE{}.\relax }}{24}{figure.caption.18}%
+\contentsline {figure}{\numberline {3.1}{\ignorespaces GRACE architecture.}}{21}{figure.caption.17}%
 \contentsline {figure}{\numberline {3.2}{\ignorespaces Shared-trie view of cross-tokenizer matching for \texttt {document}/\texttt {receipt} and \texttt {doc}/\texttt {rece}.\relax }}{25}{figure.caption.19}%
-\contentsline {figure}{\numberline {3.3}{\ignorespaces Sparse trie-Wasserstein support in the implementation.\relax }}{27}{figure.caption.20}%
-\contentsline {figure}{\numberline {3.4}{\ignorespaces Trie split for \texttt {document} and \texttt {doc}.\relax }}{27}{figure.caption.21}%
-\contentsline {figure}{\numberline {3.5}{\ignorespaces Student-conditioned router sketch in GRACE{}.}}{29}{figure.caption.23}%
-\contentsline {figure}{\numberline {3.6}{\ignorespaces Bias-feedback behavior in GRACE.}}{31}{figure.caption.24}%
-\contentsline {figure}{\numberline {3.7}{\ignorespaces Routing dynamics in GRACE.}}{31}{figure.caption.25}%
-\contentsline {figure}{\numberline {3.8}{\ignorespaces Directional view of gradient descent.}}{32}{figure.caption.26}%
-\contentsline {figure}{\numberline {3.9}{\ignorespaces EMA smoothing in GRACE.}}{33}{figure.caption.27}%
-\contentsline {figure}{\numberline {3.10}{\ignorespaces Warmup schedule in GRACE.}}{34}{figure.caption.28}%
-\contentsline {figure}{\numberline {3.11}{\ignorespaces GRACE score refinement in GRACE{}.}}{35}{figure.caption.29}%
-\contentsline {figure}{\numberline {3.12}{\ignorespaces GRACE weighting cases.}}{35}{figure.caption.30}%
-\contentsline {figure}{\numberline {3.13}{\ignorespaces Weight refinement in GRACE.}}{35}{figure.caption.31}%
-\contentsline {figure}{\numberline {3.14}{\ignorespaces Sample-specific weighting in GRACE.}}{36}{figure.caption.32}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Sparse trie-Wasserstein support and residual tail mass.\relax }}{28}{figure.caption.20}%
+\contentsline {figure}{\numberline {3.4}{\ignorespaces Top-\(k\) routing dynamics in GRACE.}}{30}{figure.caption.22}%
+\contentsline {figure}{\numberline {3.5}{\ignorespaces GRACE score-refinement operator.}}{33}{figure.caption.23}%
+\contentsline {figure}{\numberline {3.6}{\ignorespaces Representative KD weighting regimes.}}{33}{figure.caption.24}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {4.1}{\ignorespaces TextVQA sample image.}}{39}{figure.caption.33}%
-\contentsline {figure}{\numberline {4.2}{\ignorespaces DocVQA sample image.}}{40}{figure.caption.34}%
-\contentsline {figure}{\numberline {4.3}{\ignorespaces ChartQA sample image.}}{40}{figure.caption.35}%
-\contentsline {figure}{\numberline {4.4}{\ignorespaces R2 bucket used for teacher-logit storage.}}{48}{figure.caption.38}%
-\contentsline {figure}{\numberline {4.5}{\ignorespaces Training with remote teacher logits.\relax }}{49}{figure.caption.39}%
+\contentsline {figure}{\numberline {4.1}{\ignorespaces TextVQA sample image.}}{36}{figure.caption.25}%
+\contentsline {figure}{\numberline {4.2}{\ignorespaces DocVQA sample image.}}{37}{figure.caption.26}%
+\contentsline {figure}{\numberline {4.3}{\ignorespaces ChartQA sample image.}}{37}{figure.caption.27}%
+\contentsline {figure}{\numberline {4.4}{\ignorespaces R2 bucket used for teacher-logit storage.}}{45}{figure.caption.30}%
+\contentsline {figure}{\numberline {4.5}{\ignorespaces Training with remote teacher logits.\relax }}{46}{figure.caption.31}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {5.1}{\ignorespaces Grouped comparison of original, best-baseline and GRACE results.}}{56}{figure.caption.45}%
-\contentsline {figure}{\numberline {5.2}{\ignorespaces DEX-AR overview.}}{57}{figure.caption.46}%
-\contentsline {figure}{\numberline {5.3}{\ignorespaces Representative TextVQA attention example.}}{58}{figure.caption.47}%
-\contentsline {figure}{\numberline {5.4}{\ignorespaces Training-curve comparison for uniform weighting and GRACE.}}{59}{figure.caption.48}%
-\contentsline {figure}{\numberline {5.5}{\ignorespaces Representative collapse and non-collapse routing examples.}}{60}{figure.caption.49}%
-\contentsline {figure}{\numberline {5.6}{\ignorespaces Final-layer CKA heatmaps across two benchmarks.}}{63}{figure.caption.52}%
-\contentsline {figure}{\numberline {5.7}{\ignorespaces Vision-layer CKA heatmaps across two benchmarks.}}{63}{figure.caption.53}%
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Grouped comparison of original, best-baseline and GRACE results.}}{53}{figure.caption.37}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces DEX-AR overview.}}{54}{figure.caption.38}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces Representative TextVQA attention example.}}{55}{figure.caption.39}%
+\contentsline {figure}{\numberline {5.4}{\ignorespaces Training-curve comparison for uniform weighting and GRACE.}}{56}{figure.caption.40}%
+\contentsline {figure}{\numberline {5.5}{\ignorespaces Representative collapse and non-collapse routing examples.}}{57}{figure.caption.41}%
+\contentsline {figure}{\numberline {5.6}{\ignorespaces Final-layer CKA heatmaps across two benchmarks.}}{60}{figure.caption.44}%
+\contentsline {figure}{\numberline {5.7}{\ignorespaces Vision-layer CKA heatmaps across two benchmarks.}}{60}{figure.caption.45}%
 \addvspace {10\p@ }

@@ -36,49 +36,49 @@
 \contentsline {subsection}{\numberline {2.4.3}Gradient Conflict and Teacher Agreement}{18}{subsection.2.4.3}%
 \contentsline {chapter}{\numberline {3}Proposed Method}{20}{chapter.3}%
 \contentsline {section}{\numberline {3.1}Method Overview and Problem Formulation}{20}{section.3.1}%
-\contentsline {subsection}{\numberline {3.1.1}Notation Summary}{21}{subsection.3.1.1}%
-\contentsline {subsection}{\numberline {3.1.2}Training Step}{22}{subsection.3.1.2}%
-\contentsline {section}{\numberline {3.2}Trie-Wasserstein Cross-Tokenizer Distillation}{22}{section.3.2}%
-\contentsline {subsection}{\numberline {3.2.1}Supervised Answer Tokens}{22}{subsection.3.2.1}%
-\contentsline {subsection}{\numberline {3.2.2}Shared Byte Trie}{24}{subsection.3.2.2}%
-\contentsline {paragraph}{Closed-form tree metric.}{25}{figure.caption.19}%
-\contentsline {subsection}{\numberline {3.2.3}Sparse Top-\(k\) Support and Tail Edge}{25}{subsection.3.2.3}%
-\contentsline {paragraph}{Complexity Analysis.}{26}{equation.3.2.10}%
-\contentsline {section}{\numberline {3.3}Learned Teacher Gate and Load Balancing}{28}{section.3.3}%
+\contentsline {subsection}{\numberline {3.1.1}Notation Summary}{22}{subsection.3.1.1}%
+\contentsline {subsection}{\numberline {3.1.2}Training Step}{23}{subsection.3.1.2}%
+\contentsline {section}{\numberline {3.2}Trie-Wasserstein Cross-Tokenizer Distillation}{23}{section.3.2}%
+\contentsline {subsection}{\numberline {3.2.1}Supervised Answer Tokens}{23}{subsection.3.2.1}%
+\contentsline {subsection}{\numberline {3.2.2}Shared Byte Trie}{23}{subsection.3.2.2}%
+\contentsline {subsection}{\numberline {3.2.3}Full Trie-Wasserstein Objective}{26}{subsection.3.2.3}%
+\contentsline {subsection}{\numberline {3.2.4}Sparse Support and Residual Tail Edge}{26}{subsection.3.2.4}%
+\contentsline {paragraph}{Complexity Analysis.}{27}{equation.3.2.9}%
+\contentsline {section}{\numberline {3.3}Student-Conditioned Teacher Routing}{28}{section.3.3}%
 \contentsline {subsection}{\numberline {3.3.1}Student-Conditioned Router}{28}{subsection.3.3.1}%
-\contentsline {subsection}{\numberline {3.3.2}Top-k, Capacity and Fallback}{29}{subsection.3.3.2}%
-\contentsline {subsection}{\numberline {3.3.3}Balancing Loss and Expert Bias Update}{30}{subsection.3.3.3}%
-\contentsline {section}{\numberline {3.4}GRACE Score Refinement}{31}{section.3.4}%
-\contentsline {subsection}{\numberline {3.4.1}Gradient Proxies}{31}{subsection.3.4.1}%
-\contentsline {subsection}{\numberline {3.4.2}GRACE Scores and Logged Active Flags}{32}{subsection.3.4.2}%
-\contentsline {subsection}{\numberline {3.4.3}Warmup, Score Smoothing and Gradient Weights}{33}{subsection.3.4.3}%
-\contentsline {subsection}{\numberline {3.4.4}Router-Gradient Blend and Uniform Fallback}{34}{subsection.3.4.4}%
-\contentsline {subsection}{\numberline {3.4.5}Sample-Wise KD Aggregation}{36}{subsection.3.4.5}%
-\contentsline {section}{\numberline {3.5}Final Objective}{36}{section.3.5}%
-\contentsline {chapter}{\numberline {4}Evaluation Methodology}{38}{chapter.4}%
-\contentsline {section}{\numberline {4.1}Experimental Setup}{38}{section.4.1}%
-\contentsline {section}{\numberline {4.2}Datasets}{38}{section.4.2}%
-\contentsline {subsection}{\numberline {4.2.1}Dataset Descriptions}{39}{subsection.4.2.1}%
-\contentsline {subsection}{\numberline {4.2.2}Dataset Size and Splits}{39}{subsection.4.2.2}%
-\contentsline {section}{\numberline {4.3}Training Configuration}{41}{section.4.3}%
-\contentsline {section}{\numberline {4.4}Evaluation Metrics}{43}{section.4.4}%
-\contentsline {section}{\numberline {4.5}Baselines and Compared Methods}{44}{section.4.5}%
-\contentsline {section}{\numberline {4.6}Implementation Details}{47}{section.4.6}%
-\contentsline {subsection}{\numberline {4.6.1}Offline Teacher-Logit Preparation}{47}{subsection.4.6.1}%
-\contentsline {subsection}{\numberline {4.6.2}Remote Logit Streaming During Training}{48}{subsection.4.6.2}%
-\contentsline {chapter}{\numberline {5}Experiment Results}{50}{chapter.5}%
-\contentsline {section}{\numberline {5.1}Main Comparison Results}{50}{section.5.1}%
-\contentsline {subsection}{\numberline {5.1.1}Baseline Results}{50}{subsection.5.1.1}%
-\contentsline {subsection}{\numberline {5.1.2}Overall Comparison}{50}{subsection.5.1.2}%
-\contentsline {section}{\numberline {5.2}Representation Similarity Analysis}{62}{section.5.2}%
-\contentsline {section}{\numberline {5.3}Ablation Study}{64}{section.5.3}%
-\contentsline {section}{\numberline {5.4}Efficiency Analysis}{65}{section.5.4}%
-\contentsline {section}{\numberline {5.5}Discussion}{67}{section.5.5}%
-\contentsline {section}{\numberline {5.6}Limitations and Threats to Validity}{67}{section.5.6}%
-\contentsline {chapter}{Conclusion and Future Work}{69}{chapter*.55}%
-\contentsline {chapter}{\numberline {A}Closed-Form Trie-Wasserstein Derivation}{70}{appendix.A}%
-\contentsline {section}{\numberline {A.1}Setup}{70}{section.A.1}%
-\contentsline {section}{\numberline {A.2}Lower Bound}{71}{section.A.2}%
-\contentsline {section}{\numberline {A.3}Achievability}{71}{section.A.3}%
-\contentsline {section}{\numberline {A.4}Application to the Shared Byte Trie}{72}{section.A.4}%
-\contentsline {chapter}{References}{74}{section*.56}%
+\contentsline {subsection}{\numberline {3.3.2}Top-K Routing}{29}{subsection.3.3.2}%
+\contentsline {subsection}{\numberline {3.3.3}Router Entropy and Z-Loss}{30}{subsection.3.3.3}%
+\contentsline {section}{\numberline {3.4}GRACE Score Refinement}{30}{section.3.4}%
+\contentsline {subsection}{\numberline {3.4.1}Parameter-Gradient Agreement}{31}{subsection.3.4.1}%
+\contentsline {subsection}{\numberline {3.4.2}Agreement Scores and Active Set}{31}{subsection.3.4.2}%
+\contentsline {subsection}{\numberline {3.4.3}Warmup, EMA Smoothing and Score Weights}{32}{subsection.3.4.3}%
+\contentsline {subsection}{\numberline {3.4.4}Router-Score Blend and Fallback}{32}{subsection.3.4.4}%
+\contentsline {subsection}{\numberline {3.4.5}Sample-Wise KD Aggregation}{34}{subsection.3.4.5}%
+\contentsline {section}{\numberline {3.5}Final Objective}{34}{section.3.5}%
+\contentsline {chapter}{\numberline {4}Evaluation Methodology}{35}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Experimental Setup}{35}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Datasets}{35}{section.4.2}%
+\contentsline {subsection}{\numberline {4.2.1}Dataset Descriptions}{36}{subsection.4.2.1}%
+\contentsline {subsection}{\numberline {4.2.2}Dataset Size and Splits}{36}{subsection.4.2.2}%
+\contentsline {section}{\numberline {4.3}Training Configuration}{38}{section.4.3}%
+\contentsline {section}{\numberline {4.4}Evaluation Metrics}{40}{section.4.4}%
+\contentsline {section}{\numberline {4.5}Baselines and Compared Methods}{41}{section.4.5}%
+\contentsline {section}{\numberline {4.6}Implementation Details}{44}{section.4.6}%
+\contentsline {subsection}{\numberline {4.6.1}Offline Teacher-Logit Preparation}{44}{subsection.4.6.1}%
+\contentsline {subsection}{\numberline {4.6.2}Remote Logit Streaming During Training}{45}{subsection.4.6.2}%
+\contentsline {chapter}{\numberline {5}Experiment Results}{47}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Main Comparison Results}{47}{section.5.1}%
+\contentsline {subsection}{\numberline {5.1.1}Baseline Results}{47}{subsection.5.1.1}%
+\contentsline {subsection}{\numberline {5.1.2}Overall Comparison}{47}{subsection.5.1.2}%
+\contentsline {section}{\numberline {5.2}Representation Similarity Analysis}{59}{section.5.2}%
+\contentsline {section}{\numberline {5.3}Ablation Study}{61}{section.5.3}%
+\contentsline {section}{\numberline {5.4}Efficiency Analysis}{62}{section.5.4}%
+\contentsline {section}{\numberline {5.5}Discussion}{63}{section.5.5}%
+\contentsline {section}{\numberline {5.6}Limitations and Threats to Validity}{64}{section.5.6}%
+\contentsline {chapter}{Conclusion and Future Work}{66}{chapter*.47}%
+\contentsline {chapter}{\numberline {A}Closed-Form Trie-Wasserstein Derivation}{67}{appendix.A}%
+\contentsline {section}{\numberline {A.1}Setup}{67}{section.A.1}%
+\contentsline {section}{\numberline {A.2}Lower Bound}{68}{section.A.2}%
+\contentsline {section}{\numberline {A.3}Achievability}{68}{section.A.3}%
+\contentsline {section}{\numberline {A.4}Application to the Shared Byte Trie}{69}{section.A.4}%
+\contentsline {chapter}{References}{71}{section*.48}%

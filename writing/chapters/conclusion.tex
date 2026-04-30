@@ -10,7 +10,7 @@ We studied compact visual language model distillation under
 heterogeneous teachers. The student is much smaller than the teacher set, the
 teachers do not help every sample equally and their tokenizers do not match.
 We present \methodname{}, a routed multi-teacher
-framework with trie-Wasserstein cross-tokenizer distillation, capacity-aware
+framework with trie-Wasserstein cross-tokenizer distillation, sparse top-\(k\)
 selection and EMA-smoothed GRACE weighting. The code follows that order:
 route teachers first, refine their weights with GRACE scores, then aggregate
 the routed trie-Wasserstein KD loss

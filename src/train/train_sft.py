@@ -5,7 +5,7 @@ from transformers import HfArgumentParser, Trainer
 
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, ModelArguments, TrainingArguments
-from src.train.model_setup import load_model_and_processor
+from src.train.model_setup import load_vlm_bundle
 
 def train():
     """Parse args, build the SFT stack, and run one full supervised fine-tuning job."""
@@ -22,7 +22,7 @@ def train():
         else torch.bfloat16 if training_args.bf16
         else torch.float32
     )
-    model, processor, _, _ = load_model_and_processor(
+    model, processor, _, _ = load_vlm_bundle(
         model_id=model_args.model_id,
         cache_dir=training_args.cache_dir,
         device=training_args.device,

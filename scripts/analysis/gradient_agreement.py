@@ -33,7 +33,7 @@ from src.dataset.vqa_loading import (
 from src.params import DataArguments
 from src.train.model_setup import (
     load_model,
-    load_processor_and_tokenizer,
+    load_processor_bundle,
 )
 
 
@@ -147,30 +147,30 @@ class DocVQAGradientAgreementDataset(Dataset):
             {"content": selected.answer},
         ]
 
-        data_dict = encode_student_data(
+        encoded_sample = encode_student_data(
             sources,
             [image],
             self.encoder_dataset.processor,
         )
-        if data_dict["pixel_values"] is None:
+        if encoded_sample["pixel_values"] is None:
             raise ValueError("Student encoder did not produce image tensors for an image-only sample.")
 
         teacher_count = len(self.encoder_dataset.teacher_processors)
         for teacher_index, teacher_processor in enumerate(self.encoder_dataset.teacher_processors):
             teacher_data = self.encoder_dataset._encode_teacher_data(sources, [image], teacher_processor)
             prefix = "teacher" if teacher_count == 1 else f"teacher_{teacher_index}"
-            data_dict[f"{prefix}_input_ids"] = teacher_data["input_ids"]
-            data_dict[f"{prefix}_labels"] = teacher_data["labels"]
-            data_dict[f"{prefix}_attention_mask"] = teacher_data["attention_mask"]
-            data_dict[f"{prefix}_pixel_values"] = teacher_data["pixel_values"]
-            data_dict[f"{prefix}_pixel_attention_mask"] = teacher_data["pixel_attention_mask"]
+            encoded_sample[f"{prefix}_input_ids"] = teacher_data["input_ids"]
+            encoded_sample[f"{prefix}_labels"] = teacher_data["labels"]
+            encoded_sample[f"{prefix}_attention_mask"] = teacher_data["attention_mask"]
+            encoded_sample[f"{prefix}_pixel_values"] = teacher_data["pixel_values"]
+            encoded_sample[f"{prefix}_pixel_attention_mask"] = teacher_data["pixel_attention_mask"]
             if teacher_data.get("image_sizes") is not None:
-                data_dict[f"{prefix}_image_sizes"] = teacher_data["image_sizes"]
+                encoded_sample[f"{prefix}_image_sizes"] = teacher_data["image_sizes"]
             if teacher_data.get("image_grid_thw") is not None:
-                data_dict[f"{prefix}_image_grid_thw"] = teacher_data["image_grid_thw"]
+                encoded_sample[f"{prefix}_image_grid_thw"] = teacher_data["image_grid_thw"]
             if teacher_data.get("image_flags") is not None:
-                data_dict[f"{prefix}_image_flags"] = teacher_data["image_flags"]
-        return data_dict
+                encoded_sample[f"{prefix}_image_flags"] = teacher_data["image_flags"]
+        return encoded_sample
 
 
 def select_docvqa_subset(dataset_name: str, split: str, subset_size: int, offset: int):
@@ -200,7 +200,7 @@ def select_docvqa_subset(dataset_name: str, split: str, subset_size: int, offset
     return hf_dataset, loaded_from, schema, selected_samples
 
 
-def load_model_and_processor(
+def load_vlm_runtime(
     model_id: str,
     *,
     device: str,
@@ -208,7 +208,7 @@ def load_model_and_processor(
     attn_implementation: str,
     cache_dir: str | None,
 ):
-    processor, _, model_type = load_processor_and_tokenizer(
+    processor, _, model_type = load_processor_bundle(
         model_id,
         cache_dir=cache_dir,
         padding_side="right",
@@ -451,7 +451,7 @@ def main() -> None:
     print(f"Loaded dataset from {loaded_from}. Using {len(selected_samples)} valid samples.", flush=True)
 
     print("Loading student model ...", flush=True)
-    student_model, student_processor = load_model_and_processor(
+    student_model, student_processor = load_vlm_runtime(
         args.student_model_id,
         device=args.device,
         dtype=dtype,
@@ -459,7 +459,7 @@ def main() -> None:
         cache_dir=args.cache_dir,
     )
     print("Loading teacher model ...", flush=True)
-    teacher_model, teacher_processor = load_model_and_processor(
+    teacher_model, teacher_processor = load_vlm_runtime(
         args.teacher_model_id,
         device=args.device,
         dtype=dtype,

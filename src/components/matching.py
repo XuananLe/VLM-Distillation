@@ -9,22 +9,22 @@ def load_cka_json(json_path: str):
     json_path = Path(json_path)
 
     with open(json_path, "r") as file_handle:
-        data = json.load(file_handle)
+        cka_payload = json.load(file_handle)
 
-    cka_matrix = np.asarray(data["cka_matrix"], dtype=np.float64)
+    cka_matrix = np.asarray(cka_payload["cka_matrix"], dtype=np.float64)
 
-    model_a_layers = [item["layer_name"] for item in data["model_a"]["selected_layers"]]
-    model_b_layers = [item["layer_name"] for item in data["model_b"]["selected_layers"]]
+    model_a_layers = [item["layer_name"] for item in cka_payload["model_a"]["selected_layers"]]
+    model_b_layers = [item["layer_name"] for item in cka_payload["model_b"]["selected_layers"]]
 
     return {
-        "raw": data,
+        "raw": cka_payload,
         "cka_matrix": cka_matrix,
-        "model_a_name": data["model_a"]["model_name"],
-        "model_b_name": data["model_b"]["model_name"],
+        "model_a_name": cka_payload["model_a"]["model_name"],
+        "model_b_name": cka_payload["model_b"]["model_name"],
         "model_a_layers": model_a_layers,
         "model_b_layers": model_b_layers,
-        "model_a_selected_layer_indices": data["model_a"]["selected_layer_indices"],
-        "model_b_selected_layer_indices": data["model_b"]["selected_layer_indices"],
+        "model_a_selected_layer_indices": cka_payload["model_a"]["selected_layer_indices"],
+        "model_b_selected_layer_indices": cka_payload["model_b"]["selected_layer_indices"],
     }
 
 

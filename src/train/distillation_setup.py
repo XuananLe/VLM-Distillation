@@ -77,17 +77,7 @@ class DistillationArguments:
 
     trie_wasserstein_topk: int = field(
         default=64,
-        metadata={"help": "Sparse top-k used by trie_wasserstein_loss before routing leftover mass to prefix-tail buckets."},
-    )
-
-    trie_tail_depth: int = field(
-        default=1,
-        metadata={"help": "Byte-prefix depth used for trie_wasserstein_loss residual prefix-tail buckets."},
-    )
-
-    trie_tail_weight: float = field(
-        default=0.5,
-        metadata={"help": "Weight multiplier for trie_wasserstein_loss synthetic prefix-tail edges."},
+        metadata={"help": "Sparse top-k used by trie_wasserstein_loss before routing leftover probability mass to the residual tail edge."},
     )
 
     student_temperature: float = field(
@@ -120,11 +110,6 @@ class DistillationArguments:
         metadata={"help": "Top-k teachers retained per sample by the teacher gate."},
     )
 
-    teacher_gate_temperature: float = field(
-        default=1.0,
-        metadata={"help": "Softmax temperature applied to router scores before teacher-gate weighting."},
-    )
-
     teacher_gate_entropy_alpha: float = field(
         default=1e-3,
         metadata={"help": "Weight on the entropy bonus applied to teacher-gate probabilities."},
@@ -133,11 +118,6 @@ class DistillationArguments:
     teacher_gate_router_z_loss_alpha: float = field(
         default=1e-3,
         metadata={"help": "Weight on router z-loss for stabilizing teacher-gate logits."},
-    )
-
-    teacher_gate_hard_routing_warmup_ratio: float = field(
-        default=0.2,
-        metadata={"help": "Fraction of training steps to keep routing fully soft before enforcing the configured top-k."},
     )
 
     grace_threshold: float = field(
@@ -198,7 +178,6 @@ class DistillationArguments:
 
     @model_validator(mode="after")
     def validate(self):
-        """Validate CLI arguments immediately after Hugging Face builds this dataclass."""
         if not self.teacher_model_ids:
             raise ValueError("At least one teacher model ID must be provided via --teacher_model_ids.")
         if self.teacher_logits_cache_dir is None and self.teacher_logits_remote_uri is None:
@@ -231,7 +210,6 @@ class DistillationArguments:
             raise ValueError("--trie_wasserstein_rho must be in (0, 1).")
         for arg_name, value in (
             ("--trie_wasserstein_topk", self.trie_wasserstein_topk),
-            ("--trie_tail_depth", self.trie_tail_depth),
             ("--layer_match_topk", self.layer_match_topk),
             ("--teacher_gate_top_k", self.teacher_gate_top_k),
         ):
@@ -239,8 +217,6 @@ class DistillationArguments:
                 raise ValueError(f"{arg_name} must be >= 1.")
 
         for arg_name, value in (
-            ("--teacher_gate_temperature", self.teacher_gate_temperature),
-            ("--trie_tail_weight", self.trie_tail_weight),
             ("--grace_softmax_beta", self.grace_softmax_beta),
             ("--student_temperature", self.student_temperature),
             ("--teacher_temperature", self.teacher_temperature),
@@ -253,7 +229,6 @@ class DistillationArguments:
             ("--alpha", self.alpha),
             ("--teacher_gate_entropy_alpha", self.teacher_gate_entropy_alpha),
             ("--teacher_gate_router_z_loss_alpha", self.teacher_gate_router_z_loss_alpha),
-            ("--teacher_gate_hard_routing_warmup_ratio", self.teacher_gate_hard_routing_warmup_ratio),
             ("--grace_warmup_ratio", self.grace_warmup_ratio),
             ("--grace_epsilon", self.grace_epsilon),
             ("--reinforced_selection_warmup_ratio", self.reinforced_selection_warmup_ratio),
@@ -269,22 +244,33 @@ class DistillationArguments:
         if not 0.0 <= self.reinforced_selection_reward_ema_decay < 1.0:
             raise ValueError("--reinforced_selection_reward_ema_decay must be in [0, 1).")
 
-        layer_distillation_enabled = (
-            self.layer_distill_source in {"vision", "model"}
-            and self.layer_distill_weight > 0.0
-            and (self.student_layer_indices or self.layer_match_json_path)
+        layer_args_configured = bool(
+            self.layer_match_json_path
+            or self.student_layer_indices
+            or self.teacher_layer_indices
         )
-        if layer_distillation_enabled:
-            if not self.teacher_layer_indices and not self.layer_match_json_path:
-                raise ValueError("--teacher_layer_indices must be provided when layer distillation is enabled.")
-            if (
-                self.student_layer_indices
-                and self.teacher_layer_indices
-                and len(self.student_layer_indices) != len(self.teacher_layer_indices)
-            ):
+        if self.layer_distill_source == "none":
+            if self.layer_distill_weight > 0.0 or layer_args_configured:
                 raise ValueError(
-                    "--student_layer_indices and --teacher_layer_indices must have the same length."
+                    "Layer distillation arguments require --layer_distill_source vision or model."
                 )
+        else:
+            if self.layer_distill_weight <= 0.0:
+                raise ValueError("--layer_distill_weight must be > 0 when layer distillation is enabled.")
+            if self.layer_match_json_path:
+                if self.student_layer_indices or self.teacher_layer_indices:
+                    raise ValueError(
+                        "Use either --layer_match_json_path or manual layer indices, not both."
+                    )
+            else:
+                if not self.student_layer_indices:
+                    raise ValueError("--student_layer_indices must be provided when layer distillation is enabled.")
+                if not self.teacher_layer_indices:
+                    raise ValueError("--teacher_layer_indices must be provided when layer distillation is enabled.")
+                if len(self.student_layer_indices) != len(self.teacher_layer_indices):
+                    raise ValueError(
+                        "--student_layer_indices and --teacher_layer_indices must have the same length."
+                    )
         return self
 
 
@@ -331,8 +317,6 @@ def log_distillation_setup(
     if distillation_args.distillation_loss == "trie_wasserstein_loss":
         print(f"Trie Wasserstein Rho: {distillation_args.trie_wasserstein_rho}")
         print(f"Trie Wasserstein Top-k: {distillation_args.trie_wasserstein_topk}")
-        print(f"Trie Tail Depth: {distillation_args.trie_tail_depth}")
-        print(f"Trie Tail Weight: {distillation_args.trie_tail_weight}")
     print(f"Alpha: {distillation_args.alpha}")
     print("CE Weight: 1.0")
     print(f"Student Temperature: {distillation_args.student_temperature}")
@@ -341,15 +325,10 @@ def log_distillation_setup(
     print(f"Skip Teacher EOS: {distillation_args.skip_teacher_eos}")
     if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing":
         print(f"Teacher Gate Top-k: {distillation_args.teacher_gate_top_k}")
-        print(f"Teacher Gate Temperature: {distillation_args.teacher_gate_temperature}")
         print(f"Teacher Gate Entropy Alpha: {distillation_args.teacher_gate_entropy_alpha}")
         print(
             f"Teacher Gate Router Z-Loss Alpha: "
             f"{distillation_args.teacher_gate_router_z_loss_alpha}"
-        )
-        print(
-            f"Teacher Gate Hard Routing Warmup Ratio: "
-            f"{distillation_args.teacher_gate_hard_routing_warmup_ratio}"
         )
         print(f"GRACE Threshold: {distillation_args.grace_threshold}")
         print(f"GRACE Warmup Ratio: {distillation_args.grace_warmup_ratio}")

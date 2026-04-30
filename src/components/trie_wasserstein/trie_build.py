@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import torch
 
-from .constants import EOS_SENTINEL
 from src.tokenizer_utils import token_piece_to_bytes
+from .constants import EOS_SENTINEL
 from .types import TrieBuildResult, TrieNode, TrieRuntimeState
 
 
@@ -29,19 +29,6 @@ def insert_token_bytes(
     return path
 
 
-def pack_paths(paths: list[list[int]]) -> tuple[torch.Tensor, torch.Tensor]:
-    """Pack variable-length edge-id paths into flat ids plus offsets."""
-    flat: list[int] = []
-    offsets = [0]
-    for path in paths:
-        flat.extend(path)
-        offsets.append(len(flat))
-    return (
-        torch.tensor(flat, dtype=torch.long),
-        torch.tensor(offsets, dtype=torch.long),
-    )
-
-
 def build_tokenizer_paths(
     *,
     tokenizer,
@@ -49,18 +36,13 @@ def build_tokenizer_paths(
     ignored_token_ids: tuple[int, ...],
     root: TrieNode,
     edge_weights: list[float],
-    prefix_bucket_to_id: dict[tuple[int, ...], int],
-    prefix_tail_paths: list[list[int]],
     rho: float,
-    tail_depth: int,
-    tail_weight: float,
 ) -> TrieBuildResult:
     """Build flattened trie paths for one tokenizer so runtime lookup is cheap."""
     ignored_token_ids_set = set(ignored_token_ids)
     path_flat: list[int] = []
     path_offsets = [0]
     ignored_mask = torch.zeros(vocab_size, dtype=torch.bool)
-    prefix_bucket_ids = torch.zeros(vocab_size, dtype=torch.long)
 
     for token_id in range(vocab_size):
         if token_id in ignored_token_ids_set:
@@ -82,31 +64,10 @@ def build_tokenizer_paths(
         path_flat.extend(path)
         path_offsets.append(len(path_flat))
 
-        prefix_bytes = token_bytes[:tail_depth] or [EOS_SENTINEL]
-        prefix_key = tuple(prefix_bytes)
-        prefix_path = insert_token_bytes(
-            token_bytes=prefix_bytes,
-            root=root,
-            edge_weights=edge_weights,
-            rho=rho,
-        )
-        bucket_id = prefix_bucket_to_id.get(prefix_key)
-        if bucket_id is None:
-            bucket_id = len(prefix_tail_paths)
-            prefix_bucket_to_id[prefix_key] = bucket_id
-            tail_edge_id = len(edge_weights)
-
-            # Residual mass should be cheaper when it agrees on a longer byte
-            # prefix, but still pay a synthetic "unknown continuation" cost.
-            edge_weights.append(float(tail_weight) * (float(rho) ** len(prefix_path)))
-            prefix_tail_paths.append(prefix_path + [tail_edge_id])
-        prefix_bucket_ids[token_id] = bucket_id
-
     return TrieBuildResult(
         path_flat=torch.tensor(path_flat, dtype=torch.long),
         path_offsets=torch.tensor(path_offsets, dtype=torch.long),
         ignored_mask=ignored_mask,
-        prefix_bucket_ids=prefix_bucket_ids,
     )
 
 
@@ -117,16 +78,12 @@ def build_trie_state_from_tokenizers(
     student_ignored_token_ids: tuple[int, ...],
     teacher_ignored_token_ids: tuple[int, ...],
     rho: float,
-    tail_depth: int,
-    tail_weight: float,
     student_tokenizer,
     teacher_tokenizer,
 ) -> TrieRuntimeState:
     """Build static CPU trie state for one student/teacher tokenizer pair."""
     root = TrieNode()
     edge_weights: list[float] = []
-    prefix_bucket_to_id: dict[tuple[int, ...], int] = {}
-    prefix_tail_paths: list[list[int]] = []
 
     # Student and teacher paths intentionally share one trie so matching byte
     # prefixes can cancel even when the two tokenizers use different vocabularies.
@@ -136,11 +93,7 @@ def build_trie_state_from_tokenizers(
         ignored_token_ids=student_ignored_token_ids,
         root=root,
         edge_weights=edge_weights,
-        prefix_bucket_to_id=prefix_bucket_to_id,
-        prefix_tail_paths=prefix_tail_paths,
         rho=rho,
-        tail_depth=tail_depth,
-        tail_weight=tail_weight,
     )
     teacher_paths = build_tokenizer_paths(
         tokenizer=teacher_tokenizer,
@@ -148,28 +101,22 @@ def build_trie_state_from_tokenizers(
         ignored_token_ids=teacher_ignored_token_ids,
         root=root,
         edge_weights=edge_weights,
-        prefix_bucket_to_id=prefix_bucket_to_id,
-        prefix_tail_paths=prefix_tail_paths,
         rho=rho,
-        tail_depth=tail_depth,
-        tail_weight=tail_weight,
     )
 
-    prefix_tail_path_flat, prefix_tail_path_offsets = pack_paths(prefix_tail_paths)
+    tail_edge_id = len(edge_weights)
+    edge_weights.append(1.0)
+
     return TrieRuntimeState(
         edge_weights=torch.tensor(edge_weights, dtype=torch.float32),
         student_path_flat=student_paths.path_flat,
         student_path_offsets=student_paths.path_offsets,
         student_ignored_mask=student_paths.ignored_mask,
-        student_prefix_bucket_ids=student_paths.prefix_bucket_ids,
         teacher_path_flat=teacher_paths.path_flat,
         teacher_path_offsets=teacher_paths.path_offsets,
         teacher_ignored_mask=teacher_paths.ignored_mask,
-        teacher_prefix_bucket_ids=teacher_paths.prefix_bucket_ids,
-        prefix_tail_path_flat=prefix_tail_path_flat,
-        prefix_tail_path_offsets=prefix_tail_path_offsets,
         num_edges=len(edge_weights),
-        num_prefix_tail_buckets=len(prefix_tail_paths),
+        tail_edge_id=tail_edge_id,
         student_valid_count=int((~student_paths.ignored_mask).sum().item()),
         teacher_valid_count=int((~teacher_paths.ignored_mask).sum().item()),
     )

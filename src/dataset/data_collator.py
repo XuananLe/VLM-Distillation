@@ -10,17 +10,17 @@ from .data_utils import pad_sequence
 def _pad_frames(tensors, pad_value=0):
     """Pad a list of (1, T, ...) tensors to (B, T_max, ...) along the frame dim."""
     # Per-example encoders keep a leading singleton batch dim, so collation only
-    # pads the time/frame axis and strips that singleton when writing into `out`.
-    T_max = max(t.size(1) for t in tensors)
-    out = torch.full(
-        (len(tensors), T_max) + tensors[0].shape[2:],
+    # pads the time/frame axis and strips that singleton in the batch tensor.
+    max_frame_count = max(frames.size(1) for frames in tensors)
+    padded_frames = torch.full(
+        (len(tensors), max_frame_count) + tensors[0].shape[2:],
         fill_value=pad_value,
         dtype=tensors[0].dtype,
         device=tensors[0].device,
     )
-    for i, t in enumerate(tensors):
-        out[i, :t.size(1)] = t[0]
-    return out
+    for sample_index, frames in enumerate(tensors):
+        padded_frames[sample_index, :frames.size(1)] = frames[0]
+    return padded_frames
 
 
 class DataCollatorForSupervisedDataset(object):

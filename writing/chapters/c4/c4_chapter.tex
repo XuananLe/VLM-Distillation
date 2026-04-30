@@ -97,9 +97,9 @@ distillation strategy, not unrelated optimization choices.
 We run all training jobs on a single high-memory \textbf{NVIDIA H200}
 graphics processing unit (GPU) on \textbf{Modal} or on comparable single-GPU
 \textbf{Vast.ai} instances, depending on availability.
-A typical full H200 run takes about 7 hours and costs about 21 USD on
-Vast.ai, excluding the separate cost of offline teacher-logit generation and
-remote storage.
+A typical full H200 run takes about 7 hours and costs about 14.41 USD at
+2.059 USD/hour on Vast.ai, excluding the separate cost of offline teacher-logit
+generation and remote storage.
 Distillation training uses \textbf{DeepSpeed ZeRO Stage 2}, \textbf{Brain
 Floating Point 16 (bf16)} mixed precision, \textbf{TensorFloat-32 (TF32)}
 matrix multiplication and gradient checkpointing to control memory use while
@@ -135,7 +135,7 @@ but are not part of the fair-comparison protocol itself.
 \small
 \renewcommand{\arraystretch}{0.95}
 \begin{longtable}{p{0.33\textwidth} p{0.61\textwidth}}
-\caption[Main training protocol for the active distillation launch path.]{Main optimization and routing settings for the active three-teacher DocVQA distillation launch path. These values define the fair-comparison protocol used for the main training recipe, while broader engineering details are deferred to Section~\ref{sec:implementation-notes}.}
+\caption[Main training protocol for the active distillation launch path.]{Main optimization and routing settings for the active DocVQA distillation launch path. These values define the fair-comparison protocol used for the main training recipe, while broader engineering details are deferred to Section~\ref{sec:implementation-notes}.}
 \label{tab:training-configuration}\\
 \toprule
 \textbf{Setting} & \textbf{Value} \\
@@ -152,7 +152,7 @@ but are not part of the fair-comparison protocol itself.
 \bottomrule
 \endlastfoot
 Student model & HuggingFaceTB/SmolVLM-500M-Instruct \\
-Teacher models & \makecell[l]{Qwen/Qwen2.5-VL-3B-Instruct\\Qwen/Qwen2-VL-2B-Instruct\\ibm-granite/granite-vision-3.1-2b-preview} \\
+Teacher models & \makecell[l]{Qwen/Qwen2.5-VL-3B-Instruct\\Qwen/Qwen2-VL-2B-Instruct\\ibm-granite/granite-vision-3.1-2b-preview\\google/gemma-3-4b-it} \\
 Teacher weighting strategy & routing (GRACE path) \\
 Distillation loss & Trie-Wasserstein \\
 Trie-Wasserstein rho & 0.7 \\
@@ -160,7 +160,7 @@ Trie-Wasserstein top-$k$ & 64 \\
 Training dataset & DocVQA \\
 Validation split & validation \\
 Hardware and runtime & Single-GPU runs on Modal (H200) or Vast.ai \\
-Typical run cost & About 7 hours on H200, about 21 USD on Vast.ai \\
+Typical run cost & About 7 hours on H200, about 14.41 USD at 2.059 USD/hour on Vast.ai \\
 Distributed training & DeepSpeed ZeRO-2 \\
 Optimizer & adamw\_torch \\
 Adam betas & \((0.9, 0.98)\) \\
@@ -184,20 +184,14 @@ Dataloader workers & 4 \\
 Logging and checkpointing & Log every 5 steps; save every 150 steps \\
 Student/teacher temperature & \(\tau_s=\tau_t=1.0\) \\
 KD weight & \(\alpha=0.5\) \\
-Top-\(k\) routing & \(k=2\) \\
-Capacity factor & \(\phi=1.25\) \\
-Teacher-gate temperature & 1.5 \\
-Teacher-gate noise std & 0.01 \\
-Balance weight & \(\lambda_{bal}=0.01\) \\
-Gate entropy weight & \(\lambda_{ent}=10^{-3}\) \\
+Top-\(k\) routing & \(k_{\mathrm{route}}=2\); mask top-scoring teachers and renormalize selected softmax weights \\
+Gate entropy weight & \(\lambda_{\mathrm{ent}}=10^{-3}\) \\
 Router \(z\)-loss weight & \(\lambda_{z}=10^{-3}\) \\
-Bias-update rate & \(\eta_b=5\times 10^{-4}\) \\
-Hard-routing warmup ratio & \(\rho_h=0.2\) \\
-GRACE warmup ratio & \(\rho_g=0.01\) \\
-GRACE softmax beta & \(\beta=10\) \\
-GRACE blend exponent & \(\lambda=0.4\) \\
-Score-spread fallback threshold & \(\epsilon=0.001\) \\
-Alignment threshold & \(\delta=-0.005\) \\
+GRACE warmup ratio & \(\rho_g=0.05\) \\
+GRACE softmax beta & \(\beta_{\mathrm{score}}=4.0\) \\
+GRACE blend exponent & \(\lambda_{\mathrm{blend}}=0.9\) \\
+Score-spread fallback threshold & \(\epsilon_{\mathrm{fb}}=0.01\) \\
+Alignment threshold & \(\delta=0.15\) \\
 Seed & 42 \\
 Image resolution / visual token budget & Processor defaults; no manual override \\
 \end{longtable}
@@ -222,9 +216,13 @@ s_{\text{ANLS}}=
 \end{cases}
 \]
 
-\item \textbf{ChartQA}: \textbf{Relaxed Accuracy}. A prediction is correct if it matches exactly for text answers, or if the relative error is within \(5\%\) for numeric answers:
+\item \textbf{ChartQA}: \textbf{Relaxed Accuracy}. A prediction is correct if it matches exactly for text answers. For numeric answers, the score handles the zero-target case explicitly:
 \[
-\frac{|\hat{y}-y|}{|y|}\le 0.05.
+s_{\mathrm{ChartQA}}=
+\begin{cases}
+\mathbf{1}[\hat{y}=y], & y=0,\\
+\mathbf{1}\!\left[\frac{|\hat{y}-y|}{|y|}\le 0.05\right], & y\ne0.
+\end{cases}
 \]
 The final score is the proportion of correct predictions \cite{masry2022chartqabenchmarkquestionanswering}.
 \end{itemize}

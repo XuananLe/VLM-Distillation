@@ -16,7 +16,6 @@ def encode_with_processor(
     processor: transformers.ProcessorMixin,
     role: str,
 ) -> Dict[str, torch.Tensor]:
-    """Dispatch one conversation/image sample to the matching processor-specific encoder."""
     processor_type = type(processor)
     encoder = PROCESSOR_ENCODERS.get(processor_type)
     if encoder is None:
@@ -29,7 +28,6 @@ def encode_student_data(
     images,
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
-    """Encode one sample with the student processor into model-ready tensors."""
     return encode_with_processor(sources, images, processor, role="student")
 
 

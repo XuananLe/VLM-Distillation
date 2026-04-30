@@ -20,7 +20,6 @@ from .data_collator import DataCollatorForSupervisedDataset
 from .streaming_teacher_logits_cache import StreamingTeacherLogitsCache
 
 class SupervisedDataset(Dataset):
-    """Dataset for supervised fine-tuning."""
 
     def __init__(
         self,
@@ -35,13 +34,13 @@ class SupervisedDataset(Dataset):
         """Load training records and optional teacher-cache state for multimodal SFT/distillation."""
         super(SupervisedDataset, self).__init__()
         if isinstance(data_path, str):
-            list_data_dict = json.load(open(data_path, "r"))
+            training_records = json.load(open(data_path, "r"))
         else:
-            list_data_dict = data_path
+            training_records = data_path
 
         self.processor = processor
         self.teacher_processors = list(teacher_processors or [])
-        self.list_data_dict = list_data_dict
+        self.training_records = training_records
         self.data_args = data_args
         self.teacher_logits_cache = None
         dataset_name = self._infer_dataset_name(data_path)
@@ -53,7 +52,7 @@ class SupervisedDataset(Dataset):
             self.teacher_logits_cache = StreamingTeacherLogitsCache(
                 cache_dir=teacher_logits_cache_dir,
                 teacher_model_ids=teacher_model_ids,
-                expected_num_samples=len(self.list_data_dict),
+                expected_num_samples=len(self.training_records),
                 dataset_name=dataset_name,
                 remote_uri=teacher_logits_remote_uri,
             )
@@ -73,7 +72,7 @@ class SupervisedDataset(Dataset):
 
     def __len__(self):
         """Return the number of serialized training examples."""
-        return len(self.list_data_dict)
+        return len(self.training_records)
 
     @staticmethod
     def _infer_dataset_name(data_path: str | list) -> str | None:
@@ -98,7 +97,7 @@ class SupervisedDataset(Dataset):
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         """Load, image-resolve, and encode one dataset item for the student and optional teachers."""
-        sources = self.list_data_dict[i]
+        sources = self.training_records[i]
         images = None
 
         if "image" in sources:
@@ -121,8 +120,8 @@ class SupervisedDataset(Dataset):
 
         sources = copy.deepcopy(llava_to_openai(sources["conversations"]))
 
-        data_dict = encode_student_data(sources, images, self.processor)
-        if data_dict["pixel_values"] is None:
+        encoded_sample = encode_student_data(sources, images, self.processor)
+        if encoded_sample["pixel_values"] is None:
             raise ValueError("Student encoder did not produce image tensors for an image-only sample.")
 
         if self.teacher_logits_cache is not None:
@@ -131,31 +130,31 @@ class SupervisedDataset(Dataset):
             for teacher_index in range(self.teacher_count):
                 cache_sample = self.teacher_logits_cache.load_sample(teacher_index, i)
                 prefix = "teacher" if self.teacher_count == 1 else f"teacher_{teacher_index}"
-                data_dict[f"{prefix}_cached_logits"] = cache_sample["logits"]
-                data_dict[f"{prefix}_cached_labels"] = cache_sample["labels"]
-            return data_dict
+                encoded_sample[f"{prefix}_cached_logits"] = cache_sample["logits"]
+                encoded_sample[f"{prefix}_cached_labels"] = cache_sample["labels"]
+            return encoded_sample
 
         if not self.teacher_processors:
-            return data_dict
+            return encoded_sample
 
         teacher_count = self.teacher_count
         for teacher_index, teacher_processor in enumerate(self.teacher_processors):
             teacher_data = self._encode_teacher_data(sources, images, teacher_processor)
             prefix = "teacher" if teacher_count == 1 else f"teacher_{teacher_index}"
 
-            data_dict[f"{prefix}_input_ids"] = teacher_data["input_ids"]
-            data_dict[f"{prefix}_labels"] = teacher_data["labels"]
-            data_dict[f"{prefix}_attention_mask"] = teacher_data["attention_mask"]
-            data_dict[f"{prefix}_pixel_values"] = teacher_data["pixel_values"]
-            data_dict[f"{prefix}_pixel_attention_mask"] = teacher_data["pixel_attention_mask"]
+            encoded_sample[f"{prefix}_input_ids"] = teacher_data["input_ids"]
+            encoded_sample[f"{prefix}_labels"] = teacher_data["labels"]
+            encoded_sample[f"{prefix}_attention_mask"] = teacher_data["attention_mask"]
+            encoded_sample[f"{prefix}_pixel_values"] = teacher_data["pixel_values"]
+            encoded_sample[f"{prefix}_pixel_attention_mask"] = teacher_data["pixel_attention_mask"]
             if teacher_data.get("image_sizes") is not None:
-                data_dict[f"{prefix}_image_sizes"] = teacher_data["image_sizes"]
+                encoded_sample[f"{prefix}_image_sizes"] = teacher_data["image_sizes"]
             if teacher_data.get("image_grid_thw") is not None:
-                data_dict[f"{prefix}_image_grid_thw"] = teacher_data["image_grid_thw"]
+                encoded_sample[f"{prefix}_image_grid_thw"] = teacher_data["image_grid_thw"]
             if teacher_data.get("image_flags") is not None:
-                data_dict[f"{prefix}_image_flags"] = teacher_data["image_flags"]
+                encoded_sample[f"{prefix}_image_flags"] = teacher_data["image_flags"]
 
-        return data_dict
+        return encoded_sample
 
 
 def make_supervised_data_module(

@@ -75,7 +75,6 @@ def prepare_vision_layer_distillation(
 
 @contextlib.contextmanager
 def capture_layer_outputs(model, layer_indices: list[int]):
-    """Temporarily register forward hooks and capture raw outputs for selected layers."""
     raw_outputs = {}
     layer_model = get_base_model(model)
 
@@ -84,7 +83,6 @@ def capture_layer_outputs(model, layer_indices: list[int]):
             layer, _ = get_specific_layer(layer_model, layer_index)
 
             def make_hook(index: int):
-                """Build one hook closure that stores a selected layer output by index."""
                 def hook(module, hook_inputs, output):
                     """Store one hooked layer output after unwrapping nested tensors."""
                     del module, hook_inputs
@@ -114,7 +112,7 @@ def pool_vision_representations(
     }
 
 
-def build_teacher_batches(inputs, num_teachers: int):
+def build_live_teacher_batches(inputs, num_teachers: int):
     """Collect live-teacher input batches from a collated batch dict."""
     prefixes = []
     if "teacher_input_ids" in inputs:
@@ -141,7 +139,7 @@ def build_teacher_batches(inputs, num_teachers: int):
     return batches
 
 
-def build_cached_teacher_batches(inputs, num_teachers: int):
+def build_cached_teacher_target_batches(inputs, num_teachers: int):
     """Collect cached teacher-logit batches from a collated batch dict."""
     prefixes = []
     if "teacher_cached_logits" in inputs:
@@ -205,7 +203,7 @@ def setup_layer_matching(
             ]
             for layer_pairs in teacher_layer_pairs
         ]
-    else:
+    elif layer_distill_source == "model":
         student_layer_indices = list(student_layer_indices)
         teacher_layer_soft_matches = [
             [
@@ -218,6 +216,8 @@ def setup_layer_matching(
             ]
             for _ in teacher_models
         ]
+    else:
+        raise ValueError(f"Unsupported layer distillation source: {layer_distill_source!r}")
 
     return student_layer_indices, teacher_layer_soft_matches
 
@@ -238,16 +238,17 @@ def compute_student_representations(
             student_batch_size,
             student_inputs,
         )
+    if layer_distill_source == "model":
+        student_hidden_states = get_decoder_hidden_states(student_outputs)
+        student_attention_mask = student_inputs.get("attention_mask")
+        return {
+            layer_index: pool_model_hidden_states(student_hidden_states[layer_index], student_attention_mask)
+            for layer_index in student_layer_indices
+        }
+    raise ValueError(f"Unsupported layer distillation source: {layer_distill_source!r}")
 
-    student_hidden_states = get_decoder_hidden_states(student_outputs)
-    student_attention_mask = student_inputs.get("attention_mask")
-    return {
-        layer_index: pool_model_hidden_states(student_hidden_states[layer_index], student_attention_mask)
-        for layer_index in student_layer_indices
-    }
 
-
-def compute_teacher_forward_and_layer_distillation(
+def compute_teacher_layer_distillation_loss(
     teacher_model,
     teacher_inputs,
     teacher_layer_soft_matches,
@@ -267,6 +268,8 @@ def compute_teacher_forward_and_layer_distillation(
 
     if layer_distill_source == "vision":
         teacher_hook_context = capture_layer_outputs(teacher_model, teacher_layer_indices)
+    elif layer_distill_source != "model":
+        raise ValueError(f"Unsupported layer distillation source: {layer_distill_source!r}")
 
     with teacher_hook_context as teacher_layer_outputs:
         model_param = next(teacher_model.parameters())
@@ -283,39 +286,44 @@ def compute_teacher_forward_and_layer_distillation(
                 output_hidden_states=output_hidden_states,
             )
 
-    layer_loss = None
-    if student_layer_representations is not None:
-        if layer_distill_source == "vision":
-            teacher_batch_size = infer_batch_size(teacher_inputs)
-            teacher_layer_representations = pool_vision_representations(
-                teacher_layer_outputs,
-                teacher_layer_indices,
-                teacher_batch_size,
-                teacher_inputs,
+    if student_layer_representations is None:
+        raise ValueError("Layer distillation requires student layer representations.")
+    if layer_distill_source == "vision":
+        teacher_batch_size = infer_batch_size(teacher_inputs)
+        teacher_layer_representations = pool_vision_representations(
+            teacher_layer_outputs,
+            teacher_layer_indices,
+            teacher_batch_size,
+            teacher_inputs,
+        )
+    elif layer_distill_source == "model":
+        teacher_hidden_states = get_decoder_hidden_states(teacher_outputs)
+        teacher_attention_mask = teacher_inputs.get("attention_mask")
+        teacher_layer_representations = {
+            layer_index: pool_model_hidden_states(teacher_hidden_states[layer_index], teacher_attention_mask)
+            for layer_index in teacher_layer_indices
+        }
+    else:
+        raise ValueError(f"Unsupported layer distillation source: {layer_distill_source!r}")
+
+    soft_match_losses = []
+    for match in teacher_layer_soft_matches:
+        weighted_losses = [
+            weight * linear_cka_loss(
+                student_layer_representations[match["student_layer_index"]],
+                teacher_layer_representations[teacher_layer_index],
             )
-        else:
-            teacher_hidden_states = get_decoder_hidden_states(teacher_outputs)
-            teacher_attention_mask = teacher_inputs.get("attention_mask")
-            teacher_layer_representations = {
-                layer_index: pool_model_hidden_states(teacher_hidden_states[layer_index], teacher_attention_mask)
-                for layer_index in teacher_layer_indices
-            }
+            for teacher_layer_index, weight in zip(
+                match["teacher_layer_indices"],
+                match["teacher_layer_weights"],
+                strict=True,
+            )
+        ]
+        if not weighted_losses:
+            raise ValueError("Layer match entry has no teacher layers.")
+        soft_match_losses.append(reduce(torch.stack(weighted_losses), "t ->", "sum"))
+    if not soft_match_losses:
+        raise ValueError("Layer distillation has no soft layer matches.")
+    layer_loss = reduce(torch.stack(soft_match_losses), "t ->", "mean")
 
-        soft_match_losses = []
-        for match in teacher_layer_soft_matches:
-            weighted_losses = [
-                weight * linear_cka_loss(
-                    student_layer_representations[match["student_layer_index"]],
-                    teacher_layer_representations[teacher_layer_index],
-                )
-                for teacher_layer_index, weight in zip(
-                    match["teacher_layer_indices"],
-                    match["teacher_layer_weights"],
-                )
-            ]
-            if weighted_losses:
-                soft_match_losses.append(reduce(torch.stack(weighted_losses), "t ->", "sum"))
-        if soft_match_losses:
-            layer_loss = reduce(torch.stack(soft_match_losses), "t ->", "mean")
-
-    return teacher_outputs, layer_loss
+    return layer_loss

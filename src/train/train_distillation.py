@@ -17,8 +17,8 @@ from src.train.distillation_setup import (
     log_distillation_setup,
 )
 from src.train.model_setup import (
-    load_model_and_processor,
-    load_processor_and_tokenizer,
+    load_processor_bundle,
+    load_vlm_bundle,
 )
 
 def train_distillation():
@@ -45,16 +45,7 @@ def train_distillation():
     teacher_ids = list(distillation_args.teacher_model_ids)
     student_layer_indices = list(distillation_args.student_layer_indices)
     teacher_layer_indices = list(distillation_args.teacher_layer_indices)
-    if (
-        distillation_args.layer_distill_source in {"vision", "model"}
-        and distillation_args.layer_distill_weight > 0.0
-        and (student_layer_indices or distillation_args.layer_match_json_path)
-    ):
-        # Layer distillation is only "on" when the user asked for a real hidden-state
-        # target, gave it non-zero weight, and provided some student-side layer spec.
-        layer_distillation_enabled = True
-    else:
-        layer_distillation_enabled = False
+    layer_distillation_enabled = distillation_args.layer_distill_source in {"vision", "model"}
     gradient_checkpointing_kwargs = dict(training_args.gradient_checkpointing_kwargs or {})
     if "use_reentrant" not in gradient_checkpointing_kwargs:
         gradient_checkpointing_kwargs["use_reentrant"] = False
@@ -70,7 +61,7 @@ def train_distillation():
     )
 
     print("Loading student model...")
-    student_model, processor, _, _ = load_model_and_processor(
+    student_model, processor, _, _ = load_vlm_bundle(
         model_id=distillation_args.student_model_id,
         cache_dir=training_args.cache_dir,
         device=training_args.device,
@@ -90,7 +81,7 @@ def train_distillation():
         teacher_processors = []
         for teacher_id in teacher_ids:
             print(f"Loading live teacher for layer distillation: {teacher_id}")
-            teacher_model, teacher_processor, _, _ = load_model_and_processor(
+            teacher_model, teacher_processor, _, _ = load_vlm_bundle(
                 model_id=teacher_id,
                 cache_dir=training_args.cache_dir,
                 device=training_args.device,
@@ -109,7 +100,7 @@ def train_distillation():
         print("Preparing trie-Wasserstein tokenizers...")
         student_loss_tokenizer = getattr(processor, "tokenizer", None) or processor
         teacher_loss_tokenizers = [
-            load_processor_and_tokenizer(
+            load_processor_bundle(
                 teacher_id,
                 cache_dir=training_args.cache_dir,
             )[1]
@@ -146,10 +137,8 @@ def train_distillation():
         skip_teacher_eos=distillation_args.skip_teacher_eos,
         alpha=distillation_args.alpha,
         teacher_gate_top_k=distillation_args.teacher_gate_top_k,
-        teacher_gate_temperature=distillation_args.teacher_gate_temperature,
         teacher_gate_entropy_alpha=distillation_args.teacher_gate_entropy_alpha,
         teacher_gate_router_z_loss_alpha=distillation_args.teacher_gate_router_z_loss_alpha,
-        teacher_gate_hard_routing_warmup_ratio=distillation_args.teacher_gate_hard_routing_warmup_ratio,
         grace_threshold=distillation_args.grace_threshold,
         grace_warmup_ratio=distillation_args.grace_warmup_ratio,
         grace_epsilon=distillation_args.grace_epsilon,
@@ -162,8 +151,6 @@ def train_distillation():
         reinforced_selection_policy_alpha=distillation_args.reinforced_selection_policy_alpha,
         trie_wasserstein_rho=distillation_args.trie_wasserstein_rho,
         trie_wasserstein_topk=distillation_args.trie_wasserstein_topk,
-        trie_tail_depth=distillation_args.trie_tail_depth,
-        trie_tail_weight=distillation_args.trie_tail_weight,
         processing_class=processor,
         args=training_args,
         **data_module,

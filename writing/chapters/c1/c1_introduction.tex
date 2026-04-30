@@ -250,7 +250,7 @@ requirements:
 \begin{itemize}
     \item Remain valid when teacher and student architectures, tokenizers and output vocabularies differ.
     \item Assign teachers adaptively for each sample.
-    \item Keep routing sparse under capacity constraints.
+    \item Keep routing sparse through per-sample top-\(k\) teacher selection.
     \item Suppress routed teachers whose KD direction conflicts with the supervised objective.
 \end{itemize}
 
@@ -270,7 +270,7 @@ The thesis is organized around three research questions.
 The main contributions are:
 \begin{itemize}
     \item We formulate \textit{heterogeneous multi-teacher distillation} for compact VLMs with mismatched teacher and student architectures, tokenizers and output vocabularies.
-    \item We propose \methodname{}, which combines \textit{trie-Wasserstein cross-tokenizer KD}, \textit{student-conditioned routing}, \textit{sparse capacity-aware selection} and \textit{gradient-based score refinement}.
+    \item We propose \methodname{}, which combines \textit{trie-Wasserstein cross-tokenizer KD}, \textit{student-conditioned routing}, \textit{sparse top-\(k\) selection} and \textit{gradient-based score refinement}.
     \item We evaluate \methodname{} on TextVQA, DocVQA and ChartQA against fine-tuning and distillation baselines.
     \item We analyze routing behavior, component ablations, representation similarity and efficiency.
 \end{itemize}

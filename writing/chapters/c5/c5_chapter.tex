@@ -79,8 +79,8 @@ not available for every compared method.
 
 Because each multi-teacher run requires large offline logit caches and long
 single-GPU training, we report one fully trained run per method. A typical H200
-run takes about 7 hours, which is about 21 USD on Vast.ai before storage and
-offline-logit generation cost. We therefore treat very small differences
+run takes about 7 hours, which is about 14.41 USD at 2.059 USD/hour on Vast.ai
+before storage and offline-logit generation cost. We therefore treat very small differences
 cautiously, focus on consistent multi-point gaps across datasets and student
 sizes and leave broader sweeps for later work.
 
@@ -262,6 +262,9 @@ and aggregates
 \qquad
 \mathbf{H}_{\mathrm{sent}}=\sum_t \delta_t \mathbf{H}_t .
 \]
+Here \(\delta_t=1/|\Omega_{\mathrm{ans}}|\) for answer tokens
+\(t\in\Omega_{\mathrm{ans}}\), so the sentence-level map is the uniform average
+of token-level maps over the generated answer span.
 We prefer DEX-AR over raw attention maps or generic saliency because the model
 is autoregressive and the target is answer-token grounding, not generic image
 saliency.
@@ -320,8 +323,8 @@ Uniform averaging already helps, but \methodname{} stays ahead of SHM-CKA,
 reinforced selection and Uniform itself. This shows that teacher diversity
 already helps, but the largest gains come from combining the trie-Wasserstein
 loss with gradient-based alignment. On SmolVLM-500M, \methodname{} closes
-\(39.53\%\) to \(55.34\%\) of the gap between the best teacher and the compact
-student.
+	\(39.53\%\) to \(55.34\%\) of the gap between the strongest teacher in the
+	four-teacher comparison pool and the compact student.
 \end{rqanswerbox}
 
 \begin{figure}[H]
@@ -400,7 +403,9 @@ ChartQA & +17.40 (+27.71\%) & +17.20 (+27.30\%) & +4.60 (+6.08\%) & +3.32 (+4.32
 \end{itemize}
 
 The trend is similar if the reference point is the strongest teacher in the
-\methodname{} pool. Let \(g_{\mathrm{orig}} = y_T - y_{\mathrm{orig}}\) and
+\methodname{} comparison pool. This reference excludes the separate Granite
+launch-path teacher reported in Table~\ref{tab:teacher-original-results}. Let
+\(g_{\mathrm{orig}} = y_T - y_{\mathrm{orig}}\) and
 \(g_{\mathrm{grace}} = y_T - y_{\mathrm{grace}}\). The fraction of the gap
 closed is \(1 - g_{\mathrm{grace}} / g_{\mathrm{orig}}\).
 
@@ -418,7 +423,7 @@ DocVQA & 93.90 & 34.38 & 20.79 & 39.53\% \\
 ChartQA & 94.24 & 31.44 & 14.04 & 55.34\% \\
 \bottomrule
 \end{tabular}
-\caption[Gap-to-teacher analysis for SmolVLM-500M.]{Gap-to-teacher analysis for SmolVLM-500M under \methodname. The teacher reference is the strongest model in the four-teacher set for each benchmark and the last column reports the fraction of the original gap that \methodname{} closes.}
+\caption[Gap-to-teacher analysis for SmolVLM-500M.]{Gap-to-teacher analysis for SmolVLM-500M under \methodname. The teacher reference is the strongest model inside the four-teacher GRACE comparison pool for each benchmark, excluding the separate Granite launch-path teacher.}
 \label{tab:grace-gap-to-teacher}
 \end{table}
 
@@ -530,10 +535,9 @@ mechanism at a time:
 \item \textbf{Cross-family ULD (single teacher)} uses one cross-family teacher and optimizes \(\mathcal{L}=\mathcal{L}_{CE}+\alpha\mathcal{L}_{ULD}\), with \(\mathcal{L}_{ULD}=\|\pi(p_s)-\pi(p_t)\|_1\). This provides the single-teacher cross-tokenizer baseline.
 \item \textbf{Uniform multi-teacher} averages the active per-teacher KD losses, \(\mathcal{L}=\mathcal{L}_{CE}+\alpha \frac{1}{M}\sum_{i=1}^{M}\mathcal{L}_{TW}^{(i)}\). This tests whether teacher diversity alone explains the gain.
 \item \textbf{Routing only + trie-Wasserstein} keeps sparse routing but disables GRACE refinement after routing, so \(w_i^{(b)}=u_i^{(b)}=\mathbf{1}[i\in\mathcal{R}_b]/|\mathcal{R}_b|\). This tests whether routing alone explains the gain.
-\item \textbf{Full GRACE + trie-Wasserstein} is the full method and serves as the reference row, with \(w_i^{(b)}\propto (\hat p_i^{(b)})^{\lambda}(q_i^{(b)})^{1-\lambda}\).
-\item \textbf{Full GRACE + trie-Wasserstein (\(\lambda = 1.0\))} reduces the final weights to router weights only, \(w_i^{(b)}=\hat p_i^{(b)}\) after normalization over routed teachers. This tests whether post-routing blending matters.
-\item \textbf{Full GRACE + trie-Wasserstein (\(\lambda_{bal}=0\))} removes the router balance term, so \(\mathcal{L}=\mathcal{L}_{CE}+\alpha\mathcal{L}_{KD}+\lambda_{ent}\mathcal{L}_{ent}+\lambda_z\mathcal{L}_z\). This tests whether anti-collapse regularization contributes beyond the main KD objective.
-\item \textbf{Full GRACE + trie-Wasserstein (\(\gamma_{\mathrm{EMA}}=0\))} removes EMA smoothing, so \(\hat s_i^{(b)}=s_i^{(b)}\) and \(q_i^{(b)}=\mathrm{Softmax}(\beta s_i^{(b)})\). This tests whether temporal score smoothing stabilizes teacher weighting.
+\item \textbf{Full GRACE + trie-Wasserstein} is the full method and serves as the reference row, with \(w_i^{(b)}\propto (\hat p_i^{(b)})^{\lambda_{\mathrm{blend}}}(\omega_i^{(b)})^{1-\lambda_{\mathrm{blend}}}\).
+\item \textbf{Full GRACE + trie-Wasserstein (\(\lambda_{\mathrm{blend}} = 1.0\))} reduces the final weights to router weights only, \(w_i^{(b)}=\hat p_i^{(b)}\) after normalization over routed teachers. This tests whether post-routing blending matters.
+\item \textbf{Full GRACE + trie-Wasserstein (\(\beta_{\mathrm{EMA}}=0\))} removes EMA smoothing, so \(\hat{s}_i=s_i\) and \(\omega_i^{(b)}=\mathrm{Softmax}(\beta_{\mathrm{score}}s_i)\) over the active routed set. This tests whether temporal score smoothing stabilizes teacher weighting.
 \end{itemize}
 
 \begin{table}[tp]
@@ -549,9 +553,8 @@ Cross-family ULD (single teacher) & 52.24 & 65.28 \\
 Uniform multi-teacher & 55.70 & 69.59 \\
 Routing only + trie-Wasserstein & 57.45 & 63.23 \\
 Full GRACE + trie-Wasserstein & 60.48 & 73.11 \\
-\makecell[l]{Full GRACE + trie-Wasserstein\\(\(\lambda = 1.0\))} & 57.97 & 70.45 \\
-\makecell[l]{Full GRACE + trie-Wasserstein\\(\(\lambda_{bal}=0\))} & 58.46 & 72.12 \\
-\makecell[l]{Full GRACE + trie-Wasserstein\\(\(\gamma_{\mathrm{EMA}}=0\))} & 57.45 & 71.25 \\
+\makecell[l]{Full GRACE + trie-Wasserstein\\(\(\lambda_{\mathrm{blend}}=1.0\))} & 57.97 & 70.45 \\
+\makecell[l]{Full GRACE + trie-Wasserstein\\(\(\beta_{\mathrm{EMA}}=0\))} & 57.45 & 71.25 \\
 \bottomrule
 \end{tabular}
 \caption[DocVQA component ablation.]{DocVQA component ablation for SmolVLM-256M and SmolVLM-500M.}
@@ -564,7 +567,8 @@ strongest setting for both student sizes. Relative to routing only, it gains
 that sparse routing alone does not explain the final improvement.
 
 The table also reveals two distinct post-routing gains. On SmolVLM-500M,
-moving from routing-only weights to router-only weights (\(\lambda=1.0\))
+moving from routing-only weights to router-only weights
+(\(\lambda_{\mathrm{blend}}=1.0\))
 already adds 7.22 points (63.23 \(\rightarrow\) 70.45) and full GRACE adds
 another 2.66 points (70.45 \(\rightarrow\) 73.11). On SmolVLM-256M, the
 router-only gain is only 0.52 points (57.45 \(\rightarrow\) 57.97), while
@@ -577,15 +581,15 @@ larger student appears to extract stronger routing features from its hidden
 states, while the smaller student relies more on the GRACE refiner. This is an
 inference from the ablation pattern, not a direct causal proof.
 
-Removing router balance loss or EMA smoothing causes smaller but consistent
-degradations, suggesting that both terms mainly stabilize teacher weighting
-instead of replacing the main contribution of GRACE-guided blending.
+Removing EMA smoothing causes smaller but consistent degradations, suggesting
+that temporal score smoothing stabilizes teacher weighting instead of replacing
+the main contribution of GRACE-guided blending.
 
 \begin{rqanswerbox}{Answer to RQ2}
 GRACE works because it combines a strong cross-tokenizer KD loss
 (trie-Wasserstein), sample-dependent sparse routing and, most critically,
-post-routing gradient-based score refinement. The balance loss and EMA
-smoothing are supportive stabilizers.
+post-routing gradient-based score refinement. EMA smoothing is a supportive
+stabilizer, while the entropy and \(z\)-loss terms regularize the router.
 \end{rqanswerbox}
 
 \section{Efficiency Analysis}
@@ -595,7 +599,8 @@ training cost and storage overhead will be summarized here.
 \begin{rqanswerbox}{Answer to RQ3}
 The cost of \methodname{} is dominated by GPU training rather than object
 storage. From the Vast.ai screenshot, one H200 instance costs 2.059 USD/hour,
-so a 2500 USD budget corresponds to
+so a 7-hour run costs about \(7\times2.059=14.41\) USD and a 2500 USD budget
+corresponds to
 \[
 \frac{2500}{2.059} \approx 1214.18 \text{ GPU-hours},
 \]
@@ -632,14 +637,14 @@ logit generation, not storage egress or serving cost.
 \section{Discussion}
 \begin{itemize}
     \item \textbf{The results show a clear ordering.} Same-family KL baselines are weakest, single cross-family distillation is stronger, uniform weighting improves again and \methodname{} is best overall \cite{hinton2015distillingknowledgeneuralnetwork,boizard2024towardscrosstokenizerdistillation}. This means that the problem is not solved by one trick alone. Heterogeneous teachers provide better supervision, but the student still needs a cross-tokenizer loss, sample-dependent routing and a stable post-routing weighting scheme.
-    \item The code-level implementation helps explain that pattern. The training recipe uses a shared-trie Wasserstein loss for mismatched tokenizers, a routed multi-teacher setup with hard-routing warmup, top-\(k\) capacity control and GRACE score refinement with EMA-smoothed score updates \cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}. The smoother training curve in Figure~\ref{fig:training-curve-comparison} is consistent with that design: the router narrows the teacher set first, then GRACE reweights only the routed teachers instead of averaging them uniformly.
+    \item The code-level implementation helps explain that pattern. The training recipe uses a shared-trie Wasserstein loss for mismatched tokenizers, a routed multi-teacher setup with top-\(k\) masking, routed-weight renormalization and GRACE score refinement with EMA-smoothed score updates \cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}. The smoother training curve in Figure~\ref{fig:training-curve-comparison} is consistent with that design: the router narrows the teacher set first, then GRACE reweights only the routed teachers instead of averaging them uniformly.
     \item The largest gain appears on ChartQA and the trend also holds for the smaller 256M student. This suggests that sample-dependent teacher assignment is most useful when the task mixes visual parsing and numerical reasoning. It also shows that the method is not only helping the larger compact student. The improvement persists in the more resource-constrained regime.
     \item The comparison with SHM-CKA is also informative. SHM-CKA uses the heterogeneous teacher set, but it is less consistent than \methodname{}. Together with the CKA heatmaps, this suggests that internal similarity alone is not enough. \textbf{Good transfer still depends on which teacher is emphasized for each sample} \cite{kornblith2019similarityrepresentations,dasgupta2025improving}.
 \end{itemize}
 
 \section{Limitations and Threats to Validity}
 \begin{itemize}
-    \item \textbf{Cost-limited evaluation.} The reported numbers are single-run results. A typical H200 run takes about 7 hours and costs about 21 USD on Vast.ai before offline cache-generation and storage cost. This limits repeated seeds, confidence intervals and broader hyperparameter sweeps, so small gaps between strong baselines should be interpreted cautiously.
+    \item \textbf{Cost-limited evaluation.} The reported numbers are single-run results. A typical H200 run takes about 7 hours and costs about 14.41 USD at 2.059 USD/hour on Vast.ai before offline cache-generation and storage cost. This limits repeated seeds, confidence intervals and broader hyperparameter sweeps, so small gaps between strong baselines should be interpreted cautiously.
     \item \textbf{Incomplete apples-to-apples coverage across all baselines.} The strongest adaptive rows use the full heterogeneous teacher set, while the Uniform baseline is reported from a cheaper two-teacher run. The active Chapter~\ref{chap:evaluation-methodology} launch path also documents one three-teacher DocVQA recipe, whereas the main result tables aggregate broader completed runs. This does not invalidate the overall trend, but it weakens strict per-row comparability.
     \item \textbf{Answer-token-centric transfer.} The method distills teacher distributions on supervised answer positions, routes teachers from pooled student states and refines them with CE/KD gradient agreement. It does not explicitly align visual tokens, cross-attention maps or region-level evidence. As a result, some gains may come mainly from output-side transfer instead of deeper visual grounding.
     \item \textbf{Systems dependence.} The implementation relies on large offline teacher-logit caches, remote object storage and local streaming caches. This keeps the online loop simple, but it raises storage, I/O and reproducibility requirements. The method is therefore easier to reproduce in a well-provisioned training environment than on minimal local hardware.

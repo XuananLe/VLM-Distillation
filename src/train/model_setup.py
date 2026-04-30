@@ -34,7 +34,8 @@ SUPPORTED_AUTO_MODEL_TYPES = {
 
 
 def resolve_model_type(model_id: str) -> str | None:
-    """Load a config and return its model_type so later loaders can branch by family."""
+    # https://huggingface.co/docs/transformers/v5.1.0/en/model_doc/auto
+
     config = AutoConfig.from_pretrained(
         model_id,
         trust_remote_code=True,
@@ -42,7 +43,7 @@ def resolve_model_type(model_id: str) -> str | None:
     return getattr(config, "model_type", None)
 
 
-def load_processor_and_tokenizer(
+def load_processor_bundle(
     model_id: str,
     *,
     padding_side: str | None = None,
@@ -52,14 +53,10 @@ def load_processor_and_tokenizer(
     model_type = resolve_model_type(model_id)
     if model_type not in SUPPORTED_AUTO_MODEL_TYPES:
         raise ValueError(
-            "Unsupported model family for the generic processor loader: "
-            f"model_id={model_id!r}, model_type={model_type!r}. "
-            "Supported generic families are SmolVLM, Qwen-VL, Gemma 3, and Granite Vision."
+            "We only support generic families are SmolVLM, Qwen-VL, Gemma 3, and Granite Vision."
         )
     processor_kwargs = {
         "trust_remote_code": True,
-        # Keep preprocessing numerically consistent with the checkpoints: HF fast
-        # image processors fall back from Lanczos to Bicubic for tensor inputs.
         "use_fast": False,
     }
     if padding_side is not None:
@@ -88,7 +85,6 @@ def load_model(
     trust_remote_code: bool = True,
     model_kwargs: dict | None = None,
 ):
-    """Load one supported model with the configured dtype and attention backend."""
     if model_type not in SUPPORTED_AUTO_MODEL_TYPES:
         raise ValueError(
             "Unsupported model family for the generic model loader: "
@@ -111,7 +107,7 @@ def load_model(
     )
 
 
-def load_model_and_processor(
+def load_vlm_bundle(
     *,
     model_id: str,
     cache_dir: str | None,
@@ -154,7 +150,7 @@ def load_model_and_processor(
             "num_image_token": getattr(model, "num_image_token", INTERNVL_NUM_IMAGE_TOKEN),
         }
     else:
-        processor, tokenizer, model_type = load_processor_and_tokenizer(
+        processor, tokenizer, model_type = load_processor_bundle(
             model_id,
             padding_side=padding_side,
             cache_dir=cache_dir,
@@ -176,7 +172,7 @@ def load_model_and_processor(
 
 __all__ = [
     "load_model",
-    "load_model_and_processor",
-    "load_processor_and_tokenizer",
+    "load_processor_bundle",
+    "load_vlm_bundle",
     "resolve_model_type",
 ]

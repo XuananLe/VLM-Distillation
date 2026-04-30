@@ -7,7 +7,7 @@ from .contributions import (
     build_signed_edge_contributions,
     reduce_signed_edge_contributions_to_tree_loss,
 )
-from .diagnostics import PrefixTailStats
+from .diagnostics import TrieMassStats
 from .runtime_state import extend_vocab_state_with_ignored_tokens
 from .trie_build import build_trie_state_from_tokenizers
 from src.tokenizer_utils import (
@@ -18,36 +18,20 @@ from src.tokenizer_utils import (
 
 
 class TrieWassersteinLoss(nn.Module):
-    """
-    Tree-Wasserstein distillation on a shared byte trie.
-
-    This module restores token identity across mismatched vocabularies by
-    placing student and teacher token pieces on a shared UTF-8 byte trie and
-    computing the weighted subtree-mass imbalance. The implementation uses a
-    sparse top-k approximation with prefix-tail buckets.
-    """
-
     def __init__(
         self,
         student_tokenizer,
         teacher_tokenizer,
         rho: float = 0.7,
         topk: int = 64,
-        tail_depth: int = 1,
-        tail_weight: float = 0.5,
         ignored_student_token_ids: set[int] | None = None,
         ignored_teacher_token_ids: set[int] | None = None,
-    ):
-        """Precompute shared byte-trie state for one student/teacher tokenizer pair."""
+    ) -> None:
         super().__init__()
         if not 0.0 < float(rho) < 1.0:
             raise ValueError(f"rho must be in (0, 1), got {rho}")
         if int(topk) < 1:
             raise ValueError(f"topk must be >= 1, got {topk}")
-        if int(tail_depth) < 1:
-            raise ValueError(f"tail_depth must be >= 1, got {tail_depth}")
-        if float(tail_weight) <= 0.0:
-            raise ValueError(f"tail_weight must be > 0, got {tail_weight}")
 
         self.student_tokenizer = getattr(student_tokenizer, "tokenizer", None) or student_tokenizer
         self.teacher_tokenizer = getattr(teacher_tokenizer, "tokenizer", None) or teacher_tokenizer
@@ -59,8 +43,6 @@ class TrieWassersteinLoss(nn.Module):
         self.teacher_vocab_size = self.teacher_tokenizer_vocab_size
         self.rho = float(rho)
         self.topk = int(topk)
-        self.tail_depth = int(tail_depth)
-        self.tail_weight = float(tail_weight)
 
         ignored_student = (
             default_ignored_token_ids(self.student_tokenizer)
@@ -79,14 +61,12 @@ class TrieWassersteinLoss(nn.Module):
             student_ignored_token_ids=tuple(sorted(ignored_student)),
             teacher_ignored_token_ids=tuple(sorted(ignored_teacher)),
             rho=self.rho,
-            tail_depth=self.tail_depth,
-            tail_weight=self.tail_weight,
             student_tokenizer=self.student_tokenizer,
             teacher_tokenizer=self.teacher_tokenizer,
         )
 
         self.num_edges = trie_state.num_edges
-        self.num_prefix_tail_buckets = trie_state.num_prefix_tail_buckets
+        self.tail_edge_id = trie_state.tail_edge_id
         self.student_valid_count = trie_state.student_valid_count
         self.teacher_valid_count = trie_state.teacher_valid_count
 
@@ -102,11 +82,6 @@ class TrieWassersteinLoss(nn.Module):
             trie_state.student_ignored_mask,
             persistent=True,
         )
-        self.register_buffer(
-            "student_prefix_bucket_ids",
-            trie_state.student_prefix_bucket_ids,
-            persistent=True,
-        )
         self.register_buffer("teacher_path_flat", trie_state.teacher_path_flat, persistent=True)
         self.register_buffer(
             "teacher_path_offsets",
@@ -118,23 +93,7 @@ class TrieWassersteinLoss(nn.Module):
             trie_state.teacher_ignored_mask,
             persistent=True,
         )
-        self.register_buffer(
-            "teacher_prefix_bucket_ids",
-            trie_state.teacher_prefix_bucket_ids,
-            persistent=True,
-        )
-        self.register_buffer(
-            "prefix_tail_path_flat",
-            trie_state.prefix_tail_path_flat,
-            persistent=True,
-        )
-        self.register_buffer(
-            "prefix_tail_path_offsets",
-            trie_state.prefix_tail_path_offsets,
-            persistent=True,
-        )
-
-        self.last_prefix_tail_stats: dict[str, PrefixTailStats] = {}
+        self.last_trie_mass_stats: dict[str, TrieMassStats] = {}
 
     def extend_vocab_state_with_ignored_tokens(
         self,
@@ -238,13 +197,10 @@ class TrieWassersteinLoss(nn.Module):
             path_flat=self.student_path_flat,
             path_offsets=self.student_path_offsets,
             ignored_mask=self.student_ignored_mask,
-            prefix_bucket_ids=self.student_prefix_bucket_ids,
             edge_count=self.num_edges,
+            tail_edge_id=self.tail_edge_id,
             topk=self.topk,
             valid_count=self.student_valid_count,
-            prefix_tail_path_flat=self.prefix_tail_path_flat,
-            prefix_tail_path_offsets=self.prefix_tail_path_offsets,
-            num_prefix_tail_buckets=self.num_prefix_tail_buckets,
             sign=1.0,
         )
         teacher_result = build_signed_edge_contributions(
@@ -252,16 +208,13 @@ class TrieWassersteinLoss(nn.Module):
             path_flat=self.teacher_path_flat,
             path_offsets=self.teacher_path_offsets,
             ignored_mask=self.teacher_ignored_mask,
-            prefix_bucket_ids=self.teacher_prefix_bucket_ids,
             edge_count=self.num_edges,
+            tail_edge_id=self.tail_edge_id,
             topk=self.topk,
             valid_count=self.teacher_valid_count,
-            prefix_tail_path_flat=self.prefix_tail_path_flat,
-            prefix_tail_path_offsets=self.prefix_tail_path_offsets,
-            num_prefix_tail_buckets=self.num_prefix_tail_buckets,
             sign=-1.0,
         )
-        self.last_prefix_tail_stats = {
+        self.last_trie_mass_stats = {
             "student": student_result.stats,
             "teacher": teacher_result.stats,
         }
