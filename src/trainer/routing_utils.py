@@ -16,12 +16,10 @@ def mean_categorical_entropy(weights: torch.Tensor) -> torch.Tensor:
 
 
 def compute_teacher_gate_z_loss(router_logits: torch.Tensor) -> torch.Tensor:
-    """Return the router z-loss used to keep gate logits numerically bounded."""
     return torch.logsumexp(router_logits.float(), dim=-1).square().mean().to(dtype=router_logits.dtype)
 
 
 def compute_teacher_gate_entropy_loss(teacher_router_weights: torch.Tensor) -> torch.Tensor:
-    """Return the negative-entropy regularizer applied to teacher-gate weights."""
     return -mean_categorical_entropy(teacher_router_weights).to(dtype=teacher_router_weights.dtype)
 
 
@@ -30,7 +28,6 @@ def apply_teacher_gate_topk(
     teacher_router_weights: torch.Tensor,
     teacher_gate_top_k: int,
 ) -> tuple[torch.Tensor, torch.Tensor]:
-    """Keep only each sample's top-k teachers and return routed weights plus assignment stats."""
     batch_size, num_teachers = teacher_router_weights.shape
     top_k = min(teacher_gate_top_k, num_teachers)
     topk_indices = teacher_router_logits.topk(top_k, dim=-1).indices

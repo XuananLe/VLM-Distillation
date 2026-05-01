@@ -1,6 +1,5 @@
 import torch
 
-
 def trainable_parameters(model) -> tuple[torch.nn.Parameter, ...]:
     parameters = tuple(parameter for parameter in model.parameters() if parameter.requires_grad)
     if not parameters:
@@ -8,6 +7,9 @@ def trainable_parameters(model) -> tuple[torch.nn.Parameter, ...]:
     return parameters
 
 
+
+# d loss / d w_i
+# https://gist.github.com/Lyken17/91b81526a8245a028d4f85ccc9191884
 def compute_parameter_grads(
     *,
     loss: torch.Tensor,
@@ -23,7 +25,8 @@ def compute_parameter_grads(
         )
     )
 
-
+# cosine = dot(CE_grad, KD_grad) / (||CE_grad|| * ||KD_grad||)
+# https://www.vegardstikbakke.com/python-keyword-only/
 def parameter_gradient_cosine(
     reference_grads: tuple[torch.Tensor | None, ...],
     candidate_grads: tuple[torch.Tensor | None, ...],

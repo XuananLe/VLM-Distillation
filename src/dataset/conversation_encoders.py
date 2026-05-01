@@ -23,14 +23,6 @@ def encode_with_processor(
     return encoder(sources, images, processor)
 
 
-def encode_student_data(
-    sources,
-    images,
-    processor: transformers.ProcessorMixin,
-) -> Dict[str, torch.Tensor]:
-    return encode_with_processor(sources, images, processor, role="student")
-
-
 def _finalize_teacher_data(
     teacher_data: Dict[str, torch.Tensor],
     teacher_model_id: Optional[str],
@@ -69,6 +61,6 @@ def encode_teacher_data(
 
 
 __all__ = [
-    "encode_student_data",
+    "encode_with_processor",
     "encode_teacher_data",
 ]

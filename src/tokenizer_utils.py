@@ -19,7 +19,6 @@ def normalize_model_id(model_id) -> str | None:
 
 
 def resolve_vocab_size(tokenizer) -> int:
-    """Return the fixed tokenizer size for one supported VLM tokenizer."""
     model_id = normalize_model_id(getattr(tokenizer, "name_or_path", None))
     try:
         return TOKENIZER_VOCAB_SIZES[model_id]
@@ -31,7 +30,6 @@ def resolve_vocab_size(tokenizer) -> int:
 
 
 def token_piece_to_bytes(tokenizer, token_id: int) -> bytes:
-    """Convert one tokenizer piece to UTF-8 bytes."""
     token_id = int(token_id)
     if hasattr(tokenizer, "decode"):
         try:

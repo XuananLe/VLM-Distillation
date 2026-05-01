@@ -82,23 +82,6 @@ def build_distillation_loss(
                 teacher_temperature=teacher_temperature,
             )
 
-        def trie_metrics() -> dict[str, float]:
-            """Return aggregate trie mass diagnostics from the latest logged step."""
-            metric_values: dict[str, list[torch.Tensor]] = {
-                "trie_exact_mass_mean": [],
-                "trie_tail_mass_mean": [],
-            }
-            for loss_module in loss_modules:
-                for side_stats in loss_module.last_trie_mass_stats.values():
-                    metric_values["trie_exact_mass_mean"].append(side_stats.exact_mass_mean)
-                    metric_values["trie_tail_mass_mean"].append(side_stats.tail_mass_mean)
-            return {
-                key: torch.stack(values).mean().item()
-                for key, values in metric_values.items()
-                if values
-            }
-
-        compute_loss.trie_metrics = trie_metrics
         return prepare_teacher_batch, compute_loss
 
     if loss_function not in DISTILLATION_LOSSES:

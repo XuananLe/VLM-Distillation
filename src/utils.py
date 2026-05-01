@@ -1,29 +1,3 @@
-import torch
-from transformers import BitsAndBytesConfig
-
-
-def create_quantization_config(load_4bit=True, compute_dtype=torch.float16,
-                             use_double_quant=True, quant_type='nf4'):
-    """
-    Create a standard BitsAndBytesConfig for 4-bit quantization.
-
-    Args:
-        load_4bit: Whether to load in 4-bit
-        compute_dtype: Data type for computation
-        use_double_quant: Whether to use double quantization
-        quant_type: Quantization type (nf4, fp4)
-
-    Returns:
-        BitsAndBytesConfig: Configured quantization config
-    """
-    return BitsAndBytesConfig(
-        load_in_4bit=load_4bit,
-        bnb_4bit_compute_dtype=compute_dtype,
-        bnb_4bit_use_double_quant=use_double_quant,
-        bnb_4bit_quant_type=quant_type
-    )
-
-
 def resolve_module_path(module, path):
     """Resolve a dotted attribute/index path against a nested module tree."""
     current = module

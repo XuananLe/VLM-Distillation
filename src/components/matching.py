@@ -5,7 +5,6 @@ import numpy as np
 
 
 def load_cka_json(json_path: str):
-    """Load one CKA JSON payload and normalize its matrix and layer metadata."""
     json_path = Path(json_path)
 
     with open(json_path, "r") as file_handle:
@@ -33,7 +32,6 @@ def resolve_student_teacher_similarity(
     student_key: str = "model_b",
     teacher_key: str = "model_a",
 ):
-    """Orient a stored CKA matrix so rows are student layers and columns are teacher layers."""
     cka = payload["cka_matrix"]
     row_key = "model_a"
     col_key = "model_b"

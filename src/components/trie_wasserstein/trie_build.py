@@ -14,7 +14,6 @@ def insert_token_bytes(
     edge_weights: list[float],
     rho: float,
 ) -> list[int]:
-    """Insert one token byte sequence into the shared trie and return its edge-id path."""
     node = root
     path: list[int] = []
     for depth, byte_value in enumerate(token_bytes, start=1):
@@ -38,7 +37,6 @@ def build_tokenizer_paths(
     edge_weights: list[float],
     rho: float,
 ) -> TrieBuildResult:
-    """Build flattened trie paths for one tokenizer so runtime lookup is cheap."""
     ignored_token_ids_set = set(ignored_token_ids)
     path_flat: list[int] = []
     path_offsets = [0]
@@ -81,7 +79,6 @@ def build_trie_state_from_tokenizers(
     student_tokenizer,
     teacher_tokenizer,
 ) -> TrieRuntimeState:
-    """Build static CPU trie state for one student/teacher tokenizer pair."""
     root = TrieNode()
     edge_weights: list[float] = []
 

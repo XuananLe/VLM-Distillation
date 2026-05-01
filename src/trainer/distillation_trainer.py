@@ -14,12 +14,12 @@ from src.trainer.step_utils import (
     build_layer_distillation_state,
     build_student_forward_state,
     build_teacher_loss_state,
-    build_teacher_target_batches,
     compute_total_loss,
     prepare_teacher_batch_sources,
     resolve_teacher_gate_state,
     resolve_teacher_weighting_state,
 )
+from src.trainer.teacher_loss_utils import resolve_teacher_target_batches
 
 
 class DistillationTrainer(Trainer):
@@ -235,10 +235,12 @@ class DistillationTrainer(Trainer):
             teacher_router_weights=student_forward_state["teacher_router_weights"],
         )
         ce_loss = student_forward_state["student_outputs"].loss
-        teacher_target_batches = build_teacher_target_batches(
-            trainer=self,
+        teacher_target_batches = resolve_teacher_target_batches(
             student_logits=student_forward_state["student_logits"],
-            teacher_batch_sources=teacher_batch_sources,
+            teacher_models=self.teacher_models,
+            live_teacher_batches=teacher_batch_sources.live_teacher_batches,
+            cached_teacher_target_batches=teacher_batch_sources.cached_teacher_target_batches,
+            prepare_input_fn=self._prepare_input,
         )
         teacher_loss_state = build_teacher_loss_state(
             trainer=self,
@@ -257,7 +259,6 @@ class DistillationTrainer(Trainer):
             selection_teacher_logits=teacher_loss_state["selection_teacher_logits"],
             selection_teacher_labels=teacher_loss_state["selection_teacher_labels"],
             student_labels=student_inputs["labels"],
-            student_attention_mask=student_inputs.get("attention_mask"),
             student_ce_loss=ce_loss,
         )
         layer_distillation_state = build_layer_distillation_state(
@@ -298,8 +299,6 @@ class DistillationTrainer(Trainer):
                 reinforced_selection_metrics=teacher_weighting_state["reinforced_selection_metrics"],
                 grace_routing_active=self.should_apply_grace_routing(),
             )
-            if hasattr(self.distillation_loss_fn, "trie_metrics"):
-                metrics.update(self.distillation_loss_fn.trie_metrics())
             self.log(metrics)
 
         return (loss, student_forward_state["student_outputs"]) if return_outputs else loss

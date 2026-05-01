@@ -46,7 +46,7 @@ class Gate(nn.Module):
         model: nn.Module,
         num_teachers: int,
     ):
-        """Initialize routing state and register the pre-lm-head hook; input is the student model plus routing hyperparameters, output is an initialized gate, and this exists to keep routing setup out of trainer code."""
+        #  [batch, seq_len, hidden_dim] -> [batch, num_teachers]
         super().__init__()
         hidden_size, hook_module = self.resolve_gate_source(model)
         self.router = DeepRouter(hidden_size, num_teachers)
@@ -79,44 +79,24 @@ class Gate(nn.Module):
         return int(hidden_size), lm_head
 
     def capture_hidden_state(self, _module, args):
-        if args:
-            self.hidden_state = args[0]
-
-    def reset(self) -> None:
-        self.hidden_state = None
-
-    def pool_tensor(
-        self,
-        tensor: torch.Tensor,
-        *,
-        labels: torch.Tensor,
-        attention_mask: torch.Tensor | None,
-    ) -> torch.Tensor:
-        return masked_mean_pool_sequence(
-            tensor,
-            labels=labels,
-            attention_mask=attention_mask,
-        )
+        if not args or not torch.is_tensor(args[0]):
+            raise RuntimeError("Teacher gate hook did not receive the pre-lm-head hidden state.")
+        if self.hidden_state is not None:
+            raise RuntimeError("Teacher gate hidden state from the previous forward was not consumed.")
+        self.hidden_state = args[0]
 
     def pool_features(
         self,
         *,
         student_labels: torch.Tensor,
-        student_attention_mask: torch.Tensor | None,
     ) -> torch.Tensor:
-        """Pool the cached student hidden state over supervised answer tokens for routing."""
         if self.hidden_state is None:
             raise RuntimeError("Teacher gate hidden state was not captured during the student forward pass.")
-        pooled_features = self.pool_tensor(
-            self.hidden_state,
-            labels=student_labels,
-            attention_mask=student_attention_mask,
-        )
+        hidden_state = self.hidden_state
         self.hidden_state = None
-        return pooled_features
+        return masked_mean_pool_sequence(hidden_state, student_labels)
 
     def prepare_router_module(self, reference: torch.Tensor) -> None:
-        """Move the router to the reference device/dtype; input is a reference tensor, output is None, and this exists because the gate is auxiliary to the base model."""
         target_dtype = reference.dtype if reference.is_floating_point() else None
         router_param = next(self.router.parameters(), None)
         if router_param is None:
@@ -131,11 +111,9 @@ class Gate(nn.Module):
         self,
         *,
         student_labels: torch.Tensor,
-        student_attention_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
         pooled_features = self.pool_features(
             student_labels=student_labels,
-            student_attention_mask=student_attention_mask,
         )
         self.prepare_router_module(pooled_features)
         return self.router(pooled_features)
@@ -144,12 +122,9 @@ class Gate(nn.Module):
         self,
         *,
         student_labels: torch.Tensor,
-        student_attention_mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Return soft routing weights over teachers; input is batch masks, output is [batch, teacher] probabilities, and this exists for trainer code that wants ready-to-use gate weights."""
         router_logits = self.compute_router_logits(
             student_labels=student_labels,
-            student_attention_mask=student_attention_mask,
         )
         return torch.softmax(router_logits, dim=-1)
 

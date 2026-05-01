@@ -12,8 +12,8 @@ from PIL import Image
 
 from src.params import DataArguments
 from .conversation_encoders import (
-    encode_student_data,
     encode_teacher_data,
+    encode_with_processor,
 )
 from .conversation_transforms import llava_to_openai
 from .data_collator import DataCollatorForSupervisedDataset
@@ -82,19 +82,6 @@ class SupervisedDataset(Dataset):
         parent = Path(data_path).parent.name
         return parent or None
 
-    def _encode_teacher_data(
-        self,
-        sources,
-        images,
-        teacher_processor,
-    ) -> Dict[str, torch.Tensor]:
-        """Encode one image sample for a live teacher."""
-        return encode_teacher_data(
-            sources,
-            images,
-            teacher_processor,
-        )
-
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         """Load, image-resolve, and encode one dataset item for the student and optional teachers."""
         sources = self.training_records[i]
@@ -120,7 +107,12 @@ class SupervisedDataset(Dataset):
 
         sources = copy.deepcopy(llava_to_openai(sources["conversations"]))
 
-        encoded_sample = encode_student_data(sources, images, self.processor)
+        encoded_sample = encode_with_processor(
+            sources,
+            images,
+            self.processor,
+            role="student",
+        )
         if encoded_sample["pixel_values"] is None:
             raise ValueError("Student encoder did not produce image tensors for an image-only sample.")
 
@@ -139,7 +131,7 @@ class SupervisedDataset(Dataset):
 
         teacher_count = self.teacher_count
         for teacher_index, teacher_processor in enumerate(self.teacher_processors):
-            teacher_data = self._encode_teacher_data(sources, images, teacher_processor)
+            teacher_data = encode_teacher_data(sources, images, teacher_processor)
             prefix = "teacher" if teacher_count == 1 else f"teacher_{teacher_index}"
 
             encoded_sample[f"{prefix}_input_ids"] = teacher_data["input_ids"]

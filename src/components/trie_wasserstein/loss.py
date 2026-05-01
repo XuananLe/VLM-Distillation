@@ -7,7 +7,6 @@ from .contributions import (
     build_signed_edge_contributions,
     reduce_signed_edge_contributions_to_tree_loss,
 )
-from .diagnostics import TrieMassStats
 from .runtime_state import extend_vocab_state_with_ignored_tokens
 from .trie_build import build_trie_state_from_tokenizers
 from src.tokenizer_utils import (
@@ -93,7 +92,6 @@ class TrieWassersteinLoss(nn.Module):
             trie_state.teacher_ignored_mask,
             persistent=True,
         )
-        self.last_trie_mass_stats: dict[str, TrieMassStats] = {}
 
     def extend_vocab_state_with_ignored_tokens(
         self,
@@ -214,11 +212,6 @@ class TrieWassersteinLoss(nn.Module):
             valid_count=self.teacher_valid_count,
             sign=-1.0,
         )
-        self.last_trie_mass_stats = {
-            "student": student_result.stats,
-            "teacher": teacher_result.stats,
-        }
-
         return reduce_signed_edge_contributions_to_tree_loss(
             student_result=student_result,
             teacher_result=teacher_result,

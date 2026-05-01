@@ -5,10 +5,7 @@ from einops import einsum
 
 from src.components.grace import apply_grace_routing
 from src.components.reinforced_teacher_selection import compute_reinforced_selection_state
-from src.trainer.teacher_loss_utils import (
-    compute_teacher_loss_matrix,
-    resolve_teacher_target_batches,
-)
+from src.trainer.teacher_loss_utils import compute_teacher_loss_matrix
 from src.trainer.routing_utils import (
     apply_teacher_gate_topk,
     compute_teacher_gate_entropy_loss,
@@ -70,11 +67,6 @@ def build_student_forward_state(*, trainer, model, student_inputs):
       "teacher_router_weights": tensor shape [2, 4],
     }
     """
-    if trainer.teacher_gate is not None:
-        trainer.teacher_gate.reset()
-    if trainer.reinforced_teacher_selector is not None:
-        trainer.reinforced_teacher_selector.reset()
-
     with trainer.layer_distiller.capture_student(model) as student_layer_outputs:
         # https://huggingface.co/docs/transformers/model_doc/smolvlm
         # https://github.com/huggingface/transformers/blob/v5.1.0/src/transformers/models/smolvlm/modeling_smolvlm.py#L572
@@ -93,7 +85,6 @@ def build_student_forward_state(*, trainer, model, student_inputs):
     teacher_router_logits = (
         trainer.teacher_gate.compute_router_logits(
             student_labels=student_inputs["labels"],
-            student_attention_mask=student_inputs.get("attention_mask"),
         )
         if trainer.teacher_gate is not None
         else None
@@ -119,7 +110,6 @@ def build_layer_distillation_state(
     live_teacher_batches,
     student_layer_representations,
 ):
-    """Compute the auxiliary live-teacher layer-distillation loss when that path is enabled."""
     layer_distillation_loss = trainer.layer_distiller.compute_loss(
         teacher_models=trainer.teacher_models,
         live_teacher_batches=live_teacher_batches,
@@ -161,7 +151,6 @@ def build_teacher_loss_state(
     ce_loss,
     teacher_target_batches,
 ):
-    """Compute per-teacher KD losses and optional GRACE tensors for the current batch."""
     (
         teacher_loss_matrix,
         teacher_grace_scores,
@@ -193,21 +182,6 @@ def build_teacher_loss_state(
     }
 
 
-def build_teacher_target_batches(
-    *,
-    trainer,
-    student_logits,
-    teacher_batch_sources: TeacherBatchSources,
-):
-    return resolve_teacher_target_batches(
-        student_logits=student_logits,
-        teacher_models=trainer.teacher_models,
-        live_teacher_batches=teacher_batch_sources.live_teacher_batches,
-        cached_teacher_target_batches=teacher_batch_sources.cached_teacher_target_batches,
-        prepare_input_fn=trainer._prepare_input,
-    )
-
-
 def resolve_teacher_weighting_state(
     *,
     trainer,
@@ -218,7 +192,6 @@ def resolve_teacher_weighting_state(
     selection_teacher_logits,
     selection_teacher_labels,
     student_labels,
-    student_attention_mask,
     student_ce_loss,
 ):
     teacher_grace_weights = None
@@ -236,7 +209,6 @@ def resolve_teacher_weighting_state(
             selection_teacher_logits=selection_teacher_logits or [],
             selection_teacher_labels=selection_teacher_labels or [],
             student_labels=student_labels,
-            student_attention_mask=student_attention_mask,
             student_ce_loss=student_ce_loss,
             teacher_temperature=trainer.teacher_temperature,
             skip_teacher_eos=trainer.skip_teacher_eos,
@@ -350,7 +322,6 @@ __all__ = [
     "build_layer_distillation_state",
     "build_student_forward_state",
     "build_teacher_loss_state",
-    "build_teacher_target_batches",
     "compute_total_loss",
     "prepare_teacher_batch_sources",
     "resolve_teacher_gate_state",

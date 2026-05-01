@@ -20,7 +20,7 @@ import torch.nn.functional as F
 from torch.utils.data import DataLoader, Dataset
 
 from src.components.loss import uld_loss
-from src.dataset.conversation_encoders import encode_student_data
+from src.dataset.conversation_encoders import encode_teacher_data, encode_with_processor
 from src.dataset.data_collator import DataCollatorForSupervisedDataset
 from src.dataset.sft_data import SupervisedDataset
 from src.dataset.vqa_loading import (
@@ -147,17 +147,18 @@ class DocVQAGradientAgreementDataset(Dataset):
             {"content": selected.answer},
         ]
 
-        encoded_sample = encode_student_data(
+        encoded_sample = encode_with_processor(
             sources,
             [image],
             self.encoder_dataset.processor,
+            role="student",
         )
         if encoded_sample["pixel_values"] is None:
             raise ValueError("Student encoder did not produce image tensors for an image-only sample.")
 
         teacher_count = len(self.encoder_dataset.teacher_processors)
         for teacher_index, teacher_processor in enumerate(self.encoder_dataset.teacher_processors):
-            teacher_data = self.encoder_dataset._encode_teacher_data(sources, [image], teacher_processor)
+            teacher_data = encode_teacher_data(sources, [image], teacher_processor)
             prefix = "teacher" if teacher_count == 1 else f"teacher_{teacher_index}"
             encoded_sample[f"{prefix}_input_ids"] = teacher_data["input_ids"]
             encoded_sample[f"{prefix}_labels"] = teacher_data["labels"]

@@ -104,41 +104,33 @@ class ReinforcedTeacherSelectionPolicy(nn.Module):
     def capture_hidden_state(self, module, args):
         """Cache the pre-lm-head hidden state; input is hook args, output is None, and this exists so the policy can reuse student context without another forward pass."""
         del module
-        if args:
-            self.hidden_state = args[0]
-
-    def reset(self) -> None:
-        """Clear the cached hidden state; input/output are None, and this exists to avoid reusing stale activations across steps."""
-        self.hidden_state = None
+        if not args or not torch.is_tensor(args[0]):
+            raise RuntimeError("Reinforced teacher selector hook did not receive the pre-lm-head hidden state.")
+        if self.hidden_state is not None:
+            raise RuntimeError("Reinforced teacher selector hidden state from the previous forward was not consumed.")
+        self.hidden_state = args[0]
 
     def pool_hidden_state(
         self,
         *,
         student_labels: torch.Tensor,
-        student_attention_mask: torch.Tensor | None,
     ) -> torch.Tensor:
         """Pool the cached student hidden state per sample for the selector policy."""
         if self.hidden_state is None:
             raise RuntimeError("Reinforced teacher selector hidden state was not captured.")
         hidden_state = self.hidden_state
         self.hidden_state = None
-        return masked_mean_pool_sequence(
-            hidden_state,
-            labels=student_labels,
-            attention_mask=student_attention_mask,
-        )
+        return masked_mean_pool_sequence(hidden_state, student_labels)
 
     def compute_policy_logits(
         self,
         *,
         teacher_features: torch.Tensor,
         student_labels: torch.Tensor,
-        student_attention_mask: torch.Tensor | None,
     ) -> torch.Tensor:
         """Compute Bernoulli logits over teachers; input is teacher descriptors plus pooled student context, output is [batch, teacher] logits, and this exists to parameterize the policy."""
         pooled_hidden = self.pool_hidden_state(
             student_labels=student_labels,
-            student_attention_mask=student_attention_mask,
         ).detach()
         # The policy state is student context plus all teacher descriptors flattened together.
         flattened_teacher_features = rearrange(teacher_features, "b teacher feat -> b (teacher feat)")
@@ -153,7 +145,6 @@ def compute_reinforced_selection_state(
     selection_teacher_logits: list[torch.Tensor],
     selection_teacher_labels: list[torch.Tensor],
     student_labels: torch.Tensor,
-    student_attention_mask: torch.Tensor | None,
     student_ce_loss: torch.Tensor,
     teacher_temperature: float,
     skip_teacher_eos: bool,
@@ -173,7 +164,6 @@ def compute_reinforced_selection_state(
     policy_logits = selector.compute_policy_logits(
         teacher_features=teacher_features,
         student_labels=student_labels,
-        student_attention_mask=student_attention_mask,
     )
     policy_probs = torch.sigmoid(policy_logits).clamp(
         min=torch.finfo(policy_logits.dtype).eps,

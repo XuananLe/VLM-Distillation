@@ -4,14 +4,11 @@ from dataclasses import dataclass
 
 import torch
 
-from .diagnostics import TrieMassStats
-
 
 @dataclass(slots=True)
 class EdgeContributionResult:
     keys: torch.Tensor
     masses: torch.Tensor
-    stats: TrieMassStats
 
 
 def build_signed_edge_contributions(
@@ -33,8 +30,6 @@ def build_signed_edge_contributions(
     k = min(topk, valid_count)
     all_keys: list[torch.Tensor] = []
     all_masses: list[torch.Tensor] = []
-    exact_mass_values: list[torch.Tensor] = []
-    tail_mass_values: list[torch.Tensor] = []
 
     for row_index, row_logits in enumerate(scaled_logits):
         # Fold the row id into the edge key so identical trie edges from
@@ -49,9 +44,6 @@ def build_signed_edge_contributions(
         log_z = torch.logsumexp(masked_logits, dim=-1)
         kept_masses = (kept_logits - log_z).exp()
         tail_mass = (1.0 - kept_masses.sum()).clamp_min(0.0)
-
-        exact_mass_values.append(kept_masses.sum().detach())
-        tail_mass_values.append(tail_mass.detach())
 
         for token_id, mass in zip(kept_token_ids, kept_masses):
             start = path_offsets[token_id]
@@ -68,14 +60,9 @@ def build_signed_edge_contributions(
     if not all_keys:
         raise ValueError("Trie Wasserstein loss produced no edge contributions.")
 
-    stats = TrieMassStats(
-        exact_mass_mean=torch.stack(exact_mass_values).mean(),
-        tail_mass_mean=torch.stack(tail_mass_values).mean(),
-    )
     return EdgeContributionResult(
         keys=torch.cat(all_keys, dim=0),
         masses=torch.cat(all_masses, dim=0),
-        stats=stats,
     )
 
 
@@ -87,7 +74,6 @@ def reduce_signed_edge_contributions_to_tree_loss(
     edge_count: int,
     num_rows: int,
 ) -> torch.Tensor:
-    """Reduce signed row-edge masses to the mean tree-Wasserstein loss."""
     all_keys = torch.cat([student_result.keys, teacher_result.keys], dim=0)
     signed_masses = torch.cat([student_result.masses, teacher_result.masses], dim=0)
 

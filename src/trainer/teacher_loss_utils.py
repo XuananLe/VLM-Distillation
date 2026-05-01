@@ -25,7 +25,6 @@ def resolve_teacher_target_batches(
     cached_teacher_target_batches,
     prepare_input_fn: Callable,
 ) -> list[TeacherTargetBatch]:
-    """Normalize cached logits or live teacher forwards into one KD target contract."""
     if cached_teacher_target_batches is not None:
         return [
             TeacherTargetBatch(
@@ -121,7 +120,6 @@ def compute_teacher_loss_matrix(
         )
 
     def append_parameter_grace_score(teacher_loss: torch.Tensor) -> None:
-        """Compare full student-parameter gradients for CE and this teacher's KD loss."""
         if grace_parameters is None or ce_parameter_grads is None:
             return
         kd_parameter_grads = compute_parameter_grads(
