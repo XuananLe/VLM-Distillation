@@ -13,21 +13,15 @@ class TrieNode:
 
 @dataclass(slots=True)
 class TrieBuildResult:
-    path_flat: torch.Tensor
-    path_offsets: torch.Tensor
+    token_paths: list[list[int]]
     ignored_mask: torch.Tensor
 
 
 @dataclass(slots=True)
 class TrieRuntimeState:
     edge_weights: torch.Tensor
-    student_path_flat: torch.Tensor
-    student_path_offsets: torch.Tensor
+    student_token_paths: list[list[int]]
     student_ignored_mask: torch.Tensor
-    teacher_path_flat: torch.Tensor
-    teacher_path_offsets: torch.Tensor
+    teacher_token_paths: list[list[int]]
     teacher_ignored_mask: torch.Tensor
-    num_edges: int
     tail_edge_id: int
-    student_valid_count: int
-    teacher_valid_count: int

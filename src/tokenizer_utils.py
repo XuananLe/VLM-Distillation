@@ -11,15 +11,9 @@ SMOLVLM_IMAGE_SPECIAL_TOKENS = (
 )
 
 
-def normalize_model_id(model_id) -> str | None:
-    """Return a canonical model id string when the tokenizer exposes one."""
-    if not isinstance(model_id, str) or not model_id:
-        return None
-    return model_id.rstrip("/")
-
-
 def resolve_vocab_size(tokenizer) -> int:
-    model_id = normalize_model_id(getattr(tokenizer, "name_or_path", None))
+    model_id = getattr(tokenizer, "name_or_path", None)
+    model_id = model_id.rstrip("/") if isinstance(model_id, str) and model_id else None
     try:
         return TOKENIZER_VOCAB_SIZES[model_id]
     except KeyError as exc:
@@ -55,7 +49,6 @@ def token_piece_to_bytes(tokenizer, token_id: int) -> bytes:
 
 
 def default_ignored_token_ids(tokenizer) -> set[int]:
-    """Return special token ids ignored by token-distribution losses."""
     ignored = set(getattr(tokenizer, "all_special_ids", []) or [])
     for attr_name in (
         "pad_token_id",

@@ -1,41 +1,22 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
-
 import torch
-
-
-@dataclass(slots=True)
-class EdgeContributionResult:
-    keys: torch.Tensor
-    masses: torch.Tensor
 
 
 def build_signed_edge_contributions(
     *,
     scaled_logits: torch.Tensor,
-    path_flat: torch.Tensor,
-    path_offsets: torch.Tensor,
+    token_paths: list[list[int]],
     ignored_mask: torch.Tensor,
-    edge_count: int,
     tail_edge_id: int,
     topk: int,
-    valid_count: int,
     sign: float,
-) -> EdgeContributionResult:
-    """Expand token distributions into signed row-edge masses one row at a time."""
-    if valid_count == 0:
-        raise ValueError("Trie Wasserstein loss has no valid token paths for this tokenizer.")
-
+) -> list[dict[int, torch.Tensor]]:
+    valid_count = int((~ignored_mask).sum().item())
     k = min(topk, valid_count)
-    all_keys: list[torch.Tensor] = []
-    all_masses: list[torch.Tensor] = []
+    row_edge_masses: list[dict[int, torch.Tensor]] = []
 
-    for row_index, row_logits in enumerate(scaled_logits):
-        # Fold the row id into the edge key so identical trie edges from
-        # different samples do not cancel before the per-sample loss is formed.
-        row_base = row_logits.new_tensor(row_index * edge_count, dtype=torch.long)
-
+    for row_logits in scaled_logits:
         # Special and extended tokens must not appear in the normalizer; otherwise
         # they steal probability mass even though no semantic trie path can use it.
         masked_logits = row_logits.masked_fill(ignored_mask, float("-inf"))
@@ -45,45 +26,39 @@ def build_signed_edge_contributions(
         kept_masses = (kept_logits - log_z).exp()
         tail_mass = (1.0 - kept_masses.sum()).clamp_min(0.0)
 
+        edge_masses: dict[int, torch.Tensor] = {}
         for token_id, mass in zip(kept_token_ids, kept_masses):
-            start = path_offsets[token_id]
-            end = path_offsets[token_id + 1]
-            edge_ids = path_flat[start:end]
-            if edge_ids.numel() == 0:
+            edge_path = token_paths[int(token_id.item())]
+            if not edge_path:
                 continue
-            all_keys.append(row_base + edge_ids)
-            all_masses.append(mass.expand(edge_ids.numel()) * float(sign))
+            signed_mass = mass * float(sign)
+            for edge_id in edge_path:
+                edge_masses[edge_id] = edge_masses.get(edge_id, 0.0) + signed_mass
 
-        all_keys.append(row_base + row_logits.new_tensor([tail_edge_id], dtype=torch.long))
-        all_masses.append(tail_mass.reshape(1) * float(sign))
+        edge_masses[tail_edge_id] = tail_mass * float(sign)
+        row_edge_masses.append(edge_masses)
 
-    if not all_keys:
-        raise ValueError("Trie Wasserstein loss produced no edge contributions.")
-
-    return EdgeContributionResult(
-        keys=torch.cat(all_keys, dim=0),
-        masses=torch.cat(all_masses, dim=0),
-    )
+    return row_edge_masses
 
 
 def reduce_signed_edge_contributions_to_tree_loss(
     *,
-    student_result: EdgeContributionResult,
-    teacher_result: EdgeContributionResult,
+    student_edge_masses: list[dict[int, torch.Tensor]],
+    teacher_edge_masses: list[dict[int, torch.Tensor]],
     edge_weights: torch.Tensor,
-    edge_count: int,
-    num_rows: int,
 ) -> torch.Tensor:
-    all_keys = torch.cat([student_result.keys, teacher_result.keys], dim=0)
-    signed_masses = torch.cat([student_result.masses, teacher_result.masses], dim=0)
-
-    # This sparse reduce replaces a dense [row, edge] balance matrix, which would
-    # be wasteful because each token touches only a short trie path.
-    active_keys, inverse = torch.unique(all_keys, return_inverse=True)
-    signed_edge_balance = signed_masses.new_zeros(active_keys.numel())
-    signed_edge_balance.index_add_(0, inverse, signed_masses)
-    active_edges = active_keys.remainder(edge_count)
-    total_loss = (
-        edge_weights.index_select(0, active_edges) * signed_edge_balance.abs()
-    ).sum()
-    return total_loss / num_rows
+    total_loss = edge_weights.new_zeros(())
+    for student_edges, teacher_edges in zip(
+        student_edge_masses,
+        teacher_edge_masses,
+        strict=True,
+    ):
+        edge_ids = student_edges.keys() | teacher_edges.keys()
+        for edge_id in edge_ids:
+            edge_balance = edge_weights.new_zeros(())
+            if edge_id in student_edges:
+                edge_balance = edge_balance + student_edges[edge_id]
+            if edge_id in teacher_edges:
+                edge_balance = edge_balance + teacher_edges[edge_id]
+            total_loss = total_loss + edge_weights[edge_id] * edge_balance.abs()
+    return total_loss / len(student_edge_masses)

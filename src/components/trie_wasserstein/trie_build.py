@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import torch
 
+from src.constants import EOS_SENTINEL
 from src.tokenizer_utils import token_piece_to_bytes
-from .constants import EOS_SENTINEL
 from .types import TrieBuildResult, TrieNode, TrieRuntimeState
 
 
@@ -38,14 +38,13 @@ def build_tokenizer_paths(
     rho: float,
 ) -> TrieBuildResult:
     ignored_token_ids_set = set(ignored_token_ids)
-    path_flat: list[int] = []
-    path_offsets = [0]
+    token_paths: list[list[int]] = []
     ignored_mask = torch.zeros(vocab_size, dtype=torch.bool)
 
     for token_id in range(vocab_size):
         if token_id in ignored_token_ids_set:
             ignored_mask[token_id] = True
-            path_offsets.append(len(path_flat))
+            token_paths.append([])
             continue
 
         token_bytes = list(token_piece_to_bytes(tokenizer, token_id))
@@ -59,12 +58,10 @@ def build_tokenizer_paths(
             edge_weights=edge_weights,
             rho=rho,
         )
-        path_flat.extend(path)
-        path_offsets.append(len(path_flat))
+        token_paths.append(path)
 
     return TrieBuildResult(
-        path_flat=torch.tensor(path_flat, dtype=torch.long),
-        path_offsets=torch.tensor(path_offsets, dtype=torch.long),
+        token_paths=token_paths,
         ignored_mask=ignored_mask,
     )
 
@@ -106,14 +103,9 @@ def build_trie_state_from_tokenizers(
 
     return TrieRuntimeState(
         edge_weights=torch.tensor(edge_weights, dtype=torch.float32),
-        student_path_flat=student_paths.path_flat,
-        student_path_offsets=student_paths.path_offsets,
+        student_token_paths=student_paths.token_paths,
         student_ignored_mask=student_paths.ignored_mask,
-        teacher_path_flat=teacher_paths.path_flat,
-        teacher_path_offsets=teacher_paths.path_offsets,
+        teacher_token_paths=teacher_paths.token_paths,
         teacher_ignored_mask=teacher_paths.ignored_mask,
-        num_edges=len(edge_weights),
         tail_edge_id=tail_edge_id,
-        student_valid_count=int((~student_paths.ignored_mask).sum().item()),
-        teacher_valid_count=int((~teacher_paths.ignored_mask).sum().item()),
     )

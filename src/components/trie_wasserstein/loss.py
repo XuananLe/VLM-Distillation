@@ -11,7 +11,6 @@ from .runtime_state import extend_vocab_state_with_ignored_tokens
 from .trie_build import build_trie_state_from_tokenizers
 from src.tokenizer_utils import (
     default_ignored_token_ids,
-    normalize_model_id,
     resolve_vocab_size,
 )
 
@@ -34,8 +33,6 @@ class TrieWassersteinLoss(nn.Module):
 
         self.student_tokenizer = getattr(student_tokenizer, "tokenizer", None) or student_tokenizer
         self.teacher_tokenizer = getattr(teacher_tokenizer, "tokenizer", None) or teacher_tokenizer
-        self.student_model_id = normalize_model_id(getattr(self.student_tokenizer, "name_or_path", None))
-        self.teacher_model_id = normalize_model_id(getattr(self.teacher_tokenizer, "name_or_path", None))
         self.student_tokenizer_vocab_size = resolve_vocab_size(self.student_tokenizer)
         self.teacher_tokenizer_vocab_size = resolve_vocab_size(self.teacher_tokenizer)
         self.student_vocab_size = self.student_tokenizer_vocab_size
@@ -64,29 +61,16 @@ class TrieWassersteinLoss(nn.Module):
             teacher_tokenizer=self.teacher_tokenizer,
         )
 
-        self.num_edges = trie_state.num_edges
         self.tail_edge_id = trie_state.tail_edge_id
-        self.student_valid_count = trie_state.student_valid_count
-        self.teacher_valid_count = trie_state.teacher_valid_count
 
         self.register_buffer("edge_weights", trie_state.edge_weights, persistent=True)
-        self.register_buffer("student_path_flat", trie_state.student_path_flat, persistent=True)
-        self.register_buffer(
-            "student_path_offsets",
-            trie_state.student_path_offsets,
-            persistent=True,
-        )
+        self.student_token_paths = trie_state.student_token_paths
         self.register_buffer(
             "student_ignored_mask",
             trie_state.student_ignored_mask,
             persistent=True,
         )
-        self.register_buffer("teacher_path_flat", trie_state.teacher_path_flat, persistent=True)
-        self.register_buffer(
-            "teacher_path_offsets",
-            trie_state.teacher_path_offsets,
-            persistent=True,
-        )
+        self.teacher_token_paths = trie_state.teacher_token_paths
         self.register_buffer(
             "teacher_ignored_mask",
             trie_state.teacher_ignored_mask,
@@ -113,27 +97,25 @@ class TrieWassersteinLoss(nn.Module):
         teacher_vocab_size: int,
         teacher_labels: torch.Tensor | None = None,
     ) -> None:
-        """Validate or extend trie runtime state for one batch."""
+        if student_vocab_size < self.student_vocab_size or teacher_vocab_size < self.teacher_vocab_size:
+            raise ValueError(
+                "Error: invalid trie vocab sizes. "
+                f"student_vocab={student_vocab_size}, "
+                f"teacher_vocab={teacher_vocab_size}, "
+                f"expected_student_vocab_at_least={self.student_vocab_size}, "
+                f"expected_teacher_vocab_at_least={self.teacher_vocab_size}"
+            )
+
         if student_vocab_size > self.student_vocab_size:
             self.extend_vocab_state_with_ignored_tokens(
                 side="student",
                 target_vocab_size=student_vocab_size,
-            )
-        elif student_vocab_size < self.student_vocab_size:
-            raise ValueError(
-                "student logits vocab size does not match the trie state: "
-                f"{student_vocab_size} != {self.student_vocab_size}"
             )
 
         if teacher_vocab_size > self.teacher_vocab_size:
             self.extend_vocab_state_with_ignored_tokens(
                 side="teacher",
                 target_vocab_size=teacher_vocab_size,
-            )
-        elif teacher_vocab_size < self.teacher_vocab_size:
-            raise ValueError(
-                "teacher logits vocab size does not match the trie state: "
-                f"{teacher_vocab_size} != {self.teacher_vocab_size}"
             )
 
         if teacher_labels is None:
@@ -157,31 +139,21 @@ class TrieWassersteinLoss(nn.Module):
         student_temperature: float = 1.0,
         teacher_temperature: float = 1.0,
     ) -> torch.Tensor:
-        """Compute mean trie-Wasserstein KD over aligned positions."""
-        if student_logits.ndim != 2:
+        invalid_logits = (
+            student_logits.ndim != 2
+            or teacher_logits.ndim != 2
+            or student_logits.size(0) != teacher_logits.size(0)
+            or student_logits.size(0) == 0
+            or student_logits.size(-1) != self.student_vocab_size
+            or teacher_logits.size(-1) != self.teacher_vocab_size
+        )
+        if invalid_logits:
             raise ValueError(
-                f"student_logits must have shape (N, V_s), got {tuple(student_logits.shape)}"
-            )
-        if teacher_logits.ndim != 2:
-            raise ValueError(
-                f"teacher_logits must have shape (N, V_t), got {tuple(teacher_logits.shape)}"
-            )
-        if student_logits.size(0) != teacher_logits.size(0):
-            raise ValueError(
-                "student and teacher must have the same token dimension, got "
-                f"{student_logits.size(0)} and {teacher_logits.size(0)}"
-            )
-        if student_logits.size(0) == 0:
-            raise ValueError("Trie Wasserstein loss received no aligned supervised token positions.")
-        if student_logits.size(-1) != self.student_vocab_size:
-            raise ValueError(
-                "student logits vocab size does not match the trie state: "
-                f"{student_logits.size(-1)} != {self.student_vocab_size}"
-            )
-        if teacher_logits.size(-1) != self.teacher_vocab_size:
-            raise ValueError(
-                "teacher logits vocab size does not match the trie state: "
-                f"{teacher_logits.size(-1)} != {self.teacher_vocab_size}"
+                "Error: invalid trie"
+                f"student_shape={tuple(student_logits.shape)}, "
+                f"teacher_shape={tuple(teacher_logits.shape)}, "
+                f"expected_student_vocab={self.student_vocab_size}, "
+                f"expected_teacher_vocab={self.teacher_vocab_size}"
             )
 
         # These loss modules live in Python closures, not as trainer/model
@@ -190,32 +162,24 @@ class TrieWassersteinLoss(nn.Module):
         student_scaled_logits = student_logits.float() / float(student_temperature)
         teacher_scaled_logits = teacher_logits.detach().float() / float(teacher_temperature)
 
-        student_result = build_signed_edge_contributions(
+        student_edge_masses = build_signed_edge_contributions(
             scaled_logits=student_scaled_logits,
-            path_flat=self.student_path_flat,
-            path_offsets=self.student_path_offsets,
+            token_paths=self.student_token_paths,
             ignored_mask=self.student_ignored_mask,
-            edge_count=self.num_edges,
             tail_edge_id=self.tail_edge_id,
             topk=self.topk,
-            valid_count=self.student_valid_count,
             sign=1.0,
         )
-        teacher_result = build_signed_edge_contributions(
+        teacher_edge_masses = build_signed_edge_contributions(
             scaled_logits=teacher_scaled_logits,
-            path_flat=self.teacher_path_flat,
-            path_offsets=self.teacher_path_offsets,
+            token_paths=self.teacher_token_paths,
             ignored_mask=self.teacher_ignored_mask,
-            edge_count=self.num_edges,
             tail_edge_id=self.tail_edge_id,
             topk=self.topk,
-            valid_count=self.teacher_valid_count,
             sign=-1.0,
         )
         return reduce_signed_edge_contributions_to_tree_loss(
-            student_result=student_result,
-            teacher_result=teacher_result,
+            student_edge_masses=student_edge_masses,
+            teacher_edge_masses=teacher_edge_masses,
             edge_weights=self.edge_weights,
-            edge_count=self.num_edges,
-            num_rows=student_logits.size(0),
         )

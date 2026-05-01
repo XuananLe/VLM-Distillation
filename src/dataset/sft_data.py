@@ -1,6 +1,4 @@
-import copy
 import os
-from pathlib import Path
 from dataclasses import replace
 from typing import Dict, Optional
 
@@ -15,9 +13,8 @@ from .conversation_encoders import (
     encode_teacher_data,
     encode_with_processor,
 )
-from .conversation_transforms import llava_to_openai
 from .data_collator import DataCollatorForSupervisedDataset
-from .streaming_teacher_logits_cache import StreamingTeacherLogitsCache
+from .teacher_logits_cache import TeacherLogitsCache
 
 # This return a sample
 # {
@@ -40,7 +37,6 @@ class SupervisedDataset(Dataset):
         teacher_processors: Optional[list[transformers.ProcessorMixin]] = None,
         teacher_logits_cache_dir: Optional[str] = None,
         teacher_model_ids: Optional[list[str]] = None,
-        teacher_logits_remote_uri: Optional[str] = None,
     ):
         super(SupervisedDataset, self).__init__()
         if isinstance(data_path, str):
@@ -53,18 +49,15 @@ class SupervisedDataset(Dataset):
         self.training_records = training_records
         self.data_args = data_args
         self.teacher_logits_cache = None
-        dataset_name = self.infer_dataset_name(data_path)
-        if teacher_logits_cache_dir is not None or teacher_logits_remote_uri is not None:
+        if teacher_logits_cache_dir is not None:
             if not teacher_model_ids:
                 raise ValueError(
                     "teacher_model_ids must be provided when using cached teacher logits."
                 )
-            self.teacher_logits_cache = StreamingTeacherLogitsCache(
+            self.teacher_logits_cache = TeacherLogitsCache(
                 cache_dir=teacher_logits_cache_dir,
                 teacher_model_ids=teacher_model_ids,
                 expected_num_samples=len(self.training_records),
-                dataset_name=dataset_name,
-                remote_uri=teacher_logits_remote_uri,
             )
 
         processor_teacher_count = len(self.teacher_processors)
@@ -83,13 +76,6 @@ class SupervisedDataset(Dataset):
     def __len__(self):
         return len(self.training_records)
 
-    @staticmethod
-    def infer_dataset_name(data_path: str | list) -> str | None:
-        if not isinstance(data_path, str):
-            return None
-        parent = Path(data_path).parent.name
-        return parent or None
-
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         sources = self.training_records[i]
         images = None
@@ -106,13 +92,8 @@ class SupervisedDataset(Dataset):
                 if not os.path.exists(resolved_path):
                     resolved_path = os.path.join(image_folder, image_file)
                 images.append(Image.open(resolved_path).convert("RGB"))
-        elif "video" in sources:
-            raise ValueError(
-                "Video samples are no longer supported in the training dataset path. "
-                "Convert them to images before training."
-            )
 
-        sources = copy.deepcopy(llava_to_openai(sources["conversations"]))
+        sources = sources["conversations"]
 
         encoded_sample = encode_with_processor(
             sources,
@@ -162,9 +143,7 @@ def make_supervised_data_module(
     teacher_processors: Optional[list[transformers.ProcessorMixin]] = None,
     teacher_model_ids: Optional[list[str]] = None,
     teacher_logits_cache_dir: Optional[str] = None,
-    teacher_logits_remote_uri: Optional[str] = None,
 ):
-    """Make dataset and collator for supervised fine-tuning."""
     normalized_teacher_processors = list(teacher_processors or [])
     sft_dataset = SupervisedDataset(
         data_path=data_args.data_path,
@@ -173,7 +152,6 @@ def make_supervised_data_module(
         teacher_processors=normalized_teacher_processors,
         teacher_logits_cache_dir=teacher_logits_cache_dir,
         teacher_model_ids=teacher_model_ids,
-        teacher_logits_remote_uri=teacher_logits_remote_uri,
     )
     eval_dataset = None
     if data_args.eval_data_path:
