@@ -51,7 +51,6 @@ def build_distillation_loss(
             loss_module.prepare_runtime_state(
                 student_vocab_size=student_vocab_size,
                 teacher_vocab_size=teacher_vocab_size,
-                teacher_labels=teacher_labels,
             )
             prepared_vocab_shapes[teacher_key] = (student_vocab_size, teacher_vocab_size)
 

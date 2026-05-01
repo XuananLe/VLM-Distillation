@@ -95,7 +95,6 @@ class TrieWassersteinLoss(nn.Module):
         *,
         student_vocab_size: int,
         teacher_vocab_size: int,
-        teacher_labels: torch.Tensor | None = None,
     ) -> None:
         if student_vocab_size < self.student_vocab_size or teacher_vocab_size < self.teacher_vocab_size:
             raise ValueError(
@@ -116,20 +115,6 @@ class TrieWassersteinLoss(nn.Module):
             self.extend_vocab_state_with_ignored_tokens(
                 side="teacher",
                 target_vocab_size=teacher_vocab_size,
-            )
-
-        if teacher_labels is None:
-            return
-
-        valid_labels = teacher_labels[teacher_labels != -100]
-        if valid_labels.numel() == 0:
-            raise ValueError("Teacher labels contain no supervised answer tokens for trie OT.")
-
-        max_label = int(valid_labels.max().item())
-        if max_label >= self.teacher_tokenizer_vocab_size:
-            raise ValueError(
-                "teacher labels contain ids outside tokenizer space: "
-                f"max label {max_label} >= tokenizer vocab {self.teacher_tokenizer_vocab_size}"
             )
 
     def forward(
