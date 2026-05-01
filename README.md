@@ -8,7 +8,7 @@ This repository trains [SmolVLM](https://huggingface.co/HuggingFaceTB/SmolVLM-In
 The implemented training stack is centered on cache-backed distillation: teacher logits are precomputed once, then reused during student training. On top of that base workflow, the repo currently supports:
 
 - single-teacher and multi-teacher KD
-- cached teacher-logit training from local disk or streamed remote storage
+- cached teacher-logit training from a local cache root
 - teacher weighting via `uniform_mean`, `routing`, or `reinforced_selection`
 - `GRACE` routing refinement on top of the router
 - logits-space KD losses including `uld_loss`, `trie_wasserstein_loss`, KL/JS variants, and `cka_loss`
@@ -18,12 +18,8 @@ The implemented training stack is centered on cache-backed distillation: teacher
 
 ## Documentation
 
-- [Runtime and Training Guide](docs/runtime-guide.md)
-  - comprehensive guide to the implemented training stack
-  - covers entrypoints, cache layout, data format, routing, GRACE, and launcher behavior
-- [PLAN.md](PLAN.md)
-  - research notes and method planning
-  - useful for context, but not the runtime source of truth
+- [interview_questions/](interview_questions)
+  - code-navigation questions for understanding the implemented runtime
 - [DEX-AR Demo](demo/DEX-AR/README.md)
   - separate explainability demo bundled in this repository
 
@@ -36,7 +32,7 @@ If you are trying to understand what currently runs, prioritize these directorie
 - `src/dataset`
 - `src/components`
 
-The checked-in docs now describe the implemented runtime, not just the intended research direction. `PLAN.md` is still useful, but it should be treated as planning material rather than a strict runtime specification.
+The checked-in docs describe the implemented runtime, not just the intended research direction.
 
 ## Quick Start
 
@@ -99,7 +95,7 @@ Notes:
 
 ### 3. Cache teacher logits
 
-The current distillation runtime expects cached teacher logits, either from a local cache root or a remote raw cache URI.
+The current distillation runtime expects cached teacher logits from a local cache root.
 
 Example:
 
@@ -127,25 +123,24 @@ The default script currently trains:
 
 - student: `HuggingFaceTB/SmolVLM-500M-Instruct`
 - teachers:
+  - `google/gemma-3-4b-it`
+  - `OpenGVLab/InternVL2-1B`
   - `Qwen/Qwen2.5-VL-3B-Instruct`
   - `Qwen/Qwen2-VL-2B-Instruct`
-  - `ibm-granite/granite-vision-3.1-2b-preview`
-  - `google/gemma-3-4b-it`
-- dataset: `docvqa`
+- dataset: `textvqa`
 - weighting strategy: `routing`
-- KD loss: `trie_wasserstein_loss`
+- KD loss: `uld_loss`
 
 Useful overrides:
 
 ```bash
-TEACHER_WEIGHTING_STRATEGY=uniform_mean \
+ALPHA=0.2 \
 TEACHER_LOGITS_CACHE_DIR=/path/to/cache \
 bash scripts/train/distill_multi_teachers.sh
 ```
 
 ```bash
-TRIE_WASSERSTEIN_RHO=0.5 \
-TRIE_WASSERSTEIN_TOPK=128 \
+GRACE_WARMUP_RATIO=0.0 \
 TEACHER_LOGITS_CACHE_DIR=/path/to/cache \
 bash scripts/train/distill_multi_teachers.sh
 ```
@@ -153,7 +148,6 @@ bash scripts/train/distill_multi_teachers.sh
 ```bash
 NUM_TRAIN_EPOCHS=2 \
 PER_DEVICE_TRAIN_BATCH_SIZE=16 \
-GRADIENT_ACCUMULATION_STEPS=4 \
 TEACHER_LOGITS_CACHE_DIR=/path/to/cache \
 bash scripts/train/distill_multi_teachers.sh
 ```
@@ -213,15 +207,13 @@ One practical consequence of the current design:
 - [`scripts/train`](scripts/train)
   - shell launchers for distillation and SFT
 - [`scripts/analysis`](scripts/analysis)
-  - teacher-logit caching and offline analysis helpers
+  - teacher-logit caching, optional cache repacking, and offline analysis helpers
 - [`demo/DEX-AR`](demo/DEX-AR)
   - separate explainability demo
 
-The detailed file-by-file guide lives in [docs/runtime-guide.md](docs/runtime-guide.md).
-
 ## Notes and Caveats
 
-- The distillation runtime is cache-first. Provide either `--teacher_logits_cache_dir` or `--teacher_logits_remote_uri`.
+- The distillation runtime is cache-first. Provide `--teacher_logits_cache_dir`.
 - `GRACE` is part of the `routing` path. It refines routed teacher weights; it is not a separate weighting strategy.
 - `src/eval` is a separate stack and is not part of the core training loop.
 - `modal_app.py` is remote execution glue. Its checked-in local entrypoint currently drops into the DEX-AR demo, not the main training path.

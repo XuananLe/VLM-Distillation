@@ -17,14 +17,7 @@ class DistillationArguments:
     teacher_logits_cache_dir: str | None = field(
         default=None,
         metadata={
-            "help": "Local teacher-logits cache root. Use /cache for mounted local caches, or a writable /tmp path when downloading remote teacher logits on demand."
-        },
-    )
-
-    teacher_logits_remote_uri: str | None = field(
-        default=None,
-        metadata={
-            "help": "Optional s3:// base prefix for remote raw teacher logits. Leave unset to read directly from a local cache root such as /cache."
+            "help": "Local teacher-logits cache root, for example /workspace/cache."
         },
     )
 
@@ -180,11 +173,8 @@ class DistillationArguments:
     def validate(self):
         if not self.teacher_model_ids:
             raise ValueError("At least one teacher model ID must be provided via --teacher_model_ids.")
-        if self.teacher_logits_cache_dir is None and self.teacher_logits_remote_uri is None:
-            raise ValueError(
-                "Teacher logits require either --teacher_logits_cache_dir (for example /cache "
-                "or a writable /tmp path) or --teacher_logits_remote_uri (remote raw cache root)."
-            )
+        if self.teacher_logits_cache_dir is None:
+            raise ValueError("Teacher logits require --teacher_logits_cache_dir.")
 
         allowed_values = (
             (
@@ -292,8 +282,6 @@ def log_distillation_setup(
     print(f"Teacher Model(s): {teacher_ids}")
     if distillation_args.teacher_logits_cache_dir:
         print(f"Teacher Logits Cache: {distillation_args.teacher_logits_cache_dir}")
-    if distillation_args.teacher_logits_remote_uri:
-        print(f"Teacher Logits Remote URI: {distillation_args.teacher_logits_remote_uri}")
     print(
         "Teacher Weighting: learned deep gate + GRACE routing"
         if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing"

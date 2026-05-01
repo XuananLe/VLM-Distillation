@@ -8,7 +8,7 @@ TEACHER_MODEL_2="OpenGVLab/InternVL2-1B"
 TEACHER_MODEL_3="Qwen/Qwen2.5-VL-3B-Instruct"
 TEACHER_MODEL_4="Qwen/Qwen2-VL-2B-Instruct"
 TEACHER_MODEL_IDS=("${TEACHER_MODEL_1}" "${TEACHER_MODEL_2}" "${TEACHER_MODEL_3}" "${TEACHER_MODEL_4}")
-STUDENT_MODEL="HuggingFaceTB/SmolVLM-500M-Instruct"
+STUDENT_MODEL="HuggingFaceTB/SmolVLM-256M-Instruct"
 
 # uld_loss, trie_wasserstein_loss, cka_loss, forward_kl, reverse_kl, jensen_shannon_divergence
 DISTILLATION_LOSS="uld_loss"
@@ -27,12 +27,7 @@ GRACE_SOFTMAX_BETA="${GRACE_SOFTMAX_BETA:-4.0}"
 GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.5}"
 GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.8}"
 
-TEACHER_LOGITS_REMOTE_URI="${TEACHER_LOGITS_REMOTE_URI-}"
-if [[ -n "${TEACHER_LOGITS_REMOTE_URI}" ]]; then
-    TEACHER_LOGITS_CACHE_DIR="${TEACHER_LOGITS_CACHE_DIR:-/tmp/teacher-logits-streaming}"
-else
-    TEACHER_LOGITS_CACHE_DIR="${TEACHER_LOGITS_CACHE_DIR:-/workspace/cache}"
-fi
+TEACHER_LOGITS_CACHE_DIR="${TEACHER_LOGITS_CACHE_DIR:-/workspace/cache}"
 
 NUM_TEACHERS=4
 DATASET_NAME="textvqa"
@@ -51,13 +46,6 @@ ALPHA_TAG="${ALPHA//./p}"
 RUN_TAG="${RUN_TAG:-uld_alpha${ALPHA_TAG}_$(date +%Y%m%d_%H%M)}"
 
 OUTPUT_DIR="output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${TEACHER_NAME_3}_${TEACHER_NAME_4}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
-
-EXTRA_ARGS=(
-    --teacher_logits_cache_dir "$TEACHER_LOGITS_CACHE_DIR"
-)
-if [[ -n "${TEACHER_LOGITS_REMOTE_URI}" ]]; then
-    EXTRA_ARGS+=(--teacher_logits_remote_uri "$TEACHER_LOGITS_REMOTE_URI")
-fi
 
 stop_vast_instance() {
     if [[ "${AUTO_STOP_VAST_INSTANCE}" == "0" ]]; then
@@ -104,7 +92,7 @@ python src/train/train_distillation.py \
     --dataloader_num_workers 4 \
     --remove_unused_columns False \
     --report_to wandb \
-    "${EXTRA_ARGS[@]}"
+    --teacher_logits_cache_dir "$TEACHER_LOGITS_CACHE_DIR"
 
 TRAIN_EXIT_CODE=$?
 if [[ "${TRAIN_EXIT_CODE}" -eq 1 ]]; then

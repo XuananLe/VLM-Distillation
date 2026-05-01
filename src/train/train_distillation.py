@@ -114,7 +114,6 @@ def train_distillation():
         teacher_processors=teacher_processors,
         teacher_model_ids=teacher_ids,
         teacher_logits_cache_dir=distillation_args.teacher_logits_cache_dir,
-        teacher_logits_remote_uri=distillation_args.teacher_logits_remote_uri,
     )
     print("\nInitializing distillation trainer...")
     trainer = DistillationTrainer(

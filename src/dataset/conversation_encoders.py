@@ -27,7 +27,6 @@ def finalize_teacher_data(
     teacher_data: Dict[str, torch.Tensor],
     teacher_model_id: Optional[str],
 ) -> Dict[str, torch.Tensor]:
-    """Fill teacher-side defaults so every teacher batch exposes the expected multimodal fields."""
     if teacher_data["attention_mask"] is None:
         teacher_data["attention_mask"] = torch.ones_like(teacher_data["input_ids"])
 
@@ -45,7 +44,6 @@ def encode_teacher_data(
     images,
     teacher_processor,
 ) -> Dict[str, torch.Tensor]:
-    """Encode one sample for a live teacher and normalize its optional multimodal fields."""
     teacher_model_id = teacher_processor.get("model_id") if isinstance(teacher_processor, dict) else None
     if isinstance(teacher_processor, dict):
         if not is_internvl_teacher_model_id(teacher_model_id):

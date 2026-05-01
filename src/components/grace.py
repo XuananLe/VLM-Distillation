@@ -19,7 +19,6 @@ def apply_grace_routing(
     torch.Tensor | None,
     torch.Tensor | None,
 ]:
-    """Blend router weights with GRACE agreement scores and return the final routing state."""
     if (
         routed_teacher_weights is None
         or teacher_grace_scores is None
@@ -47,7 +46,7 @@ def apply_grace_routing(
             grace_ema_decay * prev_grace_score_ema.unsqueeze(0)
             + (1.0 - grace_ema_decay) * teacher_grace_scores
         )
-
+    # ema = beta * old_ema + (1 - beta) * new_value
     batch_grace_mean = teacher_grace_scores.detach().mean(dim=0).float()
     if prev_grace_score_ema is None or prev_grace_score_ema.numel() != batch_grace_mean.numel():
         next_grace_score_ema = batch_grace_mean
@@ -84,8 +83,7 @@ def apply_grace_routing(
     )
 
     router_weights_clamped = normalized_router_weights.clamp(min=torch.finfo(normalized_router_weights.dtype).eps)
-    # Blend in log-space / geometric space:
-    # w_blend ∝ w_router^lambda * w_grad^(1-lambda).
+    # w_blend = w_router^lambda * w_grad^(1-lambda).
     router_grace_blend_weights = (
         router_weights_clamped.pow(grace_router_blend_lambda)
         * grace_agreement_weights.clamp(min=torch.finfo(grace_agreement_weights.dtype).eps).pow(

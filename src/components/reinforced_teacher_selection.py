@@ -4,10 +4,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import einsum, rearrange
-
 from src.components.pooling import masked_mean_pool_sequence
 from src.components.teacher_gate import Gate
-
+# https://arxiv.org/pdf/2012.06048
 
 def compute_reinforced_teacher_descriptor_stats(
     *,
@@ -16,7 +15,6 @@ def compute_reinforced_teacher_descriptor_stats(
     teacher_temperature: float,
     skip_teacher_eos: bool,
 ) -> torch.Tensor:
-    """Summarize one teacher batch into confidence/entropy descriptors; input is teacher logits and labels, output is per-sample stats, and this exists to give the policy teacher-side signals beyond KD loss."""
     # Build simple per-sample teacher descriptors from supervised answer positions only.
     stats = []
     for sample_index, (sample_logits, sample_labels) in enumerate(zip(teacher_logits, teacher_labels)):
@@ -53,7 +51,6 @@ def build_reinforced_selection_teacher_features(
     teacher_temperature: float,
     skip_teacher_eos: bool,
 ) -> torch.Tensor:
-    """Assemble selector features for all teachers; input is teacher logits/labels plus KD losses, output is [batch, teacher, feature], and this exists to build the policy state tensor."""
     if not selection_teacher_logits or not selection_teacher_labels:
         raise ValueError("Reinforced teacher selection requires teacher logits and labels.")
     if len(selection_teacher_logits) != len(selection_teacher_labels):
@@ -86,9 +83,7 @@ def build_reinforced_selection_teacher_features(
 
 
 class ReinforcedTeacherSelectionPolicy(nn.Module):
-    """Bernoulli teacher-subset policy on student context; it maps pooled student state plus teacher descriptors to teacher logits and exists for REINFORCE-based teacher selection."""
     def __init__(self, model: nn.Module, num_teachers: int, teacher_feature_dim: int = 3):
-        """Initialize the selector and register its hook; input is the student model and teacher count, output is an initialized policy module, and this exists to keep selector setup local."""
         super().__init__()
         hidden_size, hook_module = Gate.resolve_gate_source(model)
         self.num_teachers = num_teachers
@@ -102,7 +97,6 @@ class ReinforcedTeacherSelectionPolicy(nn.Module):
         self.hook_handle = hook_module.register_forward_pre_hook(self.capture_hidden_state)
 
     def capture_hidden_state(self, module, args):
-        """Cache the pre-lm-head hidden state; input is hook args, output is None, and this exists so the policy can reuse student context without another forward pass."""
         del module
         if not args or not torch.is_tensor(args[0]):
             raise RuntimeError("Reinforced teacher selector hook did not receive the pre-lm-head hidden state.")

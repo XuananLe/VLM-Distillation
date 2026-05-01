@@ -28,59 +28,105 @@ def is_internvl_teacher_model_id(model_id: str | None) -> bool:
     return isinstance(model_id, str) and "internvl" in model_id.lower()
 
 
+def build_smolvlm_user_content(user_text: str, turn_images) -> list[dict]:
+    pieces = user_text.split(LLAVA_IMAGE_TOKEN)
+    expected_image_count = len(pieces) - 1
+    if expected_image_count == 0 or len(turn_images) != expected_image_count:
+        raise ValueError(
+            "SmolVLM training samples must include one loaded image per image token. "
+            f"image_tokens={expected_image_count}, loaded_images={len(turn_images)}"
+        )
+
+    content = []
+    for piece_index, text_piece in enumerate(pieces):
+        text = text_piece.strip()
+        if text:
+            content.append({"type": "text", "text": text})
+        if piece_index < expected_image_count:
+            content.append({"type": "image", "image": turn_images[piece_index]})
+    return content
+
+
 def smolvlm_encode_conversation(
     sources,
     images,
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
-    all_input_ids = [torch.tensor([1])]
-    all_labels = [torch.tensor([-100])]
-
+    all_input_ids = []
+    all_labels = []
     pixel_values = None
     pixel_attention_mask = None
+    image_idx = 0
+    previous_full_length = 0
+    messages = []
 
-    for idx, j in enumerate(range(0, len(sources), 2)):
+    for j in range(0, len(sources), 2):
         user_input = sources[j]
         gpt_response = sources[j + 1]
-        is_last_turn = idx == (len(sources) // 2 - 1)
 
-        if user_input["content"].startswith(LLAVA_IMAGE_TOKEN):
-            user_prompt = f"User:{user_input['content']}{EOS_TOKEN}\nAssistant: "
-        else:
-            user_prompt = f"User: {user_input['content']}{EOS_TOKEN}\nAssistant: "
+        user_text = user_input["value"]
+        if LLAVA_IMAGE_TOKEN not in user_text or images is None:
+            raise ValueError("SmolVLM training samples must include image tokens and loaded images.")
+        image_count = user_text.count(LLAVA_IMAGE_TOKEN)
+        turn_images = images[image_idx:image_idx + image_count]
+        image_idx += image_count
 
-        gpt_prompt = (
-            f"{gpt_response['content']}{EOS_TOKEN}"
-            if is_last_turn
-            else f"{gpt_response['content']}{EOS_TOKEN}\n"
-        )
+        user_message = {
+            "role": "user",
+            "content": build_smolvlm_user_content(user_text, turn_images),
+        }
+        assistant_message = {
+            "role": "assistant",
+            "content": [{"type": "text", "text": gpt_response["value"]}],
+        }
+        prompt_messages = messages + [user_message]
+        full_messages = prompt_messages + [assistant_message]
 
-        if LLAVA_IMAGE_TOKEN not in user_prompt:
-            raise ValueError("Must include an image token in the user prompt.")
-
-        enc = processor(text=user_prompt, images=images, return_tensors="pt")
-        # prompt_input_ids.shape = [1, prompt_len]
-        prompt_input_ids = enc["input_ids"]
-        pixel_values = enc.get("pixel_values", None)
-        pixel_attention_mask = enc.get("pixel_attention_mask", None)
-
-        response_input_ids = processor.tokenizer(
-            gpt_prompt,
-            add_special_tokens=False,
+        prompt_enc = processor.apply_chat_template(
+            prompt_messages,
+            tokenize=True,
+            return_dict=True,
             return_tensors="pt",
-        )["input_ids"]
-
-        # input dim = [batch_size, seq_len]
-        input_ids = torch.cat([prompt_input_ids, response_input_ids], dim=1).squeeze(0) # remove the batch dimension
-        labels = torch.cat(
-            [
-                torch.tensor([IGNORE_INDEX] * len(prompt_input_ids[0])),
-                response_input_ids.squeeze(0),
-            ],
-            dim=0,
+            add_generation_prompt=True,
         )
-        all_input_ids.append(input_ids)
-        all_labels.append(labels)
+        full_enc = processor.apply_chat_template(
+            full_messages,
+            tokenize=True,
+            return_dict=True,
+            return_tensors="pt",
+            add_generation_prompt=False,
+        )
+
+        prompt_ids = prompt_enc["input_ids"]
+        full_ids = full_enc["input_ids"]
+        if prompt_ids.size(1) > full_ids.size(1):
+            raise ValueError("SmolVLM prompt encoding is longer than full conversation encoding.")
+        if previous_full_length > prompt_ids.size(1):
+            raise ValueError("SmolVLM conversation encoding shortened between turns.")
+
+        prompt_delta = prompt_ids[:, previous_full_length:]
+        response_ids = full_ids[:, prompt_ids.size(1):]
+
+        if prompt_delta.numel() > 0:
+            all_input_ids.append(prompt_delta.squeeze(0).to(torch.long))
+            all_labels.append(
+                torch.full(
+                    (prompt_delta.size(1),),
+                    IGNORE_INDEX,
+                    dtype=torch.long,
+                )
+            )
+        if response_ids.numel() > 0:
+            all_input_ids.append(response_ids.squeeze(0).to(torch.long))
+            all_labels.append(response_ids.squeeze(0).to(torch.long))
+
+        previous_full_length = full_ids.size(1)
+        messages = full_messages
+        pixel_values = full_enc.get("pixel_values", prompt_enc.get("pixel_values"))
+        pixel_attention_mask = full_enc.get(
+            "pixel_attention_mask",
+            prompt_enc.get("pixel_attention_mask"),
+        )
 
     input_ids = torch.cat(all_input_ids, dim=0).to(torch.long)
     labels = torch.cat(all_labels, dim=0).to(torch.long)
@@ -113,7 +159,7 @@ def qwen_encode_conversation(
         gpt_response = sources[j + 1]
         is_last_turn = idx == (len(sources) // 2 - 1)
 
-        user_text = user_input["content"]
+        user_text = user_input["value"]
         if LLAVA_IMAGE_TOKEN not in user_text or images is None:
             raise ValueError("Qwen-VL training samples must include image tokens and loaded images.")
         n_images = user_text.count(LLAVA_IMAGE_TOKEN)
@@ -134,7 +180,7 @@ def qwen_encode_conversation(
         image_grid_thw = enc.get("image_grid_thw", None)
 
         suffix = "" if is_last_turn else "\n"
-        response_text = gpt_response["content"] + "<|im_end|>" + suffix
+        response_text = gpt_response["value"] + "<|im_end|>" + suffix
         response_ids = processor.tokenizer(
             response_text,
             add_special_tokens=False,
@@ -182,7 +228,7 @@ def gemma3_encode_conversation(
         user_input = sources[j]
         gpt_response = sources[j + 1]
 
-        user_text = user_input["content"]
+        user_text = user_input["value"]
         if LLAVA_IMAGE_TOKEN not in user_text or images is None:
             raise ValueError("Gemma 3 training samples must include image tokens and loaded images.")
         n_images = user_text.count(LLAVA_IMAGE_TOKEN)
@@ -198,7 +244,7 @@ def gemma3_encode_conversation(
         prompt_messages = [{"role": "user", "content": user_content}]
         full_messages = [
             {"role": "user", "content": user_content},
-            {"role": "assistant", "content": [{"type": "text", "text": gpt_response["content"]}]},
+            {"role": "assistant", "content": [{"type": "text", "text": gpt_response["value"]}]},
         ]
 
         prompt_enc = processor.apply_chat_template(
@@ -265,7 +311,7 @@ def llava_next_encode_conversation(
         user_input = sources[j]
         gpt_response = sources[j + 1]
 
-        user_text = user_input["content"]
+        user_text = user_input["value"]
         if LLAVA_IMAGE_TOKEN not in user_text or images is None:
             raise ValueError("LLaVA-NeXT training samples must include image tokens and loaded images.")
         n_images = user_text.count(LLAVA_IMAGE_TOKEN)
@@ -281,7 +327,7 @@ def llava_next_encode_conversation(
         prompt_messages = [{"role": "user", "content": user_content}]
         full_messages = [
             {"role": "user", "content": user_content},
-            {"role": "assistant", "content": [{"type": "text", "text": gpt_response["content"]}]},
+            {"role": "assistant", "content": [{"type": "text", "text": gpt_response["value"]}]},
         ]
 
         prompt_enc = processor.apply_chat_template(
@@ -357,21 +403,21 @@ def internvl3_encode_conversation(
         gpt_response = sources[j + 1]
         is_last_turn = idx == (len(sources) // 2 - 1)
 
-        if user_input["content"].startswith(LLAVA_IMAGE_TOKEN):
-            user_prompt = f"User:{user_input['content']}{EOS_TOKEN}\nAssistant: "
+        if user_input["value"].startswith(LLAVA_IMAGE_TOKEN):
+            user_prompt = f"User:{user_input['value']}{EOS_TOKEN}\nAssistant: "
         else:
-            user_prompt = f"User: {user_input['content']}{EOS_TOKEN}\nAssistant: "
+            user_prompt = f"User: {user_input['value']}{EOS_TOKEN}\nAssistant: "
 
         gpt_prompt = (
-            f"{gpt_response['content']}{EOS_TOKEN}"
+            f"{gpt_response['value']}{EOS_TOKEN}"
             if is_last_turn
-            else f"{gpt_response['content']}{EOS_TOKEN}\n"
+            else f"{gpt_response['value']}{EOS_TOKEN}\n"
         )
 
         if LLAVA_IMAGE_TOKEN not in user_prompt or images is None:
             raise ValueError("InternVL training samples must include image tokens and loaded images.")
 
-        turn_images = images[image_idx:image_idx + user_input["content"].count(LLAVA_IMAGE_TOKEN)]
+        turn_images = images[image_idx:image_idx + user_input["value"].count(LLAVA_IMAGE_TOKEN)]
         image_idx += len(turn_images)
         pixel_value_chunks = []
         for turn_image in turn_images:

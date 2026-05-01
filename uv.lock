@@ -2884,20 +2884,6 @@ wheels = [
 ]
 
 [[package]]
-name = "s3fs"
-version = "2025.9.0"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "aiobotocore" },
-    { name = "aiohttp" },
-    { name = "fsspec" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/ee/f3/8e6371436666aedfd16e63ff68a51b8a8fcf5f33a0eee33c35e0b2476b27/s3fs-2025.9.0.tar.gz", hash = "sha256:6d44257ef19ea64968d0720744c4af7a063a05f5c1be0e17ce943bef7302bc30", size = 77823, upload-time = "2025-09-02T19:18:21.781Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/37/b3/ca7d58ca25b1bb6df57e6cbd0ca8d6437a4b9ce1cd35adc8a6b2949c113b/s3fs-2025.9.0-py3-none-any.whl", hash = "sha256:c33c93d48f66ed440dbaf6600be149cdf8beae4b6f8f0201a209c5801aeb7e30", size = 30319, upload-time = "2025-09-02T19:18:20.563Z" },
-]
-
-[[package]]
 name = "safehttpx"
 version = "0.1.7"
 source = { registry = "https://pypi.org/simple" }
@@ -3884,7 +3870,6 @@ dependencies = [
     { name = "requests" },
     { name = "rich" },
     { name = "rsa" },
-    { name = "s3fs" },
     { name = "safehttpx" },
     { name = "safetensors" },
     { name = "scikit-image" },
@@ -4119,7 +4104,6 @@ requires-dist = [
     { name = "requests", specifier = "==2.32.5" },
     { name = "rich", specifier = "==14.3.2" },
     { name = "rsa", specifier = "==4.9.1" },
-    { name = "s3fs", specifier = "==2025.9.0" },
     { name = "safehttpx", specifier = "==0.1.7" },
     { name = "safetensors", specifier = "==0.7.0" },
     { name = "scikit-image", specifier = "==0.26.0" },

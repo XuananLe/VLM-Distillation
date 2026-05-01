@@ -12,4 +12,4 @@ def masked_mean_pool_sequence(
         dim=1,
         mask=label_mask.unsqueeze(-1),
     )
-    return torch.nan_to_num(pooled_tensor, nan=0.0)
+    return torch.nan_to_num(pooled_tensor)

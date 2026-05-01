@@ -2,6 +2,15 @@ from PIL import Image
 import torch
 import torchvision.transforms as T
 from torchvision.transforms.functional import InterpolationMode
+"""
+Copy from
+- https://huggingface.co/OpenGVLab/InternVL2-1B
+
+- https://huggingface.co/OpenGVLab/InternVL3-1B-Instruct
+
+- https://github.com/OpenGVLab/InternVL/blob/main/internvl_chat/internvl/train/dataset.py
+"""
+
 
 INTERNVL_MEAN = (0.485, 0.456, 0.406)
 INTERNVL_STD = (0.229, 0.224, 0.225)
@@ -16,7 +25,6 @@ INTERNVL_IMG_CONTEXT_TOKEN = "<IMG_CONTEXT>"
 
 
 def build_internvl_transform(input_size: int, normalize_type: str) -> T.Compose:
-    """Build the torchvision preprocessing pipeline used by InternVL image tiles."""
     if normalize_type == "siglip":
         mean, std = INTERNVL_SIGLIP_MEAN, INTERNVL_SIGLIP_STD
     else:
@@ -32,7 +40,6 @@ def build_internvl_transform(input_size: int, normalize_type: str) -> T.Compose:
 
 
 def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
-    """Pick the tiling aspect ratio that best matches the source image geometry."""
     best_ratio_diff = float("inf")
     best_ratio = (1, 1)
     area = width * height
@@ -58,9 +65,10 @@ def dynamic_preprocess_internvl(
     min_num_tiles: int = 1,
     use_thumbnail: bool = True,
 ) -> list[Image.Image]:
-    """Split one image into InternVL-style tiles plus an optional thumbnail tile."""
     orig_width, orig_height = image.size
     aspect_ratio = orig_width / orig_height
+    # InternVL chooses a tile grid by matching the original aspect ratio, which
+    # preserves document/chart layouts better than forcing every image to 1x1.
     target_ratios = set(
         (i, j)
         for n in range(min_num_tiles, max_num_tiles + 1)
@@ -95,7 +103,6 @@ def dynamic_preprocess_internvl(
 
 
 def build_internvl_pixel_values(image: Image.Image, teacher_processor: dict) -> torch.Tensor:
-    """Convert one image into the stacked tensor tiles expected by InternVL teachers."""
     image_size = teacher_processor.get("image_size", INTERNVL_IMAGE_SIZE)
     max_num_tiles = teacher_processor.get("max_num_tiles", INTERNVL_MAX_NUM_TILES)
     normalize_type = teacher_processor.get("normalize_type", "imagenet")

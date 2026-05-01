@@ -143,8 +143,8 @@ class DocVQAGradientAgreementDataset(Dataset):
         sample = self.hf_dataset[selected.row_index]
         image = extract_image_as_pil(sample[self.schema["image_field"]])
         sources = [
-            {"content": f"<image>\n{selected.question}"},
-            {"content": selected.answer},
+            {"from": "human", "value": f"<image>\n{selected.question}"},
+            {"from": "gpt", "value": selected.answer},
         ]
 
         encoded_sample = encode_with_processor(

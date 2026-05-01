@@ -1,18 +1,9 @@
 import re
 import torch
 from typing import Dict, Optional
-from torch.nn.utils.rnn import pad_sequence as torch_pad_sequence
 
 from src.constants import IGNORE_INDEX
-from .data_utils import pad_sequence
-
-# [1, T, ...] -> [B, T, ...]
-def pad_frames(tensors, pad_value=0):
-    return torch_pad_sequence(
-        [frames.squeeze(0) for frames in tensors],
-        batch_first=True,
-        padding_value=pad_value,
-    )
+from .data_utils import pad_frames, pad_sequence
 
 
 class DataCollatorForSupervisedDataset:
@@ -39,7 +30,6 @@ class DataCollatorForSupervisedDataset:
         return sorted(prefixes, key=lambda prefix: int(prefix.split("_")[1]))
 
     def teacher_pad_for_prefix(self, prefix: str) -> int:
-        """Get the padding token ID for a specific teacher prefix."""
         if prefix == "teacher":
             return self.teacher_pad_token_id or self.pad_token_id
 
@@ -122,10 +112,10 @@ class DataCollatorForSupervisedDataset:
         )
 
     def __call__(self, examples):
-        batch_input_ids            = [e["input_ids"]                    for e in examples]
-        batch_label_ids            = [e["labels"]                       for e in examples]
-        batch_pixel_values         = [e.get("pixel_values")             for e in examples]
-        batch_pixel_attention_mask = [e.get("pixel_attention_mask")     for e in examples]
+        batch_input_ids            = [e["input_ids"] for e in examples]
+        batch_label_ids            = [e["labels"] for e in examples]
+        batch_pixel_values         = [e.get("pixel_values") for e in examples]
+        batch_pixel_attention_mask = [e.get("pixel_attention_mask") for e in examples]
 
         input_ids = pad_sequence(
             batch_input_ids, padding_side='right', padding_value=self.pad_token_id

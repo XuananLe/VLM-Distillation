@@ -8,6 +8,7 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 import torch
+from safetensors.torch import save_file
 from torch.utils.data import Dataset
 
 from src.dataset.sft_data import make_supervised_data_module
@@ -46,7 +47,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--file-name-template",
-        default="{dataset_index}.pt",
+        default="{dataset_index}.safetensors",
         help="Output filename template for each sample. Available field: dataset_index.",
     )
     parser.add_argument(
@@ -156,16 +157,37 @@ def save_sample(
     teacher_dir.mkdir(parents=True, exist_ok=True)
     file_name = file_name_template.format(dataset_index=item["dataset_index"])
     sample_path = teacher_dir / file_name
-    torch.save(
-        {
-            "teacher_model_id": teacher_model_id,
-            "storage_dtype": str(storage_dtype).replace("torch.", ""),
-            "dataset_index": item["dataset_index"],
-            "num_supervised_tokens": item["num_supervised_tokens"],
-            "logits": item["logits"],
-            "labels": item["labels"],
-        },
-        sample_path,
+    metadata = {
+        "teacher_model_id": teacher_model_id,
+        "storage_dtype": str(storage_dtype).replace("torch.", ""),
+        "dataset_index": str(item["dataset_index"]),
+        "num_supervised_tokens": str(item["num_supervised_tokens"]),
+    }
+    if sample_path.suffix == ".safetensors":
+        save_file(
+            {
+                "logits": item["logits"],
+                "labels": item["labels"],
+            },
+            sample_path,
+            metadata=metadata,
+        )
+        return
+    if sample_path.suffix == ".pt":
+        torch.save(
+            {
+                **metadata,
+                "dataset_index": item["dataset_index"],
+                "num_supervised_tokens": item["num_supervised_tokens"],
+                "logits": item["logits"],
+                "labels": item["labels"],
+            },
+            sample_path,
+        )
+        return
+    raise ValueError(
+        "Unsupported cache sample extension. Use .safetensors or .pt: "
+        f"{sample_path}"
     )
 
 
