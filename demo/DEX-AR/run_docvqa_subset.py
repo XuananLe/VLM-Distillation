@@ -98,23 +98,23 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _sanitize_for_filename(raw_value: Any) -> str:
+def sanitize_for_filename(raw_value: Any) -> str:
     sanitized = SAFE_FILENAME_RE.sub("_", str(raw_value)).strip("._")
     return sanitized or "sample"
 
 
-def _pick_first_answer(answer_value: Any) -> str | None:
+def pick_first_answer(answer_value: Any) -> str | None:
     values = answer_value if isinstance(answer_value, (list, tuple)) else (answer_value,)
     return next((text for text in (pick_first_text(value) for value in values) if text), None)
 
 
-def _resolve_device(device: str) -> str:
+def resolve_device(device: str) -> str:
     if device == "auto":
         return "cuda" if torch.cuda.is_available() else "cpu"
     return device
 
 
-def _build_vqa_prompt(dataset_name: str, model_family: str, question: str) -> str:
+def build_vqa_prompt(dataset_name: str, model_family: str, question: str) -> str:
     if model_family == "smolvlm":
         if dataset_name == "chartqa":
             return (
@@ -185,7 +185,7 @@ def _build_vqa_prompt(dataset_name: str, model_family: str, question: str) -> st
     return f"<image>\n{instruction}\nAnswer:"
 
 
-def _candidate_images(model: DexarWrapper, image: Image.Image):
+def candidate_images(model: DexarWrapper, image: Image.Image):
     rgb_image = image.convert("RGB")
     yielded: set[tuple[str, tuple[int, int]]] = set()
 
@@ -213,7 +213,7 @@ def _candidate_images(model: DexarWrapper, image: Image.Image):
             yield square_key[0], square
 
 
-def _generate_answer(
+def generate_answer(
     model: DexarWrapper,
     image: Image.Image,
     prompt: str,
@@ -253,7 +253,7 @@ def _generate_answer(
     return generated_text
 
 
-def _save_visualizations(
+def save_visualizations(
     *,
     image: Image.Image,
     result,
@@ -296,7 +296,7 @@ def _save_visualizations(
 def main() -> None:
     args = parse_args()
     dataset_name = canonical_dataset_name(args.dataset)
-    device = _resolve_device(args.device)
+    device = resolve_device(args.device)
 
     args.output_root.mkdir(parents=True, exist_ok=True)
 
@@ -334,17 +334,17 @@ def main() -> None:
 
         sample = dataset[row_index]
         question = pick_first_text(sample.get(schema["question_field"])) if schema["question_field"] else None
-        ground_truth = _pick_first_answer(sample.get(schema["answer_field"])) if schema["answer_field"] else None
+        ground_truth = pick_first_answer(sample.get(schema["answer_field"])) if schema["answer_field"] else None
         if not question or not ground_truth:
             continue
 
         sample_id = sample.get(schema["id_field"]) if schema["id_field"] else row_index
         output_dir = args.output_root / (
-            f"sample_{len(successes):02d}_row_{row_index:06d}_{_sanitize_for_filename(sample_id)}"
+            f"sample_{len(successes):02d}_row_{row_index:06d}_{sanitize_for_filename(sample_id)}"
         )
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        prompt = _build_vqa_prompt(dataset_name, model.model_family, question)
+        prompt = build_vqa_prompt(dataset_name, model.model_family, question)
 
         print(
             f"[sample {len(successes) + 1}/{args.subset_size}] "
@@ -356,11 +356,11 @@ def main() -> None:
             source_image.save(output_dir / "original_image.png")
 
             last_error: Exception | None = None
-            for image_prep, prepared_image in _candidate_images(model, source_image):
+            for image_prep, prepared_image in candidate_images(model, source_image):
                 try:
                     generated_answer = None
                     if args.target_mode == "generated":
-                        generated_answer = _generate_answer(
+                        generated_answer = generate_answer(
                             model,
                             prepared_image,
                             prompt,
@@ -379,7 +379,7 @@ def main() -> None:
 
                     prepared_image.save(output_dir / "input_image.png")
                     (output_dir / "prompt.txt").write_text(prompt, encoding="utf-8")
-                    _save_visualizations(
+                    save_visualizations(
                         image=prepared_image,
                         result=result,
                         output_dir=output_dir,

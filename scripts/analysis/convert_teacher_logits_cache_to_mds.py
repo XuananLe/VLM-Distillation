@@ -65,30 +65,27 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _join_remote_uri(root: str, *parts: str) -> str:
+def join_remote_uri(root: str, *parts: str) -> str:
     value = root.rstrip("/")
     for part in parts:
         value = f"{value}/{part.strip('/')}"
     return value
 
 
-def _serialize_tensor(tensor: torch.Tensor) -> bytes:
+def serialize_tensor(tensor: torch.Tensor) -> bytes:
     buffer = io.BytesIO()
     torch.save(tensor.detach().cpu(), buffer)
     return buffer.getvalue()
 
 
-def _list_sample_files(input_teacher_dir: Path) -> list[Path]:
-    sample_files = [
-        path for path in input_teacher_dir.iterdir()
-        if path.is_file() and path.suffix == ".pt" and path.stem.isdigit()
-    ]
+def list_sample_files(input_teacher_dir: Path) -> list[Path]:
+    sample_files = [path for path in input_teacher_dir.glob("*.pt") if path.stem.isdigit()]
     if not sample_files:
         raise FileNotFoundError(f"No sample .pt files found in {input_teacher_dir}")
     return sorted(sample_files, key=lambda path: int(path.stem))
 
 
-def _write_teacher_dataset(
+def write_teacher_dataset(
     *,
     input_root: Path,
     output_root: Path,
@@ -108,7 +105,7 @@ def _write_teacher_dataset(
     output_teacher_dir = output_root / teacher_slug
     output_teacher_dir.mkdir(parents=True, exist_ok=True)
     remote_teacher_dir = (
-        _join_remote_uri(remote_output_root, teacher_slug) if remote_output_root else None
+        join_remote_uri(remote_output_root, teacher_slug) if remote_output_root else None
     )
     writer_out = (
         (str(output_teacher_dir), remote_teacher_dir)
@@ -121,7 +118,7 @@ def _write_teacher_dataset(
         "logits": "bytes",
         "labels": "bytes",
     }
-    sample_files = _list_sample_files(input_teacher_dir)
+    sample_files = list_sample_files(input_teacher_dir)
     if limit is not None:
         sample_files = sample_files[:limit]
 
@@ -139,8 +136,8 @@ def _write_teacher_dataset(
             writer.write(
                 {
                     "dataset_index": dataset_index,
-                    "logits": _serialize_tensor(sample["logits"]),
-                    "labels": _serialize_tensor(sample["labels"]),
+                    "logits": serialize_tensor(sample["logits"]),
+                    "labels": serialize_tensor(sample["labels"]),
                 }
             )
 
@@ -153,7 +150,7 @@ def main() -> None:
     output_dir.mkdir(parents=True, exist_ok=True)
 
     for teacher_model_id in teacher_model_ids:
-        _write_teacher_dataset(
+        write_teacher_dataset(
             input_root=input_dir,
             output_root=output_dir,
             remote_output_root=args.remote_output_uri,

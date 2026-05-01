@@ -4,13 +4,13 @@ from os import path
 here = path.abspath(path.dirname(__file__))
 
 
-def _read_reqs(relpath):
+def read_reqs(relpath):
     fullpath = path.join(path.dirname(__file__), relpath)
     with open(fullpath) as f:
         return [s.strip() for s in f.readlines() if (s.strip() and not s.startswith("#"))]
 
 
-REQUIREMENTS = _read_reqs("requirements.txt")
+REQUIREMENTS = read_reqs("requirements.txt")
 
 setup(
     name="dexar_torch",

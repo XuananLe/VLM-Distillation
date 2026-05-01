@@ -175,6 +175,8 @@ class DistillationTrainer(Trainer):
 
     @override
     def _prepare_inputs(self, inputs):
+        # Hugging Face Trainer calls this private hook by name, so this override
+        # must keep the framework method name even though project helpers avoid it.
         if not isinstance(inputs, dict):
             return super()._prepare_inputs(inputs)
 

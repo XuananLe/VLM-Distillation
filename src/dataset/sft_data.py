@@ -19,6 +19,17 @@ from .conversation_transforms import llava_to_openai
 from .data_collator import DataCollatorForSupervisedDataset
 from .streaming_teacher_logits_cache import StreamingTeacherLogitsCache
 
+# This return a sample
+# {
+#       "input_ids":tensor([...]                                                    ),
+#       "labels": tensor([...]),
+#       "attention_mask": tensor([...]),
+#       "pixel_values": tensor(...),
+#       "pixel_attention_mask": tensor(...),
+#       "teacher_0_cached_logits": tensor(...),
+#       "teacher_0_cached_labels": tensor(...),
+# }
+
 class SupervisedDataset(Dataset):
 
     def __init__(
@@ -31,7 +42,6 @@ class SupervisedDataset(Dataset):
         teacher_model_ids: Optional[list[str]] = None,
         teacher_logits_remote_uri: Optional[str] = None,
     ):
-        """Load training records and optional teacher-cache state for multimodal SFT/distillation."""
         super(SupervisedDataset, self).__init__()
         if isinstance(data_path, str):
             training_records = json.load(open(data_path, "r"))
@@ -43,7 +53,7 @@ class SupervisedDataset(Dataset):
         self.training_records = training_records
         self.data_args = data_args
         self.teacher_logits_cache = None
-        dataset_name = self._infer_dataset_name(data_path)
+        dataset_name = self.infer_dataset_name(data_path)
         if teacher_logits_cache_dir is not None or teacher_logits_remote_uri is not None:
             if not teacher_model_ids:
                 raise ValueError(
@@ -71,19 +81,16 @@ class SupervisedDataset(Dataset):
         self.teacher_count = max(processor_teacher_count, cache_teacher_count)
 
     def __len__(self):
-        """Return the number of serialized training examples."""
         return len(self.training_records)
 
     @staticmethod
-    def _infer_dataset_name(data_path: str | list) -> str | None:
-        """Infer a dataset name from the data path so remote cache layout can match training data."""
+    def infer_dataset_name(data_path: str | list) -> str | None:
         if not isinstance(data_path, str):
             return None
         parent = Path(data_path).parent.name
         return parent or None
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
-        """Load, image-resolve, and encode one dataset item for the student and optional teachers."""
         sources = self.training_records[i]
         images = None
 

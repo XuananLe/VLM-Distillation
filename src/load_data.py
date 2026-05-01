@@ -61,13 +61,13 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def _default_output_paths(dataset_name: str, split: str, output_root: Path) -> tuple[Path, Path]:
+def default_output_paths(dataset_name: str, split: str, output_root: Path) -> tuple[Path, Path]:
     """Return the default JSON and image-output paths for one dataset split."""
     base = output_root / dataset_name
     return base / f"{split}_llava.json", base / "images"
 
 
-def _print_schema_info(dataset: Any, resolved_schema: dict[str, str | None]) -> None:
+def print_schema_info(dataset: Any, resolved_schema: dict[str, str | None]) -> None:
     """Print the raw dataset schema and the inferred fields used by conversion."""
     print("Pulled schema from dataset.features:")
     for name, feature in dataset.features.items():
@@ -77,18 +77,18 @@ def _print_schema_info(dataset: Any, resolved_schema: dict[str, str | None]) -> 
         print(f"  - {key}: {resolved_schema.get(key)}")
 
 
-def _sanitize_for_filename(raw_value: Any) -> str:
+def sanitize_for_filename(raw_value: Any) -> str:
     """Sanitize an arbitrary id-like value into a filesystem-safe filename stem."""
     return SAFE_FILENAME_RE.sub("_", str(raw_value))
 
 
-def _pick_first_answer(answer_value: Any) -> str | None:
+def pick_first_answer(answer_value: Any) -> str | None:
     """Return the first non-empty textual answer from a scalar or sequence answer field."""
     values = answer_value if isinstance(answer_value, (list, tuple)) else (answer_value,)
     return next((text for text in (pick_first_text(value) for value in values) if text), None)
 
 
-def _chartqa_split_label(sample: dict[str, Any]) -> str | None:
+def chartqa_split_label(sample: dict[str, Any]) -> str | None:
     """Normalize ChartQA's human/machine split marker into a readable label."""
     raw_value = sample.get("human_or_machine")
     if raw_value is None:
@@ -112,7 +112,7 @@ def convert_dataset_to_llava(
     print(f"Loaded dataset: {loaded_from} (split={split})")
 
     schema = infer_schema(dataset, require_answer_field=True)
-    _print_schema_info(dataset, schema)
+    print_schema_info(dataset, schema)
 
     image_dir.mkdir(parents=True, exist_ok=True)
     output_json.parent.mkdir(parents=True, exist_ok=True)
@@ -140,7 +140,7 @@ def convert_dataset_to_llava(
             stats["skipped_no_question"] += 1
             continue
 
-        answer = _pick_first_answer(sample.get(schema["answer_field"])) if schema["answer_field"] else None
+        answer = pick_first_answer(sample.get(schema["answer_field"])) if schema["answer_field"] else None
         if not answer:
             stats["skipped_no_answer"] += 1
             continue
@@ -149,7 +149,7 @@ def convert_dataset_to_llava(
         image_name_source = sample.get(schema["image_name_field"]) if schema["image_name_field"] else None
         image_name_source = image_name_source or sample_id or f"row_{row_idx:08d}"
 
-        image_id = _sanitize_for_filename(image_name_source)
+        image_id = sanitize_for_filename(image_name_source)
         image_filename = image_id_to_filename.get(image_id)
         if image_filename is None:
             try:
@@ -174,7 +174,7 @@ def convert_dataset_to_llava(
             ],
         }
         if dataset_name == "chartqa":
-            chartqa_split = _chartqa_split_label(sample)
+            chartqa_split = chartqa_split_label(sample)
             if chartqa_split is not None:
                 llava_row["chartqa_split"] = chartqa_split
         llava_rows.append(llava_row)
@@ -192,7 +192,7 @@ def main() -> None:
     args = parse_args()
 
     dataset_name = canonical_dataset_name(args.dataset)
-    default_json, default_image_dir = _default_output_paths(dataset_name, args.split, args.output_root)
+    default_json, default_image_dir = default_output_paths(dataset_name, args.split, args.output_root)
     output_json = args.output_json or default_json
     image_dir = args.image_dir or default_image_dir
 

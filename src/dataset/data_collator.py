@@ -1,30 +1,21 @@
-"""Data collator for supervised fine-tuning datasets."""
 import re
 import torch
 from typing import Dict, Optional
+from torch.nn.utils.rnn import pad_sequence as torch_pad_sequence
 
 from src.constants import IGNORE_INDEX
 from .data_utils import pad_sequence
 
-
-def _pad_frames(tensors, pad_value=0):
-    """Pad a list of (1, T, ...) tensors to (B, T_max, ...) along the frame dim."""
-    # Per-example encoders keep a leading singleton batch dim, so collation only
-    # pads the time/frame axis and strips that singleton in the batch tensor.
-    max_frame_count = max(frames.size(1) for frames in tensors)
-    padded_frames = torch.full(
-        (len(tensors), max_frame_count) + tensors[0].shape[2:],
-        fill_value=pad_value,
-        dtype=tensors[0].dtype,
-        device=tensors[0].device,
+# [1, T, ...] -> [B, T, ...]
+def pad_frames(tensors, pad_value=0):
+    return torch_pad_sequence(
+        [frames.squeeze(0) for frames in tensors],
+        batch_first=True,
+        padding_value=pad_value,
     )
-    for sample_index, frames in enumerate(tensors):
-        padded_frames[sample_index, :frames.size(1)] = frames[0]
-    return padded_frames
 
 
-class DataCollatorForSupervisedDataset(object):
-    """Collate examples for supervised fine-tuning."""
+class DataCollatorForSupervisedDataset:
 
     def __init__(
         self,
@@ -32,13 +23,11 @@ class DataCollatorForSupervisedDataset(object):
         teacher_pad_token_id: Optional[int] = None,
         teacher_pad_token_ids: Optional[list[Optional[int]]] = None,
     ):
-        """Store student and optional teacher pad ids used during batch collation."""
         self.pad_token_id         = pad_token_id
         self.teacher_pad_token_id = teacher_pad_token_id
         self.teacher_pad_token_ids = teacher_pad_token_ids or []
 
-    def _teacher_prefixes(self, example: Dict[str, torch.Tensor], suffix: str) -> list[str]:
-        """Extract teacher prefixes for a specific field suffix from an example."""
+    def teacher_prefixes(self, example: Dict[str, torch.Tensor], suffix: str) -> list[str]:
         if f"teacher_{suffix}" in example:
             return ["teacher"]
 
@@ -49,7 +38,7 @@ class DataCollatorForSupervisedDataset(object):
                 prefixes.append(match.group(1))
         return sorted(prefixes, key=lambda prefix: int(prefix.split("_")[1]))
 
-    def _teacher_pad_for_prefix(self, prefix: str) -> int:
+    def teacher_pad_for_prefix(self, prefix: str) -> int:
         """Get the padding token ID for a specific teacher prefix."""
         if prefix == "teacher":
             return self.teacher_pad_token_id or self.pad_token_id
@@ -61,9 +50,8 @@ class DataCollatorForSupervisedDataset(object):
                 return teacher_pad
         return self.pad_token_id
 
-    def _collate_teacher_batch(self, examples, batch_dict, prefix: str) -> None:
-        """Collate teacher inputs from examples into the batch dictionary."""
-        teacher_pad = self._teacher_pad_for_prefix(prefix)
+    def collate_teacher_batch(self, examples, batch_dict, prefix: str) -> None:
+        teacher_pad = self.teacher_pad_for_prefix(prefix)
         teacher_input_ids = pad_sequence(
             [e[f"{prefix}_input_ids"] for e in examples],
             padding_side="right",
@@ -88,14 +76,14 @@ class DataCollatorForSupervisedDataset(object):
 
         teacher_pixel_values = [e[pixel_key] for e in examples]
         if teacher_pixel_values[0].dim() == 5:
-            batch_dict[pixel_key] = _pad_frames(teacher_pixel_values, pad_value=0.0)
+            batch_dict[pixel_key] = pad_frames(teacher_pixel_values, pad_value=0.0)
         else:
             batch_dict[pixel_key] = torch.cat(teacher_pixel_values, dim=0)
 
         pixel_attention_key = f"{prefix}_pixel_attention_mask"
         teacher_pixel_attention_masks = [e.get(pixel_attention_key) for e in examples]
         if teacher_pixel_attention_masks[0] is not None:
-            batch_dict[pixel_attention_key] = _pad_frames(
+            batch_dict[pixel_attention_key] = pad_frames(
                 teacher_pixel_attention_masks,
                 pad_value=0,
             )
@@ -121,8 +109,7 @@ class DataCollatorForSupervisedDataset(object):
                 dim=0,
             )
 
-    def _collate_cached_teacher_batch(self, examples, batch_dict, prefix: str) -> None:
-        """Collate cached teacher logits from examples into the batch dictionary."""
+    def collate_cached_teacher_batch(self, examples, batch_dict, prefix: str) -> None:
         batch_dict[f"{prefix}_cached_logits"] = pad_sequence(
             [e[f"{prefix}_cached_logits"] for e in examples],
             padding_side="right",
@@ -135,7 +122,6 @@ class DataCollatorForSupervisedDataset(object):
         )
 
     def __call__(self, examples):
-        """Collate a batch of examples."""
         batch_input_ids            = [e["input_ids"]                    for e in examples]
         batch_label_ids            = [e["labels"]                       for e in examples]
         batch_pixel_values         = [e.get("pixel_values")             for e in examples]
@@ -146,8 +132,8 @@ class DataCollatorForSupervisedDataset(object):
         )
         attention_mask = input_ids != self.pad_token_id
         labels         = pad_sequence(batch_label_ids, padding_side='right', padding_value=IGNORE_INDEX)
-        pixel_values = _pad_frames(batch_pixel_values, pad_value=0.0)
-        pixel_attention_mask = _pad_frames(batch_pixel_attention_mask, pad_value=0)
+        pixel_values = pad_frames(batch_pixel_values, pad_value=0.0)
+        pixel_attention_mask = pad_frames(batch_pixel_attention_mask, pad_value=0)
 
         batch_dict = dict(
             input_ids=input_ids,
@@ -157,9 +143,9 @@ class DataCollatorForSupervisedDataset(object):
         if pixel_values is not None:
             batch_dict.update(pixel_values=pixel_values, pixel_attention_mask=pixel_attention_mask)
 
-        for prefix in self._teacher_prefixes(examples[0], "input_ids"):
-            self._collate_teacher_batch(examples, batch_dict, prefix)
-        for prefix in self._teacher_prefixes(examples[0], "cached_logits"):
-            self._collate_cached_teacher_batch(examples, batch_dict, prefix)
+        for prefix in self.teacher_prefixes(examples[0], "input_ids"):
+            self.collate_teacher_batch(examples, batch_dict, prefix)
+        for prefix in self.teacher_prefixes(examples[0], "cached_logits"):
+            self.collate_cached_teacher_batch(examples, batch_dict, prefix)
 
         return batch_dict

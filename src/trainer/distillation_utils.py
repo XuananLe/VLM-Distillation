@@ -20,7 +20,6 @@ OPTIONAL_TEACHER_INPUTS = ("pixel_attention_mask", "image_grid_thw", "image_flag
 
 
 def get_base_model(model):
-    """Unwrap common trainer/model wrappers and return the underlying base model."""
     current = model
     while hasattr(current, "module"):
         current = current.module
@@ -33,7 +32,6 @@ def get_base_model(model):
 
 
 def resolve_layer_indices(total_layers: int, layer_indices: list[int], label: str) -> list[int]:
-    """Resolve possibly negative layer indices and validate them against a layer count."""
     resolved = []
     for layer_index in layer_indices:
         normalized = total_layers + layer_index if layer_index < 0 else layer_index

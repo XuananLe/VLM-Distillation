@@ -88,17 +88,12 @@ def pool_model_hidden_states(hidden_states: torch.Tensor, attention_mask) -> tor
         )
 
     if attention_mask is not None and attention_mask.ndim == 2 and attention_mask.shape == hidden_states.shape[:2]:
-        # Masked mean over valid sequence positions.
-        mask = rearrange(
-            attention_mask.to(device=hidden_states.device, dtype=hidden_states.dtype),
-            "b t -> b t 1",
+        pooled_hidden_states = torch.masked.mean(
+            hidden_states,
+            dim=1,
+            mask=attention_mask.to(device=hidden_states.device, dtype=torch.bool).unsqueeze(-1),
         )
-        masked_hidden_states = hidden_states * mask
-        return reduce(masked_hidden_states, "b t d -> b d", "sum") / reduce(
-            mask,
-            "b t d -> b d",
-            "sum",
-        ).clamp_min(1.0)
+        return torch.nan_to_num(pooled_hidden_states, nan=0.0)
     return reduce(hidden_states, "b t d -> b d", "mean")
 
 

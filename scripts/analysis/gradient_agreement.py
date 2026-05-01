@@ -106,7 +106,7 @@ def get_processor_pad_token_id(processor: Any) -> int:
     raise ValueError(f"Could not resolve pad_token_id for processor type {type(processor).__name__}.")
 
 
-def _pick_first_answer(answer_value: Any) -> str | None:
+def pick_first_answer(answer_value: Any) -> str | None:
     values = answer_value if isinstance(answer_value, (list, tuple)) else (answer_value,)
     for value in values:
         text = pick_first_text(value)
@@ -181,7 +181,7 @@ def select_docvqa_subset(dataset_name: str, split: str, subset_size: int, offset
     for row_index in range(offset, len(hf_dataset)):
         sample = hf_dataset[row_index]
         question = pick_first_text(sample.get(schema["question_field"])) if schema["question_field"] else None
-        answer = _pick_first_answer(sample.get(schema["answer_field"])) if schema["answer_field"] else None
+        answer = pick_first_answer(sample.get(schema["answer_field"])) if schema["answer_field"] else None
         if not question or not answer:
             continue
         selected_samples.append(

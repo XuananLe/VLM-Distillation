@@ -15,7 +15,7 @@ INTERNVL_IMG_END_TOKEN = "</img>"
 INTERNVL_IMG_CONTEXT_TOKEN = "<IMG_CONTEXT>"
 
 
-def _build_internvl_transform(input_size: int, normalize_type: str) -> T.Compose:
+def build_internvl_transform(input_size: int, normalize_type: str) -> T.Compose:
     """Build the torchvision preprocessing pipeline used by InternVL image tiles."""
     if normalize_type == "siglip":
         mean, std = INTERNVL_SIGLIP_MEAN, INTERNVL_SIGLIP_STD
@@ -31,7 +31,7 @@ def _build_internvl_transform(input_size: int, normalize_type: str) -> T.Compose
     )
 
 
-def _find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
+def find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image_size):
     """Pick the tiling aspect ratio that best matches the source image geometry."""
     best_ratio_diff = float("inf")
     best_ratio = (1, 1)
@@ -50,7 +50,7 @@ def _find_closest_aspect_ratio(aspect_ratio, target_ratios, width, height, image
     return best_ratio
 
 
-def _dynamic_preprocess_internvl(
+def dynamic_preprocess_internvl(
     image: Image.Image,
     *,
     image_size: int,
@@ -69,7 +69,7 @@ def _dynamic_preprocess_internvl(
         if min_num_tiles <= i * j <= max_num_tiles
     )
     target_ratios = sorted(target_ratios, key=lambda ratio: ratio[0] * ratio[1])
-    target_aspect_ratio = _find_closest_aspect_ratio(
+    target_aspect_ratio = find_closest_aspect_ratio(
         aspect_ratio,
         target_ratios,
         orig_width,
@@ -94,13 +94,13 @@ def _dynamic_preprocess_internvl(
     return processed_images
 
 
-def _build_internvl_pixel_values(image: Image.Image, teacher_processor: dict) -> torch.Tensor:
+def build_internvl_pixel_values(image: Image.Image, teacher_processor: dict) -> torch.Tensor:
     """Convert one image into the stacked tensor tiles expected by InternVL teachers."""
     image_size = teacher_processor.get("image_size", INTERNVL_IMAGE_SIZE)
     max_num_tiles = teacher_processor.get("max_num_tiles", INTERNVL_MAX_NUM_TILES)
     normalize_type = teacher_processor.get("normalize_type", "imagenet")
-    transform = _build_internvl_transform(image_size, normalize_type)
-    processed_images = _dynamic_preprocess_internvl(
+    transform = build_internvl_transform(image_size, normalize_type)
+    processed_images = dynamic_preprocess_internvl(
         image,
         image_size=image_size,
         max_num_tiles=max_num_tiles,

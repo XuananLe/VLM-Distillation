@@ -127,11 +127,11 @@ class StreamingTeacherLogitsCache:
             )
         ]
         self.local_teacher_dataset_roots = [
-            self._local_cache_path(DEFAULT_LOCAL_CACHE_ROOT, remote_root)
+            self.local_cache_path(DEFAULT_LOCAL_CACHE_ROOT, remote_root)
             for remote_root in self.remote_teacher_dataset_roots
         ]
         self._cache_filesystems = [
-            self._build_cache_filesystem(local_root)
+            self.build_cache_filesystem(local_root)
             for local_root in self.local_teacher_dataset_roots
         ]
 
@@ -157,10 +157,10 @@ class StreamingTeacherLogitsCache:
             f"{dataset_index}.pt",
         )
 
-        with self._teacher_lock(local_root):
+        with self.teacher_lock(local_root):
             file_obj = cache_fs.open(remote_path, "rb")
-            self._touch_cached_entry(cache_fs, remote_path)
-            self._evict_if_needed(cache_fs, keep_remote_path=remote_path)
+            self.touch_cached_entry(cache_fs, remote_path)
+            self.evict_if_needed(cache_fs, keep_remote_path=remote_path)
 
         with file_obj:
             sample = torch.load(file_obj, map_location="cpu")
@@ -176,7 +176,7 @@ class StreamingTeacherLogitsCache:
             "labels": sample["labels"],
         }
 
-    def _touch_cached_entry(
+    def touch_cached_entry(
         self,
         cache_fs: WholeFileCacheFileSystem,
         remote_path: str,
@@ -194,7 +194,7 @@ class StreamingTeacherLogitsCache:
                 os.utime(local_path, None)
         cache_fs.save_cache()
 
-    def _evict_if_needed(
+    def evict_if_needed(
         self,
         cache_fs: WholeFileCacheFileSystem,
         keep_remote_path: str,
@@ -228,9 +228,9 @@ class StreamingTeacherLogitsCache:
             cache_fs.pop_from_cache(candidate_path)
             total_size -= candidate_size
 
-    def _build_cache_filesystem(self, local_root: str) -> WholeFileCacheFileSystem:
+    def build_cache_filesystem(self, local_root: str) -> WholeFileCacheFileSystem:
         """Build the fsspec whole-file cache wrapper used for remote teacher logits."""
-        s3_filesystem = s3fs.S3FileSystem(**self._build_s3_options())
+        s3_filesystem = s3fs.S3FileSystem(**self.build_s3_options())
         return WholeFileCacheFileSystem(
             fs=s3_filesystem,
             cache_storage=local_root,
@@ -239,7 +239,7 @@ class StreamingTeacherLogitsCache:
             same_names=True,
         )
 
-    def _build_s3_options(self) -> dict[str, object]:
+    def build_s3_options(self) -> dict[str, object]:
         """Collect endpoint and region options for the backing S3-compatible store."""
         endpoint_url = (
             os.environ.get("S3_ENDPOINT_URL")
@@ -257,7 +257,7 @@ class StreamingTeacherLogitsCache:
         return kwargs
 
     @contextmanager
-    def _teacher_lock(self, local_root: str):
+    def teacher_lock(self, local_root: str):
         """Serialize cache mutations per teacher root so streaming workers do not race."""
         lock_path = os.path.join(local_root, ".cache.lock")
         import fcntl
@@ -270,7 +270,7 @@ class StreamingTeacherLogitsCache:
                 fcntl.flock(lock_file.fileno(), fcntl.LOCK_UN)
 
     @staticmethod
-    def _local_cache_path(base_local_root: str, remote_root: str) -> str:
+    def local_cache_path(base_local_root: str, remote_root: str) -> str:
         """Derive a stable local cache directory name from a remote teacher root URI."""
         parsed = urlparse(remote_root)
         root_name = Path(parsed.path.rstrip("/")).name or "teacher"

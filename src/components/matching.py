@@ -96,7 +96,8 @@ def topk_soft_match_student_teacher(
     for student_pos, row in enumerate(sim):
         # Each student layer keeps the top-k teacher layers and normalizes their
         # CKA scores into a soft mixture over teachers.
-        teacher_positions = np.argsort(row)[-k:][::-1]
+        topk_unsorted = np.argpartition(row, -k)[-k:]
+        teacher_positions = topk_unsorted[np.argsort(row[topk_unsorted])[::-1]]
         teacher_scores = np.asarray(row[teacher_positions], dtype=np.float64)
         teacher_weights = teacher_scores / np.clip(teacher_scores.sum(), a_min=1e-12, a_max=None)
         mean_top1_cka.append(float(teacher_scores[0]))

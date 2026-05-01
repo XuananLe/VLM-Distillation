@@ -10,7 +10,7 @@ from .internvl_utils import (
     INTERNVL_IMG_END_TOKEN,
     INTERNVL_IMG_START_TOKEN,
     INTERNVL_NUM_IMAGE_TOKEN,
-    _build_internvl_pixel_values,
+    build_internvl_pixel_values,
 )
 
 EOS_TOKEN = "<end_of_utterance>"
@@ -375,7 +375,7 @@ def internvl3_encode_conversation(
         image_idx += len(turn_images)
         pixel_value_chunks = []
         for turn_image in turn_images:
-            turn_pixel_values = _build_internvl_pixel_values(turn_image, teacher_processor)
+            turn_pixel_values = build_internvl_pixel_values(turn_image, teacher_processor)
             pixel_value_chunks.append(turn_pixel_values)
             image_tokens = (
                 img_start_token

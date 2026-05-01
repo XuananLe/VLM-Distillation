@@ -23,7 +23,7 @@ def encode_with_processor(
     return encoder(sources, images, processor)
 
 
-def _finalize_teacher_data(
+def finalize_teacher_data(
     teacher_data: Dict[str, torch.Tensor],
     teacher_model_id: Optional[str],
 ) -> Dict[str, torch.Tensor]:
@@ -54,7 +54,7 @@ def encode_teacher_data(
     else:
         teacher_data = encode_with_processor(sources, images, teacher_processor, role="teacher")
 
-    return _finalize_teacher_data(
+    return finalize_teacher_data(
         teacher_data,
         teacher_model_id,
     )

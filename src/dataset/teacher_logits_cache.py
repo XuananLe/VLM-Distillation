@@ -16,16 +16,16 @@ class TeacherLogitsCache:
     ):
         """Validate the cache layout and bind the per-teacher cache roots used at runtime."""
         self.cache_dir = cache_dir
-        shared_metadata = self._load_metadata(cache_dir)
+        shared_metadata = self.load_metadata(cache_dir)
         if shared_metadata is not None:
-            self._init_from_shared_root(
+            self.init_from_shared_root(
                 metadata=shared_metadata,
                 teacher_model_ids=teacher_model_ids,
                 expected_num_samples=expected_num_samples,
             )
             return
 
-        self._init_from_parent_root(
+        self.init_from_parent_root(
             teacher_model_ids=teacher_model_ids,
             expected_num_samples=expected_num_samples,
         )
@@ -52,7 +52,7 @@ class TeacherLogitsCache:
         return torch.load(sample_path, map_location="cpu")
 
     @staticmethod
-    def _load_metadata(cache_root: str) -> Optional[dict]:
+    def load_metadata(cache_root: str) -> Optional[dict]:
         """Load one metadata.json file when it exists."""
         metadata_path = os.path.join(cache_root, "metadata.json")
         if not os.path.exists(metadata_path):
@@ -61,7 +61,7 @@ class TeacherLogitsCache:
             return json.load(handle)
 
     @staticmethod
-    def _validate_num_samples(
+    def validate_num_samples(
         metadata: dict,
         *,
         expected_num_samples: int,
@@ -76,7 +76,7 @@ class TeacherLogitsCache:
                 f"dataset={expected_num_samples}"
             )
 
-    def _init_from_shared_root(
+    def init_from_shared_root(
         self,
         *,
         metadata: dict,
@@ -90,7 +90,7 @@ class TeacherLogitsCache:
                 "Teacher-logits cache teacher_model_ids do not match the current training "
                 f"teachers.\ncache={cached_teacher_ids}\ntrain={teacher_model_ids}"
             )
-        self._validate_num_samples(
+        self.validate_num_samples(
             metadata,
             expected_num_samples=expected_num_samples,
             cache_root=self.cache_dir,
@@ -105,7 +105,7 @@ class TeacherLogitsCache:
         self.file_name_templates = [shared_template for _ in self.teacher_slugs]
         self.teacher_cache_roots = [self.cache_dir for _ in self.teacher_slugs]
 
-    def _init_from_parent_root(
+    def init_from_parent_root(
         self,
         *,
         teacher_model_ids: Optional[list[str]],
@@ -123,10 +123,10 @@ class TeacherLogitsCache:
         for entry in os.scandir(self.cache_dir):
             if not entry.is_dir():
                 continue
-            metadata = self._load_metadata(entry.path)
+            metadata = self.load_metadata(entry.path)
             if metadata is None:
                 continue
-            self._validate_num_samples(
+            self.validate_num_samples(
                 metadata,
                 expected_num_samples=expected_num_samples,
                 cache_root=entry.path,

@@ -164,7 +164,7 @@ def build_modal_mounts() -> tuple[dict[str, object], list[modal.Volume]]:
     return mounts, [model_volume, dataset_volume, output_volume]
 
 
-def _build_modal_secrets() -> list[modal.Secret]:
+def build_modal_secrets() -> list[modal.Secret]:
     return [
         modal.Secret.from_name("wandb-secret"),
         modal.Secret.from_name("huggingface-secret"),
@@ -175,12 +175,12 @@ def _build_modal_secrets() -> list[modal.Secret]:
 app_mounts, committable_volumes = build_modal_mounts()
 app = modal.App(
     image=base_image,
-    secrets=_build_modal_secrets(),
+    secrets=build_modal_secrets(),
     volumes=app_mounts,
 )
 
 
-def _prepare_modal_runtime_env() -> dict[str, str]:
+def prepare_modal_runtime_env() -> dict[str, str]:
     env = os.environ.copy()
     env.setdefault("PYTHONUNBUFFERED", "1")
     env.setdefault("WANDB_MODE", "online")
@@ -203,12 +203,12 @@ def _prepare_modal_runtime_env() -> dict[str, str]:
     return env
 
 
-def _exec_cmd_impl(cmd: str) -> None:
+def exec_cmd_impl(cmd: str) -> None:
     cmd = cmd.strip()
     if not cmd:
         raise ValueError("cmd must be non-empty")
 
-    env = _prepare_modal_runtime_env()
+    env = prepare_modal_runtime_env()
     print(f"WANDB_API_KEY set: {'WANDB_API_KEY' in env}")
 
     print("[exec] Command:")
@@ -241,7 +241,7 @@ def _exec_cmd_impl(cmd: str) -> None:
 
 @app.function(gpu="L4", timeout=60 * 60 * 24)
 def exec_cmd(cmd: str) -> None:
-    _exec_cmd_impl(cmd)
+    exec_cmd_impl(cmd)
 
 
 @app.local_entrypoint()

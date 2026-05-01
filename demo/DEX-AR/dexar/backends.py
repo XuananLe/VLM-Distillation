@@ -6,7 +6,7 @@ from typing import Any
 import torch
 
 
-def _iter_model_roots(model):
+def iter_model_roots(model):
     queue = deque([model])
     seen: set[int] = set()
     while queue:
@@ -21,33 +21,33 @@ def _iter_model_roots(model):
                 queue.append(child)
 
 
-def _resolve_attr(model, aliases: tuple[str, ...]) -> Any:
-    for root in _iter_model_roots(model):
+def resolve_attr(model, aliases: tuple[str, ...]) -> Any:
+    for root in iter_model_roots(model):
         for alias in aliases:
             if hasattr(root, alias):
                 return getattr(root, alias)
     raise AttributeError(f"Could not resolve any of {aliases!r} on the model.")
 
 
-def _resolve_text_backbone(model):
-    return _resolve_attr(model, ("language_model", "text_model"))
+def resolve_text_backbone(model):
+    return resolve_attr(model, ("language_model", "text_model"))
 
 
-def _resolve_lm_head(model, text_backbone):
+def resolve_lm_head(model, text_backbone):
     for candidate in (model, text_backbone, getattr(text_backbone, "model", None)):
         if candidate is not None and hasattr(candidate, "lm_head"):
             return getattr(candidate, "lm_head")
     raise AttributeError("Could not resolve lm_head on the model.")
 
 
-def _resolve_norm(text_backbone):
+def resolve_norm(text_backbone):
     for candidate in (text_backbone, getattr(text_backbone, "model", None)):
         if candidate is not None and hasattr(candidate, "norm"):
             return getattr(candidate, "norm")
     raise AttributeError("Could not resolve the final normalization layer.")
 
 
-def _resolve_layers(text_backbone):
+def resolve_layers(text_backbone):
     for candidate in (getattr(text_backbone, "model", None), text_backbone):
         if candidate is None:
             continue
@@ -57,22 +57,22 @@ def _resolve_layers(text_backbone):
     raise AttributeError("Could not resolve decoder layers on the text backbone.")
 
 
-def _resolve_device_map(device: str):
+def resolve_device_map(device: str):
     if device in {"auto", "cpu", "cuda"}:
         return device
     return {"": device}
 
 
-def _resolve_torch_dtype(device: str) -> torch.dtype:
+def resolve_torch_dtype(device: str) -> torch.dtype:
     if isinstance(device, str) and device.startswith("cuda"):
         return torch.float16
     return torch.float32
 
 
-def _load_model_with_eager_attention(model_cls, model_name: str, *, device: str):
+def load_model_with_eager_attention(model_cls, model_name: str, *, device: str):
     common_kwargs = {
-        "torch_dtype": _resolve_torch_dtype(device),
-        "device_map": _resolve_device_map(device),
+        "torch_dtype": resolve_torch_dtype(device),
+        "device_map": resolve_device_map(device),
     }
     try:
         return model_cls.from_pretrained(
@@ -125,11 +125,11 @@ class DexarBackend:
         model_type = getattr(config, "model_type", None)
 
         if model_type == "llava":
-            return _load_llava_backend(model_name, device)
+            return load_llava_backend(model_name, device)
         if model_type in {"smolvlm", "idefics3"}:
-            return _load_smolvlm_backend(model_name, device)
+            return load_smolvlm_backend(model_name, device)
         if model_type in {"qwen2_vl", "qwen2_5_vl"}:
-            return _load_qwen2vl_backend(model_name, device, model_type=model_type)
+            return load_qwen2vl_backend(model_name, device, model_type=model_type)
 
         raise ValueError(
             f"Unsupported model type {model_type!r} for DEX-AR. "
@@ -246,7 +246,7 @@ class DexarBackend:
         )
 
 
-def _build_backend(
+def build_backend(
     *,
     family: str,
     model,
@@ -259,15 +259,15 @@ def _build_backend(
     text_backbone=None,
 ) -> DexarBackend:
     if text_backbone is None:
-        text_backbone = _resolve_text_backbone(model)
+        text_backbone = resolve_text_backbone(model)
     return DexarBackend(
         family=family,
         model=model,
         processor=processor,
         text_backbone=text_backbone,
-        lm_head=_resolve_lm_head(model, text_backbone),
-        norm=_resolve_norm(text_backbone),
-        layers=_resolve_layers(text_backbone),
+        lm_head=resolve_lm_head(model, text_backbone),
+        norm=resolve_norm(text_backbone),
+        layers=resolve_layers(text_backbone),
         image_token_id=image_token_id,
         default_prompt=default_prompt,
         recommended_image_size=recommended_image_size,
@@ -276,10 +276,10 @@ def _build_backend(
     )
 
 
-def _load_llava_backend(model_name: str, device: str) -> DexarBackend:
+def load_llava_backend(model_name: str, device: str) -> DexarBackend:
     from transformers import AutoProcessor, LlavaForConditionalGeneration
 
-    model = _load_model_with_eager_attention(
+    model = load_model_with_eager_attention(
         LlavaForConditionalGeneration,
         model_name,
         device=device,
@@ -299,7 +299,7 @@ def _load_llava_backend(model_name: str, device: str) -> DexarBackend:
     image_token = getattr(processor, "image_token", "<image>")
     image_token_id = processor.tokenizer.convert_tokens_to_ids(image_token)
 
-    return _build_backend(
+    return build_backend(
         family="llava",
         model=model,
         processor=processor,
@@ -309,10 +309,10 @@ def _load_llava_backend(model_name: str, device: str) -> DexarBackend:
     )
 
 
-def _load_smolvlm_backend(model_name: str, device: str) -> DexarBackend:
+def load_smolvlm_backend(model_name: str, device: str) -> DexarBackend:
     from transformers import AutoProcessor, Idefics3ForConditionalGeneration
 
-    model = _load_model_with_eager_attention(
+    model = load_model_with_eager_attention(
         Idefics3ForConditionalGeneration,
         model_name,
         device=device,
@@ -340,7 +340,7 @@ def _load_smolvlm_backend(model_name: str, device: str) -> DexarBackend:
             recommended_image_size,
         )
 
-    return _build_backend(
+    return build_backend(
         family="smolvlm",
         model=model,
         processor=processor,
@@ -351,7 +351,7 @@ def _load_smolvlm_backend(model_name: str, device: str) -> DexarBackend:
     )
 
 
-def _load_qwen2vl_backend(
+def load_qwen2vl_backend(
     model_name: str,
     device: str,
     *,
@@ -364,7 +364,7 @@ def _load_qwen2vl_backend(
     else:
         from transformers import Qwen2VLForConditionalGeneration as QwenModelClass
 
-    model = _load_model_with_eager_attention(
+    model = load_model_with_eager_attention(
         QwenModelClass,
         model_name,
         device=device,
@@ -388,9 +388,9 @@ def _load_qwen2vl_backend(
 
     text_backbone = getattr(getattr(model, "model", None), "language_model", None)
     if text_backbone is None:
-        text_backbone = _resolve_text_backbone(model)
+        text_backbone = resolve_text_backbone(model)
 
-    return _build_backend(
+    return build_backend(
         family="qwen2vl",
         model=model,
         processor=processor,

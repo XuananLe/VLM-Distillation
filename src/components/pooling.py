@@ -1,5 +1,4 @@
 import torch
-from einops import rearrange, reduce
 
 # [batch, sequence_length, hidden_dim] -> [batch, hidden_dim]
 def masked_mean_pool_sequence(
@@ -8,9 +7,9 @@ def masked_mean_pool_sequence(
     ignore_index: int = -100,
 ) -> torch.Tensor:
     label_mask = labels.ne(ignore_index)
-    pool_mask = label_mask
-    pool_mask = pool_mask.to(dtype=tensor.dtype) # chuyen thanh tensor chua 1 va 0 
-    masked_tensor = tensor * rearrange(pool_mask, "b t -> b t 1")
-    pooled_tensor = reduce(masked_tensor, "b t d -> b d", "sum")
-    pooled_denominator = reduce(pool_mask, "b t -> b 1", "sum").clamp(min=1.0)
-    return pooled_tensor / pooled_denominator # masked mean = masked sum / masked count
+    pooled_tensor = torch.masked.mean(
+        tensor,
+        dim=1,
+        mask=label_mask.unsqueeze(-1),
+    )
+    return torch.nan_to_num(pooled_tensor, nan=0.0)

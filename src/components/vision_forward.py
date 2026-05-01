@@ -32,26 +32,26 @@ def pool_vision_features(
     if group_counts is not None and features.ndim in (2, 3):
         total_groups = sum(int(count) for count in group_counts)
         if len(group_counts) == batch_size and features.shape[0] == total_groups:
-            hidden_size = features.shape[-1]
-            pooled = []
-            start = 0
-            for sample_index, count in enumerate(group_counts):
-                count = int(count)
-                if count <= 0:
-                    raise ValueError(
-                        "Vision grouping produced no vision features for sample "
-                        f"{sample_index}."
-                    )
-                stop = start + count
-                # Collapse all vision groups that belong to one sample into a single vector.
-                pooled_chunk = rearrange(features[start:stop], "... d -> (...) d")
-                pooled.append(reduce(pooled_chunk, "n d -> d", "mean"))
-                start = stop
-            if start != features.shape[0]:
+            group_lengths = torch.as_tensor(group_counts, device=features.device, dtype=torch.long)
+            if group_lengths.le(0).any():
+                bad_indices = group_lengths.le(0).nonzero(as_tuple=True)[0].tolist()
                 raise ValueError(
-                    f"Vision grouping consumed {start} entries, expected {features.shape[0]}."
+                    "Vision grouping produced no vision features for samples "
+                    f"{bad_indices}."
                 )
-            return torch.stack(pooled, dim=0)
+
+            if features.ndim == 2:
+                flat_features = features
+                segment_lengths = group_lengths
+            else:
+                flat_features = rearrange(features, "g t d -> (g t) d")
+                segment_lengths = group_lengths * features.shape[1]
+            return torch.segment_reduce(
+                flat_features,
+                reduce="mean",
+                lengths=segment_lengths,
+                axis=0,
+            )
 
     if features.ndim == 1:
         return rearrange(features, "d -> 1 d")

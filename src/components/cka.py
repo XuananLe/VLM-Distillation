@@ -4,13 +4,10 @@ from einops import einsum
 
 def center_gram(gram_matrix: torch.Tensor) -> torch.Tensor:
     """Center a Gram matrix over its sample axis before CKA."""
-    num_samples = gram_matrix.size(0)
-    centering = (
-        torch.eye(num_samples, dtype=gram_matrix.dtype, device=gram_matrix.device)
-        - 1.0 / num_samples
-    )
-    # H K H removes the sample mean in RKHS / Gram space.
-    return centering @ gram_matrix @ centering
+    row_mean = gram_matrix.mean(dim=1, keepdim=True)
+    column_mean = gram_matrix.mean(dim=0, keepdim=True)
+    grand_mean = gram_matrix.mean()
+    return gram_matrix - row_mean - column_mean + grand_mean
 
 
 def linear_cka_tensor(features_a: torch.Tensor, features_b: torch.Tensor) -> torch.Tensor:
