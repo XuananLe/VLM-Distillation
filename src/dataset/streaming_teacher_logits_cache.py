@@ -29,7 +29,6 @@ def join_remote_uri(root: str, *parts: str) -> str:
 
 
 def normalize_teacher_cache_alias(teacher_model_id: str) -> str:
-    """Map a teacher model id to the normalized alias used in remote cache paths."""
     teacher_slug = teacher_model_id.split("/")[-1].lower()
     cached_alias = KNOWN_TEACHER_CACHE_ALIASES.get(teacher_slug)
     if cached_alias is not None:
@@ -46,7 +45,6 @@ def normalize_teacher_cache_alias(teacher_model_id: str) -> str:
 
 
 def parse_size_limit_bytes(value: str | int | None) -> int | None:
-    """Parse cache-size limits like `100gb` into raw byte counts."""
     if value is None:
         return None
     if isinstance(value, int):
@@ -72,7 +70,6 @@ def parse_size_limit_bytes(value: str | int | None) -> int | None:
 
 
 class StreamingTeacherLogitsCache:
-    """Load teacher-logit samples either locally or through an on-demand remote cache."""
     def __init__(
         self,
         *,
