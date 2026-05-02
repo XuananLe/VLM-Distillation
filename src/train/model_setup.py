@@ -50,10 +50,28 @@ def load_processor_bundle(
     cache_dir: str | None = None,
 ):
     """Load the processor and tokenizer interface for one supported multimodal model."""
+    if "internvl" in model_id.lower():
+        tokenizer = AutoTokenizer.from_pretrained(
+            model_id,
+            cache_dir=cache_dir,
+            padding_side=padding_side or "right",
+            trust_remote_code=True,
+            use_fast=True,
+        )
+        processor = {
+            "model_id": model_id,
+            "tokenizer": tokenizer,
+            "image_size": INTERNVL_IMAGE_SIZE,
+            "normalize_type": "imagenet",
+            "max_num_tiles": INTERNVL_MAX_NUM_TILES,
+            "num_image_token": INTERNVL_NUM_IMAGE_TOKEN,
+        }
+        return processor, tokenizer, "internvl"
+
     model_type = resolve_model_type(model_id)
     if model_type not in SUPPORTED_AUTO_MODEL_TYPES:
         raise ValueError(
-            "We only support generic families are SmolVLM, Qwen-VL, Gemma 3, and Granite Vision."
+            "We only support SmolVLM, Qwen-VL, Gemma 3, Granite Vision, and InternVL."
         )
     processor_kwargs = {
         "trust_remote_code": True,
