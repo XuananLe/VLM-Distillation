@@ -217,6 +217,13 @@ class DistillationTrainer(Trainer):
         warmup_steps = math.ceil(total_steps * self.reinforced_selection_warmup_ratio)
         return self.state.global_step < warmup_steps
 
+    def skip_logits_distillation(self) -> bool:
+        return (
+            self.alpha == 0.0
+            and self.layer_distillation_enabled
+            and self.teacher_weighting_strategy == "uniform_mean"
+        )
+
     @override
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         student_inputs = {k: v for k, v in inputs.items() if not k.startswith("teacher")}
@@ -237,32 +244,56 @@ class DistillationTrainer(Trainer):
             teacher_router_weights=student_forward_state["teacher_router_weights"],
         )
         ce_loss = student_forward_state["student_outputs"].loss
-        teacher_target_batches = resolve_teacher_target_batches(
-            student_logits=student_forward_state["student_logits"],
-            teacher_models=self.teacher_models,
-            live_teacher_batches=teacher_batch_sources.live_teacher_batches,
-            cached_teacher_target_batches=teacher_batch_sources.cached_teacher_target_batches,
-            prepare_input_fn=self._prepare_input,
-        )
-        teacher_loss_state = build_teacher_loss_state(
-            trainer=self,
-            model=model,
-            student_logits=student_forward_state["student_logits"],
-            student_labels=student_inputs["labels"],
-            ce_loss=ce_loss,
-            teacher_target_batches=teacher_target_batches,
-        )
-        teacher_weighting_state = resolve_teacher_weighting_state(
-            trainer=self,
-            routed_teacher_weights=teacher_gate_state["routed_teacher_weights"],
-            teacher_grace_scores=teacher_loss_state["teacher_grace_scores"],
-            teacher_grace_active_mask=teacher_loss_state["teacher_grace_active_mask"],
-            teacher_loss_matrix=teacher_loss_state["teacher_loss_matrix"],
-            selection_teacher_logits=teacher_loss_state["selection_teacher_logits"],
-            selection_teacher_labels=teacher_loss_state["selection_teacher_labels"],
-            student_labels=student_inputs["labels"],
-            student_ce_loss=ce_loss,
-        )
+        if self.skip_logits_distillation():
+            teacher_loss_state = {
+                "teacher_loss_matrix": ce_loss.new_zeros(
+                    (
+                        student_forward_state["student_logits"].size(0),
+                        self.num_teachers,
+                    )
+                ),
+                "teacher_grace_scores": None,
+                "teacher_grace_active_mask": None,
+                "selection_teacher_logits": None,
+                "selection_teacher_labels": None,
+            }
+            teacher_weighting_state = {
+                "teacher_mix_weights": None,
+                "teacher_grace_scores": None,
+                "teacher_grace_active_mask": None,
+                "teacher_grace_weights": None,
+                "teacher_grace_fallback_rate": None,
+                "distillation_loss": ce_loss.new_zeros(()),
+                "teacher_selection_policy_loss": None,
+                "reinforced_selection_metrics": None,
+            }
+        else:
+            teacher_target_batches = resolve_teacher_target_batches(
+                student_logits=student_forward_state["student_logits"],
+                teacher_models=self.teacher_models,
+                live_teacher_batches=teacher_batch_sources.live_teacher_batches,
+                cached_teacher_target_batches=teacher_batch_sources.cached_teacher_target_batches,
+                prepare_input_fn=self._prepare_input,
+            )
+            teacher_loss_state = build_teacher_loss_state(
+                trainer=self,
+                model=model,
+                student_logits=student_forward_state["student_logits"],
+                student_labels=student_inputs["labels"],
+                ce_loss=ce_loss,
+                teacher_target_batches=teacher_target_batches,
+            )
+            teacher_weighting_state = resolve_teacher_weighting_state(
+                trainer=self,
+                routed_teacher_weights=teacher_gate_state["routed_teacher_weights"],
+                teacher_grace_scores=teacher_loss_state["teacher_grace_scores"],
+                teacher_grace_active_mask=teacher_loss_state["teacher_grace_active_mask"],
+                teacher_loss_matrix=teacher_loss_state["teacher_loss_matrix"],
+                selection_teacher_logits=teacher_loss_state["selection_teacher_logits"],
+                selection_teacher_labels=teacher_loss_state["selection_teacher_labels"],
+                student_labels=student_inputs["labels"],
+                student_ce_loss=ce_loss,
+            )
         layer_distillation_state = build_layer_distillation_state(
             trainer=self,
             live_teacher_batches=teacher_batch_sources.live_teacher_batches,

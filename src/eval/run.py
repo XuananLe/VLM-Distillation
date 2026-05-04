@@ -580,17 +580,9 @@ def main():
 
                     # Perform the Evaluation
                     eval_results = dataset.evaluate(result_file, **judge_kwargs)
-                    # Display Evaluation Results in Terminal
                     if eval_results is not None:
                         assert isinstance(eval_results, dict) or isinstance(eval_results, pd.DataFrame)
                         logger.info(f'The evaluation of model {model_name} x dataset {dataset_name} has finished! ')
-                        logger.info('Evaluation Results:')
-                        if isinstance(eval_results, dict):
-                            logger.info('\n' + json.dumps(eval_results, indent=4))
-                        elif isinstance(eval_results, pd.DataFrame):
-                            if len(eval_results) < len(eval_results.columns):
-                                eval_results = eval_results.T
-                            logger.info('\n' + tabulate(eval_results))
 
                     # Restore the proxy
                     if eval_proxy is not None:

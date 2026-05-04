@@ -43,7 +43,6 @@ def build_distillation_loss(
             teacher_labels: torch.Tensor | None = None,
             teacher_index: int | None = None,
         ) -> None:
-            """Prepare the selected trie module for the current teacher batch."""
             loss_module = select_loss_module(teacher_index)
             teacher_key = int(teacher_index)
             student_vocab_size = student_logits.size(-1)

@@ -105,14 +105,11 @@ class SupervisedDataset(Dataset):
             raise ValueError("Student encoder did not produce image tensors for an image-only sample.")
 
         if self.teacher_logits_cache is not None:
-            # Cached teacher logits short-circuit the live teacher encoding path,
-            # but the batch layout stays the same by namespacing each teacher slot.
             for teacher_index in range(self.teacher_count):
                 cache_sample = self.teacher_logits_cache.load_sample(teacher_index, i)
                 prefix = "teacher" if self.teacher_count == 1 else f"teacher_{teacher_index}"
                 encoded_sample[f"{prefix}_cached_logits"] = cache_sample["logits"]
                 encoded_sample[f"{prefix}_cached_labels"] = cache_sample["labels"]
-            return encoded_sample
 
         if not self.teacher_processors:
             return encoded_sample

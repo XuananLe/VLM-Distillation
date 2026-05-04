@@ -1,4 +1,5 @@
 import contextlib
+from pathlib import Path
 
 import torch
 from einops import rearrange, reduce
@@ -9,7 +10,7 @@ from src.components.forward_utils import (
     pool_model_hidden_states,
     unwrap_tensor,
 )
-from src.components.matching import topk_soft_match_student_teacher
+from src.components.matching import load_cka_json, topk_soft_match_student_teacher
 from src.components.cka import linear_cka_loss
 from src.components.vision_forward import infer_vision_group_counts, pool_vision_features
 from src.utils import find_vision_layer_indices, get_specific_layer
@@ -160,6 +161,38 @@ def build_cached_teacher_target_batches(inputs, num_teachers: int):
     ]
 
 
+def resolve_model_name_for_layer_matching(model) -> str:
+    model_config = getattr(model, "config", None)
+    for value in (
+        getattr(model_config, "_name_or_path", None),
+        getattr(model_config, "name_or_path", None),
+        getattr(model, "name_or_path", None),
+    ):
+        if isinstance(value, str) and value:
+            return value.rstrip("/")
+    raise ValueError("Layer-match artifact lookup requires models loaded from named checkpoints.")
+
+
+def find_layer_match_json(
+    *,
+    layer_match_dir: Path,
+    student_model_name: str,
+    teacher_model_name: str,
+) -> Path:
+    for candidate_path in sorted(layer_match_dir.rglob("final_layers_cka_matrix.json")):
+        payload = load_cka_json(str(candidate_path))
+        if (
+            payload["model_a_name"] == teacher_model_name
+            and payload["model_b_name"] == student_model_name
+        ):
+            return candidate_path
+    raise ValueError(
+        "No layer-match artifact found for teacher/student pair: "
+        f"teacher={teacher_model_name!r}, student={student_model_name!r}, "
+        f"root={str(layer_match_dir)!r}."
+    )
+
+
 def setup_layer_matching(
     model,
     teacher_models,
@@ -173,16 +206,43 @@ def setup_layer_matching(
     teacher_layer_soft_matches = []
 
     if layer_match_json_path:
-        if len(teacher_models) != 1:
-            raise ValueError("layer_match_json_path currently supports only single-teacher distillation.")
-        matches, _summary = topk_soft_match_student_teacher(
-            layer_match_json_path,
-            student_key="model_b",
-            teacher_key="model_a",
-            topk=layer_match_topk,
-        )
-        student_layer_indices = [match["student_layer_index"] for match in matches]
-        teacher_layer_soft_matches = [matches]
+        layer_match_path = Path(layer_match_json_path)
+        if layer_match_path.is_dir():
+            student_model_name = resolve_model_name_for_layer_matching(model)
+            layer_match_paths = [
+                find_layer_match_json(
+                    layer_match_dir=layer_match_path,
+                    student_model_name=student_model_name,
+                    teacher_model_name=resolve_model_name_for_layer_matching(teacher_model),
+                )
+                for teacher_model in teacher_models
+            ]
+        else:
+            if len(teacher_models) != 1:
+                raise ValueError(
+                    "A single layer-match JSON supports only single-teacher distillation. "
+                    "Pass a directory containing one CKA JSON per teacher for multi-teacher runs."
+                )
+            layer_match_paths = [layer_match_path]
+
+        resolved_student_layer_indices = None
+        for layer_match_path in layer_match_paths:
+            matches, _summary = topk_soft_match_student_teacher(
+                str(layer_match_path),
+                student_key="model_b",
+                teacher_key="model_a",
+                topk=layer_match_topk,
+            )
+            match_student_indices = [match["student_layer_index"] for match in matches]
+            if resolved_student_layer_indices is None:
+                resolved_student_layer_indices = match_student_indices
+            elif match_student_indices != resolved_student_layer_indices:
+                raise ValueError(
+                    "Layer-match artifacts disagree on student layer indices: "
+                    f"{match_student_indices} != {resolved_student_layer_indices}."
+                )
+            teacher_layer_soft_matches.append(matches)
+        student_layer_indices = list(resolved_student_layer_indices or [])
     elif layer_distill_source == "vision":
         student_layer_indices, teacher_layer_pairs = prepare_vision_layer_distillation(
             model,

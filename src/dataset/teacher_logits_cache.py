@@ -57,16 +57,21 @@ class TeacherLogitsCache:
             ]
             return
 
+        requested_teacher_ids = set(teacher_model_ids)
         entries_by_teacher: dict[str, TeacherCacheEntry] = {}
         for metadata_path in cache_root.glob("*/metadata.json"):
             child_root = metadata_path.parent
             metadata = TeacherCacheMetadata.model_validate_json(metadata_path.read_text())
-            validate_num_samples(
-                metadata,
-                expected_num_samples=expected_num_samples,
-                cache_root=child_root,
-            )
-            for teacher_model_id in metadata.teacher_model_ids:
+            provided_teacher_ids = [
+                teacher_model_id
+                for teacher_model_id in metadata.teacher_model_ids
+                if teacher_model_id in requested_teacher_ids
+            ]
+            if not provided_teacher_ids:
+                continue
+            if metadata.num_samples is not None and int(metadata.num_samples) != expected_num_samples:
+                continue
+            for teacher_model_id in provided_teacher_ids:
                 if teacher_model_id in entries_by_teacher:
                     raise ValueError(
                         "Multiple teacher-logits cache roots provide the same teacher. "

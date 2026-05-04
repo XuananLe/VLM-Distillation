@@ -173,8 +173,8 @@ class DistillationArguments:
     def validate(self):
         if not self.teacher_model_ids:
             raise ValueError("At least one teacher model ID must be provided via --teacher_model_ids.")
-        if self.teacher_logits_cache_dir is None:
-            raise ValueError("Teacher logits require --teacher_logits_cache_dir.")
+        if self.alpha > 0.0 and self.teacher_logits_cache_dir is None:
+            raise ValueError("Teacher logits require --teacher_logits_cache_dir when --alpha > 0.")
 
         allowed_values = (
             (
@@ -293,7 +293,10 @@ def log_distillation_setup(
             else "Teacher Weighting: uniform mean"
         )
     )
-    print("Objective: CE + alpha * KD")
+    if distillation_args.alpha == 0.0 and distillation_args.layer_distill_source != "none":
+        print("Objective: CE + layer distillation")
+    else:
+        print("Objective: CE + alpha * KD")
     print(f"KD Weight: {distillation_args.alpha}")
     print(f"KD Function: {distillation_args.distillation_loss}")
     print(f"Layer Distill Source: {distillation_args.layer_distill_source}")

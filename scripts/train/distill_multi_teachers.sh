@@ -11,9 +11,12 @@ TEACHER_MODEL_IDS=("${TEACHER_MODEL_1}" "${TEACHER_MODEL_2}" "${TEACHER_MODEL_3}
 STUDENT_MODEL="HuggingFaceTB/SmolVLM-256M-Instruct"
 
 # uld_loss, trie_wasserstein_loss, cka_loss, forward_kl, reverse_kl, jensen_shannon_divergence
-DISTILLATION_LOSS="uld_loss"
+DISTILLATION_LOSS="trie_wasserstein_loss"
 STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-1.0}"
 TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-1.0}"
+
+TRIE_WASSERSTEIN_RHO="${TRIE_WASSERSTEIN_RHO:-0.5}"
+TRIE_WASSERSTEIN_TOPK="${TRIE_WASSERSTEIN_TOPK:-32}"
 
 # Loss = ce_loss + alpha * kd_loss
 ALPHA="${ALPHA:-0.5}"
@@ -43,7 +46,8 @@ TEACHER_NAME_3="${TEACHER_MODEL_3##*/}"
 TEACHER_NAME_4="${TEACHER_MODEL_4##*/}"
 ALPHA_TAG="${ALPHA//./p}"
 
-RUN_TAG="${RUN_TAG:-uld_alpha${ALPHA_TAG}_$(date +%Y%m%d_%H%M)}"
+TRIE_WASSERSTEIN_RHO_TAG="${TRIE_WASSERSTEIN_RHO//./p}"
+RUN_TAG="${RUN_TAG:-trie_rho${TRIE_WASSERSTEIN_RHO_TAG}_topk${TRIE_WASSERSTEIN_TOPK}_alpha${ALPHA_TAG}_$(date +%Y%m%d_%H%M)}"
 
 OUTPUT_DIR="output/${DISTILLATION_LOSS}_${NUM_TEACHERS}_teachers_${TEACHER_NAME_1}_${TEACHER_NAME_2}_${TEACHER_NAME_3}_${TEACHER_NAME_4}_${STUDENT_NAME}_${DATASET_NAME}_${RUN_TAG}"
 
@@ -67,6 +71,9 @@ python src/train/train_distillation.py \
     --teacher_model_ids "${TEACHER_MODEL_IDS[@]}" \
     --data_path data/${DATASET_NAME}/train_llava.json \
     --image_folder data/${DATASET_NAME}/images \
+    --distillation_loss "$DISTILLATION_LOSS" \
+    --trie_wasserstein_rho "$TRIE_WASSERSTEIN_RHO" \
+    --trie_wasserstein_topk "$TRIE_WASSERSTEIN_TOPK" \
     --bf16 True \
     --output_dir "$OUTPUT_DIR" \
     --student_temperature "$STUDENT_TEMPERATURE" \

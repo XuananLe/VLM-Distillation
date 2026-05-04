@@ -74,9 +74,12 @@ def train_distillation():
         training_args.gradient_checkpointing_kwargs = gradient_checkpointing_kwargs
 
     if layer_distillation_enabled:
-        print(
-            "\nLayer distillation enabled; loading live teacher models in addition to cached teacher logits."
-        )
+        if distillation_args.teacher_logits_cache_dir:
+            print(
+                "\nLayer distillation enabled; loading live teacher models in addition to cached teacher logits."
+            )
+        else:
+            print("\nLayer distillation enabled; loading live teacher models.")
         teacher_models = []
         teacher_processors = []
         for teacher_id in teacher_ids:

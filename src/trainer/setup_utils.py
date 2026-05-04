@@ -170,7 +170,10 @@ def log_distillation_trainer_setup(
             f"{reinforced_selection_reward_ema_decay}"
         )
         print(f"  - Reinforced selection policy alpha: {reinforced_selection_policy_alpha}")
-    print("  - Loss weighting: CE + alpha * KD")
+    if alpha == 0.0 and layer_distillation_enabled:
+        print("  - Loss weighting: CE + layer distillation")
+    else:
+        print("  - Loss weighting: CE + alpha * KD")
 
 
 __all__ = [
