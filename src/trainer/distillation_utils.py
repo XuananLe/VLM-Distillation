@@ -342,6 +342,9 @@ def compute_teacher_layer_distillation_loss(
                 **prepared_teacher_inputs,
                 return_dict=True,
                 output_hidden_states=output_hidden_states,
+                # Layer distillation uses hidden states, not teacher logits. Keeping
+                # only one logit position avoids a huge sequence-by-vocab allocation.
+                logits_to_keep=1,
             )
 
     if student_layer_representations is None:

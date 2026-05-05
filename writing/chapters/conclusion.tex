@@ -1,34 +1,39 @@
 \chapter*{Conclusion and Future Work}
 \addcontentsline{toc}{chapter}{Conclusion and Future Work}
 
-This chapter summarizes the main contributions and the empirical conclusions of
-the study. The main limitations are discussed separately in
-Chapter~\ref{chap:experiment-results}. This final part focuses on the core
-takeaways and on practical directions for future work.
-
-We studied compact visual language model distillation under
-heterogeneous teachers. The student is much smaller than the teacher set, the
-teachers do not help every sample equally and their tokenizers do not match.
-We present \methodname{}, a routed multi-teacher
+This thesis studied compact vision-language model distillation with
+heterogeneous teachers. The student is much smaller than the teacher models,
+teacher utility varies across samples and their tokenizers do not match.
+To address these challenges, we presented \methodname{}, a routed multi-teacher
 framework with trie-Wasserstein cross-tokenizer distillation, sparse top-\(k\)
-selection and EMA-smoothed GRACE weighting. The code follows that order:
-route teachers first, refine their weights with GRACE scores, then aggregate
-the routed trie-Wasserstein KD loss
+selection and gradient-agreement refinement. The training procedure routes
+teachers first, refines their weights with gradient-agreement scores and
+then aggregates the routed trie-Wasserstein KD loss
 \cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}.
 
-Empirically, \methodname{} is the strongest method in the main comparison. For
-SmolVLM-500M, it reaches 69.38 on TextVQA, 73.11 on DocVQA and 80.20 on
-ChartQA. For SmolVLM-256M, it reaches 60.73, 60.48 and 72.32. These results
-improve over the original students, direct finetuning and the best competing
-baselines in Chapter~\ref{chap:experiment-results}. On SmolVLM-500M,
+Empirically, \methodname{} obtains the highest scores among the methods
+compared in the main tables. For SmolVLM-500M, it reaches 69.38 on TextVQA,
+73.11 on DocVQA and 80.20 on ChartQA. For SmolVLM-256M, it reaches 60.73,
+60.48 and 72.32. These results exceed the original students, direct
+finetuning and all reported distillation baselines in
+Chapter~\ref{chap:experiment-results}. On SmolVLM-500M,
 \methodname{} closes about 55\% of the original teacher-student gap on TextVQA
-and ChartQA and about 40\% on DocVQA. Taken together, these results establish that
-selective routing plus post-routing score refinement is a strong recipe for
-compact text-rich VLM distillation.
+and ChartQA and about 40\% on DocVQA. The results confirm that combining
+selective routing with post-routing score refinement improves compact
+text-rich VLM distillation under the benchmarks and teacher pool studied here.
 
 \section*{Future Work}
-\begin{itemize}
-\item Stronger evaluation. Repeated runs would make the comparison more rigorous, especially for the smaller gaps between the stronger multi-teacher baselines.
-\item Better systems efficiency. The pipeline still relies on large offline teacher-logit caches, so reducing storage and I/O cost would make the method easier to scale to more datasets and larger teacher sets.
-\item Broader method extensions. The recipe is still answer-token centric, so one important next step is explicit visual distillation: visual-token alignment, cross-attention transfer, or region-level matching. The method can also study richer router inputs, stronger objective-conflict handling and teacher sets that mix specialized document, chart and general VLM experts \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
-\end{itemize}
+Three directions merit further investigation. First, \textbf{stronger
+evaluation}: repeated runs with multiple seeds would tighten the comparison,
+especially for the smaller gaps between close multi-teacher baselines.
+Second, \textbf{systems efficiency}: the pipeline still relies on large offline
+teacher-logit caches, so reducing storage and I/O cost would make the method
+easier to scale to more datasets and larger teacher sets. Third,
+\textbf{broader method extensions}: the current method remains
+answer-token-centric, so one important next step is explicit visual
+distillation through visual-token alignment, cross-attention transfer, or
+region-level matching. Future work can also explore richer router inputs,
+improved objective-conflict handling and teacher sets that mix specialized
+document, chart and general VLM experts
+\cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
+

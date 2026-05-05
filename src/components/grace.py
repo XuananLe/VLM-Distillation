@@ -1,6 +1,4 @@
 import torch
-
-
 def apply_grace_routing(
     *,
     routed_teacher_weights: torch.Tensor | None,

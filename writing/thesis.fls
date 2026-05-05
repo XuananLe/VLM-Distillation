@@ -1455,7 +1455,6 @@ INPUT ./figures/kaplan_scaling_law_chart.png
 INPUT figures/kaplan_scaling_law_chart.png
 INPUT ./figures/kaplan_scaling_law_chart.png
 INPUT ./figures/kaplan_scaling_law_chart.png
-INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vnbxti10.tfm
 INPUT ./figures/smolvlm_memory_blog.png
 INPUT ./figures/smolvlm_memory_blog.png
 INPUT figures/smolvlm_memory_blog.png
@@ -1529,6 +1528,9 @@ INPUT ./figures/llava_architecture_family.png
 INPUT figures/llava_architecture_family.png
 INPUT ./figures/llava_architecture_family.png
 INPUT ./figures/llava_architecture_family.png
+INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vnr8.tfm
+INPUT /usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmbx5.tfm
+INPUT /usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmbx10.tfm
 INPUT ./figures/wasserstein_geometry.png
 INPUT ./figures/wasserstein_geometry.png
 INPUT figures/wasserstein_geometry.png
@@ -1544,7 +1546,6 @@ INPUT ./figures/optimal_transport_matrix_wikimedia.png
 INPUT figures/optimal_transport_matrix_wikimedia.png
 INPUT ./figures/optimal_transport_matrix_wikimedia.png
 INPUT ./figures/optimal_transport_matrix_wikimedia.png
-INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vnr8.tfm
 INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vnr6.tfm
 INPUT ./figures/switch_capacity_routing_jmlr_clean2.png
 INPUT ./figures/switch_capacity_routing_jmlr_clean2.png
@@ -1573,14 +1574,12 @@ INPUT ./figures/GRACE-Architecture.pdf
 INPUT figures/GRACE-Architecture.pdf
 INPUT ./figures/GRACE-Architecture.pdf
 INPUT ./figures/GRACE-Architecture.pdf
-INPUT /usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmbx10.tfm
 INPUT /usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmmib10.tfm
 INPUT /usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmmib10.tfm
 INPUT /usr/share/texlive/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmmib7.tfm
 INPUT /usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmbsy10.tfm
 INPUT /usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmbsy10.tfm
 INPUT /usr/share/texlive/texmf-dist/fonts/tfm/public/amsfonts/cmextra/cmbsy7.tfm
-INPUT /usr/share/texlive/texmf-dist/fonts/tfm/public/cm/cmbx5.tfm
 INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vntt10.tfm
 INPUT ./figures/grace_trie_sparse_tail.png
 INPUT ./figures/grace_trie_sparse_tail.png
@@ -1751,7 +1750,6 @@ INPUT /usr/share/texlive/texmf-dist/fonts/type1/public/amsfonts/symbols/msbm10.p
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnbx10.pfb
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnbx12.pfb
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnbx8.pfb
-INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnbxti10.pfb
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnr10.pfb
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnr12.pfb
 INPUT /usr/share/texlive/texmf-dist/fonts/type1/vntex/vnr/vnr8.pfb

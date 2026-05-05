@@ -1,7 +1,6 @@
 import os
 import subprocess
 from pathlib import Path
-
 import modal
 
 LOCAL_ROOT_DIR = Path(__file__).resolve().parent
@@ -30,9 +29,12 @@ MODAL_REQUIREMENTS_BLOCKLIST = (
     "torchvision==",
     "torchaudio==",
     "nvidia-",
+    "numpy==",
+    "deepspeed==",
     "transformers==",
     "flash_attn==",
     "flash-attn==",
+    "xformers==",
     "manimgl==",
 )
 model_volume = modal.Volume.from_name("model-weights-vol", create_if_missing=True)
@@ -104,6 +106,7 @@ base_image = (
     )
     .uv_pip_install(
         f"transformers=={MODAL_TRANSFORMERS_VERSION}",
+        "deepspeed==0.18.8",
     )
     .run_commands(
         "python -c \"import flash_attn, transformers; "
@@ -150,7 +153,6 @@ def build_r2_mount(bucket_name: str, key_prefix: str | None) -> modal.CloudBucke
         read_only=True,
     )
 
-
 def build_modal_mounts() -> tuple[dict[str, object], list[modal.Volume]]:
     mounts: dict[str, object] = {
         MODEL_DIR.as_posix(): model_volume,
@@ -172,15 +174,36 @@ def build_modal_secrets() -> list[modal.Secret]:
     ]
 
 
-app_mounts, committable_volumes = build_modal_mounts()
 app = modal.App(
+    "vlm-distillation",
     image=base_image,
     secrets=build_modal_secrets(),
-    volumes=app_mounts,
 )
+app_mounts, committable_volumes = build_modal_mounts()
+
+
+def replace_path_with_symlink(path: Path, target: Path) -> None:
+    if path.is_symlink() and path.resolve() == target:
+        return
+    if path.exists() or path.is_symlink():
+        if path.is_dir() and not path.is_symlink():
+            return
+        path.unlink()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.symlink_to(target)
+
+
+def prepare_modal_filesystem() -> None:
+    replace_path_with_symlink(ROOT_DIR / "data", CACHE_DIR / "data")
+    replace_path_with_symlink(ROOT_DIR / "output", OUTPUT_DIR)
+    workspace_root = Path("/workspace")
+    workspace_root.mkdir(parents=True, exist_ok=True)
+    replace_path_with_symlink(workspace_root / "VLM-Distillation", ROOT_DIR)
+    replace_path_with_symlink(workspace_root / "cache", CACHE_DIR)
 
 
 def prepare_modal_runtime_env() -> dict[str, str]:
+    prepare_modal_filesystem()
     env = os.environ.copy()
     env.setdefault("PYTHONUNBUFFERED", "1")
     env.setdefault("WANDB_MODE", "online")
@@ -219,6 +242,7 @@ def exec_cmd_impl(cmd: str) -> None:
         bash_cmd,
         shell=True,
         executable="/bin/bash",
+        cwd=ROOT_DIR,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
@@ -239,37 +263,18 @@ def exec_cmd_impl(cmd: str) -> None:
         raise subprocess.CalledProcessError(returncode, cmd)
 
 
-@app.function(gpu="L4", timeout=60 * 60 * 24)
+@app.function(
+    gpu="A100-80GB",
+    timeout=60 * 60 * 24,
+    volumes=app_mounts,
+)
 def exec_cmd(cmd: str) -> None:
     exec_cmd_impl(cmd)
 
 
 @app.local_entrypoint()
 def run(
-    cmd: str = r"""
-cd /root/VLM-Distillation/src/eval/ || exit 1
-
-pids=()
-ckpts=(564 150 300 450)
-
-for ckpt in "${ckpts[@]}"; do
-  CUDA_VISIBLE_DEVICES=0 python run.py \
-    --data DocVQA_VAL \
-    --model SmolVLM-500M-Trie-Loss-Checkpoint-${ckpt} \
-    --smolvlm-runtime fast \
-    --work-dir /output/vlmeval/SmolVLM-500M-Trie-Loss-Checkpoint-${ckpt}_docvqa_val &
-  pids+=("$!")
-done
-
-status=0
-for i in "${!pids[@]}"; do
-  if ! wait "${pids[$i]}"; then
-    echo "checkpoint ${ckpts[$i]} failed" >&2
-    status=1
-  fi
-done
-exit "$status"
-"""
+    cmd: str = r""""""
 ) -> None:
     call = exec_cmd.spawn(cmd)
     print(f"Triggered Modal function call: {getattr(call, 'object_id', call)}")

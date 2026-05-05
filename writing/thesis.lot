@@ -1,20 +1,20 @@
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {3.1}{\ignorespaces Main symbols used in Chapter\nobreakspace {}\ref {chap:proposed-method}.\relax }}{22}{table.caption.18}%
-\contentsline {table}{\numberline {3.2}{\ignorespaces Illustrative ULD and trie-Wasserstein comparison.}}{28}{table.caption.21}%
+\contentsline {table}{\numberline {3.1}{\ignorespaces Main symbols used in Chapter\nobreakspace {}\ref {chap:proposed-method}.\relax }}{23}{table.caption.19}%
+\contentsline {table}{\numberline {3.2}{\ignorespaces Illustrative ULD and trie-Wasserstein comparison.}}{29}{table.caption.22}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {4.1}{\ignorespaces Dataset split sizes for the three benchmarks.}}{38}{table.caption.28}%
-\contentsline {table}{\numberline {4.2}{\ignorespaces Main training protocol for the active distillation launch path.}}{39}{table.4.2}%
-\contentsline {table}{\numberline {4.3}{\ignorespaces Baseline groups used in the evaluation chapter.}}{41}{table.caption.29}%
-\contentsline {table}{\numberline {4.4}{\ignorespaces Engineering settings for the active logit-streaming pipeline.}}{46}{table.4.4}%
+\contentsline {table}{\numberline {4.1}{\ignorespaces Dataset split sizes for the three benchmarks.}}{36}{table.caption.27}%
+\contentsline {table}{\numberline {4.2}{\ignorespaces Main training protocol for the active distillation launch path.}}{38}{table.4.2}%
+\contentsline {table}{\numberline {4.3}{\ignorespaces Baseline groups used in the evaluation chapter.}}{40}{table.caption.28}%
+\contentsline {table}{\numberline {4.4}{\ignorespaces Engineering settings for the active logit-streaming pipeline.}}{45}{table.4.4}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {5.1}{\ignorespaces Original SmolVLM student results.}}{48}{table.caption.32}%
-\contentsline {table}{\numberline {5.2}{\ignorespaces Teacher and reference-model results.}}{48}{table.caption.33}%
-\contentsline {table}{\numberline {5.3}{\ignorespaces TextVQA main comparison.}}{50}{table.caption.34}%
-\contentsline {table}{\numberline {5.4}{\ignorespaces DocVQA main comparison.}}{51}{table.caption.35}%
-\contentsline {table}{\numberline {5.5}{\ignorespaces ChartQA main comparison.}}{52}{table.caption.36}%
-\contentsline {table}{\numberline {5.6}{\ignorespaces Relative gains of GRACE{} on SmolVLM-500M.}}{58}{table.caption.42}%
-\contentsline {table}{\numberline {5.7}{\ignorespaces Gap-to-teacher analysis for SmolVLM-500M.}}{58}{table.caption.43}%
-\contentsline {table}{\numberline {5.8}{\ignorespaces DocVQA component ablation.}}{61}{table.caption.46}%
+\contentsline {table}{\numberline {5.1}{\ignorespaces Original SmolVLM student results.}}{47}{table.caption.31}%
+\contentsline {table}{\numberline {5.2}{\ignorespaces Teacher and reference-model results.}}{47}{table.caption.32}%
+\contentsline {table}{\numberline {5.3}{\ignorespaces TextVQA main comparison.}}{48}{table.caption.33}%
+\contentsline {table}{\numberline {5.4}{\ignorespaces DocVQA main comparison.}}{49}{table.caption.34}%
+\contentsline {table}{\numberline {5.5}{\ignorespaces ChartQA main comparison.}}{50}{table.caption.35}%
+\contentsline {table}{\numberline {5.6}{\ignorespaces Relative gains of GRACE{} on SmolVLM-500M.}}{56}{table.caption.41}%
+\contentsline {table}{\numberline {5.7}{\ignorespaces Gap-to-teacher analysis for SmolVLM-500M.}}{56}{table.caption.42}%
+\contentsline {table}{\numberline {5.8}{\ignorespaces DocVQA component ablation.}}{60}{table.caption.45}%
 \addvspace {10\p@ }

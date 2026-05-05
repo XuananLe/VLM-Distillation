@@ -9,7 +9,7 @@ DISTILLATION_LOSS="uld_loss"
 STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-1.0}"
 TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-1.0}"
 ALPHA=0.5
-DATASET_NAME="textvqa"
+DATASET_NAME="${DATASET_NAME:-textvqa}"
 EVAL_SPLIT="validation"
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME="${TEACHER_MODEL##*/}"
@@ -47,4 +47,6 @@ deepspeed src/train/train_distillation.py \
     --eval_strategy no \
     --dataloader_num_workers 4 \
     --remove_unused_columns False \
-    --report_to wandb
+    --report_to wandb \
+    --teacher_logits_cache_dir /workspace/cache \
+    --teacher_weighting_strategy uniform

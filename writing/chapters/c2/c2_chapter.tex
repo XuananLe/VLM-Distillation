@@ -1,13 +1,6 @@
 \chapter{Preliminaries}
 \label{chap:preliminaries}
 
-This chapter keeps only the technical preliminaries that Chapter~\ref{chap:proposed-method}
-uses directly. It fixes the model notation, the generic distillation template,
-cross-tokenizer distribution matching and the sparse-routing concepts behind
-GRACE.
-The broader motivation, related work and research gap already appear in
-Chapter~\ref{chap:introduction}, so they are not repeated here.
-
 \section{Transformer-Based Vision-Language Models}
 
 \subsection{Transformer Basics}
@@ -25,9 +18,12 @@ in parallel across several learned subspaces, then applies a feed-forward
 network and residual normalization.
 
 For language modeling, the Transformer produces a sequence of hidden states and
-next-token logits. Here the student and teacher interact through
-their output logits because the distillation method operates at the
-token-distribution level \cite{vaswani2023attentionneed,hinton2015distillingknowledgeneuralnetwork}.
+next-token logits. \textit{Logits} are the unnormalized scores produced by the
+model's output layer before softmax is applied; softmax converts them into a
+probability distribution over the vocabulary. In the proposed distillation setting, the teacher and student
+are compared through output logits because the method operates at the
+token-distribution level
+\cite{vaswani2023attentionneed,hinton2015distillingknowledgeneuralnetwork}.
 
 \subsection{Vision Encoder and Multimodal Fusion}
 
@@ -38,15 +34,15 @@ module then fuses these visual tokens with text, using cross-attention, a Q-Form
 or a learned projector
 \cite{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning}.
 
-We focus on compact generative VLMs in the same general family as
-SmolVLM and related projector-based models. Conceptually, we can write such a model as
+We focus on compact generative VLMs that follow a projector-based
+architecture. Conceptually, we can write such a model as
 \[
 \mathbf{z} = f_{\theta}(x),
 \]
 where \(x\) is a multimodal input and \(\mathbf{z}\) denotes the output logits
 used for autoregressive answer generation.
 
-\begin{figure}[tp]
+\begin{figure}[H]
     \centering
     \begin{subfigure}[t]{0.28\linewidth}
         \centering
@@ -65,9 +61,7 @@ used for autoregressive answer generation.
     \label{fig:prelim-transformer-vit-pair}
 \end{figure}
 
-The basic Transformer and ViT blocks that later multimodal systems build on
-appear in Figures~\ref{fig:prelim-transformer-attention} and
-\ref{fig:prelim-vit}.
+
 
 \begin{figure}[tp]
     \centering
@@ -104,10 +98,10 @@ The experiments in this thesis focus on text-rich multimodal understanding, wher
 model must read image text, interpret the question and generate a short answer
 sequence
 \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
-Modern VLM families fall into the groups in
-Figure~\ref{fig:prelim-vlm-families}.
+Figure~\ref{fig:prelim-vlm-families} summarizes representative architecture
+families of modern VLMs.
 
-\section{Knowledge Distillation for Vision-Language Models}
+\section{Knowledge Distillation}
 
 \subsection{Teacher-Student Learning}
 
@@ -127,7 +121,7 @@ instantiates this template with a routed trie-Wasserstein term plus small router
 regularizers.
 
 In token-level distillation, the teacher and student are compared on their output
-logits, not only on hard labels. This allows the student to learn richer
+logits, not only on hard labels. The student therefore learns richer
 distributional structure, often called \textit{dark knowledge}
 \cite{hinton2015distillingknowledgeneuralnetwork}.
 
@@ -156,17 +150,17 @@ teacher answer spans to a common length.
 
 In Chapter~\ref{chap:proposed-method}, these sets are denoted by
 \(\Omega_b^{\mathrm{CE}}\) for supervised CE positions and
-\(\Omega_{b,i}^{\mathrm{KD}}\) for teacher-specific KD positions. This gives a
-token-aligned distillation signal while remaining compatible with different
+\(\Omega_{b,i}^{\mathrm{KD}}\) for teacher-specific KD positions. The result is a
+token-aligned distillation signal that remains compatible with different
 teacher and student tokenizers.
 
-\section{Cross-Tokenizer Distribution Matching}
+\section{Heterogeneous Teacher Distribution Matching}
 
 \subsection{ULD as a Prior Baseline}
 
 When the teacher and student vocabularies differ, KD losses defined on a shared
 output space are not directly applicable. Universal Logit Distillation (ULD)
-is one prior remedy because it avoids direct token-ID matching
+is a prior tokenizer-agnostic remedy because it avoids direct token-ID matching
 \cite{boizard2024towardscrosstokenizerdistillation}.
 
 Given student logits \(\mathbf{z}_s \in \mathbb{R}^{V_s}\) and teacher logits
@@ -184,13 +178,51 @@ the sorted masses with an \(L_1\) distance:
 where \(\pi(\cdot)\) denotes sorting in descending order after zero-padding.
 
 The key advantage of ULD is that it compares \textit{ranked probability vectors}
-instead of token identities. This makes it directly applicable
+instead of token identities and is therefore directly applicable
 to cross-tokenizer teacher-student distillation
 \cite{boizard2024towardscrosstokenizerdistillation}. In this thesis, ULD serves
 as a cross-tokenizer baseline. However, it also discards relations between
 decoded token strings. Two pairs with the same ranked probability shape receive
 the same loss even if one pair shares a long prefix and the other does not. This
 motivates alignment methods that use a ground geometry over tokens.
+
+\begin{figure}[H]
+    \centering
+    \begin{tikzpicture}[
+        x=1.0cm, y=0.9cm,
+        every node/.style={font=\small},
+        box/.style={draw=black!60, rounded corners=2pt, fill=gray!5, minimum width=1.6cm, minimum height=0.55cm, font=\scriptsize},
+        arrow/.style={->, thick, draw=black!60}
+    ]
+        % Teacher side
+        \node[box, fill=blue!8] (zt) at (0, 2.4) {Teacher logits $\mathbf{z}_t$};
+        \node[box, fill=blue!8] (pt) at (0, 1.2) {$\mathbf{p}_t=\mathrm{softmax}(\mathbf{z}_t/\tau_t)$};
+        \node[box, fill=blue!8] (st) at (0, 0.0) {Sort $\downarrow$};
+        \node[box, fill=blue!8] (rt) at (0,-1.2) {$\pi(\mathbf{p}_t)$};
+
+        % Student side
+        \node[box, fill=orange!10] (zs) at (5, 2.4) {Student logits $\mathbf{z}_s$};
+        \node[box, fill=orange!10] (ps) at (5, 1.2) {$\mathbf{p}_s=\mathrm{softmax}(\mathbf{z}_s/\tau_s)$};
+        \node[box, fill=orange!10] (ss) at (5, 0.0) {Sort $\downarrow$};
+        \node[box, fill=orange!10] (rs) at (5,-1.2) {$\pi(\mathbf{p}_s)$};
+
+        % Pad and compare
+        \node[box, fill=green!8, minimum width=3.4cm] (pad) at (2.5, -2.2) {Pad shorter to same length};
+        \node[box, fill=red!8, minimum width=3.4cm] (loss) at (2.5, -3.2) {$\mathcal{L}_{ULD} = \|\pi(\mathbf{p}_s) - \pi(\mathbf{p}_t)\|_1$};
+
+        \draw[arrow] (zt) -- (pt);
+        \draw[arrow] (pt) -- (st);
+        \draw[arrow] (st) -- (rt);
+        \draw[arrow] (zs) -- (ps);
+        \draw[arrow] (ps) -- (ss);
+        \draw[arrow] (ss) -- (rs);
+        \draw[arrow] (rt) -- (pad);
+        \draw[arrow] (rs) -- (pad);
+        \draw[arrow] (pad) -- (loss);
+    \end{tikzpicture}
+    \caption[ULD cross-tokenizer distillation procedure.]{ULD cross-tokenizer distillation procedure. Teacher and student probability vectors are sorted in descending order, zero-padded to a common length and compared with an $L_1$ distance \cite{boizard2024towardscrosstokenizerdistillation}.}
+    \label{fig:prelim-uld-illustration}
+\end{figure}
 
 \subsection{Wasserstein Distance and Discrete Optimal Transport}
 
@@ -204,7 +236,7 @@ Figure~\ref{fig:wasserstein-geometry} illustrates this behavior. The source
 distribution is fixed, while the target distribution shifts progressively
 farther away. The Wasserstein curves grow with the displacement, whereas
 pointwise divergences such as total variation and squared Euclidean distance can
-saturate. This property is important for cross-tokenizer distillation because
+saturate. Cross-tokenizer distillation benefits from this property because
 teacher and student probabilities may lie on mismatched token supports.
 
 \begin{figure}[H]
@@ -252,7 +284,7 @@ from each source bin to each target bin.
 \subsection{Tree-Structured Mass Matching}
 
 Dense OT requires a pairwise ground cost between all source and target
-bins. In cross-tokenizer KD, however, token identity is not meaningful because
+bins. In cross-tokenizer KD, however, token identity matching is not feasible because
 teacher and student vocabularies differ. A \textit{tree metric} provides a
 structured alternative: probability mass is placed on a shared hierarchy and
 the distance is computed through \textit{subtree-mass imbalance}
@@ -277,20 +309,20 @@ where \(\Gamma(e)\) denotes the subtree below edge \(e\). The key point is that,
 on a tree metric, transport decomposes into edgewise subtree-mass imbalance
 instead of a dense source-target coupling
 \cite{takezawa2021supervisedtreewasserstein,leyamadafukumizucuturi2019treesliced}.
-This is computationally efficient because the comparison follows the tree
-hierarchy directly and is natural when tokens share prefixes or
-other hierarchical relations.
+The computation is efficient because the comparison follows the tree
+hierarchy directly, and the tree structure is a good fit when tokens share common byte prefixes or
+other hierarchical overlap.
 
 Tree-sliced OT extends this idea by averaging Wasserstein distances over
 tree metrics and shows that tree metrics preserve the geometric view of OT while
 admitting fast closed-form computations
-\cite{leyamadafukumizucuturi2019treesliced}. Here the relevant tree
-is not an abstract hierarchy but the shared UTF-8 byte trie induced by teacher
-and student decoded single-token strings.
+\cite{leyamadafukumizucuturi2019treesliced}. In this work, the relevant tree is
+the shared UTF-8 byte trie constructed from decoded teacher and student
+single-token strings, not an abstract hierarchy.
 
-That perspective is closer to the trie-Wasserstein loss used later in
-Chapter~\ref{chap:proposed-method}: the method maps tokens to paths on a shared byte
-trie and compares mass on edges instead of token index.
+This tree-structured view motivates the trie-Wasserstein loss introduced in
+Chapter~\ref{chap:proposed-method}: the method maps tokens to paths on a shared
+byte trie and compares mass on edges instead of token index.
 
 \begin{figure}[tp]
     \centering
@@ -310,14 +342,7 @@ trie and compares mass on edges instead of token index.
     \caption{Tree-structured and matrix views of discrete optimal transport.}
 \end{figure}
 
-Together, Figures~\ref{fig:wasserstein-geometry},
-\ref{fig:prelim-optimal-transport} and \ref{fig:prelim-tree-ot} cover the
-three views used later in the thesis: geometric divergence behavior, discrete
-transport plans and tree-structured mass matching.
-The closed form in Equation~\ref{eq:prelim-tree-wasserstein} is the \(W_1\)
-optimal transport distance when the ground metric is a tree metric.
-A formal derivation from the Kantorovich formulation is given in
-Appendix~\ref{app:tree-wasserstein-proof}.
+
 
 \section{Multi-Teacher Distillation and Routing}
 
@@ -358,14 +383,12 @@ where \(p_i^{(b)}\) is the initial routing weight for teacher \(T_i\). The
 adjusted scores \(\tilde{\mathbf{r}}^{(b)}\) may include expert bias, training
 noise, or temperature scaling before the routing softmax.
 
-In sparse routing, these weights are typically refined by additional constraints:
-\begin{enumerate}
-\item \textit{Top-\(k\) routing}, which keeps only the highest-scoring teachers.
-\item \textit{Capacity constraints}, which prevent one teacher from receiving
-too many assignments.
-\item \textit{Load balancing}, which discourages routing collapse onto a small
-subset of teachers.
-\end{enumerate}
+In sparse routing, these weights are subject to additional constraints that
+keep routing focused and prevent degenerate teacher assignments.
+\textit{Top-\(k\) routing} retains only the highest-scoring teachers and zeros
+out all others. \textit{Capacity constraints} prevent one teacher from
+receiving too many assignments. \textit{Load balancing} prevents routing
+collapse onto a small subset of teachers.
 
 Following the general MoE literature, one can summarize the balancing signal by a
 soft load \(\bar{p}_i\) and a hard assignment load \(\bar{q}_i\) after sparse
@@ -379,17 +402,15 @@ N\sum_{i=1}^{N}\bar{p}_i \bar{q}_i.
 This auxiliary term does not replace the KD objective; instead, it regularizes
 the router so that different teachers remain usable during training.
 
-Chapter~\ref{chap:proposed-method} instantiates this routing principle with a
-small student-conditioned MLP gate on top of pooled student hidden states. It
-then applies softmax weights, top-\(k\) sparsification and routed-weight
-renormalization. The active implementation uses entropy and router \(z\)-loss
-terms to regularize the gate, but it does not use capacity filtering or
-expert-bias updates.
+Chapter~\ref{chap:proposed-method} instantiates this principle with a
+learned MLP teacher router, top-\(k\) sparsification and routed-weight
+renormalization. Entropy and router \(z\)-loss terms regularize the gate; the
+current training configuration does not use capacity filtering or expert-bias
+updates.
 
-This makes the routing stage closer to sparse-expert training than to a static teacher average \cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}.
-
-The second view adds specialization. Sparse routing does not only save compute,
-it also lets different experts focus on different inputs.
+The routing stage therefore resembles sparse-expert training more than
+static averaging of teacher losses
+\cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}.
 
 The sparse-routing ideas that motivate the teacher gate in GRACE appear in
 Figures~\ref{fig:prelim-switch-routing} and
@@ -413,20 +434,32 @@ Figures~\ref{fig:prelim-switch-routing} and
 \label{subsec:gradient-conflict-teacher-agreement}
 
 Routing alone does not fully solve multi-teacher conflict. Even after sparse
-routing selects a small teacher subset, the remaining teachers may still induce
+routing selects a sparse teacher subset, the remaining teachers may still induce
 KD gradients that disagree with the supervised objective.
 
-In multi-objective optimization, different losses may induce different update
-directions for the same model parameters. When these directions disagree, the
-resulting update may become a compromise that is not equally beneficial for all
-objectives. This phenomenon is commonly referred to as \textit{gradient
-conflict}.
+To see why, consider the standard combined distillation loss:
+\begin{equation}
+\mathcal{L} = \mathcal{L}_{CE} + \alpha\,\mathcal{L}_{KD}.
+\label{eq:prelim-combined-loss}
+\end{equation}
+This objective jointly minimizes a supervised term and a teacher-guided term.
+Because both terms share the same student parameters, the combined update
+direction depends on whether the gradients \(\nabla_{\theta}\mathcal{L}_{CE}\)
+and \(\nabla_{\theta}\mathcal{L}_{KD}\) agree or conflict. When these two
+gradient directions are aligned, the combined update reinforces both objectives.
+When they oppose each other, the resulting update is a compromise that may
+degrade one or both objectives.
 
-In multi-teacher distillation, let \(g_{\mathrm{CE}}\) denote the supervised
+This is an instance of \textit{multi-objective optimization}: a single
+parameter update must serve competing objectives simultaneously
+\cite{zhu2021studentcustomized}. In multi-teacher distillation, the
+problem is compounded because each teacher contributes its own KD gradient.
+Let \(g_{\mathrm{CE}}\) denote the supervised
 gradient of the student and let \(g_i^{\mathrm{KD}}\) denote the KD gradient
-induced by teacher \(T_i\). A teacher provides useful supervision for a sample
-when its KD gradient is broadly aligned with the supervised objective and potentially
-harmful when it points in an opposing direction. Prior work also uses gradient
+induced by teacher \(T_i\). A teacher provides useful supervision when its KD
+gradient is broadly aligned with the supervised objective; it provides
+harmful supervision when the gradient points in an opposing direction. Prior
+work also uses gradient
 similarity in distillation as a signal for whether teacher supervision helps or
 conflicts with the student objective \cite{zhu2021studentcustomized}. A simple
 measure of agreement is \textit{cosine similarity}:
@@ -443,7 +476,7 @@ objectives are individually meaningful, their local update directions can
 disagree, so a naive combined update may be suboptimal. This motivates
 post-routing refinement: after teacher selection, the final KD weights can be
 adjusted according to gradient agreement. Chapter~\ref{chap:proposed-method}
-develops this idea into the \methodname{} score-refinement mechanism.
+develops this idea into the \methodname{} gradient-agreement refinement mechanism.
 
 \begin{figure}[H]
     \centering
