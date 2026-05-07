@@ -1,3 +1,4 @@
+\pdfminorversion=7
 \documentclass[a4paper,12pt]{report}
 \usepackage{fix-cm}
 \usepackage{silence}
@@ -19,6 +20,7 @@
 \usepackage{url}
 \usepackage{tikz}
 \usepackage{float}
+\usepackage{placeins}
 \usepackage{pdflscape}
 \usepackage{afterpage}
 \usepackage{multirow}
@@ -27,8 +29,6 @@
 \usepackage{makecell}
 \usepackage[numbers,sort&compress]{natbib}
 \usetikzlibrary{calc,positioning,fit}
-\usepackage{algorithm}
-\usepackage{algpseudocode}
 \usepackage{subcaption}
 \usepackage[most]{tcolorbox}
 \usepackage[all]{nowidow}
@@ -57,7 +57,6 @@
 \makeatletter
 \def\l@figure{\@dottedtocline{1}{1em}{2.2em}}
 \def\l@table{\@dottedtocline{1}{1em}{2.2em}}
-\renewcommand*{\ALG@name}{Algorithm}
 \makeatother
 
 \titleformat{\chapter}[display]   
@@ -79,10 +78,16 @@
 \setlength{\parskip}{0.4em}
 \setlength{\parindent}{0pt}
 %
-\newcommand{\methodfull}{Gradient-Refined Assignment with Cross-tokenizer Ensembles}
-\newcommand{\methodname}{GRACE}
+\newcommand{\gracename}{GRACE}
+\newcommand{\gracefull}{Gradient-Routed Alignment with Cross-tokenizer Experts}
+\newcommand{\methodname}{\gracename}
+\newcommand{\methodfull}{\gracefull}
 \title{\methodfull{} for Multimodal Understanding}	%% title
 \author{Le Xuan An}			%% author's name
+\hypersetup{
+  pdftitle={Gradient-Routed Alignment with Cross-tokenizer Experts for Multimodal Understanding},
+  pdfauthor={Le Xuan An}
+}
 
 %
 \newcommand{\argmax}{\arg\!\max}

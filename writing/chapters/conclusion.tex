@@ -1,30 +1,39 @@
 \chapter*{Conclusion and Future Work}
 \addcontentsline{toc}{chapter}{Conclusion and Future Work}
 
-This thesis studied compact vision-language model distillation with
-heterogeneous teachers. The student is much smaller than the teacher models,
-teacher utility varies across samples and their tokenizers do not match.
-To address these challenges, we presented \methodname{}, a routed multi-teacher
-framework with trie-Wasserstein cross-tokenizer distillation, sparse top-\(k\)
-selection and gradient-agreement refinement. The training procedure routes
-teachers first, refines their weights with gradient-agreement scores and
+This thesis studied vision-language model distillation under heterogeneous
+teachers, where teacher utility varies across samples and teacher-student
+tokenizers do not match.
+To address these challenges, we presented \gracefull{} (\gracename{}), a
+routed multi-teacher framework with trie-Wasserstein tokenizer-agnostic
+distillation, sparse top-\(k\) selection and gradient-agreement refinement.
+The training procedure routes teachers first, refines their weights with
+gradient-agreement scores and
 then aggregates the routed trie-Wasserstein KD loss
 \cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}.
 
 Empirically, \methodname{} obtains the highest scores among the methods
-compared in the main tables. For SmolVLM-500M, it reaches 69.38 on TextVQA,
-73.11 on DocVQA and 80.20 on ChartQA. For SmolVLM-256M, it reaches 60.73,
-60.48 and 72.32. These results exceed the original students, direct
+compared in the main tables, indicating that selective routing and
+post-routing gradient refinement improve heterogeneous teacher-to-student VLM
+distillation under the evaluated VQA setting. For SmolVLM-500M, it
+reaches 69.38 on TextVQA,
+73.11 on DocVQA and 80.20 on ChartQA. For SmolVLM-256M, \methodname{} reaches
+60.73 on TextVQA, 60.48 on DocVQA and 72.32 on ChartQA, showing that the
+method improves both evaluated student models. These results
+exceed the original students, direct
 finetuning and all reported distillation baselines in
 Chapter~\ref{chap:experiment-results}. On SmolVLM-500M,
 \methodname{} closes about 55\% of the original teacher-student gap on TextVQA
 and ChartQA and about 40\% on DocVQA. The results confirm that combining
-selective routing with post-routing score refinement improves compact
-text-rich VLM distillation under the benchmarks and teacher pool studied here.
+selective routing with post-routing score refinement improves heterogeneous
+teacher-to-student VLM distillation under the benchmarks and teacher pool
+studied here.
 
 \section*{Future Work}
-Three directions merit further investigation. First, \textbf{stronger
-evaluation}: repeated runs with multiple seeds would tighten the comparison,
+Future work should investigate three directions that would strengthen the
+empirical scope, reduce systems cost and extend the method beyond answer-token
+distillation. First, \textbf{stronger evaluation}: repeated runs with multiple
+seeds would tighten the comparison,
 especially for the smaller gaps between close multi-teacher baselines.
 Second, \textbf{systems efficiency}: the pipeline still relies on large offline
 teacher-logit caches, so reducing storage and I/O cost would make the method
@@ -36,4 +45,3 @@ region-level matching. Future work can also explore richer router inputs,
 improved objective-conflict handling and teacher sets that mix specialized
 document, chart and general VLM experts
 \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
-

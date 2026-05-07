@@ -396,4 +396,23 @@ Walid Bousselham, Rishikesh Jadhav, Simon de~Mathelin, Fran{\c{c}}ois Fleuret,
 \newblock Dex-ar: Explainability in multimodal large language models with deep
   expectation and attention rollout, 2026.
 
+\bibitem{wu2025rethinking}
+Taiqiang Wu, Chaofan Tao, Jiahao Wang, Runming Yang, Zhe Zhao, and Ngai Wong.
+\newblock Rethinking kullback-leibler divergence in knowledge distillation for
+  large language models.
+\newblock In {\em Proceedings of the 31st International Conference on
+  Computational Linguistics}, page 5737{\textendash}5755, 2025.
+
+\bibitem{klabunde2023similarity}
+Max Klabunde, Tobias Schumacher, Markus Strohmaier, and Florian Lemmerich.
+\newblock Similarity of neural network models: A survey of functional and
+  representational measures, 2023.
+
+\bibitem{yu2020gradient}
+Tianhe Yu, Saurabh Kumar, Abhishek Gupta, Sergey Levine, Karol Hausman, and
+  Chelsea Finn.
+\newblock Gradient surgery for multi-task learning.
+\newblock In {\em Advances in Neural Information Processing Systems},
+  volume~33, page 5824{\textendash}5836, 2020.
+
 \end{thebibliography}

@@ -6,16 +6,17 @@
 \section{Experimental Setup}
 All experiments follow a shared evaluation protocol for fair comparison across methods.
 
-The study focuses on two compact student models, \textbf{SmolVLM-500M} and \textbf{SmolVLM-256M}, evaluated on text-rich multimodal benchmarks \cite{marafioti2025smolvlm}.
+The experiments instantiate the student side with \textbf{SmolVLM-500M} and
+\textbf{SmolVLM-256M}, evaluated on multimodal benchmarks
+\cite{marafioti2025smolvlm}.
 
-We evaluate all models with \textbf{VLM-Eval-Kit} \cite{duan2024vlmevalkit}. In brief, the toolkit works as follows:
-\begin{enumerate}
-\item Load a benchmark split and apply its prompt template or input format.
-\item Run model inference through a unified model wrapper interface.
-\item Post-process raw generations into normalized answers.
-\item Compute dataset-specific scores (e.g., VQA Accuracy, ANLS, Relaxed Accuracy) and aggregate final results.
-\end{enumerate}
-This unified pipeline ensures a consistent evaluation procedure across all compared models.
+All models are evaluated with \textbf{VLM-Eval-Kit}
+\cite{duan2024vlmevalkit}, which provides a shared inference,
+post-processing and metric-computation pipeline for the three benchmarks. In
+the experiments, the toolkit standardizes evaluation by loading each benchmark
+split, applying the appropriate input template, running inference through a
+unified model wrapper, normalizing the generated answers and computing the
+dataset-specific score.
 
 \section{Datasets}
 We evaluate three text-centric VQA benchmarks: \textbf{TextVQA}, \textbf{DocVQA} and \textbf{ChartQA}.
@@ -179,10 +180,10 @@ Learning-rate schedule & Cosine decay with warmup ratio \(0.03\) \\
 Gradient checkpointing & Enabled \\
 Frozen modules & None \\
 Dataloader workers & 4 \\
-Logging and checkpointing & Log every 5 steps; save every 150 steps \\
+Logging and checkpointing & Log every 5 steps and save every 150 steps \\
 Student/teacher temperature & \(\tau_s=\tau_t=1.0\) \\
 KD weight & \(\alpha_{\mathrm{KD}}=0.5\) \\
-Top-\(k\) routing & \(k_{\mathrm{route}}=2\); mask top-scoring teachers and renormalize selected softmax weights \\
+Top-\(k\) routing & \(k_{\mathrm{route}}=2\), with top-scoring teacher masking and selected softmax-weight renormalization \\
 Gate entropy weight & \(\lambda_{\mathrm{ent}}=10^{-3}\) \\
 Router \(z\)-loss weight & \(\lambda_{z}=10^{-3}\) \\
 GRACE warmup ratio & \(\rho_g=0.05\) \\
@@ -191,7 +192,7 @@ GRACE blend exponent & \(\lambda_{\mathrm{blend}}=0.9\) \\
 Score-spread fallback threshold & \(\epsilon_{\mathrm{fb}}=0.01\) \\
 Alignment threshold & \(\delta=0.15\) \\
 Seed & 42 \\
-Image resolution / visual token budget & Processor defaults; no manual override \\
+Image resolution / visual token budget & Processor defaults with no manual override \\
 \end{longtable}
 \endgroup
 
@@ -201,15 +202,20 @@ before final teacher weighting. Section~\ref{sec:ablation} evaluates the effect 
 removing this smoothing with the \(\beta_{\mathrm{EMA}}=0\) ablation.
 
 \section{Evaluation Metrics}
-We report benchmark-specific official metrics for each dataset:
-\begin{itemize}
-\item \textbf{TextVQA}: \textbf{VQA Accuracy}. For a predicted answer \(\hat{a}\), the per-question score is
+We report benchmark-specific official metrics for each dataset.
+
+\paragraph{TextVQA.}
+We report VQA Accuracy. For a predicted answer \(\hat{a}\), the
+per-question score is
 \[
 s_{\text{VQA}}=\min\left(\frac{\#\text{annotators that provided } \hat{a}}{3},\,1\right),
 \]
 and the final score is the mean over all questions \cite{singh2019vqamodelsread}.
 
-\item \textbf{DocVQA}: \textbf{ANLS} (Average Normalized Levenshtein Similarity). The final ANLS is the average score over all samples \cite{mathew2021docvqadatasetvqadocument}:
+\paragraph{DocVQA.}
+We report ANLS, the Average Normalized Levenshtein Similarity. The final ANLS
+is the average score over all samples
+\cite{mathew2021docvqadatasetvqadocument}:
 \[
 \mathrm{NLS}(a,\hat{a})=1-\frac{d_{\text{Lev}}(a,\hat{a})}{\max(|a|,|\hat{a}|)}, \quad
 s_{\text{ANLS}}=
@@ -219,7 +225,10 @@ s_{\text{ANLS}}=
 \end{cases}
 \]
 
-\item \textbf{ChartQA}: \textbf{Relaxed Accuracy}. A prediction is correct if it matches exactly for text answers. For numeric answers, the score handles the zero-target case explicitly:
+\paragraph{ChartQA.}
+We report Relaxed Accuracy. A prediction is correct if it matches exactly for
+text answers. For numeric answers, the score handles the zero-target case
+explicitly:
 \[
 s_{\mathrm{ChartQA}}=
 \begin{cases}
@@ -227,8 +236,9 @@ s_{\mathrm{ChartQA}}=
 \mathbf{1}\!\left[\frac{|\hat{y}-y|}{|y|}\le 0.05\right], & y\ne0.
 \end{cases}
 \]
-The final score is the proportion of correct predictions \cite{masry2022chartqabenchmarkquestionanswering}.
-\end{itemize}
+The final ChartQA score is computed as the proportion of predictions that
+satisfy either the exact text-match criterion or the relaxed numeric-match
+criterion \cite{masry2022chartqabenchmarkquestionanswering}.
 
 \section{Baselines and Compared Methods}
 \noindent
@@ -239,7 +249,7 @@ heterogeneous teacher baselines.
 
 \begin{table}[tp]
 \centering
-\caption[Baseline groups used in the evaluation chapter.]{Baseline groups used in the evaluation chapter. The grouping separates student-only references, same-family KD, cross-tokenizer single-teacher transfer and heterogeneous teacher methods.}
+\caption[Baseline groups used in the evaluation chapter.]{Baseline groups used in the evaluation chapter. The grouping separates student-only references, same-family KD, tokenizer-mismatched single-teacher transfer and heterogeneous teacher methods.}
 \label{tab:baseline-groups}
 \resizebox{0.96\linewidth}{!}{
 \begin{tabular}{llll}
@@ -255,37 +265,100 @@ heterogeneous teacher baselines.
 }
 \end{table}
 
-Table~\ref{tab:baseline-groups} summarizes the role of each baseline family
-before the method-specific descriptions below.
+Before introducing the method-specific baselines, Table~\ref{tab:baseline-groups}
+summarizes the role of each baseline family and separates student-only
+references, same-family KD, tokenizer-mismatched single-teacher transfer and
+heterogeneous teacher methods.
 
-\begin{itemize}
-\item \textbf{Non-distillation references.} The original student and the full-finetuning baseline provide the student-only reference points for each benchmark.
-\item \textbf{Same-family baselines.} Forward Kullback-Leibler (KL), reverse KL and Jensen-Shannon divergence all use \textbf{SmolVLM2-2.2B-Instruct} as a same-family teacher \cite{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,cui2024sinkhorn}. They isolate standard teacher-student transfer when tokenizer, vocabulary and output space are already matched.
-\item \textbf{Different-family single-teacher baselines.} This group uses one teacher outside the SmolVLM family. ULD is the main cross-tokenizer logits baseline \cite{boizard2024towardscrosstokenizerdistillation}.
-\item \textbf{Heterogeneous multi-teacher baselines.} This group uses teacher sets drawn from different VLM families. Uniform averaging keeps fixed equal weights. SHM-CKA adds hidden-state matching over that set. REINFORCE learns a stochastic teacher policy \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}. \methodname{} adds sparse routing, trie-Wasserstein KD and alignment-aware reweighting \cite{takezawa2021supervisedtreewasserstein,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}.
-\end{itemize}
+The non-distillation references consist of the original student and the
+full-finetuning baseline, which provide student-only reference points. The
+same-family baselines use \textbf{SmolVLM2-2.2B-Instruct} as teacher for
+forward KL, reverse KL and Jensen-Shannon distillation, isolating standard
+teacher-student transfer when the tokenizer and output space are matched
+\cite{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,cui2024sinkhorn}.
+The different-family single-teacher setting uses ULD with a teacher outside
+the SmolVLM family, testing tokenizer-mismatched transfer without teacher routing
+\cite{boizard2024towardscrosstokenizerdistillation}. The heterogeneous
+teacher setting compares uniform averaging, SHM-CKA, REINFORCE and
+\methodname{} over a mixed teacher pool, separating static averaging,
+hidden-state matching and adaptive teacher assignment
+\cite{takezawa2021supervisedtreewasserstein,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}.
 
 For the trainable competitor methods, we keep the supervised term
 \(\mathcal{L}_{CE}\). The logits-only baselines differ only in the KD signal,
 but SHM-CKA also adds a hidden-state alignment term and REINFORCE
 also adds a REINFORCE-style policy term
 \cite{kornblith2019similarityrepresentations,williams1992simple,yuan2020reinforcedmultiteacherselection}.
-In the descriptions below, \(\gamma\) denotes a generic KD mixing coefficient;
+In the descriptions below, \(\gamma\) denotes a generic KD mixing coefficient.
 \(\alpha\) remains reserved for the repository training script in
 Table~\ref{tab:training-configuration}.
 
-The compared methods are:
-\begin{itemize}
-\item \textbf{Original}: direct evaluation of the released student, with no additional optimization. This measures the native capability of the compact model before any task adaptation or distillation.
-\item \textbf{Full finetuning}: uses \(\mathcal{L}=\mathcal{L}_{CE}\) with no teacher, isolating the effect of supervised task adaptation without teacher guidance.
-\item \textbf{Forward KL}: the standard same-family KD baseline, with \(\mathcal{L}_{KD}=\mathrm{KL}(p_t\|p_s)\) \cite{hinton2015distillingknowledgeneuralnetwork}. It tests soft-target transfer when tokenizer and vocabulary are already matched.
-\item \textbf{Reverse KL}: uses \(\mathcal{L}_{KD}=\mathrm{KL}(p_s\|p_t)\) \cite{cui2024sinkhorn,wen2023fdistill}. This mode-seeking variant is a harder divergence baseline.
-\item \textbf{Jensen-Shannon}: uses the symmetric divergence \(\tfrac{1}{2}\mathrm{KL}(p_s\|m)+\tfrac{1}{2}\mathrm{KL}(p_t\|m)\), where \(m=\tfrac{1}{2}(p_s+p_t)\) \cite{lin1991jensen,cui2024sinkhorn}. It tests whether a bounded symmetric objective is more stable than KL.
-\item \textbf{ULD}: uses \(\mathcal{L}_{KD}=\|\pi(p_s)-\pi(p_t)\|_1\) \cite{boizard2024towardscrosstokenizerdistillation}. This is the main cross-tokenizer logits baseline because it compares ranked probability mass, not token IDs.
-\item \textbf{SHM-CKA}: keeps the heterogeneous teacher set used by \methodname{}, but replaces routed weighting with a per-teacher ULD logits loss plus a hidden-state CKA penalty \cite{boizard2024towardscrosstokenizerdistillation,dasgupta2025improving,kornblith2019similarityrepresentations}. It tests whether direct representation alignment is sufficient without routed GRACE weighting.
-\item \textbf{Uniform multi-teacher}: averages the heterogeneous teacher losses with fixed equal weights, \(\mathcal{L}_{KD}=\frac{1}{M}\sum_{i=1}^{M}\mathcal{L}_{KD}^{(i)}\) \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}. It isolates the effect of teacher diversity without adaptive assignment.
-\item \textbf{REINFORCE}: replaces deterministic routing with a stochastic policy that samples teachers and updates the selector with REINFORCE \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}. This baseline is close in spirit to adaptive selection, but it does not use gradient-agreement refinement.
-\end{itemize}
+\paragraph{Original.}
+The original setting directly evaluates the released student without
+additional optimization, thereby measuring the native capability of the student
+model before task adaptation or distillation.
+
+\paragraph{Full finetuning.}
+Full finetuning optimizes only \(\mathcal{L}_{CE}\) and uses no teacher, which
+isolates the effect of supervised task adaptation from any teacher-guided
+distillation signal.
+
+\paragraph{Forward KL.}
+Forward KL uses the standard same-family KD objective
+\[
+\mathcal{L}_{KD}=\mathrm{KL}(p_t\|p_s).
+\]
+This tests soft-target transfer in the matched-tokenizer setting where teacher
+and student vocabularies are aligned
+\cite{hinton2015distillingknowledgeneuralnetwork}.
+
+\paragraph{Reverse KL.}
+Reverse KL uses \(\mathcal{L}_{KD}=\mathrm{KL}(p_s\|p_t)\)
+\cite{cui2024sinkhorn,wen2023fdistill} as a student-centered divergence
+baseline, which tests whether matching the teacher from the student's current
+distribution is suitable for VLM distillation. Because the reverse-KL gradient
+is weighted by \(p_s\), this objective tends to emphasize regions where the
+student already assigns probability.
+
+\paragraph{Jensen-Shannon.}
+Jensen-Shannon uses the symmetric divergence
+\[
+\frac{1}{2}\mathrm{KL}(p_s\|m)+\frac{1}{2}\mathrm{KL}(p_t\|m),
+\qquad
+m=\frac{1}{2}(p_s+p_t).
+\]
+It tests whether a bounded symmetric objective is more stable than KL
+\cite{lin1991jensen,cui2024sinkhorn}.
+
+\paragraph{ULD.}
+ULD uses \(\mathcal{L}_{KD}=\|\pi(p_s)-\pi(p_t)\|_1\)
+\cite{boizard2024towardscrosstokenizerdistillation}. This is the main
+tokenizer-mismatched logits baseline because it compares ranked probability mass,
+not token IDs.
+
+\paragraph{SHM-CKA.}
+SHM-CKA keeps the heterogeneous teacher set used by \methodname{}, but
+replaces routed weighting with a per-teacher ULD logits loss plus a
+hidden-state CKA penalty
+\cite{boizard2024towardscrosstokenizerdistillation,dasgupta2025improving,kornblith2019similarityrepresentations}.
+It tests whether direct representation alignment is sufficient without routed
+\methodname{} weighting. This baseline separates representation matching from
+output-level teacher selection.
+
+\paragraph{Uniform multi-teacher.}
+Uniform multi-teacher distillation assigns fixed equal weights to all teachers
+in the heterogeneous pool,
+\(\mathcal{L}_{KD}=\frac{1}{M}\sum_{i=1}^{M}\mathcal{L}_{KD}^{(i)}\)
+\cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning},
+thereby testing whether teacher diversity alone is sufficient without adaptive
+routing or gradient-aware weighting.
+
+\paragraph{REINFORCE.}
+REINFORCE replaces deterministic routing with a stochastic policy that samples
+teachers and updates the selector with REINFORCE
+\cite{williams1992simple,yuan2020reinforcedmultiteacherselection}, providing
+an adaptive routing baseline that does not use the gradient-agreement
+refinement introduced by \methodname{}.
 
 For SHM-CKA, the baseline implementation first loads an offline CKA matrix
 and, for each student layer \(s\), selects the top-\(k\) teacher layers
@@ -348,7 +421,7 @@ as a sample descriptor, then concatenates per-teacher summary features:
 \begin{equation}
 \mathbf{z}
 =
-\Bigl[\mathrm{Pool}(\mathbf{H}_s);\ \mathbf{f}_1;\dots;\mathbf{f}_M\Bigr],
+\operatorname{Concat}\!\left(\mathrm{Pool}(\mathbf{H}_s),\mathbf{f}_1,\dots,\mathbf{f}_M\right),
 \qquad
 \mathbf{f}_i
 =
@@ -467,7 +540,7 @@ Figure~\ref{fig:r2-cache-training}.
 \small
 \renewcommand{\arraystretch}{0.95}
 \begin{longtable}{p{0.33\textwidth} p{0.61\textwidth}}
-\caption[Engineering settings for the active logit-streaming pipeline.]{Engineering settings for the active four-teacher DocVQA logit-streaming pipeline. These values describe storage, caching and launch-path behavior rather than the fair-comparison protocol itself.}
+\caption[Engineering settings for the active logit-streaming pipeline.]{Engineering settings for the active four-teacher DocVQA logit-streaming pipeline. These values describe storage, caching and launch-path behavior, not the fair-comparison protocol itself.}
 \label{tab:implementation-settings}\\
 \toprule
 \textbf{Setting} & \textbf{Value} \\
