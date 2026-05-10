@@ -1,44 +1,45 @@
 \begin{center}
-\textbf{\large{Abstract}	}
+\textbf{\large{Abstract}}
 \end{center}
 
 \addcontentsline{toc}{chapter}{Abstract}
 \begin{small}
 
-We study heterogeneous multi-teacher distillation for visual language models
+We study heterogeneous multi-teacher distillation for vision-language models
 (VLMs), where supervision is transferred from a pool of frozen teachers to a
 student model. The setting is difficult because teachers come from different
 model families, use different tokenizers and provide complementary supervision
 across samples, which makes fixed teacher averaging unreliable.
 
-We present \gracename{}, short for \gracefull{}, as a framework designed to
-address three failure modes in this setting: tokenizer mismatch, heterogeneous
-teacher specialization and unstable post-routing weighting. In this thesis,
-the frozen heterogeneous teachers are treated as tokenizer-specific experts and
-the final teacher assignment is gradient-routed because routed teacher weights
-are refined using agreement between each teacher's KD gradient and the
-supervised CE gradient. To the best of our knowledge, it is the first
-distillation framework to employ a shared tree-metric OT for heterogeneous
-multi-teacher VLM distillation. It combines a trie-Wasserstein KD loss on a
-shared byte trie, a teacher routing network, sparse top-$k$ routing and
-gradient-agreement refinement. After the routing network selects a sparse
-teacher subset for each sample, \gracename{} compares each teacher's KD
-gradient with the student's supervised CE gradient, smooths the resulting
-agreement scores with an exponential moving average and converts them into
-final KD weights over the routed teacher set.
 
-In the reported TextVQA, DocVQA and ChartQA experiments, \methodname{}
-improves over direct finetuning and the compared distillation baselines. The
-experimental student models are SmolVLM-500M and SmolVLM-256M. In the
-four-teacher setting, \methodname{} reaches 69.38, 73.11 and 80.20 on
-SmolVLM-500M and 60.73, 60.48 and 72.32 on SmolVLM-256M. For SmolVLM-500M,
-this corresponds to gains of 22.26\%, 22.83\% and 27.71\% over the original
-student. The method also closes 55.03\% of the original teacher gap on TextVQA,
-39.53\% on DocVQA and 55.34\% on ChartQA. These results support
-\methodname{} as an effective framework for heterogeneous teacher-to-student
-VLM distillation in the evaluated VQA setting.
+We present \gracefull{} (\gracename{}), a framework designed to
+address three failure modes in this setting: tokenizer mismatch, heterogeneous
+teacher specialization and unstable post-routing weighting. The frozen
+heterogeneous teachers are treated as tokenizer-specific experts. Teacher
+assignment is gradient-routed: after sparse top-$k$ routing selects a
+candidate set, routed weights are refined according to the agreement between
+each teacher's KD gradient and the supervised CE gradient. To the best of our
+knowledge, \gracename{} is the first distillation framework to use shared
+byte-trie optimal transport for heterogeneous multi-teacher VLM distillation.
+\gracename{} combines a trie-Wasserstein KD loss over a shared byte trie,
+sparse top-$k$ teacher routing and gradient-agreement refinement. Routed
+teacher weights are then derived from smoothed agreement scores over the
+routed teacher set.
+
+
+In TextVQA, DocVQA and ChartQA experiments with SmolVLM-500M and
+SmolVLM-256M as student models, \methodname{} improves over direct finetuning
+and all compared distillation baselines. In the four-teacher setting,
+\methodname{} reaches 69.38, 73.11 and 80.20 on SmolVLM-500M and 60.73, 60.48
+and 72.32 on SmolVLM-256M. For SmolVLM-500M, this corresponds to gains of
+22.26\%, 22.83\% and 27.71\% over the original student. The method also closes
+55.03\% of the original teacher gap on TextVQA, 39.53\% on DocVQA and 55.34\%
+on ChartQA. These results demonstrate \methodname{} as an effective approach
+to heterogeneous multi-teacher VLM distillation on text-rich VQA tasks.
 
 
 \vspace*{1cm}
-\textbf{Keywords}: visual language model, knowledge distillation, multi-teacher distillation, mixture-of-experts routing, cross-tokenizer Wasserstein distillation
+\textbf{Keywords}: vision-language model, knowledge distillation,
+multi-teacher distillation, sparse teacher routing, gradient agreement,
+cross-tokenizer Wasserstein distillation
 \end{small}

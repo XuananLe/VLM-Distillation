@@ -172,7 +172,7 @@ def build_vqa_prompt(dataset_name: str, model_family: str, question: str) -> str
         )
     elif dataset_name == "chartqa":
         instruction = (
-            "Answer the question using the chart. Return a short answer, number, or phrase.\n"
+            "Answer the question using the chart. Return a short answer, number or phrase.\n"
             f"Question: {question}"
         )
     else:

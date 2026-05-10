@@ -1,39 +1,26 @@
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {1.1}{\ignorespaces CLIP-style vision-language pretraining with a shared image-text embedding space \cite {wikimedia_clip_pretraining_image,radford2021learningtransferablevisualmodels}.\relax }}{1}{figure.caption.2}%
-\contentsline {figure}{\numberline {1.2}{\ignorespaces Scaling-law trends from Kaplan et al.}}{2}{figure.caption.3}%
-\contentsline {figure}{\numberline {1.3}{\ignorespaces SmolVLM memory comparison from the Hugging Face release.}}{3}{figure.caption.4}%
-\contentsline {figure}{\numberline {1.4}{\ignorespaces Representative VLM model scales.}}{3}{figure.caption.5}%
-\contentsline {figure}{\numberline {1.5}{\ignorespaces TinyLLaVA vs. LLaVA-1.5-7B benchmark comparison.}}{4}{figure.caption.6}%
-\contentsline {figure}{\numberline {1.6}{\ignorespaces Best proprietary vs. open-source frontier results on three benchmarks.}}{4}{figure.caption.7}%
-\contentsline {figure}{\numberline {1.7}{\ignorespaces Low-bit quantization can sharply reduce VLM accuracy.}}{5}{figure.caption.8}%
-\contentsline {figure}{\numberline {1.8}{\ignorespaces Teacher-student knowledge distillation.}}{6}{figure.caption.9}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {2.1}{\ignorespaces Transformer and ViT building blocks.\relax }}{14}{figure.caption.10}%
-\contentsline {figure}{\numberline {2.2}{\ignorespaces Representative architecture families of modern vision-language models.\relax }}{15}{figure.caption.11}%
-\contentsline {figure}{\numberline {2.3}{\ignorespaces ULD distillation procedure.}}{17}{figure.caption.12}%
-\contentsline {figure}{\numberline {2.4}{\ignorespaces Tokenizer vocabulary overlap example.}}{17}{figure.caption.13}%
-\contentsline {figure}{\numberline {2.5}{\ignorespaces Geometric behavior of Wasserstein distance.}}{18}{figure.caption.14}%
-\contentsline {figure}{\numberline {2.6}{\ignorespaces Tree-structured and matrix views of discrete optimal transport.\relax }}{20}{figure.caption.15}%
-\contentsline {figure}{\numberline {2.7}{\ignorespaces Sparse routing with expert capacity constraints.}}{21}{figure.caption.16}%
-\contentsline {figure}{\numberline {2.8}{\ignorespaces Sparse routing and expert specialization in MoE.}}{22}{figure.caption.17}%
-\contentsline {figure}{\numberline {2.9}{\ignorespaces Gradient conflict in a multi-objective setting.}}{23}{figure.caption.18}%
+\contentsline {figure}{\numberline {2.1}{\ignorespaces Representative architecture families of modern vision-language models.}}{6}{figure.caption.2}%
+\contentsline {figure}{\numberline {2.2}{\ignorespaces Geometric behavior of Wasserstein distance.}}{11}{figure.caption.4}%
+\contentsline {figure}{\numberline {2.3}{\ignorespaces Discrete optimal transport views.}}{12}{figure.caption.5}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {3.1}{\ignorespaces GRACE architecture.}}{25}{figure.caption.19}%
-\contentsline {figure}{\numberline {3.2}{\ignorespaces Shared-trie view of tokenizer-mismatched matching for \texttt {document}/\texttt {receipt} and \texttt {doc}/\texttt {rece}.\relax }}{29}{figure.caption.21}%
-\contentsline {figure}{\numberline {3.3}{\ignorespaces Sparse trie-Wasserstein support and residual tail mass.\relax }}{32}{figure.caption.22}%
-\contentsline {figure}{\numberline {3.4}{\ignorespaces Teacher routing network.}}{33}{figure.caption.24}%
-\contentsline {figure}{\numberline {3.5}{\ignorespaces Top-\(k\) routing dynamics in GRACE.}}{34}{figure.caption.25}%
-\contentsline {figure}{\numberline {3.6}{\ignorespaces Representative KD weighting regimes.}}{37}{figure.caption.26}%
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Overview of the GRACE architecture.}}{22}{figure.caption.6}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces Shared-trie tokenizer matching.\relax }}{26}{figure.caption.8}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Sparse trie-Wasserstein support.\relax }}{28}{figure.caption.9}%
+\contentsline {figure}{\numberline {3.4}{\ignorespaces Teacher routing network.\relax }}{30}{figure.caption.10}%
+\contentsline {figure}{\numberline {3.5}{\ignorespaces Top-\(k\) routing dynamics.}}{30}{figure.caption.11}%
+\contentsline {figure}{\numberline {3.6}{\ignorespaces Representative KD weighting regimes.}}{34}{figure.caption.12}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {4.1}{\ignorespaces Representative dataset examples.}}{40}{figure.caption.27}%
-\contentsline {figure}{\numberline {4.2}{\ignorespaces R2 bucket used for teacher-logit storage.}}{48}{figure.caption.30}%
-\contentsline {figure}{\numberline {4.3}{\ignorespaces Training with remote teacher logits.\relax }}{49}{figure.caption.31}%
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Representative dataset examples.}}{37}{figure.caption.13}%
+\contentsline {figure}{\numberline {4.2}{\ignorespaces R2 teacher-logit storage.}}{42}{figure.caption.16}%
+\contentsline {figure}{\numberline {4.3}{\ignorespaces Training with remote teacher logits.\relax }}{43}{figure.caption.17}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {5.1}{\ignorespaces Grouped comparison of original, best-baseline and GRACE results.}}{56}{figure.caption.37}%
-\contentsline {figure}{\numberline {5.2}{\ignorespaces DEX-AR overview.}}{57}{figure.caption.38}%
-\contentsline {figure}{\numberline {5.3}{\ignorespaces Representative TextVQA attention example.}}{58}{figure.caption.39}%
-\contentsline {figure}{\numberline {5.4}{\ignorespaces Training-curve comparison for uniform weighting and GRACE.}}{59}{figure.caption.40}%
-\contentsline {figure}{\numberline {5.5}{\ignorespaces Representative collapse and non-collapse routing examples.}}{60}{figure.caption.41}%
-\contentsline {figure}{\numberline {5.6}{\ignorespaces Final-layer CKA heatmaps across two benchmarks.}}{64}{figure.caption.44}%
-\contentsline {figure}{\numberline {5.7}{\ignorespaces Vision-layer CKA heatmaps across two benchmarks.}}{64}{figure.caption.45}%
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Grouped benchmark comparison.}}{48}{figure.caption.23}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces DEX-AR overview.}}{49}{figure.caption.24}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces Representative TextVQA attention example.}}{50}{figure.caption.25}%
+\contentsline {figure}{\numberline {5.4}{\ignorespaces Uniform and GRACE training curves.}}{51}{figure.caption.26}%
+\contentsline {figure}{\numberline {5.5}{\ignorespaces Routed-teacher load examples.}}{52}{figure.caption.27}%
+\contentsline {figure}{\numberline {5.6}{\ignorespaces Final-layer CKA heatmaps.}}{55}{figure.caption.30}%
+\contentsline {figure}{\numberline {5.7}{\ignorespaces Vision-layer CKA heatmaps.}}{56}{figure.caption.31}%
+\addvspace {10\p@ }
 \addvspace {10\p@ }

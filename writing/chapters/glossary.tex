@@ -16,107 +16,49 @@
 \endhead
 ANLS & Average Normalized Levenshtein Similarity & Evaluation metric used for DocVQA. \\
 \hline
-API & Application Programming Interface & Interface used to query model outputs in black-box settings. \\
+CE & Cross-Entropy & Supervised answer-token loss used during training. \\
 \hline
-bf16 & Brain Floating Point 16 & Low-precision floating-point format used for efficient mixed-precision training. \\
-\hline
-BLIP-2 & Bootstrapping Language-Image Pre-training with Frozen Image Encoders and Large Language Models & A modular vision-language model with a Q-Former bridge. \\
-\hline
-CCA & Canonical Correlation Analysis & Classical similarity analysis method related to the interpretation of CKA scores. \\
-\hline
-CE & Cross-Entropy & Supervised loss used for classification or distillation objectives. \\
-\hline
-CKA & Centered Kernel Alignment & Representation similarity measure used to compare hidden layers between teacher and student models. \\
+CKA & Centered Kernel Alignment & Representation similarity measure used to compare hidden layers. \\
 \hline
 ChartQA & Chart Question Answering & Benchmark for question answering over charts. \\
-\hline
-CLIP & Contrastive Language-Image Pre-training & Dual-encoder vision-language pretraining framework. \\
-\hline
-CNN & Convolutional Neural Network & Standard visual backbone architecture used as a comparison point to ViT. \\
 \hline
 DocVQA & Document Visual Question Answering & Benchmark for question answering on document images. \\
 \hline
 EOS & End of Sequence & Special token that marks the end of a generated answer span. \\
 \hline
-FFN & Feedforward Network & Transformer sublayer applied after attention. \\
-\hline
-fp16 & Floating Point 16 & Half-precision floating-point format used in mixed-precision training or inference. \\
-\hline
 GRACE & Gradient-Routed Alignment with Cross-tokenizer Experts & Proposed multi-teacher distillation method in this thesis. \\
 \hline
-GPU & Graphics Processing Unit & Parallel hardware accelerator used for training and serving deep learning models. \\
-\hline
-SHM-CKA & Hidden-State Matching with CKA & Baseline distillation method that aligns teacher and student hidden representations using CKA. \\
-\hline
-InfoNCE & Information Noise-Contrastive Estimation & Contrastive objective for aligning image and text representations. \\
-\hline
-JSON & JavaScript Object Notation & Lightweight structured data format used for the LLaVA-style training files in this thesis. \\
+SHM-CKA & Hidden-State Matching with CKA & Baseline that combines logits distillation with hidden-state CKA matching. \\
 \hline
 JS & Jensen-Shannon & Symmetric divergence measure between probability distributions. \\
 \hline
-KD & Knowledge Distillation & Transfer of knowledge from a teacher model to a student model. \\
+KD & Knowledge Distillation & Transfer of supervision from teacher models to a student model. \\
 \hline
-KL & Kullback-Leibler & Measure used to compare probability distributions. \\
+KL & Kullback-Leibler & Divergence used to compare probability distributions. \\
 \hline
-KLD & Kullback-Leibler Divergence & Divergence-based objective widely used in distillation. \\
+LLM & Large Language Model & Language model with large parameter scale and strong generation ability. \\
 \hline
-LLaVA & Large Language and Vision Assistant & Instruction-tuned projector-based vision-language model. \\
+MLP & Multi-Layer Perceptron & Feedforward projection block used in the teacher routing network. \\
 \hline
-LLM & Large Language Model & Language model with large parameter scale and strong reasoning ability. \\
-\hline
-LN & Layer Normalization & Normalization method used to stabilize Transformer training. \\
-\hline
-MLP & Multi-Layer Perceptron & Feedforward projection block used in Transformers and classifiers. \\
-\hline
-MMD & Maximum Mean Discrepancy & Similarity metric used for feature-level alignment. \\
-\hline
-MoE & Mixture of Experts & Sparse architecture that routes tokens to selected experts. \\
-\hline
-MSA & Multi-Head Self-Attention & Attention block that models token interactions in Transformers. \\
+MoE & Mixture of Experts & Sparse routing framework that motivates teacher selection. \\
 \hline
 MTKD & Multi-Teacher Knowledge Distillation & Distillation setting that uses more than one teacher model. \\
 \hline
-NLP & Natural Language Processing & Field concerned with computational understanding of language. \\
-\hline
-NLS & Normalized Levenshtein Similarity & String similarity score used in DocVQA evaluation. \\
-\hline
 OCR & Optical Character Recognition & Extraction of text from images or scanned documents. \\
 \hline
-OT & Optimal Transport & Distribution-matching perspective used to motivate tokenizer-agnostic distillation. \\
+OT & Optimal Transport & Distribution-matching view used to motivate trie-Wasserstein KD. \\
 \hline
-TWD & Tree-Wasserstein Distance & Tree-structured optimal-transport distance used as background for the trie-Wasserstein loss in this thesis. \\
-\hline
-PE & Positional Encoding & Representation of token order in Transformer models. \\
-\hline
-PLN & Parametric Layer Normalization & Layer normalization variant with trainable scale and bias. \\
-\hline
-Q-Former & Querying Transformer & Bridging module used by BLIP-2 to connect vision and language features. \\
-\hline
-QA & Question Answering & Task of generating answers to natural language questions. \\
-\hline
-ReLU & Rectified Linear Unit & Common non-linear activation function. \\
-\hline
-RMSNorm & Root Mean Square Layer Normalization & Lightweight normalization method based on root mean square statistics. \\
-\hline
-RoPE & Rotary Positional Embedding & Positional encoding method based on rotational transformations. \\
-\hline
-TF32 & TensorFloat-32 & NVIDIA tensor-core numeric format used to accelerate matrix operations during training. \\
+TWD & Tree-Wasserstein Distance & Tree-structured optimal-transport distance used as background for the proposed loss. \\
 \hline
 TextVQA & Text Visual Question Answering & Benchmark for question answering on natural images containing text. \\
 \hline
-ULD & Universal Logit Distillation & Tokenizer-agnostic distillation loss based on ranked probability distributions. \\
-\hline
-ViT & Vision Transformer & Transformer-based model for image representation learning. \\
+ULD & Universal Logit Distillation & Tokenizer-agnostic distillation baseline based on ranked probability distributions. \\
 \hline
 VLM & Vision-Language Model & Model that processes visual and textual inputs together. \\
 \hline
-VLM-Eval-Kit & Vision-Language Model Evaluation Kit & Toolkit used in this thesis to run standardized multimodal evaluation. \\
-\hline
-VNU & Vietnam National University & Parent university system of VNU University of Engineering and Technology. \\
+VLM-Eval-Kit & Vision-Language Model Evaluation Kit & Toolkit used to run standardized multimodal evaluation. \\
 \hline
 VQA & Visual Question Answering & Task of answering questions grounded in visual inputs. \\
-\hline
-ZeRO & Zero Redundancy Optimizer & Memory-optimization technique used by DeepSpeed to reduce optimizer-state replication during large-model training. \\
 \hline
 \end{longtable}
 \end{small}

@@ -200,7 +200,7 @@ def create_layer_distiller(
 
     if layer_distill_source not in {"vision", "model"}:
         raise ValueError(
-            f"--layer_distill_source must be `none`, `vision`, or `model`, got {layer_distill_source!r}."
+            f"--layer_distill_source must be `none`, `vision` or `model`, got {layer_distill_source!r}."
         )
     if layer_distill_weight <= 0.0:
         raise ValueError(

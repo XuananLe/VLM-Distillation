@@ -4,7 +4,7 @@ from src.components.reinforced_teacher_selection import ReinforcedTeacherSelecti
 def normalize_teacher_models(teacher_model, teacher_count: int | None):
     """Normalize teacher input into a frozen teacher-model list and resolved count.
 
-    Input: a teacher model, list/tuple of teacher models, or None, plus optional
+    Input: a teacher model, list/tuple of teacher models or None, plus optional
     teacher_count. Output: (teacher_models, teacher_count). Exists so the trainer
     can accept one or many live teachers through one code path.
     """

@@ -9,7 +9,7 @@ The implemented training stack is centered on cache-backed distillation: teacher
 
 - single-teacher and multi-teacher KD
 - cached teacher-logit training from a local cache root
-- teacher weighting via `uniform_mean`, `routing`, or `reinforced_selection`
+- teacher weighting via `uniform_mean`, `routing` or `reinforced_selection`
 - `GRACE` routing refinement on top of the router
 - logits-space KD losses including `uld_loss`, `trie_wasserstein_loss`, KL/JS variants, and `cka_loss`
 - optional hidden-state / layer distillation in addition to cached-logit KD

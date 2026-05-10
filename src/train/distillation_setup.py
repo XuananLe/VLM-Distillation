@@ -23,7 +23,7 @@ class DistillationArguments:
 
     teacher_weighting_strategy: str = field(
         default="routing",
-        metadata={"help": "Teacher weighting strategy: `routing`, `uniform_mean`, or `reinforced_selection`."},
+        metadata={"help": "Teacher weighting strategy: `routing`, `uniform_mean` or `reinforced_selection`."},
     )
 
     distillation_loss: str = field(
