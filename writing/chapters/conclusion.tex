@@ -27,16 +27,15 @@ and ChartQA and about 40\% on DocVQA.
 \section*{Future Work}
 Future work should investigate three directions that would strengthen the
 empirical scope, reduce systems cost and extend the method beyond answer-token
-distillation. First, \textbf{stronger evaluation}: repeated runs with multiple
-seeds would tighten the comparison,
-especially for the smaller gaps between close multi-teacher baselines.
-Second, \textbf{systems efficiency}: the pipeline still relies on large offline
-teacher-logit caches, so reducing storage and I/O cost would make the method
-easier to scale to more datasets and larger teacher sets. Third,
-\textbf{broader method extensions}: the current method remains
-answer-token-centric, so one important next step is explicit visual
-distillation through visual-token alignment, cross-attention transfer, or
-region-level matching. Future work can also explore richer router inputs,
+distillation. First, \textbf{stronger evaluation} would use repeated runs with
+multiple seeds to tighten the comparison, especially for the smaller gaps
+between close multi-teacher baselines. Second, \textbf{systems efficiency}
+would reduce storage and I/O cost, since the pipeline still relies on large
+offline teacher-logit caches. This would make the method easier to scale to
+more datasets and larger teacher sets. Third, \textbf{broader method
+extensions} would move beyond answer-token-centric distillation through
+visual-token alignment, cross-attention transfer or region-level matching.
+Future work can also explore richer router inputs,
 improved objective-conflict handling and teacher sets that mix specialized
 document, chart and general VLM experts
 \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.

@@ -37,7 +37,7 @@
 \contentsline {subsection}{\numberline {2.5.5}Routing in Distillation Settings}{17}{subsection.2.5.5}%
 \contentsline {section}{\numberline {2.6}Multi-Teacher Distillation}{18}{section.2.6}%
 \contentsline {subsection}{\numberline {2.6.1}Weighted Teacher Aggregation}{18}{subsection.2.6.1}%
-\contentsline {subsection}{\numberline {2.6.2}Fixed vs. Sample-Dependent Weighting}{18}{subsection.2.6.2}%
+\contentsline {subsection}{\numberline {2.6.2}Fixed vs. Sample-Dependent Weighting}{19}{subsection.2.6.2}%
 \contentsline {subsection}{\numberline {2.6.3}Gradient Conflict in Multi-Objective Optimization}{19}{subsection.2.6.3}%
 \contentsline {section}{\numberline {2.7}Related Work}{20}{section.2.7}%
 \contentsline {chapter}{\numberline {3}Proposed Method}{21}{chapter.3}%
@@ -53,40 +53,40 @@
 \contentsline {subsection}{\numberline {3.3.1}Router Architecture}{29}{subsection.3.3.1}%
 \contentsline {subsection}{\numberline {3.3.2}Top-k Routing}{30}{subsection.3.3.2}%
 \contentsline {subsection}{\numberline {3.3.3}Router Entropy and Z-Loss}{31}{subsection.3.3.3}%
-\contentsline {section}{\numberline {3.4}Gradient-Agreement Refinement}{31}{section.3.4}%
-\contentsline {subsection}{\numberline {3.4.1}Gradient Agreement Scoring}{31}{subsection.3.4.1}%
+\contentsline {section}{\numberline {3.4}Gradient-Agreement Refinement}{32}{section.3.4}%
+\contentsline {subsection}{\numberline {3.4.1}Gradient Agreement Scoring}{32}{subsection.3.4.1}%
 \contentsline {subsection}{\numberline {3.4.2}Agreement Scores and Active Set}{32}{subsection.3.4.2}%
 \contentsline {subsection}{\numberline {3.4.3}Warmup, EMA Smoothing and Score Weights}{33}{subsection.3.4.3}%
-\contentsline {subsection}{\numberline {3.4.4}Weight Blending and Fallback}{33}{subsection.3.4.4}%
+\contentsline {subsection}{\numberline {3.4.4}Weight Blending and Fallback}{34}{subsection.3.4.4}%
 \contentsline {section}{\numberline {3.5}Routed KD Aggregation and Final Objective}{35}{section.3.5}%
-\contentsline {chapter}{\numberline {4}Evaluation Methodology}{36}{chapter.4}%
-\contentsline {section}{\numberline {4.1}Experimental Setup}{36}{section.4.1}%
-\contentsline {section}{\numberline {4.2}Datasets}{36}{section.4.2}%
-\contentsline {section}{\numberline {4.3}Training Configuration}{37}{section.4.3}%
-\contentsline {section}{\numberline {4.4}Evaluation Metrics}{38}{section.4.4}%
-\contentsline {section}{\numberline {4.5}Baselines and Compared Methods}{38}{section.4.5}%
-\contentsline {section}{\numberline {4.6}Ablation Settings}{40}{section.4.6}%
-\contentsline {section}{\numberline {4.7}Implementation Details}{41}{section.4.7}%
-\contentsline {subsection}{\numberline {4.7.1}Offline Teacher-Logit Preparation}{42}{subsection.4.7.1}%
-\contentsline {subsection}{\numberline {4.7.2}Remote Logit Streaming During Training}{43}{subsection.4.7.2}%
-\contentsline {chapter}{\numberline {5}Experiment Results}{44}{chapter.5}%
-\contentsline {section}{\numberline {5.1}Main Comparison Results}{44}{section.5.1}%
-\contentsline {subsection}{\numberline {5.1.1}Baseline Results}{44}{subsection.5.1.1}%
-\contentsline {subsection}{\numberline {5.1.2}Overall Comparison}{45}{subsection.5.1.2}%
-\contentsline {section}{\numberline {5.2}Representation Similarity Analysis}{54}{section.5.2}%
-\contentsline {section}{\numberline {5.3}Ablation Study}{55}{section.5.3}%
-\contentsline {section}{\numberline {5.4}Efficiency Analysis}{58}{section.5.4}%
-\contentsline {section}{\numberline {5.5}Discussion}{59}{section.5.5}%
-\contentsline {paragraph}{First-order interpretation of gradient-agreement refinement.}{59}{section.5.5}%
-\contentsline {section}{\numberline {5.6}Limitations and Threats to Validity}{60}{section.5.6}%
-\contentsline {chapter}{Conclusion and Future Work}{61}{chapter*.33}%
+\contentsline {chapter}{\numberline {4}Evaluation Methodology}{37}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Experimental Setup}{37}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Datasets}{38}{section.4.2}%
+\contentsline {section}{\numberline {4.3}Training Configuration}{39}{section.4.3}%
+\contentsline {section}{\numberline {4.4}Evaluation Metrics}{40}{section.4.4}%
+\contentsline {section}{\numberline {4.5}Baselines and Compared Methods}{40}{section.4.5}%
+\contentsline {section}{\numberline {4.6}Ablation Settings}{42}{section.4.6}%
+\contentsline {section}{\numberline {4.7}Implementation Details}{43}{section.4.7}%
+\contentsline {subsection}{\numberline {4.7.1}Offline Teacher-Logit Preparation}{44}{subsection.4.7.1}%
+\contentsline {subsection}{\numberline {4.7.2}Remote Logit Streaming During Training}{45}{subsection.4.7.2}%
+\contentsline {chapter}{\numberline {5}Experiment Results}{46}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Main Comparison Results}{46}{section.5.1}%
+\contentsline {subsection}{\numberline {5.1.1}Baseline Results}{46}{subsection.5.1.1}%
+\contentsline {subsection}{\numberline {5.1.2}Overall Comparison}{47}{subsection.5.1.2}%
+\contentsline {section}{\numberline {5.2}Representation Similarity Analysis}{56}{section.5.2}%
+\contentsline {section}{\numberline {5.3}Ablation Study}{58}{section.5.3}%
+\contentsline {section}{\numberline {5.4}Efficiency Analysis}{59}{section.5.4}%
+\contentsline {section}{\numberline {5.5}Discussion}{60}{section.5.5}%
+\contentsline {paragraph}{First-order interpretation of gradient-agreement refinement.}{60}{section.5.5}%
+\contentsline {section}{\numberline {5.6}Limitations and Threats to Validity}{61}{section.5.6}%
+\contentsline {chapter}{Conclusion and Future Work}{62}{chapter*.31}%
 \renewcommand {\cftchappresnum }{Appendix }
 \setlength {\cftchapnumwidth }{6.5em}
-\contentsline {chapter}{\numberline {A}Closed-Form Trie-Wasserstein Derivation}{62}{appendix.A}%
-\contentsline {section}{\numberline {A.1}Setup}{62}{section.A.1}%
-\contentsline {section}{\numberline {A.2}Lower Bound}{63}{section.A.2}%
-\contentsline {section}{\numberline {A.3}Achievability}{63}{section.A.3}%
-\contentsline {chapter}{\numberline {B}Experiment Parameters}{65}{appendix.B}%
-\contentsline {section}{\numberline {B.1}Baseline Implementation Details}{66}{section.B.1}%
+\contentsline {chapter}{\numberline {A}Closed-Form Trie-Wasserstein Derivation}{63}{appendix.A}%
+\contentsline {section}{\numberline {A.1}Setup}{63}{section.A.1}%
+\contentsline {section}{\numberline {A.2}Lower Bound}{64}{section.A.2}%
+\contentsline {section}{\numberline {A.3}Achievability}{64}{section.A.3}%
+\contentsline {chapter}{\numberline {B}Experiment Parameters}{66}{appendix.B}%
+\contentsline {section}{\numberline {B.1}Baseline Implementation Details}{67}{section.B.1}%
 \renewcommand {\cftchappresnum }{Chapter }
-\contentsline {chapter}{References}{68}{section*.34}%
+\contentsline {chapter}{References}{69}{section*.32}%

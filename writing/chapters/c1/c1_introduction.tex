@@ -3,14 +3,14 @@
 
 \section{Background}
 
-Vision-language models (VLMs) have emerged as a central direction in modern AI
+\textbf{Vision-language models (VLMs)} have emerged as a \textbf{central direction} in modern AI
 because they integrate visual perception with language reasoning. By coupling
 powerful image encoders with autoregressive language decoders through learned
 multimodal connectors, these models can interpret visual content, read text
 embedded in images and reason across modalities in ways that neither vision
 systems nor language models alone can easily achieve
 \cite{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning}.
-This architectural synthesis has unlocked a broad set of capabilities,
+This architectural synthesis has unlocked a \textbf{broad set of capabilities},
 including extracting information from scanned documents, understanding visually
 rich scenes and grounding language instructions in physical environments
 \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering,driess2023palme,brohan2023rt2}.
@@ -20,34 +20,34 @@ language backbones trained with large multimodal corpora. This recipe reliably
 improves performance but also raises computational cost
 \cite{kaplan2020scalinglaws,hoffmann2022trainingcomputeoptimal}. As model size
 grows, the gap between what is achievable in research and what is deployable
-in practice widens accordingly. The models that perform best are often the
-hardest to deploy when latency, memory footprint, energy consumption and
+in practice widens accordingly. The \textbf{models that perform best are often the
+hardest to deploy} when latency, memory footprint, energy consumption and
 hardware constraints matter. In robotics and embodied AI, an agent must process
 visual observations, interpret language instructions and produce action
 decisions in real time, often on resource-constrained hardware
 \cite{driess2023palme,brohan2023rt2}. Similar constraints appear in mobile
 applications, document-processing pipelines and enterprise deployments, where
-users and operators need models that are fast, affordable and secure. This
-widening gap between frontier capability and practical deployment creates a
+users and operators need models that are \textbf{fast}, \textbf{affordable} and \textbf{secure}. This
+widening \textbf{gap between frontier capability and practical deployment} creates a
 central tension for applied VLM research.
 
-Knowledge distillation offers a principled path through this tension by
-compressing the behavior of a large teacher model into a compact student.
-Instead of training from scratch on the same massive corpora, the student
-learns from the teacher's output distributions and internal representations,
+\textbf{Knowledge distillation} offers a principled path through this tension by
+compressing the behavior of a large teacher model into a compact student. The
+student avoids training from scratch on the same massive corpora and learns
+from the teacher's output distributions and internal representations,
 which carry richer information than hard labels alone
 \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
-Distillation has been widely used to produce smaller models that preserve much
-of the capability of their larger counterparts and recent lightweight VLMs
+Distillation has been widely used to produce smaller models that \textbf{preserve much
+of the capability of their larger counterparts} and recent lightweight VLMs
 demonstrate that this direction is practical for latency-sensitive and
 cost-sensitive deployment
 \cite{chu2023mobilevlm,zhou2024tinyllava,marafioti2025smolvlm}.
 
 However, distillation in the VLM setting cannot be treated as a straightforward
 compression problem. Existing approaches each address part of the challenge,
-but none covers it fully. Response-based distillation aligns teacher and
+but \textbf{none covers it fully}. Response-based distillation aligns teacher and
 student output distributions effectively when both share a tokenizer, but
-breaks down when teacher and student use different vocabularies
+\textbf{breaks down} when teacher and student use \textbf{different vocabularies}
 \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
 Transport-based methods relax this assumption by comparing probability mass
 over decoded strings, but they are usually formulated for single-teacher
@@ -55,7 +55,7 @@ transfer and do not determine which teacher should supervise a given sample
 \cite{boizard2024towardscrosstokenizerdistillation,takezawa2021supervisedtreewasserstein,leyamadafukumizucuturi2019treesliced}.
 Representation matching through hidden states or similarity measures such as
 CKA provides a tokenizer-independent signal, but does not directly optimize
-answer likelihood and cannot resolve conflicts between teachers
+answer likelihood and \textbf{cannot resolve conflicts between teachers}
 \cite{kornblith2019similarityrepresentations}. Multi-teacher distillation
 methods show the value of pooling several teachers, but fixed or globally
 learned weights can mix useful supervision with weak or conflicting signals
@@ -71,8 +71,8 @@ on common benchmarks \cite{wang2024qwen2vl,chen2024internvl15,chen2024internvl25
 smaller models continue to struggle on these harder tasks, where limited
 parameter capacity makes it difficult to capture fine visual details, document
 structure and numerical relations. Closing this gap requires a method that
-combines tokenizer-agnostic distribution matching, sample-dependent teacher
-selection and gradient-aware conflict resolution in a single framework. This is
+combines \textbf{tokenizer-agnostic} distribution matching, \textbf{sample-dependent} teacher
+selection and \textbf{gradient-aware conflict resolution} in a single framework. This is
 the central motivation of the thesis.
 
 \section{Problem Statement}
@@ -80,8 +80,8 @@ Given a pool of frozen teacher VLMs and a trainable student VLM, the goal is to
 learn a distillation strategy that transfers task performance to the student
 while reducing deployment cost. The strategy must satisfy four requirements: it
 must remain valid when teachers and student differ in architecture, tokenizer
-and output vocabulary, assign teacher weights per sample instead of globally,
-select only a sparse top-\(k\) subset of teachers per input, and detect and
+and output vocabulary, assign teacher weights per sample and not globally,
+select only a sparse top-\(k\) subset of teachers per input and detect and
 suppress distillation gradients that conflict with the supervised objective.
 
 This thesis addresses all four requirements in a unified framework.
@@ -104,8 +104,8 @@ does \methodname{} introduce during training?
 \end{itemize}
 
 \section{Thesis Contributions}
-This thesis makes three technical contributions to knowledge distillation for
-vision-language models.
+This thesis presents three main technical contributions to the field of knowledge distillation in vision-language models.
+
 
 \textbf{A geometry-aware cross-tokenizer distillation objective.}
 Trie-Wasserstein KD maps decoded teacher and student tokens into a shared UTF-8
@@ -152,6 +152,5 @@ details. Chapter~\ref{chap:experiment-results} reports results across the
 three research questions: main benchmark comparisons against fine-tuning and
 distillation baselines, component ablations that isolate the contribution of
 each \methodname{} module and an efficiency analysis of the routing and
-gradient-refinement overhead. The thesis concludes with a summary of the main
-findings and a discussion of promising directions for future work in
+gradient-refinement overhead. Finally, the thesis concludes with a summary of the main findings and a discussion of promising directions for future work in
 heterogeneous multi-teacher VLM distillation.

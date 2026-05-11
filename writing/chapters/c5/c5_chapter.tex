@@ -1,7 +1,7 @@
 \chapter{Experiment Results}
 \label{chap:experiment-results}
 
-
+This chapter presents the empirical results for all experiments described in Chapter~\ref{chap:evaluation-methodology}. The main comparison evaluates \methodname{} against non-distillation references, same-family logits baselines, cross-family single-teacher transfer and heterogeneous multi-teacher methods across TextVQA, DocVQA and ChartQA. The ablation study then isolates the contribution of each component and the efficiency analysis addresses the practical training and storage costs.
 
 \section{Main Comparison Results}
 
@@ -11,10 +11,10 @@ heterogeneous multi-teacher setting: original students, supervised
 fine-tuning, same-family logits KD, cross-family ULD and multi-teacher
 distillation methods. The section first establishes the student and teacher
 reference ranges, then compares all methods on TextVQA, DocVQA and ChartQA.
-This ordering separates
-two questions: whether distillation improves over the student-only reference
-point and whether adaptive multi-teacher weighting improves over fixed or
-single-teacher transfer.
+This ordering separates two questions for the reader: whether distillation
+improves over the student-only reference point and whether adaptive
+multi-teacher weighting adds value beyond fixed averaging or single-teacher
+transfer.
 
 \subsection{Baseline Results}
 Before applying adaptation or distillation, we report the original performance
@@ -60,11 +60,10 @@ Qwen2-VL-2B-Instruct & 79.70 & 90.10 & 89.28 \\
 
 \subsection{Overall Comparison}
 
-The main comparison results across original models, direct fine-tuning,
+The main benchmark results across original models, direct fine-tuning,
 standard logits distillation baselines and \methodname{} are collected in
-Tables~\ref{tab:textvqa-comparison}, \ref{tab:docvqa-comparison} and
-\ref{tab:chartqa-comparison}. The main comparison tables report the strongest
-completed run for each method and benchmark.
+Table~\ref{tab:main-comparison}. This main result table reports the
+strongest completed run for each method and benchmark.
 Uniform, SHM-CKA, REINFORCE and \methodname{} use a four-teacher mixed set
 spanning the Qwen, InternVL and Gemma families.
 Chapter~\ref{chap:evaluation-methodology} documents the four-teacher
@@ -83,204 +82,74 @@ methods such as SHM-CKA, REINFORCE and \methodname{}
 
 \begin{table}[H]
 \centering
-\caption[TextVQA main comparison.]{TextVQA main comparison.}
-\label{tab:textvqa-comparison}
+\caption[Main benchmark comparison.]{Main comparison across TextVQA, DocVQA and ChartQA.}
+\label{tab:main-comparison}
 \scriptsize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.0}
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.45cm}
-                >{\raggedright\arraybackslash}p{1.85cm}
-                >{\raggedright\arraybackslash}p{3.9cm}
-                >{\raggedright\arraybackslash}p{2.25cm}
-                r@{}}
+\setlength{\tabcolsep}{4pt}
+\renewcommand{\arraystretch}{1.1}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{@{}llllrrr@{}}
 \toprule
-\textbf{Category} & \textbf{Method} & \textbf{Teacher} & \textbf{Student} & \textbf{TextVQA} \\
+\textbf{Category} & \textbf{Method} & \textbf{Teacher} & \textbf{Student} & \textbf{TextVQA} & \textbf{DocVQA} & \textbf{ChartQA} \\
 \midrule
-\multicolumn{5}{@{}l@{}}{\textit{Non-distillation references}} \\
+\multicolumn{7}{@{}l@{}}{\textit{Non-distillation references}} \\
 \midrule
-\makecell[l]{Original} & None & None & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{56.75\\47.17} \\
-\addlinespace[1pt]
-\makecell[l]{Reference} & Finetuning & None & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{56.96\\49.83} \\
+\multirow{2}{*}{Original} & \multirow{2}{*}{None} & \multirow{2}{*}{None}
+  & SmolVLM-500M & 56.75 & 59.52 & 62.80 \\
+  & & & SmolVLM-256M & 47.17 & 48.64 & 45.04 \\
+\cmidrule(lr){4-7}
+\addlinespace[3pt]
+\multirow{2}{*}{Reference} & \multirow{2}{*}{Finetuning} & \multirow{2}{*}{None}
+  & SmolVLM-500M & 56.96 & 61.96 & 63.00 \\
+  & & & SmolVLM-256M & 49.83 & 42.03 & 49.68 \\
 \midrule
-\multicolumn{5}{@{}l@{}}{\textit{Same-family distillation baselines}} \\
+\multicolumn{7}{@{}l@{}}{\textit{Same-family distillation baselines}} \\
 \midrule
-& Forward KL & & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{59.00\\50.88} \\
-\addlinespace[1pt]
-Same-family & Reverse KL & SmolVLM2-2.2B & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{44.73\\29.75} \\
-\addlinespace[1pt]
-& Jensen-Shannon & & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{42.33\\33.84} \\
+\multirow{6}{*}{Same-family}
+  & \multirow{2}{*}{Forward KL} & \multirow{6}{*}{SmolVLM2-2.2B}
+    & SmolVLM-500M & 59.00 & 63.55 & 64.52 \\
+  & & & SmolVLM-256M & 50.88 & 49.46 & 56.80 \\
+\cmidrule(lr){4-7}
+\addlinespace[3pt]
+  & \multirow{2}{*}{Reverse KL} &
+    & SmolVLM-500M & 44.73 & 29.28 & 30.16 \\
+  & & & SmolVLM-256M & 29.75 & 23.28 & 17.20 \\
+\cmidrule(lr){4-7}
+\addlinespace[3pt]
+  & \multirow{2}{*}{Jensen-Shannon} &
+    & SmolVLM-500M & 42.33 & 36.43 & 43.75 \\
+  & & & SmolVLM-256M & 33.84 & 33.12 & 50.93 \\
 \midrule
-\multicolumn{5}{@{}l@{}}{\textit{Different-family single-teacher baselines}} \\
+\multicolumn{7}{@{}l@{}}{\textit{Different-family single-teacher baselines}} \\
 \midrule
-Cross-family & ULD & Qwen2-VL-2B-Instruct & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{61.49\\53.95} \\
+\multirow{2}{*}{Cross-family} & \multirow{2}{*}{ULD} & \multirow{2}{*}{Qwen2-VL-2B-Instruct}
+  & SmolVLM-500M & 61.49 & 65.28 & 66.92 \\
+  & & & SmolVLM-256M & 53.95 & 52.24 & 60.96 \\
 \midrule
-\multicolumn{5}{@{}l@{}}{\textit{Multi-teacher baselines}} \\
+\multicolumn{7}{@{}l@{}}{\textit{Multi-teacher baselines}} \\
 \midrule
-& \multirow[c]{2}{=}{Uniform}
-& 
-& SmolVLM-500M & 63.88 \\
-& 
-& 
-& SmolVLM-256M & 54.57 \\
-
-& \multirow[c]{2}{=}{SHM-CKA}
-& \multirow[c]{4}{=}{\makecell[l]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct\\InternVL3-1B\\Gemma-3-4B-it}}
-& SmolVLM-500M & 60.47 \\
-& 
-& 
-& SmolVLM-256M & 55.93 \\
-
-& \multirow[c]{2}{=}{REINFORCE}
-& 
-& SmolVLM-500M & 63.26 \\
-& 
-& 
-& SmolVLM-256M & 56.31 \\
-
-& \multirow[c]{2}{=}{\makecell[l]{\textbf{\methodname{}}\\\textbf{(Ours)}}}
-& 
-& SmolVLM-500M & \textbf{69.38} \\
-& 
-& 
-& SmolVLM-256M & \textbf{60.73} \\
+\multirow{8}{*}{Multi-teacher}
+  & \multirow{2}{*}{Uniform}
+  & \multirow{8}{*}{\(\dagger\)}
+  & SmolVLM-500M & 63.88 & 69.59 & 75.60 \\
+& & & SmolVLM-256M & 54.57 & 55.70 & 63.68 \\
+\cmidrule(lr){4-7}
+& \multirow{2}{*}{SHM-CKA} &
+  & SmolVLM-500M & 60.47 & 63.32 & 76.88 \\
+& & & SmolVLM-256M & 55.93 & 57.24 & 62.40 \\
+\cmidrule(lr){4-7}
+& \multirow{2}{*}{REINFORCE} &
+  & SmolVLM-500M & 63.26 & 64.00 & 70.27 \\
+& & & SmolVLM-256M & 56.31 & 58.53 & 68.74 \\
+\cmidrule(lr){4-7}
+& \multirow{2}{*}{\textbf{\methodname{} (Ours)}} &
+  & SmolVLM-500M & \textbf{69.38} & \textbf{73.11} & \textbf{80.20} \\
+& & & SmolVLM-256M & \textbf{60.73} & \textbf{60.48} & \textbf{72.32} \\
+\addlinespace[2pt]
+\multicolumn{7}{@{}l@{}}{\scriptsize \(\dagger\) Teacher pool: Qwen2-VL-2B-Instruct, Qwen2.5-VL-3B-Instruct, InternVL3-1B, Gemma-3-4B-it.} \\
 \bottomrule
 \end{tabular}
-\end{table}
-
-\begin{table}[H]
-\centering
-\caption[DocVQA main comparison.]{DocVQA main comparison.}
-\label{tab:docvqa-comparison}
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.0}
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.45cm}
-                >{\raggedright\arraybackslash}p{1.85cm}
-                >{\raggedright\arraybackslash}p{3.9cm}
-                >{\raggedright\arraybackslash}p{2.25cm}
-                r@{}}
-\toprule
-\textbf{Category} & \textbf{Method} & \textbf{Teacher} & \textbf{Student} & \textbf{DocVQA} \\
-\midrule
-\multicolumn{5}{@{}l@{}}{\textit{Non-distillation references}} \\
-\midrule
-\makecell[l]{Original} & None & None & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{59.52\\48.64} \\
-\addlinespace[1pt]
-\makecell[l]{Reference} & Finetuning & None & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{61.96\\42.03} \\
-\midrule
-
-\multicolumn{5}{@{}l@{}}{\textit{Same-family distillation baselines}} \\
-\midrule
-& Forward KL & & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{63.55\\49.46} \\
-\addlinespace[1pt]
-Same-family & Reverse KL & SmolVLM2-2.2B & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{29.28\\23.28} \\
-\addlinespace[1pt]
-& Jensen-Shannon & & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{36.43\\33.12} \\
-\midrule
-
-\multicolumn{5}{@{}l@{}}{\textit{Different-family single-teacher baselines}} \\
-\midrule
-Cross-family & ULD & Qwen2-VL-2B-Instruct & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{65.28\\52.24} \\
-\midrule
-
-\multicolumn{5}{@{}l@{}}{\textit{Multi-teacher baselines}} \\
-\midrule
-& \multirow[c]{2}{=}{Uniform}
-& 
-& SmolVLM-500M & 69.59 \\
-& 
-& 
-& SmolVLM-256M & 55.70 \\
-
-& \multirow[c]{2}{=}{SHM-CKA}
-& \multirow[c]{4}{=}{\makecell[l]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct\\InternVL3-1B\\Gemma-3-4B-it}}
-& SmolVLM-500M & 63.32 \\
-& 
-& 
-& SmolVLM-256M & 57.24 \\
-
-& \multirow[c]{2}{=}{REINFORCE}
-& 
-& SmolVLM-500M & 64.00 \\
-& 
-& 
-& SmolVLM-256M & 58.53 \\
-
-& \multirow[c]{2}{=}{\makecell[l]{\textbf{\methodname{}}\\\textbf{(Ours)}}}
-& 
-& SmolVLM-500M & \textbf{73.11} \\
-& 
-& 
-& SmolVLM-256M & \textbf{60.48} \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-
-\begin{table}[H]
-\centering
-\caption[ChartQA main comparison.]{ChartQA main comparison.}
-\label{tab:chartqa-comparison}
-\scriptsize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.0}
-\begin{tabular}{@{}>{\raggedright\arraybackslash}p{1.45cm}
-                >{\raggedright\arraybackslash}p{1.85cm}
-                >{\raggedright\arraybackslash}p{3.9cm}
-                >{\raggedright\arraybackslash}p{2.25cm}
-                r@{}}
-\toprule
-\textbf{Category} & \textbf{Method} & \textbf{Teacher} & \textbf{Student} & \textbf{ChartQA} \\
-\midrule
-\multicolumn{5}{@{}l@{}}{\textit{Non-distillation references}} \\
-\midrule
-\makecell[l]{Original} & None & None & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{62.80\\45.04} \\
-\addlinespace[1pt]
-\makecell[l]{Reference} & Finetuning & None & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{63.00\\49.68} \\
-\midrule
-\multicolumn{5}{@{}l@{}}{\textit{Same-family distillation baselines}} \\
-\midrule
-& Forward KL & & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{64.52\\56.80} \\
-\addlinespace[1pt]
-Same-family & Reverse KL & SmolVLM2-2.2B & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{30.16\\17.20} \\
-\addlinespace[1pt]
-& Jensen-Shannon & & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{43.75\\50.93} \\
-\midrule
-\multicolumn{5}{@{}l@{}}{\textit{Different-family single-teacher baselines}} \\
-\midrule
-Cross-family & ULD & Qwen2-VL-2B-Instruct & \makecell[l]{SmolVLM-500M\\SmolVLM-256M} & \makecell[r]{66.92\\60.96} \\
-\midrule
-\multicolumn{5}{@{}l@{}}{\textit{Multi-teacher baselines}} \\
-\midrule
-& \multirow[c]{2}{=}{Uniform}
-& 
-& SmolVLM-500M & 75.60 \\
-& 
-& 
-& SmolVLM-256M & 63.68 \\
-
-& \multirow[c]{2}{=}{SHM-CKA}
-& \multirow[c]{4}{=}{\makecell[l]{Qwen2-VL-2B-Instruct\\Qwen2.5-VL-3B-Instruct\\InternVL3-1B\\Gemma-3-4B-it}}
-& SmolVLM-500M & 76.88 \\
-& 
-& 
-& SmolVLM-256M & 62.40 \\
-
-& \multirow[c]{2}{=}{REINFORCE}
-& 
-& SmolVLM-500M & 70.27 \\
-& 
-& 
-& SmolVLM-256M & 68.74 \\
-
-& \multirow[c]{2}{=}{\makecell[l]{\textbf{\methodname{}}\\\textbf{(Ours)}}}
-& 
-& SmolVLM-500M & \textbf{80.20} \\
-& 
-& 
-& SmolVLM-256M & \textbf{72.32} \\
-\bottomrule
-\end{tabular}
+}
 \end{table}
 
 On DocVQA, \methodname{} rises from 69.59 to 73.11 on SmolVLM-500M and from
@@ -331,18 +200,23 @@ and aggregates
 \mathbf{H}_{\mathrm{sent}}=\sum_t \delta_t \mathbf{H}_t .
 \]
 Here \(\delta_t=1/|\Omega_{\mathrm{ans}}|\) for answer tokens
-\(t\in\Omega_{\mathrm{ans}}\) and \(\delta_t=0\) otherwise, so the
-sentence-level map is the uniform average of token-level maps over the
-generated answer span. \(\Omega_{\mathrm{ans}}\) is the set of generated answer
-token positions.
-We prefer DEX-AR over raw attention maps or generic saliency because the model
-is autoregressive and the target is answer-token grounding, not generic image
-saliency. Figure~\ref{fig:dexar-architecture} summarizes this attribution
-pipeline before the qualitative TextVQA example.
+\(t\in\Omega_{\mathrm{ans}}\), where \(\Omega_{\mathrm{ans}}\) is the set of
+generated answer token positions and \(\delta_t=0\) otherwise. The
+sentence-level map is therefore the uniform average of token-level maps over
+the generated answer span.
+
+Raw attention maps and generic saliency methods are not well suited here
+because the model is autoregressive and the quantity of interest is which
+image regions drove the answer, not which regions are visually salient in
+general. DEX-AR is designed for this target: it attributes each answer token
+back to the input image and averages those attributions across the answer
+span. Figure~\ref{fig:dexar-architecture} summarizes the pipeline before the
+qualitative TextVQA example, making the later heatmaps easier to interpret as
+answer-grounding evidence, not generic saliency maps.
 
 \begin{figure}[H]
     \centering
-    \includegraphics[width=0.82\linewidth]{figures/dexar_architecture.jpg}
+    \includegraphics[width=0.74\linewidth]{figures/dexar_architecture.jpg}
     \caption[DEX-AR overview.]{DEX-AR overview.}
     \label{fig:dexar-architecture}
 \end{figure}
@@ -350,27 +224,27 @@ pipeline before the qualitative TextVQA example.
 Figure~\ref{fig:textvqa-sample3-qualitative} gives a representative TextVQA
 example. Sample 3 asks \emph{``who is this copyrighted by?''} The relevant
 visual evidence is the copyright text on the lower-left border. The original
-SmolVLM-500M assigns high attention to the \emph{Virgin} logo instead of this
+SmolVLM-500M assigns high attention to the \emph{Virgin} logo, not this
 region. \methodname{} shifts attention toward the copyright text, reducing this
 error.
 
 \begin{figure}[H]
     \centering
-    \begin{subfigure}[t]{0.48\linewidth}
+    \begin{subfigure}[t]{0.42\linewidth}
         \centering
         \includegraphics[width=\linewidth]{figures/input_image.png}
         \caption{Input image}
     \end{subfigure}
 
-    \vspace{0.5em}
+    \vspace{0.35em}
 
-    \begin{subfigure}[t]{0.34\linewidth}
+    \begin{subfigure}[t]{0.30\linewidth}
         \centering
         \includegraphics[width=\linewidth]{figures/original_smolvlm_500_heatmap.png}
         \caption{Original SmolVLM-500M}
     \end{subfigure}
     \hfill
-    \begin{subfigure}[t]{0.34\linewidth}
+    \begin{subfigure}[t]{0.30\linewidth}
         \centering
         \includegraphics[width=\linewidth]{figures/grace_smolvlm_500_heatmap.png}
         \caption{\methodname{} SmolVLM-500M}
@@ -381,7 +255,8 @@ error.
 
 \begin{rqanswerbox}{Answer to RQ1}
 \methodname{} improves over direct finetuning, same-family logits KD,
-ULD and the compared heterogeneous multi-teacher baselines. The
+ULD and the compared heterogeneous multi-teacher baselines in
+Table~\ref{tab:main-comparison}. The
 ranking is clear: same-family logits baselines are weakest, cross-family ULD is
 stronger, multi-teacher baselines improve further and \methodname{} is best
 overall. Within the multi-teacher group, static
@@ -427,7 +302,7 @@ decreases more steadily after the early training phase.
     \begin{subfigure}[t]{0.74\linewidth}
         \centering
         \includegraphics[width=\linewidth]{figures/GRACE-non-collapse.png}
-        \caption{With \methodname{}}
+        \caption{With \methodname{}}    
     \end{subfigure}
     \caption[Routed-teacher load examples.]{Routed-teacher load examples.}
     \label{fig:router-collapse-comparison}
@@ -437,25 +312,33 @@ Figure~\ref{fig:router-collapse-comparison} contrasts collapsed and stable
 routing behavior. Without the full \methodname{} recipe, the routed load
 concentrates on one teacher, reducing teacher diversity. With \methodname{},
 the load stays distributed across the teacher pool, so the student continues
-to receive heterogeneous supervision. The benchmark gains in
+to receive heterogeneous supervision. The relative gains in
 Table~\ref{tab:grace-relative-gains} are consistent with this routing behavior.
 Relative gain is computed as
 \((\text{\methodname} - \text{baseline}) / \text{baseline}\).
 
 \begin{table}[H]
 \centering
-\caption[Relative gains of \methodname{} on SmolVLM-500M.]{Relative gains of \methodname{} on SmolVLM-500M.}
+\caption[Relative gains of \methodname{}.]{Relative gains of \methodname{}.}
 \label{tab:grace-relative-gains}
 \scriptsize
-\setlength{\tabcolsep}{3pt}
-\renewcommand{\arraystretch}{1.02}
-\begin{tabular}{lcccc}
+\setlength{\tabcolsep}{5pt}
+\renewcommand{\arraystretch}{1.08}
+\begin{tabular}{@{}lrrrr@{}}
 \toprule
 \textbf{Benchmark} & \textbf{vs Original} & \textbf{vs Finetuning} & \textbf{vs Uniform} & \makecell[c]{\textbf{vs Best}\\\textbf{non-\methodname{}}} \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{SmolVLM-500M}} \\
 \midrule
 TextVQA & +12.63 (+22.26\%) & +12.42 (+21.80\%) & +5.50 (+8.61\%) & +5.38 (+8.41\%) \\
 DocVQA & +13.59 (+22.83\%) & +11.15 (+18.00\%) & +3.52 (+5.06\%) & +3.52 (+5.06\%) \\
 ChartQA & +17.40 (+27.71\%) & +17.20 (+27.30\%) & +4.60 (+6.08\%) & +3.32 (+4.32\%) \\
+\midrule
+\multicolumn{5}{@{}l@{}}{\textit{SmolVLM-256M}} \\
+\midrule
+TextVQA & +13.56 (+28.75\%) & +10.90 (+21.88\%) & +6.16 (+11.29\%) & +4.42 (+7.85\%) \\
+DocVQA & +11.84 (+24.34\%) & +18.45 (+43.90\%) & +4.78 (+8.58\%) & +1.95 (+3.33\%) \\
+ChartQA & +27.28 (+60.57\%) & +22.64 (+45.57\%) & +8.64 (+13.57\%) & +3.58 (+5.21\%) \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -504,8 +387,9 @@ On TextVQA, \methodname{} reaches 69.38 and exceeds Gemma-3-4B-it at 57.80 by
 This shows that routed multi-teacher supervision can combine useful signals
 that are not available from any single teacher alone.
 
-\textbf{One negative result is also consistent: reverse KL is much weaker than
-forward KL.} This can be explained by the different student-logit gradients.
+\textbf{One negative result is also consistent.}
+Reverse KL is much weaker than forward KL. This can be explained by the
+different student-logit gradients.
 Let \(p_s=\mathrm{softmax}(z_s)\) be the student distribution and let \(p_t\)
 be the fixed teacher distribution. For forward KL,
 \[
@@ -622,7 +506,7 @@ The main question is whether strong internal similarity is enough to justify
 layer-wise distillation. The results show that it is not, as the
 figures and tables below confirm.
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \begin{subfigure}[t]{0.48\linewidth}
         \centering
@@ -639,10 +523,14 @@ figures and tables below confirm.
     \label{fig:exp-cka-multi-dataset}
 \end{figure}
 
-The final-layer maps show that the teacher and student are not severely
-misaligned in representation space.
+Figure~\ref{fig:exp-cka-multi-dataset} compares late hidden layers of
+Qwen2-VL-2B-Instruct and SmolVLM-500M. The TextVQA heatmap contains moderate
+similarities, mostly around 0.55 to 0.74, with higher values toward later
+student layers. The DocVQA heatmap is much brighter, with most entries around
+0.87 to 0.93. These values show that the final language-side representations are
+not severely misaligned, especially on document-style inputs.
 
-\begin{figure}[htbp]
+\begin{figure}[H]
     \centering
     \begin{subfigure}[t]{0.48\linewidth}
         \centering
@@ -659,16 +547,18 @@ misaligned in representation space.
     \label{fig:exp-cka-vision-multi-dataset}
 \end{figure}
 
-Teacher and student can remain relatively close in both the language and vision
-stacks, as Figures~\ref{fig:exp-cka-multi-dataset} and
-\ref{fig:exp-cka-vision-multi-dataset} indicate. However, the benchmark
-comparisons in Tables~\ref{tab:textvqa-comparison},
-\ref{tab:docvqa-comparison} and \ref{tab:chartqa-comparison} still contain a
-clear gap between the student models and stronger teachers. The layer-wise baseline also fails to
-consistently outperform output-level distillation. This pattern supports the design choice in GRACE: output-level
-tokenizer-agnostic KD and sample-dependent teacher weighting are more reliable
-than representation matching alone, because high hidden-state similarity is not
-a reliable signal that direct layer matching will produce better task transfer.
+Figure~\ref{fig:exp-cka-vision-multi-dataset} shows the same pattern in the
+vision stack. Both datasets contain broad high-similarity regions and the
+DocVQA vision map is especially strong across the middle layers. Teacher and
+student can therefore remain relatively close in both language and vision
+representations. However, the main benchmark results in
+Table~\ref{tab:main-comparison} still contain a clear gap between the student
+models and stronger teachers. The layer-wise baseline also fails to
+consistently outperform output-level distillation. This pattern supports the
+design choice in GRACE: output-level tokenizer-agnostic KD and sample-dependent
+teacher weighting are more reliable than representation matching alone, because
+high hidden-state similarity is not a reliable signal that direct layer
+matching will produce better task transfer.
 
 \section{Ablation Study}
 \label{sec:ablation}
@@ -682,18 +572,21 @@ models reported in Table~\ref{tab:docvqa-planned-ablation}.
 \caption[DocVQA component ablation.]{DocVQA component ablation.}
 \label{tab:docvqa-planned-ablation}
 \scriptsize
-\setlength{\tabcolsep}{4pt}
-\renewcommand{\arraystretch}{0.94}
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.1}
 \begin{tabular}{@{}lcc@{}}
 \toprule
-\textbf{DocVQA ablation variant} & \makecell[c]{\textbf{SmolVLM-}\\\textbf{256M}} & \makecell[c]{\textbf{SmolVLM-}\\\textbf{500M}} \\
+& \multicolumn{2}{c}{\textbf{SmolVLM}} \\
+\cmidrule(l){2-3}
+\textbf{DocVQA ablation variant} & \textbf{256M} & \textbf{500M} \\
 \midrule
 Cross-family ULD (single teacher) & 52.24 & 65.28 \\
 Uniform averaging & 55.70 & 69.59 \\
 Routing only + trie-Wasserstein & 57.45 & 63.23 \\
-Full GRACE + trie-Wasserstein & 60.48 & 73.11 \\
-\makecell[l]{Full GRACE + trie-Wasserstein\\(\(\lambda_{\mathrm{blend}}=1.0\))} & 57.97 & 70.45 \\
-\makecell[l]{Full GRACE + trie-Wasserstein\\(\(\beta_{\mathrm{EMA}}=0\))} & 57.45 & 71.25 \\
+Full GRACE + trie-Wasserstein & \textbf{60.48} & \textbf{73.11} \\
+\addlinespace[4pt]
+\hspace{1em}w/o EMA (\(\beta_{\mathrm{EMA}}=0\)) & 57.45 & 71.25 \\
+\hspace{1em}w/ fixed blend (\(\lambda_{\mathrm{blend}}=1.0\)) & 57.97 & 70.45 \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -759,11 +652,12 @@ the observed Cloudflare R2 storage footprint.
 
 \begin{rqanswerbox}{Answer to RQ3}
 \methodname{} is mainly limited by GPU training and offline logit generation,
-not object storage. A 7-hour H200 run costs about 14.41 USD, while the 1.04 TB
-Cloudflare R2 logit store in Figure~\ref{fig:r2-storage} costs about
-15.60 USD/month for storage plus 3.71 USD for billable Class B operations, or
-about 19.31 USD/month before rounding. The practical efficiency bottleneck is
-compute, not storage.
+not object storage. Figure~\ref{fig:r2-storage} shows the R2 bucket used for
+teacher-logit caches, with dataset- and teacher-specific directories and a
+total footprint of 1.04 TB. A 7-hour H200 run costs about 14.41 USD, while this
+R2 logit store costs about 15.60 USD/month for storage plus 3.71 USD for
+billable Class B operations or about 19.31 USD/month before rounding. The
+practical efficiency bottleneck is compute, not storage.
 \end{rqanswerbox}
 
 \section{Discussion}
@@ -812,10 +706,10 @@ g_{CE}^{\top}\Delta\theta
 \eta\alpha_{KD}\sum_i w_i\langle g_{CE},g_i\rangle.
 \]
 If \(\langle g_{CE},g_i\rangle<0\), then teacher \(i\) contributes a term that
-increases the first-order CE loss instead of reducing it. This is the
+increases the first-order CE loss when the supervised objective should decrease. This is the
 gradient-conflict case studied in multi-task optimization
 \cite{yu2020gradient}. GRACE does not project gradients as PCGrad does.
-Instead, it uses the cosine agreement
+It uses the cosine agreement
 \[
 \cos(g_{CE},g_i)
 =
@@ -829,7 +723,7 @@ assignment is most useful when the task mixes visual parsing and numerical
 reasoning and the method benefits both evaluated student models. The comparison
 with SHM-CKA reinforces this conclusion by showing that
 heterogeneous teacher access is not enough when the method relies only on
-hidden-state matching instead of routed output-level KD. SHM-CKA is
+hidden-state matching with no routed output-level KD. SHM-CKA is
 competitive on ChartQA yet clearly weaker on TextVQA and DocVQA. Together with
 the CKA heatmaps, this confirms that internal similarity alone does not
 guarantee effective transfer. \textbf{Sample-dependent teacher weighting

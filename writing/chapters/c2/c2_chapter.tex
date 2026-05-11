@@ -27,8 +27,8 @@ text embeddings contrastively, cross-attention models let language tokens
 attend to visual features directly and projector-based models map visual
 embeddings into the language model hidden space and then decode with a standard
 causal language model. This thesis focuses on the projector-based generative
-design, because distillation is applied to output token distributions rather
-than retrieval embeddings.
+design, because distillation targets output token distributions, not retrieval
+embeddings.
 
 \stepcounter{footnote}
 \begin{figure}[tp]
@@ -230,8 +230,8 @@ al.~\cite{hinton2015distillingknowledgeneuralnetwork} and remains common in
 language-model and VLM compression
 \cite{xu2024surveyknowledgedistillationlarge,fang2021compressingvlm}.
 
-\textit{Feature-based} distillation instead aligns intermediate
-representations. Given student and teacher hidden states
+\textit{Feature-based} distillation aligns intermediate representations
+between student and teacher layers. Given student and teacher hidden states
 \(\mathbf{H}_s^{(\ell)}\) and \(\mathbf{H}_t^{(m)}\) at selected layers, a
 direct matching objective is
 \begin{equation}
@@ -246,12 +246,12 @@ direct matching objective is
 where \(\phi_s\) and \(\phi_t\) are projection functions that make the hidden
 states comparable. Feature-based methods are useful when output vocabularies
 are incompatible, because the comparison can be defined in representation
-space instead of vocabulary space
+space without vocabulary-space matching
 \cite{dasgupta2025improving,kornblith2019similarityrepresentations}. However,
 they are less directly connected to answer likelihood and may transfer
 teacher-specific internal structure that is not useful for the downstream task.
 This distinction motivates treating response-level and representation-level
-signals as complementary instead of interchangeable.
+signals as complementary, not interchangeable.
 
 
 \begin{table}[H]
@@ -421,8 +421,8 @@ w(e)\,
 \label{eq:prelim-tree-wasserstein}
 \end{equation}
 where \(\Gamma(e)\) denotes the subtree below edge \(e\). The key point is that,
-on a tree metric, transport decomposes into edgewise subtree-mass imbalance
-instead of a dense source-target coupling
+on a tree metric, transport decomposes into edgewise subtree-mass imbalance and
+avoids a dense source-target coupling
 \cite{takezawa2021supervisedtreewasserstein,leyamadafukumizucuturi2019treesliced}.
 The computation is efficient because the comparison follows the tree hierarchy
 directly and avoids materializing a full pairwise transport matrix.
@@ -459,8 +459,8 @@ admitting fast closed-form computations
 
 \subsection{Hidden-State Alignment}
 
-Representation matching transfers knowledge by comparing intermediate hidden
-states instead of final token distributions. Let
+Representation matching transfers knowledge through intermediate hidden-state
+comparison, not final token distributions. Let
 \(\mathbf{H}_s\in\mathbb{R}^{n_s\times d_s}\) and
 \(\mathbf{H}_t\in\mathbb{R}^{n_t\times d_t}\) denote student and teacher
 hidden-state matrices. Because the sequence lengths and dimensions may differ,
@@ -484,7 +484,7 @@ multimodal states \cite{dasgupta2025improving}.
 \subsection{Centered Kernel Alignment (CKA)}
 
 Centered Kernel Alignment (CKA) compares representations through their
-similarity structure instead of through elementwise hidden-state equality
+similarity structure, not through elementwise hidden-state equality
 \cite{kornblith2019similarityrepresentations}. Given two activation matrices
 \(\mathbf{X}\in\mathbb{R}^{n\times d_x}\) and
 \(\mathbf{Y}\in\mathbb{R}^{n\times d_y}\) for the same \(n\) examples, the
@@ -659,9 +659,9 @@ capacity are coupled: good balancing allows a small capacity factor without
 losing many routed items.
 
 Load balancing can also be enforced by changing the routing direction.
-Expert-choice routing lets each expert select a fixed number of items rather
-than letting each item independently select experts. If \(c\) is a capacity
-factor, each expert receives
+Expert-choice routing reverses the assignment: each expert selects a fixed
+number of items, while item-choice routing lets each item independently select
+experts. If \(c\) is a capacity factor, each expert receives
 \begin{equation}
 C_{EC}
 =
@@ -734,14 +734,14 @@ and another may depend mainly on natural image recognition. A router can learn
 to give different experts or teachers different responsibility across these
 cases.
 
-The mathematical distinction is simple. A global weighting scheme uses one
-vector \(\boldsymbol{\pi}\in\Delta^{N-1}\) for the full training set:
+The mathematical distinction can be stated compactly. A global weighting scheme
+uses one vector \(\boldsymbol{\pi}\in\Delta^{N-1}\) for the full training set:
 \begin{equation}
 \mathcal{L}^{(b)}
 =
 \sum_{i=1}^{N}\pi_i \mathcal{L}_i^{(b)}.
 \end{equation}
-A sample-adaptive scheme instead uses \(w_i^{(b)}\):
+A sample-adaptive scheme uses \(w_i^{(b)}\):
 \begin{equation}
 \mathcal{L}^{(b)}
 =
@@ -755,11 +755,11 @@ or irrelevant teachers dominate the update for a sample.
 
 \subsection{Routing in Distillation Settings}
 
-In distillation, experts can be interpreted as frozen teachers instead of
-trainable feed-forward modules. The router does not combine hidden activations.
-Instead, it combines teacher-guided losses. If \(T_i\) is teacher \(i\), then
-teacher \(T_i\) contributes a loss \(\mathcal{L}_{KD}^{(b,i)}\) for sample
-\(b\). A routed distillation loss takes the form
+In distillation, frozen teachers can play the role of experts. The router does
+not combine hidden activations. Its role is to combine teacher-guided losses.
+If \(T_i\) is teacher \(i\), then teacher \(T_i\) contributes a loss
+\(\mathcal{L}_{KD}^{(b,i)}\) for sample \(b\). A routed distillation loss takes
+the form
 \begin{equation}
 \mathcal{L}_{route}^{(b)}
 =
@@ -809,7 +809,7 @@ w_i^{(b)}\ge0,
 \qquad
 \sum_{i=1}^{N}w_i^{(b)}=1.
 \end{equation}
-Uniform averaging is the special case \(w_i^{(b)}=1/N\). A routed method instead
+Uniform averaging is the special case \(w_i^{(b)}=1/N\). A routed method
 lets the weights depend on the sample, the student state and the current
 teacher-selection policy. This is useful when teachers specialize differently:
 one teacher may be stronger on documents, another on charts and another on
@@ -828,7 +828,7 @@ w_i^{(b)}=\pi_i,
 \end{equation}
 This is simple and stable, but it cannot express that teacher \(T_i\) may be
 helpful for chart questions and less helpful for document questions. A
-sample-dependent method instead predicts
+sample-dependent method predicts
 \(\mathbf{w}^{(b)}=R_{\phi}(x_b)\), where \(R_{\phi}\) is a router or
 teacher-selection policy. Reinforced teacher selection and meta-learned
 teacher weighting are examples of adaptive multi-teacher KD

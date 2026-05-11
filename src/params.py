@@ -24,6 +24,11 @@ class TrainingArguments(HFTrainingArguments):
     adam_epsilon: float = field(default=1e-7)
 
     disable_flash_attn2: bool = field(default=False)
+    freeze_vision_tower: bool = field(default=False)
+    freeze_llm: bool = field(default=False)
+    freeze_connector: bool = field(default=False)
+    vision_lr: Optional[float] = field(default=None)
+    connector_lr: Optional[float] = field(default=None)
 
     max_seq_length: int = field(
         default=16384,

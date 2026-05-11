@@ -8,19 +8,19 @@
 \contentsline {figure}{\numberline {3.2}{\ignorespaces Shared-trie tokenizer matching.\relax }}{26}{figure.caption.8}%
 \contentsline {figure}{\numberline {3.3}{\ignorespaces Sparse trie-Wasserstein support.\relax }}{28}{figure.caption.9}%
 \contentsline {figure}{\numberline {3.4}{\ignorespaces Teacher routing network.\relax }}{30}{figure.caption.10}%
-\contentsline {figure}{\numberline {3.5}{\ignorespaces Top-\(k\) routing dynamics.}}{30}{figure.caption.11}%
-\contentsline {figure}{\numberline {3.6}{\ignorespaces Representative KD weighting regimes.}}{34}{figure.caption.12}%
+\contentsline {figure}{\numberline {3.5}{\ignorespaces Top-\(k\) routing dynamics.}}{31}{figure.caption.11}%
+\contentsline {figure}{\numberline {3.6}{\ignorespaces Representative KD weighting regimes.}}{35}{figure.caption.12}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {4.1}{\ignorespaces Representative dataset examples.}}{37}{figure.caption.13}%
-\contentsline {figure}{\numberline {4.2}{\ignorespaces R2 teacher-logit storage.}}{42}{figure.caption.16}%
-\contentsline {figure}{\numberline {4.3}{\ignorespaces Training with remote teacher logits.\relax }}{43}{figure.caption.17}%
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Representative dataset examples.}}{38}{figure.caption.13}%
+\contentsline {figure}{\numberline {4.2}{\ignorespaces R2 teacher-logit storage.}}{44}{figure.caption.16}%
+\contentsline {figure}{\numberline {4.3}{\ignorespaces Training with remote teacher logits.\relax }}{45}{figure.caption.17}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {5.1}{\ignorespaces Grouped benchmark comparison.}}{48}{figure.caption.23}%
-\contentsline {figure}{\numberline {5.2}{\ignorespaces DEX-AR overview.}}{49}{figure.caption.24}%
-\contentsline {figure}{\numberline {5.3}{\ignorespaces Representative TextVQA attention example.}}{50}{figure.caption.25}%
-\contentsline {figure}{\numberline {5.4}{\ignorespaces Uniform and GRACE training curves.}}{51}{figure.caption.26}%
-\contentsline {figure}{\numberline {5.5}{\ignorespaces Routed-teacher load examples.}}{52}{figure.caption.27}%
-\contentsline {figure}{\numberline {5.6}{\ignorespaces Final-layer CKA heatmaps.}}{55}{figure.caption.30}%
-\contentsline {figure}{\numberline {5.7}{\ignorespaces Vision-layer CKA heatmaps.}}{56}{figure.caption.31}%
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Grouped benchmark comparison.}}{49}{figure.caption.21}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces DEX-AR overview.}}{50}{figure.caption.22}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces Representative TextVQA attention example.}}{51}{figure.caption.23}%
+\contentsline {figure}{\numberline {5.4}{\ignorespaces Uniform and GRACE training curves.}}{52}{figure.caption.24}%
+\contentsline {figure}{\numberline {5.5}{\ignorespaces Routed-teacher load examples.}}{53}{figure.caption.25}%
+\contentsline {figure}{\numberline {5.6}{\ignorespaces Final-layer CKA heatmaps.}}{56}{figure.caption.28}%
+\contentsline {figure}{\numberline {5.7}{\ignorespaces Vision-layer CKA heatmaps.}}{57}{figure.caption.29}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
