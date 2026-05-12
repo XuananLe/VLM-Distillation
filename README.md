@@ -16,23 +16,6 @@ The implemented training stack is centered on cache-backed distillation: teacher
 - full SFT launchers
 - a separate evaluation stack under `src/eval/`
 
-## Documentation
-
-- [interview_questions/](interview_questions)
-  - code-navigation questions for understanding the implemented runtime
-- [DEX-AR Demo](demo/DEX-AR/README.md)
-  - separate explainability demo bundled in this repository
-
-## Source of Truth
-
-If you are trying to understand what currently runs, prioritize these directories:
-
-- `src/train`
-- `src/trainer`
-- `src/dataset`
-- `src/components`
-
-The checked-in docs describe the implemented runtime, not just the intended research direction.
 
 ## Quick Start
 
@@ -216,7 +199,6 @@ One practical consequence of the current design:
 - The distillation runtime is cache-first. Provide `--teacher_logits_cache_dir`.
 - `GRACE` is part of the `routing` path. It refines routed teacher weights; it is not a separate weighting strategy.
 - `src/eval` is a separate stack and is not part of the core training loop.
-- `modal_app.py` is remote execution glue. Its checked-in local entrypoint currently drops into the DEX-AR demo, not the main training path.
 - Test coverage is currently narrow and mainly exercises the custom DeepSpeed fallback in [`tests/trainer/test_sft_trainer_deepspeed.py`](tests/trainer/test_sft_trainer_deepspeed.py).
 
 ## License

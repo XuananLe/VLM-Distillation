@@ -203,10 +203,7 @@ Here \(\delta_t=1/|\Omega_{\mathrm{ans}}|\) for answer tokens
 \(t\in\Omega_{\mathrm{ans}}\), where \(\Omega_{\mathrm{ans}}\) is the set of
 generated answer token positions and \(\delta_t=0\) otherwise. The
 sentence-level map is therefore the uniform average of token-level maps over
-the generated answer span.
-
-Raw attention maps and generic saliency methods are not well suited here
-because the model is autoregressive and the quantity of interest is which
+the generated answer span. Raw attention maps and generic saliency methods are not well suited here because the model is autoregressive and the quantity of interest is which
 image regions drove the answer, not which regions are visually salient in
 general. DEX-AR is designed for this target: it attributes each answer token
 back to the input image and averages those attributions across the answer

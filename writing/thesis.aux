@@ -138,16 +138,16 @@
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.5.5}Routing in Distillation Settings}{17}{subsection.2.5.5}\protected@file@percent }
 \citation{zhu2021studentcustomized}
 \citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
+\citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
 \@writefile{toc}{\contentsline {section}{\numberline {2.6}Multi-Teacher Distillation}{18}{section.2.6}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.6.1}Weighted Teacher Aggregation}{18}{subsection.2.6.1}\protected@file@percent }
-\citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
+\@writefile{toc}{\contentsline {subsection}{\numberline {2.6.2}Fixed vs. Sample-Dependent Weighting}{18}{subsection.2.6.2}\protected@file@percent }
 \citation{zhu2021studentcustomized,yu2020gradient}
 \citation{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge,fang2021compressingvlm,hu2024visualprogramdistillation,yang2024clipcid}
 \citation{boizard2024towardscrosstokenizerdistillation,takezawa2021supervisedtreewasserstein,leyamadafukumizucuturi2019treesliced,dasgupta2025improving}
 \citation{kornblith2019similarityrepresentations}
 \citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
 \citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice,zhu2021studentcustomized}
-\@writefile{toc}{\contentsline {subsection}{\numberline {2.6.2}Fixed vs. Sample-Dependent Weighting}{19}{subsection.2.6.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {2.6.3}Gradient Conflict in Multi-Objective Optimization}{19}{subsection.2.6.3}\protected@file@percent }
 \newlabel{subsec:gradient-conflict}{{2.6.3}{19}{Gradient Conflict in Multi-Objective Optimization}{subsection.2.6.3}{}}
 \newlabel{eq:prelim-combined-loss}{{2.35}{19}{Gradient Conflict in Multi-Objective Optimization}{equation.2.6.35}{}}
@@ -164,11 +164,10 @@
 \citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhu2021studentcustomized}
 \@writefile{lof}{\contentsline {figure}{\numberline {3.1}{\ignorespaces Overview of the GRACE architecture.}}{22}{figure.caption.6}\protected@file@percent }
 \newlabel{fig:grace-architecture}{{3.1}{22}{Overview of the GRACE architecture}{figure.caption.6}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1.1}Notation}{23}{subsection.3.1.1}\protected@file@percent }
 \@writefile{lot}{\contentsline {table}{\numberline {3.1}{\ignorespaces Main notation.\relax }}{23}{table.caption.7}\protected@file@percent }
 \newlabel{tab:notation}{{3.1}{23}{Main notation.\relax }{table.caption.7}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.1.2}Training Flow}{24}{subsection.3.1.2}\protected@file@percent }
-\newlabel{subsec:training-flow}{{3.1.2}{24}{Training Flow}{subsection.3.1.2}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.1.1}Training Flow}{24}{subsection.3.1.1}\protected@file@percent }
+\newlabel{subsec:training-flow}{{3.1.1}{24}{Training Flow}{subsection.3.1.1}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {3.2}Trie-Wasserstein Cross-Tokenizer Distillation}{24}{section.3.2}\protected@file@percent }
 \newlabel{sec:trie-wasserstein-distillation}{{3.2}{24}{Trie-Wasserstein Cross-Tokenizer Distillation}{section.3.2}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.2.1}Supervised Answer Tokens}{24}{subsection.3.2.1}\protected@file@percent }
@@ -188,22 +187,22 @@
 \@writefile{toc}{\contentsline {section}{\numberline {3.3}Teacher Routing Network}{29}{section.3.3}\protected@file@percent }
 \newlabel{sec:teacher-routing-network}{{3.3}{29}{Teacher Routing Network}{section.3.3}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.3.1}Router Architecture}{29}{subsection.3.3.1}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.4}{\ignorespaces Teacher routing network.\relax }}{29}{figure.caption.10}\protected@file@percent }
+\newlabel{fig:deep-router}{{3.4}{29}{Teacher routing network.\relax }{figure.caption.10}{}}
 \newlabel{eq:router-logits}{{3.11}{29}{Router Architecture}{equation.3.3.11}{}}
-\newlabel{eq:router-softmax}{{3.12}{29}{Router Architecture}{equation.3.3.12}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.4}{\ignorespaces Teacher routing network.\relax }}{30}{figure.caption.10}\protected@file@percent }
-\newlabel{fig:deep-router}{{3.4}{30}{Teacher routing network.\relax }{figure.caption.10}{}}
+\newlabel{eq:router-softmax}{{3.12}{30}{Router Architecture}{equation.3.3.12}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.3.2}Top-k Routing}{30}{subsection.3.3.2}\protected@file@percent }
 \newlabel{eq:constrained_gate_weights}{{3.14}{30}{Top-k Routing}{equation.3.3.14}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {3.5}{\ignorespaces Top-\(k\) routing dynamics.}}{31}{figure.caption.11}\protected@file@percent }
 \newlabel{fig:grace-routing-dynamics}{{3.5}{31}{Top-\(k\) routing dynamics}{figure.caption.11}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.3.3}Router Entropy and Z-Loss}{31}{subsection.3.3.3}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {3.4}Gradient-Agreement Refinement}{32}{section.3.4}\protected@file@percent }
-\newlabel{sec:gradient-agreement-refinement}{{3.4}{32}{Gradient-Agreement Refinement}{section.3.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.4}Gradient-Agreement Refinement}{31}{section.3.4}\protected@file@percent }
+\newlabel{sec:gradient-agreement-refinement}{{3.4}{31}{Gradient-Agreement Refinement}{section.3.4}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.4.1}Gradient Agreement Scoring}{32}{subsection.3.4.1}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.4.2}Agreement Scores and Active Set}{32}{subsection.3.4.2}\protected@file@percent }
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.4.3}Warmup, EMA Smoothing and Score Weights}{33}{subsection.3.4.3}\protected@file@percent }
 \newlabel{eq:grace_warmup_router_weights}{{3.22}{33}{Warmup, EMA Smoothing and Score Weights}{equation.3.4.22}{}}
-\newlabel{eq:grace_softmax}{{3.24}{34}{Warmup, EMA Smoothing and Score Weights}{equation.3.4.24}{}}
+\newlabel{eq:grace_softmax}{{3.24}{33}{Warmup, EMA Smoothing and Score Weights}{equation.3.4.24}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.4.4}Weight Blending and Fallback}{34}{subsection.3.4.4}\protected@file@percent }
 \newlabel{eq:alignment_fallback}{{3.27}{34}{Weight Blending and Fallback}{equation.3.4.27}{}}
 \newlabel{eq:effective_teacher_weights}{{3.29}{34}{Weight Blending and Fallback}{equation.3.4.29}{}}
@@ -213,7 +212,7 @@
 \newlabel{sec:routed-kd-final-objective}{{3.5}{35}{Routed KD Aggregation and Final Objective}{section.3.5}{}}
 \newlabel{sec:final-objective}{{3.5}{35}{Routed KD Aggregation and Final Objective}{section.3.5}{}}
 \newlabel{eq:sample-kd-aggregation}{{3.30}{35}{Routed KD Aggregation and Final Objective}{equation.3.5.30}{}}
-\newlabel{eq:batch-kd}{{3.31}{36}{Routed KD Aggregation and Final Objective}{equation.3.5.31}{}}
+\newlabel{eq:batch-kd}{{3.31}{35}{Routed KD Aggregation and Final Objective}{equation.3.5.31}{}}
 \newlabel{eq:final-objective}{{3.32}{36}{Routed KD Aggregation and Final Objective}{equation.3.5.32}{}}
 \citation{marafioti2025smolvlm}
 \citation{duan2024vlmevalkit}

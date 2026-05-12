@@ -67,11 +67,9 @@ the first place. Together, they extend sparse expert routing and token-level
 logit supervision to the heterogeneous multi-teacher VLM setting,
 where teachers and student may use different tokenizers and vocabularies
 \cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhu2021studentcustomized}.
-The main notation used throughout the method is collected in
-Table~\ref{tab:notation}. The next subsection walks through one complete update
-before the remaining sections define each component formally.
-
-\subsection{Notation}
+The main notation used throughout the method is listed in
+Table~\ref{tab:notation}. Section~\ref{subsec:training-flow} walks through one
+complete update before the remaining sections define each component formally.
 
 \begin{table}[H]
 \centering
@@ -446,53 +444,16 @@ while unrelated strings such as \texttt{abc}/\texttt{def} diverge immediately.
 With multiple teachers, uniform averaging ignores sample-specific teacher
 strengths: a document question, a chart question and a scene-text question may
 each benefit from a different expert and the student's own hidden states are
-the most direct signal of which kind of example is being processed. This
-distinguishes GRACE routing from sparse mixture-of-experts routing in standard
-transformers. MoE routing chooses which expert computes the forward pass, while
-GRACE routing chooses which teacher shapes the student's learning signal. The
-experts here are frozen external models, not trainable FFN blocks, so routing
-is a supervision decision, not a computation decision. In the implementation
-used for the SmolVLM students, GRACE uses a \textbf{teacher routing network}
-attached to the linear language-model head, so the gate can capture the text
-hidden state immediately before token prediction. The routing pipeline, from
-pooled student features to sparse top-\(k\) teacher selection, is shown in
-Figure~\ref{fig:deep-router}. Let
-\(\mathbf{H}_s^{(b)}\) denote the student hidden states captured immediately
-before the language-model head for sample \(b\). Pooling these hidden states
-over supervised answer positions gives the \textbf{routing feature}:
-\begin{equation}
-\mathbf{h}^{(b)} = \mathrm{Pool}\!\left(\mathbf{H}_s^{(b)}\right).
-\end{equation}
-Pooling over answer positions captures what the student currently represents
-about the output, which is a more informative routing signal than pooling over
-the full sequence. Crucially, the routing feature is student-state-dependent,
-not just dataset-dependent. The same image-question pair can produce a
-different routing decision as the student's representations evolve during
-training, allowing teacher selection to adapt to the student's changing needs.
-The operation uses the mean over supervised answer positions and is defined for
-samples with at least one supervised answer token. A learned SwiGLU-style MLP router
-\(G_{\phi}(\cdot)\) then produces gate logits
-\begin{equation}
-\mathbf{r}^{(b)} = G_{\phi}\!\left(\mathbf{h}^{(b)}\right).
-\label{eq:router-logits}
-\end{equation}
-Applying softmax to the router logits gives soft routing weights:
-\begin{equation}
-\mathbf{p}^{(b)} = \mathrm{softmax}\!\left(\mathbf{r}^{(b)}\right),
-\label{eq:router-softmax}
-\end{equation}
-where \(p_i^{(b)}\) is the initial gate weight for teacher \(T_i\).
-The router masks to the top-\(k_{\mathrm{route}}\) teachers and renormalizes the
-selected softmax weights. The internal router stack shown in
-Figure~\ref{fig:deep-router} uses LayerNorm, an up-projection, a gate-value
-split, SiLU gating and a down-projection. This keeps score computation dense
-while teacher use remains sparse after top-\(k\) masking.
-For a mini-batch, the captured hidden state has shape \(B\times L\times d_h\)
-and masked mean pooling returns a \(B\times d_h\) routing feature. In the
-four-teacher experiments, the router hidden width is \(d_r=64\). The
-up-projection maps \(d_h\) to \(2d_r\), splits the result into gate and value
-branches in \(\mathbb{R}^{d_r}\) and the down-projection maps the gated vector
-to \(N\) teacher logits.
+the most direct signal of which kind of example is being processed. This makes
+GRACE routing fundamentally different from sparse mixture-of-experts routing in
+standard transformers, where routing is a computation decision: which expert
+runs the forward pass. In GRACE, the experts are frozen external models and
+routing is a supervision decision: which teacher shapes the student's learning
+signal. GRACE therefore attaches a \textbf{teacher routing network} to the
+linear language-model head, so the gate operates on the text hidden state
+immediately before token prediction. The full pipeline from pooled student
+features to sparse top-\(k\) teacher selection is shown in
+Figure~\ref{fig:deep-router}.
 
 \begin{figure}[H]
 \centering
@@ -500,6 +461,48 @@ to \(N\) teacher logits.
 \caption{Teacher routing network.}
 \label{fig:deep-router}
 \end{figure}
+
+Let \(\mathbf{H}_s^{(b)}\) denote the student hidden states captured
+immediately before the language-model head for sample \(b\). These are pooled
+over supervised answer positions to form the \textbf{routing feature}:
+\begin{equation}
+\mathbf{h}^{(b)} = \mathrm{Pool}\!\left(\mathbf{H}_s^{(b)}\right).
+\end{equation}
+Pooling over answer positions captures what the student currently represents
+about the output, which is more informative than pooling over the full
+sequence. The routing feature is also student-state-dependent, not only
+dataset-dependent: the same image-question pair can produce a different routing
+decision as the student's representations evolve during training, allowing
+teacher selection to adapt continuously. The operation uses the mean over
+supervised answer positions and requires at least one supervised answer token
+per sample.
+
+A learned SwiGLU-style MLP router \(G_{\phi}(\cdot)\) maps the routing feature
+to gate logits,
+\begin{equation}
+\mathbf{r}^{(b)} = G_{\phi}\!\left(\mathbf{h}^{(b)}\right).
+\label{eq:router-logits}
+\end{equation}
+which are converted to soft routing weights by softmax:
+\begin{equation}
+\mathbf{p}^{(b)} = \mathrm{softmax}\!\left(\mathbf{r}^{(b)}\right),
+\label{eq:router-softmax}
+\end{equation}
+where \(p_i^{(b)}\) is the initial gate weight for teacher \(T_i\). The router
+then masks to the top-\(k_{\mathrm{route}}\) teachers and renormalizes the
+selected weights. The internal stack uses LayerNorm, an up-projection, a
+gate-value split, SiLU gating and a down-projection, keeping score computation
+dense while teacher use remains sparse after top-\(k\) masking. For a mini-batch, the captured hidden state has shape \(B\times L\times d_h\)
+and masked mean pooling returns a \(B\times d_h\) routing feature. All reported
+experiments use \(N=4\) teachers, so the router hidden width is set to
+\(d_r=64\). After LayerNorm, the up-projection maps \(\mathbb{R}^{d_h}\) to
+\(\mathbb{R}^{2d_r}\), producing a tensor that is split into gate and value
+components in \(\mathbb{R}^{d_r}\). Applying
+\(\mathrm{SiLU}(\mathrm{gate})\odot\mathrm{value}\) and a down-projection from
+\(\mathbb{R}^{d_r}\) to \(\mathbb{R}^{N}\) then yields one logit per teacher.
+Wider hidden sizes in the codebase are scaling fallbacks for larger teacher
+pools and play no role in the reported experiments, whose cost is dominated by
+four-teacher logit storage and routed KD computation.
 
 \subsection{Top-k Routing}
 
@@ -600,8 +603,8 @@ Equation~\ref{eq:per_teacher_tw}. These gradients only score teacher
 compatibility. The final parameter update is still computed from the full
 training objective. A teacher whose KD gradient points opposite to the CE
 gradient is pulling the student away from the correct answer, even if the
-router selected it confidently. To see why, consider the first-order parameter
-update
+router selected it confidently. The first-order parameter update makes this
+explicit:
 \(\Delta\theta \propto -(\mathbf{g}_{CE} + \alpha\sum_i w_i \mathbf{g}_i)\).
 When \(\langle\mathbf{g}_{CE},\mathbf{g}_i\rangle > 0\), teacher \(T_i\)
 reinforces the supervised direction. When
@@ -714,17 +717,17 @@ Final KD weights are assigned through three mutually exclusive cases for each
 sample. The three cases implement a calibrated decision rule. When evidence is
 missing, GRACE uses the router fallback. When evidence is weak, it applies
 uniform active weights and does not treat a small score difference as
-meaningful. When evidence is confident, agreement drives the weighting.
-Overcommitting to weak gradient signals is as harmful as ignoring strong ones.
+meaningful. When evidence is confident, agreement contributes directly to the
+final weights. This calibration avoids overcommitting to weak gradient signals
+while still allowing strong agreement evidence to shape teacher weighting.
 
-\begin{itemize}
-\item \textbf{No active teacher.} If \(\mathcal{A}_b=\emptyset\), the routed
+\textbf{No active teacher.} If \(\mathcal{A}_b=\emptyset\), the routed
 weights are retained:
 \begin{equation}
 w_i^{(b)}=\hat{p}_i^{(b)}.
 \end{equation}
 
-\item \textbf{Low-confidence scores.} If active teachers exist but their
+\textbf{Low-confidence scores.} If active teachers exist but their
 smoothed scores are too close, uniform weights are used over the active set.
 The score range is
 \begin{equation}
@@ -744,7 +747,7 @@ w_i^{(b)}
 \label{eq:alignment_fallback}
 \end{equation}
 
-\item \textbf{Confident scores.} Otherwise, router weights are blended with
+\textbf{Confident scores.} Otherwise, router weights are blended with
 score weights. Let
 \(\lambda_{\mathrm{blend}} \in [0,1]\) be the router-blend exponent. The
 unnormalized blended weights are
@@ -762,7 +765,6 @@ w_i^{(b)}
 {\sum_{j=1}^{N}\tilde{w}_j^{(b)} \mathbf{1}[j \in \mathcal{A}_b]}.
 \label{eq:effective_teacher_weights}
 \end{equation}
-\end{itemize}
 
 Equations~\ref{eq:grace_softmax}, \ref{eq:alignment_fallback} and
 \ref{eq:effective_teacher_weights} define the gradient-refinement operator:

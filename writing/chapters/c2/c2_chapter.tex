@@ -656,9 +656,7 @@ empty expert slots when the actual load is already close to uniform
 efficient but makes imbalance costly because over-capacity items must be
 dropped, rerouted or passed through a residual path. Thus, load balancing and
 capacity are coupled: good balancing allows a small capacity factor without
-losing many routed items.
-
-Load balancing can also be enforced by changing the routing direction.
+losing many routed items. Load balancing can also be enforced by changing the routing direction.
 Expert-choice routing reverses the assignment: each expert selects a fixed
 number of items, while item-choice routing lets each item independently select
 experts. If \(c\) is a capacity factor, each expert receives
@@ -770,9 +768,7 @@ the form
 This view connects MoE selection to multi-teacher KD: teacher routing is a
 conditional computation mechanism over supervision signals. Unlike standard
 MoE, the experts here are frozen, so only the student and router parameters
-receive gradient updates.
-
-Routing in a distillation setting has two additional complications. First,
+receive gradient updates. Routing in a distillation setting has two additional complications. First,
 teacher quality is not a fixed property of the teacher alone. It depends on the
 input, the current student state and the task objective. Second, a high router
 score does not guarantee that the selected teacher produces a gradient aligned
