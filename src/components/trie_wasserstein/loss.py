@@ -7,6 +7,7 @@ from .contributions import (
     build_signed_edge_contributions,
     reduce_signed_edge_contributions_to_tree_loss,
 )
+from .canonicalization import resolve_underscore_boundary_marker
 from .runtime_state import extend_vocab_state_with_ignored_tokens
 from .trie_build import build_trie_state_from_tokenizers
 from src.tokenizer_utils import (
@@ -22,6 +23,9 @@ class TrieWassersteinLoss(nn.Module):
         teacher_tokenizer,
         rho: float = 0.7,
         topk: int = 64,
+        boundary_weight: float = 0.05,
+        student_underscore_is_boundary_marker: bool | None = None,
+        teacher_underscore_is_boundary_marker: bool | None = None,
         ignored_student_token_ids: set[int] | None = None,
         ignored_teacher_token_ids: set[int] | None = None,
     ) -> None:
@@ -30,6 +34,8 @@ class TrieWassersteinLoss(nn.Module):
             raise ValueError(f"rho must be in (0, 1), got {rho}")
         if int(topk) < 1:
             raise ValueError(f"topk must be >= 1, got {topk}")
+        if float(boundary_weight) < 0.0:
+            raise ValueError(f"boundary_weight must be >= 0, got {boundary_weight}")
 
         self.student_tokenizer = getattr(student_tokenizer, "tokenizer", None) or student_tokenizer
         self.teacher_tokenizer = getattr(teacher_tokenizer, "tokenizer", None) or teacher_tokenizer
@@ -39,6 +45,15 @@ class TrieWassersteinLoss(nn.Module):
         self.teacher_vocab_size = self.teacher_tokenizer_vocab_size
         self.rho = float(rho)
         self.topk = int(topk)
+        self.boundary_weight = float(boundary_weight)
+        self.student_underscore_is_boundary_marker = resolve_underscore_boundary_marker(
+            self.student_tokenizer,
+            student_underscore_is_boundary_marker,
+        )
+        self.teacher_underscore_is_boundary_marker = resolve_underscore_boundary_marker(
+            self.teacher_tokenizer,
+            teacher_underscore_is_boundary_marker,
+        )
 
         ignored_student = (
             default_ignored_token_ids(self.student_tokenizer)
@@ -59,6 +74,9 @@ class TrieWassersteinLoss(nn.Module):
             rho=self.rho,
             student_tokenizer=self.student_tokenizer,
             teacher_tokenizer=self.teacher_tokenizer,
+            boundary_weight=self.boundary_weight,
+            student_underscore_is_boundary_marker=self.student_underscore_is_boundary_marker,
+            teacher_underscore_is_boundary_marker=self.teacher_underscore_is_boundary_marker,
         )
 
         self.tail_edge_id = trie_state.tail_edge_id
@@ -124,17 +142,35 @@ class TrieWassersteinLoss(nn.Module):
         student_temperature: float = 1.0,
         teacher_temperature: float = 1.0,
     ) -> torch.Tensor:
+        if student_temperature <= 0.0 or teacher_temperature <= 0.0:
+            raise ValueError("student_temperature and teacher_temperature must be positive")
+        if student_logits.device != teacher_logits.device:
+            raise ValueError(
+                "student_logits and teacher_logits must be on the same device, got "
+                f"{student_logits.device} and {teacher_logits.device}"
+            )
+
         invalid_logits = (
             student_logits.ndim != 2
             or teacher_logits.ndim != 2
             or student_logits.size(0) != teacher_logits.size(0)
             or student_logits.size(0) == 0
-            or student_logits.size(-1) != self.student_vocab_size
-            or teacher_logits.size(-1) != self.teacher_vocab_size
         )
         if invalid_logits:
             raise ValueError(
-                "Error: invalid trie"
+                "Error: invalid trie logits. "
+                f"student_shape={tuple(student_logits.shape)}, "
+                f"teacher_shape={tuple(teacher_logits.shape)}"
+            )
+
+        self.prepare_runtime_state(
+            student_vocab_size=student_logits.size(-1),
+            teacher_vocab_size=teacher_logits.size(-1),
+        )
+
+        if student_logits.size(-1) != self.student_vocab_size or teacher_logits.size(-1) != self.teacher_vocab_size:
+            raise ValueError(
+                "Error: invalid trie vocab sizes. "
                 f"student_shape={tuple(student_logits.shape)}, "
                 f"teacher_shape={tuple(teacher_logits.shape)}, "
                 f"expected_student_vocab={self.student_vocab_size}, "

@@ -13,6 +13,9 @@ def build_signed_edge_contributions(
     sign: float,
 ) -> list[dict[int, torch.Tensor]]:
     valid_count = int((~ignored_mask).sum().item())
+    if valid_count <= 0:
+        raise ValueError("All trie tokens are ignored; cannot build edge contributions.")
+
     k = min(topk, valid_count)
     row_edge_masses: list[dict[int, torch.Tensor]] = []
 

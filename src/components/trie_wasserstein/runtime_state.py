@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 import torch
 
 
@@ -19,6 +21,8 @@ def extend_vocab_state_with_ignored_tokens(
             return
         token_paths = module.teacher_token_paths
         ignored_mask = module.teacher_ignored_mask
+    else:
+        raise ValueError(f"side must be 'student' or 'teacher', got {side!r}")
 
     extra_tokens = target_vocab_size - current_vocab_size
 

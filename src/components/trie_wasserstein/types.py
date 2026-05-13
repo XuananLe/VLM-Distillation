@@ -1,8 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Literal
 
 import torch
+
+BoundaryKind = Literal["none", "space", "continuation", "end_word"]
 
 
 @dataclass(slots=True)
@@ -25,3 +28,9 @@ class TrieRuntimeState:
     teacher_token_paths: list[list[int]]
     teacher_ignored_mask: torch.Tensor
     tail_edge_id: int
+
+
+@dataclass(frozen=True, slots=True)
+class CanonicalTokenPiece:
+    content_bytes: bytes
+    boundary_kind: BoundaryKind
