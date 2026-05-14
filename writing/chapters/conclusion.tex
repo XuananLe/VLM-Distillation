@@ -1,41 +1,90 @@
 \chapter*{Conclusion and Future Work}
+\phantomsection
 \addcontentsline{toc}{chapter}{Conclusion and Future Work}
 
-This thesis studied vision-language model distillation under heterogeneous
-teachers, where teacher utility varies across samples and teacher-student
-tokenizers do not match.
-To address these challenges, we presented \gracefull{} (\gracename{}), a
-routed multi-teacher framework with trie-Wasserstein tokenizer-agnostic
-distillation, sparse top-\(k\) selection and gradient-agreement refinement.
-The training procedure routes teachers first, refines their weights with
-gradient-agreement scores and
-then aggregates the routed trie-Wasserstein KD loss
-\cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}. Empirically, \methodname{} obtains the highest scores among the methods
-compared in the main tables, confirming that selective routing and
-post-routing gradient refinement improve heterogeneous teacher-to-student VLM
-distillation under the evaluated VQA setting. For SmolVLM-500M, it
-reaches 69.38 on TextVQA,
-73.11 on DocVQA and 80.20 on ChartQA. For SmolVLM-256M, \methodname{} reaches
-60.73 on TextVQA, 60.48 on DocVQA and 72.32 on ChartQA, showing that the
-method improves both evaluated student models. These results
-exceed the original students, direct
-finetuning and all reported distillation baselines in
-Chapter~\ref{chap:experiment-results}. On SmolVLM-500M,
-\methodname{} closes about 55\% of the original teacher-student gap on TextVQA
-and ChartQA and about 40\% on DocVQA.
+\section*{Summary}
+This thesis studied knowledge distillation for heterogeneous vision-language
+models, where teacher utility varies across samples and teacher-student
+tokenizers do not match. The work introduced \gracefull{} (\gracename{}), a
+routed multi-teacher framework that combines three main contributions:
+trie-Wasserstein tokenizer-agnostic distillation, sparse teacher routing and
+gradient-agreement refinement
+\cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}.
+
+The first contribution is a geometry-aware cross-tokenizer distillation
+objective. Trie-Wasserstein KD maps decoded teacher and student tokens into a
+shared byte-trie structure and compares subtree probability masses, so token
+distributions can be matched across different vocabularies. The second
+contribution is an objective-aware post-routing refinement mechanism. Sparse
+routing selects sample-relevant teachers, while gradient-agreement refinement
+adjusts routed teacher weights according to alignment between each teacher's KD
+gradient and the supervised answer gradient. The third contribution is an
+empirical study showing that output-level tokenizer-agnostic distillation with
+routing and gradient agreement outperforms the compared same-family,
+single-teacher and heterogeneous multi-teacher baselines in the evaluated VQA
+setting.
+
+Across TextVQA, DocVQA and ChartQA, \methodname{} obtains the highest scores
+among the compared methods in Chapter~\ref{chap:experiment-results}. For
+SmolVLM-500M, it reaches 69.38 on TextVQA, 73.11 on DocVQA and 80.20 on
+ChartQA. For SmolVLM-256M, it reaches 60.73, 60.48 and 72.32 on the same three
+benchmarks. On SmolVLM-500M, \methodname{} closes about 55\% of the original
+teacher-student gap on TextVQA and ChartQA and about 40\% on DocVQA.
+
+\section*{Limitations}
+Several aspects remain unresolved. \textbf{Cost-limited evaluation} is the
+first limitation. The reported numbers are single-run results, so the thesis
+does not provide confidence intervals or repeated-seed estimates for small gaps
+between high-scoring baselines. As shown in
+Section~\ref{sec:efficiency-analysis}, an average run costs approximately
+14.41 USD before offline cache generation and storage cost. Although the main
+tables use a shared four-teacher pool and consistent hyperparameters, the
+absence of repeated seeds limits strict uncertainty claims about closely
+matched methods.
+
+\textbf{Scope of validation} is also limited. The empirical study focuses on
+VQA benchmarks and SmolVLM-family students. The results support text-rich VQA
+distillation with compact projector-based students, but they do not establish
+whether the same behavior holds for other multimodal task families, other
+student architectures or larger teacher pools. Tasks with long-form answers,
+multi-image inputs, video reasoning or open-ended dialogue may place different
+demands on teacher selection and answer-token supervision.
+
+\textbf{Reasoning-oriented models are not explicitly supported.} GRACE
+currently distills teacher supervision through answer-token output
+distributions and gradient agreement with the supervised answer loss. This
+design is appropriate for the evaluated VQA setting, where the target is a
+short final answer. It does not yet explicitly support reasoning-oriented or
+``thinking'' models whose behavior depends on intermediate deliberation traces,
+hidden reasoning tokens or extended test-time reasoning. If a teacher produces
+only a final answer distribution, GRACE can still use that distribution as a
+teacher signal. However, the method does not distinguish between reasoning-phase
+tokens and answer-phase tokens, does not route teachers based on the quality of
+intermediate reasoning and does not define a distillation objective for
+multi-step thought trajectories.
 
 \section*{Future Work}
-Future work should investigate three directions that would strengthen the
-empirical scope, reduce systems cost and extend the method beyond answer-token
-distillation. First, \textbf{stronger evaluation} would use repeated runs with
-multiple seeds to tighten the comparison, especially for the smaller gaps
-between close multi-teacher baselines. Second, \textbf{systems efficiency}
-would reduce storage and I/O cost, since the pipeline still relies on large
-offline teacher-logit caches. This would make the method easier to scale to
-more datasets and larger teacher sets. Third, \textbf{broader method
-extensions} would move beyond answer-token-centric distillation through
-visual-token alignment, cross-attention transfer or region-level matching.
-Future work can also explore richer router inputs,
-improved objective-conflict handling and teacher sets that mix specialized
-document, chart and general VLM experts
+Future work should extend the thesis in four directions. First, stronger
+evaluation should use repeated runs with multiple random seeds, report mean and
+standard deviation and use paired comparisons when the same cached teacher
+logits are reused. This would make the smaller differences between close
+multi-teacher baselines easier to interpret.
+
+Second, systems work should reduce the storage, I/O and gradient-computation
+costs of heterogeneous teacher distillation. More compact logit storage,
+adaptive cache loading and lower-cost agreement scoring would make the method
+easier to scale to more datasets and larger teacher pools.
+
+Third, future method extensions should move beyond answer-token-centric
+distillation. Visual-token alignment, cross-attention transfer and region-level
+matching could complement output-level KD, especially for tasks where the
+student must localize evidence before producing a short answer.
+
+Fourth, support for reasoning-oriented models should be studied with
+process-level distillation mechanisms. Such extensions would need to separate
+reasoning-stage information from final-answer generation and define how
+teachers are routed or weighted when intermediate reasoning traces are
+available. Future work can also explore richer router inputs, improved
+objective-conflict handling and teacher pools that mix specialized document,
+chart, general VLM and reasoning-oriented experts
 \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.

@@ -1,8 +1,6 @@
 \chapter{Introduction}
 \label{chap:introduction}
 
-\section{Background}
-
 \textbf{Vision-language models (VLMs)} have emerged as a \textbf{central direction} in modern AI
 because they integrate visual perception with language reasoning. By coupling
 powerful image encoders with autoregressive language decoders through learned
@@ -20,26 +18,26 @@ language backbones trained with large multimodal corpora. This recipe reliably
 improves performance but also raises computational cost
 \cite{kaplan2020scalinglaws,hoffmann2022trainingcomputeoptimal}. As model size
 grows, the gap between what is achievable in research and what is deployable
-in practice widens accordingly. The \textbf{models that perform best are often the
+in practice widens accordingly. The \textbf{highest-scoring models are often the
 hardest to deploy} when latency, memory footprint, energy consumption and
 hardware constraints matter. In robotics and embodied AI, an agent must process
 visual observations, interpret language instructions and produce action
 decisions in real time, often on resource-constrained hardware
 \cite{driess2023palme,brohan2023rt2}. Similar constraints appear in mobile
 applications, document-processing pipelines and enterprise deployments, where
-users and operators need models that are \textbf{fast}, \textbf{affordable} and \textbf{secure}. This
-widening \textbf{gap between frontier capability and practical deployment} creates a
+users and operators need models with low latency, controlled cost and clear security boundaries. This
+widening \textbf{gap between frontier capability and deployment constraints} creates a
 central tension for applied VLM research.
 
 \textbf{Knowledge distillation} offers a principled path through this tension by
 compressing the behavior of a large teacher model into a compact student. The
-student avoids training from scratch on the same massive corpora and learns
+student avoids training from scratch on the same large-scale corpora and learns
 from the teacher's output distributions and internal representations,
 which carry richer information than hard labels alone
 \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
-Distillation has been widely used to produce smaller models that \textbf{preserve much
+Distillation has been widely used to produce smaller models that \textbf{retain part
 of the capability of their larger counterparts} and recent lightweight VLMs
-demonstrate that this direction is practical for latency-sensitive and
+demonstrate that this direction is viable for latency-sensitive and
 cost-sensitive deployment
 \cite{chu2023mobilevlm,zhou2024tinyllava,marafioti2025smolvlm}.
 
@@ -58,38 +56,28 @@ CKA provides a tokenizer-independent signal, but does not directly optimize
 answer likelihood and \textbf{cannot resolve conflicts between teachers}
 \cite{kornblith2019similarityrepresentations}. Multi-teacher distillation
 methods show the value of pooling several teachers, but fixed or globally
-learned weights can mix useful supervision with weak or conflicting signals
+learned weights can mix useful supervision with low-utility or conflicting signals
 \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
 
-The gap is most visible in text-rich visual reasoning tasks such as document
-question answering, chart interpretation and scene text understanding, which
-require optical character recognition, spatial layout understanding and
-multi-step inference
-\cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+These limitations are most severe in text-rich visual reasoning tasks such as
+document question answering, chart interpretation and scene text understanding.
 Although recent open-source VLMs have narrowed the gap with proprietary systems
 on common benchmarks \cite{wang2024qwen2vl,chen2024internvl15,chen2024internvl25},
-smaller models continue to struggle on these harder tasks, where limited
-parameter capacity makes it difficult to capture fine visual details, document
-structure and numerical relations. Closing this gap requires a method that
-combines \textbf{tokenizer-agnostic} distribution matching, \textbf{sample-dependent} teacher
-selection and \textbf{gradient-aware conflict resolution} in a single framework. This is
-the central motivation of the thesis.
+smaller models continue to struggle when fine visual details, document
+structure and numerical relations must be captured. The central motivation of
+this thesis is to combine \textbf{tokenizer-agnostic} distribution matching,
+\textbf{sample-dependent} teacher selection and \textbf{gradient-aware conflict
+resolution} for heterogeneous VLM distillation.
 
-\section{Problem Statement}
-Given a pool of frozen teacher VLMs and a trainable student VLM, the goal is to
-learn a distillation strategy that transfers task performance to the student
-while reducing deployment cost. The strategy must satisfy four requirements: it
-must remain valid when teachers and student differ in architecture, tokenizer
-and output vocabulary, assign teacher weights per sample and not globally,
-select only a sparse top-\(k\) subset of teachers per input and detect and
-suppress distillation gradients that conflict with the supervised objective.
-
-This thesis addresses all four requirements in a unified framework.
-This thesis proposes \textbf{\gracefull{} (\gracename{})} as a method that
-satisfies these requirements. \methodname{} combines tokenizer-agnostic output
-matching, sparse sample-dependent routing and gradient-agreement refinement
-into a unified distillation objective for heterogeneous VLMs. Its design is
-evaluated through three research questions:
+This thesis evaluates \textbf{\gracefull{} (\gracename{})} using VLM-Eval-Kit
+on TextVQA, DocVQA and ChartQA with SmolVLM-500M and SmolVLM-256M as student
+models. In the four-teacher setting, \methodname{}
+moves SmolVLM-500M closer to the highest-scoring teacher by closing \(55.03\%\),
+\(39.53\%\) and \(55.34\%\) of original teacher-student gaps of
+22.95, 34.38 and 31.44 points on TextVQA, DocVQA and ChartQA. This reduction
+supports deployment of smaller student VLMs in text-rich VQA
+scenarios.
+The study is guided by three research questions:
 
 \begin{itemize}
 \item \textbf{RQ1: Performance.} How does \methodname{} compare
@@ -103,54 +91,45 @@ the final performance?
 does \methodname{} introduce during training?
 \end{itemize}
 
-\section{Thesis Contributions}
-This thesis presents three main technical contributions to the field of knowledge distillation in vision-language models.
+This thesis addresses this gap through three contributions to knowledge
+distillation for a pool of heterogeneous vision-language models.
 
+\noindent \textbf{First, trie-Wasserstein cross-tokenizer distillation loss.}
+We formulate a tokenizer-agnostic KD objective that maps teacher and student
+token vocabularies onto a shared UTF-8 byte trie and computes a \(W_1\)
+optimal-transport distance through subtree-mass imbalances. Compared with
+ranked-mass baselines such as ULD, the trie-Wasserstein loss preserves the
+lexical structure of decoded token strings: tokens that share a long byte
+prefix are cheaper to transport across than unrelated tokens. A sparse
+top-\(K_{\mathrm{TW}}\) support with a residual tail edge keeps per-position
+cost bounded without discarding low-probability mass.
 
-\textbf{A geometry-aware cross-tokenizer distillation objective.}
-Trie-Wasserstein KD maps decoded teacher and student tokens into a shared UTF-8
-byte trie and defines distillation loss as subtree-mass imbalances under the
-induced tree metric. Unlike methods that treat all token-string mismatches as
-equally costly, the objective penalizes distributional divergence in proportion
-to lexical distance. A sparse top-\(K\) support with a residual tail edge keeps
-computation tractable without discarding probability mass or constructing a
-full vocabulary-to-vocabulary transport matrix.
+\noindent \textbf{Second, gradient-agreement refinement of routed teacher weights.}
+We introduce a post-routing correction mechanism that scores each routed
+teacher by comparing its KD gradient against the student's supervised CE
+gradient with cosine similarity. The scores are stabilized with an
+exponential moving average, converted to weights through a score-softmax and
+geometrically blended with the router's own weights. This refinement detects
+and suppresses teachers whose KD direction conflicts with the supervised
+objective, a failure mode that sparse routing alone cannot prevent.
 
-\textbf{An objective-aware refinement mechanism for routed multi-teacher distillation.}
-Gradient-agreement refinement is a post-routing step that measures cosine
-similarity between each routed teacher's distillation gradient and the
-supervised cross-entropy gradient, then adjusts teacher weights by their degree
-of objective alignment. Sparse routing captures sample-level teacher relevance,
-while gradient-agreement refinement captures compatibility with the supervised
-objective. The two mechanisms are complementary and operate in sequence.
+\noindent \textbf{Finally, GRACE as an integrated framework for heterogeneous multi-teacher
+VLM distillation.}
+We combine the trie-Wasserstein loss, a sparse top-\(k\) teacher routing
+network and gradient-agreement refinement into a single end-to-end training
+objective. Empirical evaluation on TextVQA, DocVQA and ChartQA with
+SmolVLM-500M and SmolVLM-256M students under a four-teacher pool shows that
+\methodname{} improves over direct finetuning, same-family KD, cross-family
+ULD and the compared heterogeneous multi-teacher baselines, closing up to
+55\% of the teacher-student gap.
 
-\textbf{Empirical evidence supporting output-level over representation-level matching in heterogeneous VLM distillation.}
-Centered kernel alignment is tokenizer-agnostic and a natural baseline for
-heterogeneous distillation, but controlled ablations show it does not yield
-consistent improvements when used alone, even when teachers and students share
-no vocabulary. The combination of Trie-Wasserstein matching, sparse routing and
-gradient-agreement refinement outperforms both CKA matching and uniform teacher
-averaging across DocVQA, ChartQA and related benchmarks, indicating that
-tokenizer-aware output-level distillation is a more reliable basis for
-heterogeneous knowledge transfer.
-
-\section{Thesis Organization}
-
-The remainder of this thesis is structured as follows. Chapter~\ref{chap:preliminaries}
-provides the background and related work necessary to situate \methodname{},
-covering VLMs, knowledge distillation, tokenizer-mismatched distribution
-matching, sparse routing mechanisms and gradient conflict resolution.
-Chapter~\ref{chap:proposed-method} presents \methodname{} in full. It begins
-with the trie-Wasserstein KD objective, which enables tokenizer-agnostic
-distribution matching, then introduces the sparse teacher router for
-sample-dependent teacher selection and concludes with the gradient-agreement
-refinement step and the combined training objective.
-Chapter~\ref{chap:evaluation-methodology} describes the experimental setup in
-detail, including the text-rich VQA datasets, student and teacher model
-configurations, baseline methods, evaluation metrics and implementation
-details. Chapter~\ref{chap:experiment-results} reports results across the
-three research questions: main benchmark comparisons against fine-tuning and
-distillation baselines, component ablations that isolate the contribution of
-each \methodname{} module and an efficiency analysis of the routing and
-gradient-refinement overhead. Finally, the thesis concludes with a summary of the main findings and a discussion of promising directions for future work in
-heterogeneous multi-teacher VLM distillation.
+The remainder of this thesis is structured as follows.
+Chapter~\ref{chap:preliminaries} provides background on VLMs, knowledge
+distillation, tokenizer-mismatched distribution matching, sparse routing and
+gradient conflict resolution. Chapter~\ref{chap:proposed-method} presents
+\methodname{} in full, covering the trie-Wasserstein objective, sparse teacher
+router, gradient-agreement refinement and combined training objective.
+Chapter~\ref{chap:evaluation-methodology} describes the datasets, baselines,
+metrics and implementation details. Chapter~\ref{chap:experiment-results}
+reports results across RQ1 to RQ3. The thesis concludes with the main
+findings and future directions.

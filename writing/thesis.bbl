@@ -329,6 +329,24 @@ Yuqiao Wen, Zichao Li, Wenyu Du, and Lili Mou.
   Computational Linguistics (Volume 1: Long Papers)}, page
   10817{\textendash}10834. Association for Computational Linguistics, 2023.
 
+\bibitem{bousselham2026dexar}
+Walid Bousselham, Rishikesh Jadhav, Simon de~Mathelin, Fran{\c{c}}ois Fleuret,
+  and Pascal Frossard.
+\newblock Dex-ar: Explainability in multimodal large language models with deep
+  expectation and attention rollout, 2026.
+
+\bibitem{wu2025rethinking}
+Taiqiang Wu, Chaofan Tao, Jiahao Wang, Runming Yang, Zhe Zhao, and Ngai Wong.
+\newblock Rethinking kullback-leibler divergence in knowledge distillation for
+  large language models.
+\newblock In {\em Proceedings of the 31st International Conference on
+  Computational Linguistics}, page 5737{\textendash}5755, 2025.
+
+\bibitem{klabunde2023similarity}
+Max Klabunde, Tobias Schumacher, Markus Strohmaier, and Florian Lemmerich.
+\newblock Similarity of neural network models: A survey of functional and
+  representational measures, 2023.
+
 \bibitem{cloudflare_r2_overview}
 {Cloudflare}.
 \newblock R2 object storage.
@@ -352,23 +370,5 @@ Yuqiao Wen, Zichao Li, Wenyu Du, and Lili Mou.
 \newblock fsspec.implementations.cached.
 \newblock fsspec documentation, 2026.
 \newblock Accessed: 2026-04-09.
-
-\bibitem{bousselham2026dexar}
-Walid Bousselham, Rishikesh Jadhav, Simon de~Mathelin, Fran{\c{c}}ois Fleuret,
-  and Pascal Frossard.
-\newblock Dex-ar: Explainability in multimodal large language models with deep
-  expectation and attention rollout, 2026.
-
-\bibitem{wu2025rethinking}
-Taiqiang Wu, Chaofan Tao, Jiahao Wang, Runming Yang, Zhe Zhao, and Ngai Wong.
-\newblock Rethinking kullback-leibler divergence in knowledge distillation for
-  large language models.
-\newblock In {\em Proceedings of the 31st International Conference on
-  Computational Linguistics}, page 5737{\textendash}5755, 2025.
-
-\bibitem{klabunde2023similarity}
-Max Klabunde, Tobias Schumacher, Markus Strohmaier, and Florian Lemmerich.
-\newblock Similarity of neural network models: A survey of functional and
-  representational measures, 2023.
 
 \end{thebibliography}

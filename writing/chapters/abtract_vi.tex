@@ -7,48 +7,41 @@
 \begin{small}
 
 Khóa luận này nghiên cứu bài toán chưng cất tri thức đa giáo viên không đồng
-nhất, trong đó tri thức được truyền từ một tập mô hình giáo viên VLM đóng băng
-sang một mô hình học sinh VLM. Bài toán này khó vì các mô hình giáo viên có thể
-thuộc những họ kiến trúc khác nhau, sử dụng bộ tách từ (tokenizer) khác nhau và
-không hữu ích như nhau trên mọi mẫu dữ liệu. Vì vậy, cách lấy trung bình cố
-định giữa các mô hình giáo viên thường không tận dụng tốt sự khác biệt về năng
-lực của từng giáo viên trên từng cặp ảnh và câu hỏi.
+nhất cho mô hình thị giác-ngôn ngữ (VLM). Mục tiêu là truyền tri thức từ một
+tập mô hình giáo viên đóng băng sang một mô hình học sinh nhỏ hơn khi các giáo
+viên thuộc những họ mô hình khác nhau, sử dụng bộ tách từ khác nhau và có mức
+độ hữu ích thay đổi theo từng mẫu. Trong bối cảnh này, chưng cất trực tiếp theo
+chỉ số token không còn hợp lệ và phép lấy trung bình cố định giữa giáo viên có
+thể trộn tín hiệu hữu ích với tín hiệu không liên quan hoặc xung đột.
 
 
-Khóa luận đề xuất phương pháp \methodname{} (\methodfull{}). Tên gọi này nhấn
-mạnh hai thành phần chính của phương pháp: định tuyến (routing) để chọn tập mô
-hình giáo viên phù hợp cho từng mẫu và căn chỉnh khác bộ tách từ thông qua hàm
-mất mát trie-Wasserstein trên cây byte dùng chung. Phương pháp xử lý ba vấn đề
-thực tế trong chưng cất đa giáo viên không đồng nhất: lệch bộ tách từ, khác
-biệt về thế mạnh giữa các mô hình giáo viên và sự bất ổn sau bước định tuyến.
-Cụ thể, \methodname{} kết hợp hàm mất mát trie-Wasserstein, cổng định tuyến
-giáo viên phụ thuộc vào trạng thái của mô hình học sinh, định tuyến thưa
-top-$k$ và cơ chế tinh chỉnh trọng số dựa trên gradient.
+Để giải quyết bài toán trên, khóa luận đề xuất \methodfull{}
+(\methodname{}), một khung chưng cất cho truyền tri thức VLM đa giáo viên không
+đồng nhất. \methodname{} kết hợp ba cơ chế: chưng cất trie-Wasserstein trên cây
+byte UTF-8 dùng chung, định tuyến giáo viên thưa top-$k$ từ trạng thái ẩn của
+mô hình học sinh và tinh chỉnh trọng số bằng độ đồng thuận gradient. Hàm mất
+mát trie-Wasserstein giúp so sánh phân phối đầu ra của giáo viên và học sinh
+giữa các bộ tách từ khác nhau. Định tuyến thưa chọn các giáo viên phù hợp với
+từng mẫu. Tinh chỉnh bằng độ đồng thuận gradient sau đó điều chỉnh trọng số đã
+định tuyến theo mức độ căn chỉnh giữa gradient chưng cất của từng giáo viên và
+gradient cross-entropy có giám sát.
 
 
-Trong mỗi bước huấn luyện, cổng định tuyến trước hết chọn một tập nhỏ các mô
-hình giáo viên cho từng mẫu. Sau đó, \methodname{} so sánh gradient chưng cất
-tri thức (KD) của từng mô hình giáo viên với gradient CE có giám sát của mô
-hình học sinh, làm mượt điểm số bằng trung bình động hàm mũ (EMA) và tạo trọng
-số KD cuối cùng trong tập giáo viên đã được định tuyến. Cách làm này giúp mô
-hình học sinh nhận tín hiệu chưng cất từ các giáo viên phù hợp hơn với mục tiêu
-học có giám sát.
-
-
-Thực nghiệm trên TextVQA, DocVQA và ChartQA cho thấy \methodname{} đạt kết quả
-cao hơn tinh chỉnh trực tiếp và các phương pháp cơ sở chưng cất được so sánh
-trong thiết lập báo cáo. Trong thực nghiệm, mô hình học sinh được khởi tạo từ
-SmolVLM-500M và SmolVLM-256M. Với thiết lập bốn mô hình giáo viên,
-\methodname{} đạt 69.38, 73.11 và 80.20 trên TextVQA, DocVQA và ChartQA khi
-dùng SmolVLM-500M làm mô hình học sinh. Các điểm số tương ứng với SmolVLM-256M
-là 60.73, 60.48 và 72.32. Đối với SmolVLM-500M, mức cải thiện so với mô hình
-gốc lần lượt là 22.26\%, 22.83\% và 27.71\%. Phương pháp cũng thu hẹp 55.03\%
-khoảng cách tới mô hình giáo viên trên TextVQA, 39.53\% trên DocVQA và 55.34\%
-trên ChartQA.
+Thực nghiệm trên TextVQA, DocVQA và ChartQA đánh giá \methodname{} với hai mô
+hình học sinh SmolVLM-500M và SmolVLM-256M trong thiết lập bốn giáo viên không
+đồng nhất. Với SmolVLM-500M, \methodname{} đạt 69.38, 73.11 và 80.20 trên
+TextVQA, DocVQA và ChartQA, so với điểm gốc 56.75, 59.52 và 62.80 của mô hình
+học sinh. Các kết quả này tương ứng với mức cải thiện tương đối 22.26\%,
+22.83\% và 27.71\% so với mô hình gốc, đồng thời thu hẹp 55.03\%, 39.53\% và
+55.34\% khoảng cách ban đầu tới giáo viên có điểm cao nhất. Với SmolVLM-256M,
+\methodname{} đạt 60.73, 60.48 và 72.32 trên cùng ba bộ đánh giá. Trên các
+thực nghiệm được báo cáo, \methodname{} vượt qua tinh chỉnh trực tiếp, chưng
+cất logits cùng họ mô hình, ULD khác họ mô hình và các phương pháp đa giáo
+viên không đồng nhất được so sánh.
 
 \vspace*{1cm}
 \textbf{Từ khóa:} mô hình thị giác-ngôn ngữ, chưng cất tri thức, chưng cất đa
-giáo viên, định tuyến hỗn hợp chuyên gia (mixture-of-experts routing), chưng
-cất Wasserstein khác bộ tách từ
+giáo viên, định tuyến giáo viên thưa, đồng thuận gradient, chưng cất
+Wasserstein khác bộ tách từ
 
 \end{small}

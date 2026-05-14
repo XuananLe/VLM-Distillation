@@ -56,7 +56,7 @@ with numerical and logical reasoning
 \textit{Sample question}: ``Which year has the highest sales value in the chart?''
 
 \stepcounter{footnote}
-\begin{figure}[!ht]
+\begin{figure}
     \centering
     \begin{subfigure}{0.31\linewidth}
         \centering
@@ -140,10 +140,10 @@ Floating Point 16 (bf16)} mixed precision, \textbf{TensorFloat-32 (TF32)}
 matrix multiplication and gradient checkpointing to control memory use while
 keeping the student fully trainable and all teachers frozen
 \cite{rajbhandari2020zero,chen2016sublinear}. Full optimization and routing
-parameter values are reported in Table~\ref{tab:experiment-parameters} in
-Appendix~\ref{app:experiment-parameters}. The engineering details of
-teacher-logit storage and remote caching are deferred to
-Section~\ref{sec:implementation-notes} for reproducibility purposes.
+parameter values are reported in Appendix~\ref{app:experiment-parameters},
+Table~\ref{tab:experiment-parameters}. Teacher-logit storage and remote caching
+are documented in Appendix~\ref{app:offline-teacher-logit-preparation} and
+Appendix~\ref{app:remote-logit-streaming} for reproducibility purposes.
 
 \section{Evaluation Metrics}
 We report benchmark-specific official metrics for each dataset.
@@ -308,7 +308,7 @@ where \(r\) is the reward, \(b\) is an EMA reward baseline and
 + \gamma \mathcal{L}_{KD}
 + \lambda_{\pi}\mathcal{L}_{\mathrm{pol}}.
 \end{equation}
-Additional baseline implementation are reported in
+Additional baseline implementation details are reported in
 Appendix~\ref{app:baseline-implementation-details}.
 
 
@@ -384,92 +384,13 @@ router-only ablation over all routed teachers. The \(\beta_{\mathrm{EMA}}=0\)
 variant removes temporal smoothing by setting \(\hat{s}_i=s_i\) before
 score-softmax weighting.
 
-\section{Implementation Details}
-\label{sec:implementation-notes}
-
-This section records the engineering details needed to reproduce the main
-training configuration. These details are useful for systems reproducibility, but they are
-separate from the fair-comparison protocol summarized earlier. The full
-optimization and routing parameters are listed in
-Table~\ref{tab:experiment-parameters}.
-A typical full H200 run takes about 7 hours and costs about 14.41 USD at
-2.059 USD/hour on Vast.ai, excluding the separate cost of offline teacher-logit
-generation and remote storage.
-
-\subsection{Offline Teacher-Logit Preparation}
-Teacher logits are generated \emph{offline} before distillation. An offline
-caching script runs each frozen teacher on every training example, keeps only
-the supervised answer-token positions and writes one \texttt{.pt} file per
-sample under a teacher-specific directory. Each record stores the sample index,
-the selected teacher logits and the corresponding supervised labels. This
-keeps the online training loop simple: the student only reads precomputed
-teacher targets, so the teachers do not run again. After generation, the teacher-logit directories are uploaded to a
-\textbf{Cloudflare R2} bucket using its S3-compatible object-storage interface
-\cite{cloudflare_r2_overview,cloudflare_r2_s3}. In the active setup, the bucket
-already exceeds \textbf{1 TB}, so copying the full cache to an external GPU
-instance is impractical. This is especially relevant on services such as
-Vast.ai, where local NVMe space is usually much smaller than the full teacher
-logit store. Figure~\ref{fig:r2-storage} shows this offline storage layout and
-highlights why the training path must stream teacher logits without staging the
-full cache locally.
-
-\begin{figure}
-\centering
-\includegraphics[width=0.82\linewidth]{figures/r2-storage.png}
-\caption[R2 teacher-logit storage.]{R2 teacher-logit storage.}
-\label{fig:r2-storage}
-\end{figure}
-
-\subsection{Remote Logit Streaming During Training}
-The main training path does \emph{not} download the full cache before training.
-Figure~\ref{fig:r2-cache-training} shows the full remote-cache path: teacher
-logits are generated offline and uploaded once, each training step requests a
-sample, the local cache serves hits directly and cache misses trigger an R2
-download followed by least-recently-used eviction when the 100 GB limit is
-exceeded.
-When the launcher receives an R2 root in
-\texttt{distill\_multi\_teachers.sh}, the trainer switches to remote lazy
-loading. During training, \texttt{StreamingTeacherLogitsCache} resolves the
-teacher-specific remote object path for each requested sample, then fetches
-files lazily from R2 through \texttt{s3fs} and
-\texttt{WholeFileCacheFileSystem} \cite{fsspec_features,fsspec_api}. To keep disk usage bounded, the loader maintains a \textbf{100 GB} local
-cache. Each file is cached on first access, its access time is updated on each
-subsequent open and the oldest files are evicted once the cache exceeds the
-limit. The local cache therefore behaves as a small least-recently-used buffer
-over the much larger R2 store. A per-teacher file lock guards cache metadata
-updates so that concurrent dataloader workers do not corrupt the cache state.
-
-\begin{figure}
-\centering
-\includegraphics[width=0.96\linewidth]{figures/r2_cache_training.png}
-\caption{Training with remote teacher logits.}
-\label{fig:r2-cache-training}
-\end{figure}
-
-\begingroup
-\small
-\renewcommand{\arraystretch}{0.95}
-\begin{longtable}{p{0.33\textwidth} p{0.61\textwidth}}
-\caption[Logit-streaming settings.]{Logit-streaming settings.}
-\label{tab:implementation-settings}\\
-\toprule
-\textbf{Setting} & \textbf{Value} \\
-\midrule
-\endfirsthead
-\multicolumn{2}{l}{\textit{Table \thetable\ continued from the previous page.}}\\
-\toprule
-\textbf{Setting} & \textbf{Value} \\
-\midrule
-\endhead
-\bottomrule
-\multicolumn{2}{r}{\textit{Continued on the next page.}}\\
-\endfoot
-\bottomrule
-\endlastfoot
-Teacher-logit storage & Cloudflare R2 object storage \\
-Teacher-logit format & Raw per-sample \texttt{.pt} files \\
-Remote path template & \makecell[l]{\texttt{remote\_root/<dataset>\_teacher\_logits\_<alias>/}\\\texttt{<teacher-slug>/<index>.pt}} \\
-Local cache directory & \makecell[l]{\texttt{/tmp/teacher-logits-streaming} for R2 reads\\\texttt{/workspace/cache} for local-cache reads} \\
-Local cache limit & 100 GB \\
-\end{longtable}
-\endgroup
+The training runs reported in this thesis rely on an offline teacher-logit
+preparation step and a remote logit-streaming infrastructure that are
+separate from the fair-comparison protocol described above. Teacher logits are
+generated once and stored on Cloudflare R2. During training, they are streamed
+lazily through a 100~GB local cache without copying the full logit store locally.
+Full engineering
+details, including the caching script, path conventions, streaming loader and
+the logit-streaming settings table, are given in
+Appendix~\ref{app:offline-teacher-logit-preparation} and
+Appendix~\ref{app:remote-logit-streaming}.
