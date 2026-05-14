@@ -374,7 +374,6 @@ r_{t,j}^{(b,i)}
 =
 1-\sum_{v\in\mathcal{K}_{t,j}^{(b,i)}}p_{t,j}^{(b,i)}(v).
 \end{equation}
-
 Let \(\pi(v)\) be the trie path for token \(v\), including canonical content
 edges, the EOS edge and any optional boundary edge. Let
 \(e_{\mathrm{tail}}\) be the global residual tail edge with
@@ -514,6 +513,7 @@ for every sample. GRACE converts them into a \textbf{sparse routed set} by
 selecting the highest-scoring teachers for sample \(b\):
 \begin{equation}
 \mathcal{C}_b=\mathrm{TopK}(\mathbf{r}^{(b)},\min(k_{\mathrm{route}},N)).
+\label{eq:topk-candidate-set}
 \end{equation}
 The candidate set \(\mathcal{C}_b\) serves as the routed teacher set
 \(\mathcal{R}_b\). With
@@ -526,7 +526,6 @@ renormalized:
 \frac{m_i^{(b)} p_i^{(b)}}{\sum_{j=1}^{N} m_j^{(b)} p_j^{(b)}}.
 \label{eq:constrained_gate_weights}
 \end{equation}
-
 Top-\(k\) routing makes supervision sparse and sample-specialized. Routing
 alone is not sufficient, however. A teacher can look relevant because
 its domain matches the input while its gradient still conflicts with the
@@ -619,8 +618,8 @@ s_i
 }{
 \max\!\left(\|\mathbf{g}_{CE}\|_2\|\mathbf{g}_i\|_2,\epsilon_{\mathrm{num}}\right)
 }.
+\label{eq:grace-gradient-agreement-score}
 \end{equation}
-
 The agreement score \(s_i\) is \textbf{teacher-level} within the current
 mini-batch and is broadcast across samples. Sample dependence enters through
 the routed set \(\mathcal{R}_b\), routed weights \(\hat{\mathbf{p}}^{(b)}\) and
@@ -629,6 +628,7 @@ sample-specific routing, GRACE first converts the agreement score into a binary
 teacher flag:
 \begin{equation}
 \tilde{a}_i = \mathbf{1}[s_i > \delta],
+\label{eq:grace-teacher-active-flag}
 \end{equation}
 where \(\delta\) is the GRACE threshold. This flag is then intersected with
 the routed teacher set for each sample:
@@ -636,8 +636,8 @@ the routed teacher set for each sample:
 a_i^{(b)}=\mathbf{1}[i\in\mathcal{R}_b]\tilde{a}_i,
 \qquad
 \mathcal{A}_b=\{i\in\mathcal{R}_b:a_i^{(b)}=1\}.
+\label{eq:grace-sample-active-set}
 \end{equation}
-
 The intersection with \(\mathcal{R}_b\) keeps the search inside the routed
 candidates: routing narrows the pool first and gradient agreement filters
 within it.
@@ -660,7 +660,6 @@ gate weights are left unchanged:
 w_i^{(b)}=\hat{p}_i^{(b)}.
 \label{eq:grace_warmup_router_weights}
 \end{equation}
-
 Early in training, the student's representations and the router's assignments
 are both still changing, so gradient-based filtering applied too soon risks
 rejecting useful teachers because the agreement scores are not yet reliable.
@@ -676,8 +675,8 @@ Let \(\bar{s}_i^{\mathrm{prev}}\) be the running exponential moving average
 \beta_{\mathrm{EMA}} \bar{s}_i^{\mathrm{prev}}
 +
 (1-\beta_{\mathrm{EMA}}) s_i.
+\label{eq:grace-ema-score}
 \end{equation}
-
 EMA smoothing turns gradient agreement from a momentary vote into a reputation
 score. For nonempty active sets, smoothed scores are converted into a
 score-softmax weight vector over \(\mathcal{A}_b\):
@@ -705,6 +704,7 @@ agreement evidence is missing or weak.
 weights are retained:
 \begin{equation}
 w_i^{(b)}=\hat{p}_i^{(b)}.
+\label{eq:no-active-teacher-fallback}
 \end{equation}
 
 \textbf{Low-confidence scores.} If active teachers exist but their
@@ -736,6 +736,7 @@ unnormalized blended weights are
 \propto
 \left(\hat{p}_i^{(b)}\right)^{\lambda_{\mathrm{blend}}}
 \left(\omega_i^{(b)}\right)^{1-\lambda_{\mathrm{blend}}},
+\label{eq:blended-weights-unnormalized}
 \end{equation}
 followed by normalization over the active routed teachers:
 \begin{equation}
@@ -745,7 +746,6 @@ w_i^{(b)}
 {\sum_{j=1}^{N}\tilde{w}_j^{(b)} \mathbf{1}[j \in \mathcal{A}_b]}.
 \label{eq:effective_teacher_weights}
 \end{equation}
-
 Equations~\ref{eq:grace_softmax}, \ref{eq:alignment_fallback} and
 \ref{eq:effective_teacher_weights} define the gradient-refinement operator:
 the router chooses \(\mathcal{R}_b\), agreement filtering narrows it to
@@ -812,7 +812,7 @@ The complete \methodname{} objective is
 +
 \lambda_{\mathrm{ent}}\mathcal{L}_{ent}
 +
-\lambda_{z}\mathcal{L}_{z},
+\lambda_{z}\mathcal{L}_{z}.
 \label{eq:final-objective}
 \end{equation}
 The terms in this objective follow the dependency chain:
