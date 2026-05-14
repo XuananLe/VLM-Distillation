@@ -86,10 +86,14 @@ byte-trie geometry to compare student and teacher output distributions across
 different tokenizers. Gradient-agreement refinement then filters and reweights
 the routed teachers by comparing each teacher-specific KD gradient with the
 supervised CE gradient. At a high level, the routed KD signal for sample \(b\)
-is the weighted combination of teacher-specific losses
-\(\bar{\mathcal{L}}_{KD}^{(b)}
-=\sum_{i\in\mathcal{R}_b}w_i^{(b)}\mathcal{L}_{KD}^{(b,i)}\), where the
-final weights \(w_i^{(b)}\) are determined by both the router and the
+is the weighted combination of teacher-specific losses:
+\[
+\bar{\mathcal{L}}_{KD}^{(b)}
+=
+\sum_{i\in\mathcal{R}_b}
+w_i^{(b)}\mathcal{L}_{KD}^{(b,i)}.
+\]
+The final weights \(w_i^{(b)}\) are determined by both the router and the
 gradient-agreement refinement step. This decomposition separates teacher
 selection from teacher validation: routing proposes teachers that appear
 relevant to the sample, while gradient agreement checks whether their current
