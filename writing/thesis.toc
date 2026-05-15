@@ -3,73 +3,47 @@
 \contentsline {chapter}{Tóm tắt}{ii}{Doc-Start}%
 \contentsline {chapter}{Abstract}{iii}{Doc-Start}%
 \contentsline {chapter}{Table of Contents}{iv}{Doc-Start}%
-\contentsline {chapter}{List of Figures}{vii}{Doc-Start}%
-\contentsline {chapter}{List of Tables}{viii}{Doc-Start}%
-\contentsline {chapter}{List of Abbreviations}{ix}{chapter*.1}%
+\contentsline {chapter}{List of Figures}{vi}{Doc-Start}%
+\contentsline {chapter}{List of Tables}{vii}{Doc-Start}%
+\contentsline {chapter}{List of Abbreviations}{viii}{chapter*.1}%
 \contentsline {chapter}{\numberline {1}Introduction}{1}{chapter.1}%
 \contentsline {chapter}{\numberline {2}Background and Related Work}{4}{chapter.2}%
 \contentsline {section}{\numberline {2.1}Vision-Language Models}{4}{section.2.1}%
-\contentsline {subsection}{\numberline {2.1.1}Architecture Families}{4}{subsection.2.1.1}%
-\contentsline {subsection}{\numberline {2.1.2}Autoregressive Answer Generation}{5}{subsection.2.1.2}%
 \contentsline {section}{\numberline {2.2}Knowledge Distillation}{6}{section.2.2}%
-\contentsline {subsection}{\numberline {2.2.1}Teacher-Student Objective}{6}{subsection.2.2.1}%
-\contentsline {subsection}{\numberline {2.2.2}Temperature Scaling and Soft Targets}{6}{subsection.2.2.2}%
-\contentsline {subsection}{\numberline {2.2.3}Answer-Token Supervision}{7}{subsection.2.2.3}%
-\contentsline {subsection}{\numberline {2.2.4}Response-Based vs. Feature-Based Distillation}{8}{subsection.2.2.4}%
-\contentsline {section}{\numberline {2.3}Tokenizer-Agnostic Distribution Matching}{9}{section.2.3}%
-\contentsline {subsection}{\numberline {2.3.1}Wasserstein Distance}{9}{subsection.2.3.1}%
-\contentsline {subsection}{\numberline {2.3.2}Tree-Structured Transport}{10}{subsection.2.3.2}%
-\contentsline {section}{\numberline {2.4}Representation Matching}{11}{section.2.4}%
-\contentsline {subsection}{\numberline {2.4.1}Hidden-State Alignment}{11}{subsection.2.4.1}%
-\contentsline {subsection}{\numberline {2.4.2}Centered Kernel Alignment (CKA)}{11}{subsection.2.4.2}%
-\contentsline {subsection}{\numberline {2.4.3}Limitations of Representation-Only Matching}{12}{subsection.2.4.3}%
-\contentsline {section}{\numberline {2.5}Sparse Routing and Expert Selection}{12}{section.2.5}%
-\contentsline {subsection}{\numberline {2.5.1}Mixture-of-Experts and Top-$k$ Selection}{12}{subsection.2.5.1}%
-\contentsline {subsection}{\numberline {2.5.2}Load Balancing Objectives}{13}{subsection.2.5.2}%
-\contentsline {subsection}{\numberline {2.5.3}Sample-Adaptive Routing}{14}{subsection.2.5.3}%
-\contentsline {subsection}{\numberline {2.5.4}Routing in Distillation Settings}{14}{subsection.2.5.4}%
-\contentsline {section}{\numberline {2.6}Multi-Teacher Distillation}{15}{section.2.6}%
-\contentsline {subsection}{\numberline {2.6.1}Weighted Teacher Aggregation}{15}{subsection.2.6.1}%
-\contentsline {subsection}{\numberline {2.6.2}Gradient Conflict in Multi-Objective Optimization}{16}{subsection.2.6.2}%
-\contentsline {section}{\numberline {2.7}Related Work}{16}{section.2.7}%
-\contentsline {chapter}{\numberline {3}Proposed Method}{19}{chapter.3}%
-\contentsline {section}{\numberline {3.1}Method Overview and Problem Formulation}{19}{section.3.1}%
-\contentsline {section}{\numberline {3.2}Trie-Wasserstein Cross-Tokenizer Distillation}{23}{section.3.2}%
-\contentsline {subsection}{\numberline {3.2.1}Supervised Answer Tokens}{23}{subsection.3.2.1}%
-\contentsline {subsection}{\numberline {3.2.2}Shared Byte Trie}{23}{subsection.3.2.2}%
-\contentsline {subsection}{\numberline {3.2.3}Trie-Wasserstein Objective}{25}{subsection.3.2.3}%
-\contentsline {subsection}{\numberline {3.2.4}Sparse Support and Residual Tail Edge}{26}{subsection.3.2.4}%
-\contentsline {section}{\numberline {3.3}Teacher Routing Network}{28}{section.3.3}%
-\contentsline {subsection}{\numberline {3.3.1}Router Architecture}{28}{subsection.3.3.1}%
-\contentsline {subsection}{\numberline {3.3.2}Top-k Routing}{29}{subsection.3.3.2}%
-\contentsline {subsection}{\numberline {3.3.3}Router Entropy and Z-Loss}{30}{subsection.3.3.3}%
-\contentsline {section}{\numberline {3.4}Gradient-Agreement Refinement}{30}{section.3.4}%
-\contentsline {subsection}{\numberline {3.4.1}Gradient Agreement Scoring}{30}{subsection.3.4.1}%
-\contentsline {subsection}{\numberline {3.4.2}Agreement Scores and Active Set}{31}{subsection.3.4.2}%
-\contentsline {subsection}{\numberline {3.4.3}Warmup, EMA Smoothing and Score Weights}{31}{subsection.3.4.3}%
-\contentsline {subsection}{\numberline {3.4.4}Weight Blending and Fallback}{32}{subsection.3.4.4}%
-\contentsline {section}{\numberline {3.5}Routed KD Aggregation and Final Objective}{33}{section.3.5}%
-\contentsline {chapter}{\numberline {4}Evaluation Methodology}{35}{chapter.4}%
-\contentsline {section}{\numberline {4.1}Experimental Setup}{35}{section.4.1}%
-\contentsline {section}{\numberline {4.2}Datasets}{36}{section.4.2}%
-\contentsline {section}{\numberline {4.3}Training Configuration}{37}{section.4.3}%
-\contentsline {section}{\numberline {4.4}Evaluation Metrics}{38}{section.4.4}%
-\contentsline {section}{\numberline {4.5}Baselines and Compared Methods}{38}{section.4.5}%
-\contentsline {section}{\numberline {4.6}Ablation Settings}{40}{section.4.6}%
-\contentsline {chapter}{\numberline {5}Experiment Results}{42}{chapter.5}%
-\contentsline {section}{\numberline {5.1}Main Comparison Results}{42}{section.5.1}%
-\contentsline {subsection}{\numberline {5.1.1}Baseline Results}{42}{subsection.5.1.1}%
-\contentsline {subsection}{\numberline {5.1.2}Overall Comparison}{43}{subsection.5.1.2}%
-\contentsline {section}{\numberline {5.2}Representation Similarity Analysis}{51}{section.5.2}%
-\contentsline {section}{\numberline {5.3}Ablation Study}{53}{section.5.3}%
-\contentsline {section}{\numberline {5.4}Efficiency Analysis}{56}{section.5.4}%
-\contentsline {section}{\numberline {5.5}Discussion}{58}{section.5.5}%
-\contentsline {chapter}{Conclusion and Future Work}{60}{section*.30}%
-\contentsline {chapter}{References}{62}{section*.31}%
+\contentsline {section}{\numberline {2.3}Tokenizer-Agnostic Distribution Matching}{8}{section.2.3}%
+\contentsline {section}{\numberline {2.4}Sparse Routing and Expert Selection}{11}{section.2.4}%
+\contentsline {section}{\numberline {2.5}Multi-Teacher Distillation}{13}{section.2.5}%
+\contentsline {section}{\numberline {2.6}Related Work}{14}{section.2.6}%
+\contentsline {chapter}{\numberline {3}Proposed Method}{16}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Method Overview and Problem Formulation}{16}{section.3.1}%
+\contentsline {section}{\numberline {3.2}Trie-Wasserstein Cross-Tokenizer Distillation}{19}{section.3.2}%
+\contentsline {subsection}{\numberline {3.2.1}Shared Byte Trie}{19}{subsection.3.2.1}%
+\contentsline {subsection}{\numberline {3.2.2}Sparse Support and Residual Tail Edge}{20}{subsection.3.2.2}%
+\contentsline {subsection}{\numberline {3.2.3}Trie-Wasserstein Objective}{21}{subsection.3.2.3}%
+\contentsline {section}{\numberline {3.3}Teacher Routing Network}{23}{section.3.3}%
+\contentsline {section}{\numberline {3.4}Gradient-Agreement Refinement}{25}{section.3.4}%
+\contentsline {section}{\numberline {3.5}Routed KD Aggregation and Final Objective}{27}{section.3.5}%
+\contentsline {chapter}{\numberline {4}Evaluation Methodology}{28}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Experimental Setup}{28}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Datasets}{29}{section.4.2}%
+\contentsline {section}{\numberline {4.3}Baselines}{30}{section.4.3}%
+\contentsline {section}{\numberline {4.4}Ablation Settings}{32}{section.4.4}%
+\contentsline {chapter}{\numberline {5}Experiment Results}{34}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Main Comparison Results}{34}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Ablation Study}{44}{section.5.2}%
+\contentsline {paragraph}{Routing without gradient refinement.}{45}{table.caption.28}%
+\contentsline {section}{\numberline {5.3}Efficiency Analysis}{47}{section.5.3}%
+\contentsline {section}{\numberline {5.4}Discussion}{48}{section.5.4}%
+\contentsline {paragraph}{First-order interpretation of gradient-agreement refinement.}{48}{section.5.4}%
+\contentsline {chapter}{Conclusion and Future Work}{50}{section*.30}%
+\contentsline {section}{Summary}{50}{section*.31}%
+\contentsline {section}{Limitations}{50}{section*.32}%
+\contentsline {section}{Future Work}{51}{section*.33}%
+\contentsline {chapter}{References}{52}{section*.34}%
 \renewcommand {\cftchappresnum }{Appendix }
 \setlength {\cftchapnumwidth }{6.5em}
-\contentsline {chapter}{\numberline {A}Proof of the Closed-Form Trie-Wasserstein}{69}{appendix.A}%
-\contentsline {chapter}{\numberline {B}Training Configuration and Infrastructure}{72}{appendix.B}%
-\contentsline {section}{\numberline {B.1}Baseline Implementation}{73}{section.B.1}%
-\contentsline {section}{\numberline {B.2}Offline Teacher-Logit Preparation}{74}{section.B.2}%
-\contentsline {section}{\numberline {B.3}Remote Logit Streaming During Training}{76}{section.B.3}%
+\contentsline {chapter}{\numberline {A}Proof of the Closed-Form Trie-Wasserstein}{59}{appendix.A}%
+\contentsline {chapter}{\numberline {B}Implementation Details}{62}{appendix.B}%
+\contentsline {section}{\numberline {B.1}Baseline Implementation}{63}{section.B.1}%
+\contentsline {section}{\numberline {B.2}Offline Teacher-Logit Preparation}{64}{section.B.2}%
+\contentsline {section}{\numberline {B.3}Remote Logit Streaming During Training}{65}{section.B.3}%

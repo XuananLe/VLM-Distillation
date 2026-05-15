@@ -1,7 +1,10 @@
 \chapter{Evaluation Methodology}
 \label{chap:evaluation-methodology}
 
-This chapter describes the experimental setup used to evaluate \methodname{} and all compared methods. It covers the student models, benchmarks, training configuration, evaluation metrics and baselines. The ablation settings and implementation details needed to reproduce the main results are included at the end of the chapter.
+This chapter describes the experimental setup used to evaluate \methodname{} and
+all compared methods. It covers the student models, training configuration,
+benchmark datasets and their evaluation metrics, baselines and ablation
+settings needed to reproduce the main results.
 
 
 \section{Experimental Setup}
@@ -14,28 +17,37 @@ inference, post-processing and metric-computation pipeline for the three
 benchmarks. VLM-Eval-Kit uses a generation-based evaluation interface. For each benchmark
 sample, the toolkit loads the image-question pair, applies the dataset-specific
 prompt construction logic and calls the model's generation or chat interface to
-produce a free-form text answer. This choice is important for VLMs because it
-evaluates the same interface used at inference time and avoids replacing answer
-generation with likelihood scoring over a fixed set of options. After
-generation, the toolkit writes model predictions to result files and invokes
-the benchmark-specific evaluator.
+produce a free-form text answer.
 
-The post-processing stage depends on the task format. For structured
-yes/no or multiple-choice tasks, VLM-Eval-Kit can use exact matching or an
-LLM-based choice extractor to recover the final option from the generated text.
-For open-answer VQA benchmarks such as the ones used here, the generated answer
-is normalized before scoring so that superficial formatting differences do not
-dominate the metric. The final score is then computed with the official metric
-associated with each dataset. For example, a TextVQA prediction is matched
-against the human answer set using VQA accuracy, so a short answer such as
-\texttt{stop} is credited according to annotator agreement. A DocVQA prediction
-is scored with ANLS, so a near miss such as \texttt{INV-4572} versus
-\texttt{4572} receives partial credit only when the normalized edit similarity
-is high enough. A ChartQA numeric answer is evaluated with relaxed accuracy, so
-a value within 5\% of the reference number is counted as correct. In this
-thesis, using the same toolkit for all methods fixes the prompt template,
-decoding interface, answer normalization and metric implementation, so
-evaluation-code differences do not drive the reported performance gaps.
+Before training, all benchmark samples are converted into a unified
+\textbf{LLaVA-style multimodal instruction format}
+\cite{liu2023visualinstructiontuning} as shown in listing~\ref{lst:llava-format},
+so TextVQA, DocVQA and ChartQA can share the same data loader, prompt template
+and answer supervision interface.
+
+\Needspace{12\baselineskip}
+\begin{lstlisting}[basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single,caption={Representative LLaVA-style sample used after dataset conversion.},label={lst:llava-format}]
+{
+  "image": "sample_000123.jpg",
+  "conversations": [
+    {"from": "human", "value": "<image>\nWhat is the invoice number?"},
+    {"from": "gpt", "value": "4572"}
+  ]
+}
+\end{lstlisting}
+
+We run all training jobs on a single high-memory \textbf{NVIDIA H200}
+graphics processing unit (GPU) or on comparable single-GPU \textbf{Vast.ai}
+instances, depending on availability.
+Distillation training uses \textbf{DeepSpeed ZeRO Stage 2}, \textbf{Brain
+Floating Point 16 (bf16)} mixed precision, \textbf{TensorFloat-32 (TF32)}
+matrix multiplication and gradient checkpointing to control memory use while
+keeping the student fully trainable and all teachers frozen
+\cite{rajbhandari2020zero,chen2016sublinear}. Full optimization and routing
+parameter values are reported in Appendix~\ref{app:experiment-parameters},
+Table~\ref{tab:experiment-parameters}. Teacher-logit storage and remote caching
+are documented in Appendix~\ref{app:offline-teacher-logit-preparation} and
+Appendix~\ref{app:remote-logit-streaming} for reproducibility purposes.
 
 \section{Datasets}
 We evaluate three text-centric VQA benchmarks: \textbf{TextVQA}, \textbf{DocVQA} and \textbf{ChartQA}. These benchmarks test whether the model can read visual text, understand questions and perform basic reasoning across natural images, documents and charts. They were chosen because they cover complementary visual domains and combine OCR-heavy understanding with layout interpretation and numerical reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
@@ -107,58 +119,11 @@ ChartQA (H+M, combined) & 28,299 & 1,920 & 2,500 & 32,719 \\
 }
 \end{table}
 
-\section{Training Configuration}
-
-Before training, all benchmark samples are converted into a unified
-\textbf{LLaVA-style multimodal instruction format}
-\cite{liu2023visualinstructiontuning}. Each example is stored as an image plus
-a short user-assistant dialogue, as shown in Listing~\ref{lst:llava-format},
-so TextVQA, DocVQA and ChartQA can share the same data loader, prompt template
-and answer supervision interface. This format is useful because the model sees
-every task as the same conditional generation problem: given an image and a
-natural-language user query, generate the assistant answer. It also separates
-the visual input path from the textual instruction path while keeping the
-answer span explicit, which makes it easier to mask prompt tokens, compute
-supervised loss only on assistant tokens and align teacher logits with the same
-answer positions during distillation.
-
-\begin{lstlisting}[basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single,caption={Representative LLaVA-style sample used after dataset conversion.},label={lst:llava-format}]
-{
-  "image": "sample_000123.jpg",
-  "conversations": [
-    {"from": "human", "value": "<image>\nWhat is the invoice number?"},
-    {"from": "gpt", "value": "4572"}
-  ]
-}
-\end{lstlisting}
-
-We run all training jobs on a single high-memory \textbf{NVIDIA H200}
-graphics processing unit (GPU) or on comparable single-GPU \textbf{Vast.ai}
-instances, depending on availability.
-Distillation training uses \textbf{DeepSpeed ZeRO Stage 2}, \textbf{Brain
-Floating Point 16 (bf16)} mixed precision, \textbf{TensorFloat-32 (TF32)}
-matrix multiplication and gradient checkpointing to control memory use while
-keeping the student fully trainable and all teachers frozen
-\cite{rajbhandari2020zero,chen2016sublinear}. Full optimization and routing
-parameter values are reported in Appendix~\ref{app:experiment-parameters},
-Table~\ref{tab:experiment-parameters}. Teacher-logit storage and remote caching
-are documented in Appendix~\ref{app:offline-teacher-logit-preparation} and
-Appendix~\ref{app:remote-logit-streaming} for reproducibility purposes.
-
-\section{Evaluation Metrics}
-We report benchmark-specific official metrics for each dataset.
-
-\textbf{TextVQA.}
-For TextVQA, we report the official VQA Accuracy metric. For a predicted
-answer \(\hat{a}\), the per-question score is
-\[
-s_{\text{VQA}}=\min\left(\frac{\#\text{annotators that provided } \hat{a}}{3},\,1\right),
-\]
-and the final score is the mean over all questions \cite{singh2019vqamodelsread}.
-
-\textbf{DocVQA.}
-We report ANLS, the Average Normalized Levenshtein Similarity. The final ANLS
-is the average score over all samples
+The official metrics are dataset-specific. For TextVQA, we report VQA
+Accuracy: for a predicted answer \(\hat{a}\), the per-question score is
+\(s_{\text{VQA}}=\min(\#\text{annotators that provided }\hat{a}/3,1)\), and
+the final score is the mean over all questions \cite{singh2019vqamodelsread}.
+For DocVQA, we report ANLS, the Average Normalized Levenshtein Similarity
 \cite{mathew2021docvqadatasetvqadocument}:
 \[
 \mathrm{NLS}(a,\hat{a})=1-\frac{d_{\text{Lev}}(a,\hat{a})}{\max(|a|,|\hat{a}|)}, \quad
@@ -168,11 +133,9 @@ s_{\text{ANLS}}=
 0, & \text{otherwise}.
 \end{cases}
 \]
-
-\textbf{ChartQA.}
-For ChartQA, we report Relaxed Accuracy \cite{masry2022chartqabenchmarkquestionanswering}.
-A prediction is correct if it matches exactly for text answers. For numeric
-answers, the score handles the zero-target case explicitly:
+For ChartQA, we report Relaxed Accuracy
+\cite{masry2022chartqabenchmarkquestionanswering}. Text predictions must match
+exactly, while numeric predictions are scored with
 \[
 s_{\mathrm{ChartQA}}=
 \begin{cases}
@@ -181,38 +144,48 @@ s_{\mathrm{ChartQA}}=
 \end{cases}
 \]
 
-\section{Baselines and Compared Methods}
+\section{Baselines}
+\label{sec:baselines}
 
-For consistency with Chapter~\ref{chap:experiment-results}, we organize the
-compared methods into four groups: non-distillation references, same-family
-distillation baselines, different-family single-teacher baselines and
-heterogeneous teacher baselines. Before introducing the method-specific baselines, the role of each baseline
-family is grouped in Table~\ref{tab:baseline-groups}. The grouping separates
-student-only references, same-family KD, tokenizer-mismatched single-teacher
-transfer and heterogeneous teacher methods.
+With the datasets and official metrics defined above,
+Table~\ref{tab:baseline-groups} organizes the compared methods into four
+groups: non-distillation references, same-family KD, tokenizer-mismatched
+single-teacher transfer and heterogeneous teacher methods.
 
 \begin{table}[tp]
 \centering
 \caption[Baseline groups.]{Baseline groups.}
 \label{tab:baseline-groups}
 \small
-\setlength{\tabcolsep}{5pt}
-\renewcommand{\arraystretch}{1.08}
+\setlength{\tabcolsep}{6pt}
+\renewcommand{\arraystretch}{1.25}
 \begin{tabular}{@{}
   >{\raggedright\arraybackslash}p{0.18\linewidth}
   >{\raggedright\arraybackslash}p{0.24\linewidth}
-  >{\raggedright\arraybackslash}p{0.24\linewidth}
-  >{\raggedright\arraybackslash}p{0.26\linewidth}@{}}
+  >{\raggedright\arraybackslash}p{0.22\linewidth}
+  >{\raggedright\arraybackslash}p{0.27\linewidth}@{}}
 \toprule
 \textbf{Group} & \textbf{Methods} & \textbf{Teacher setup} & \textbf{Purpose} \\
 \midrule
-Non-distillation references & Original, full finetuning & No teacher & Student-only reference points \\
-\midrule
-Same-family baselines & Forward KL, Reverse KL, Jensen-Shannon & SmolVLM2-2.2B-Instruct & Standard single-teacher objectives within the SmolVLM family \\
-\midrule
-Cross-family single-teacher & ULD & Qwen2-VL-2B-Instruct & Cross-family transfer without routed teacher selection \\
-\midrule
-Heterogeneous teacher baselines & Uniform averaging, SHM-CKA, REINFORCE, \textbf{\methodname{} (Ours)} & Mixed teacher set from multiple VLM families & Static averaging vs. hidden-state matching vs. adaptive teacher assignment \\
+Non-distillation references
+  & Original, full finetuning
+  & No teacher
+  & Student-only reference points \\
+\addlinespace[6pt]
+Same-family baselines
+  & Forward KL, Reverse KL, Jensen-Shannon
+  & SmolVLM2-2.2B-Instruct
+  & Standard single-teacher objectives within the SmolVLM family \\
+\addlinespace[6pt]
+Cross-family single-teacher
+  & ULD
+  & Qwen2-VL-2B-Instruct
+  & Cross-family transfer without routed teacher selection \\
+\addlinespace[6pt]
+Heterogeneous teacher baselines
+  & Uniform averaging, SHM-CKA, REINFORCE, \textbf{\methodname{} (Ours)}
+  & Mixed teacher set from multiple VLM families
+  & Static averaging vs.\ hidden-state matching vs.\ adaptive teacher assignment \\
 \bottomrule
 \end{tabular}
 \end{table}
@@ -231,10 +204,10 @@ teacher setting compares uniform averaging, SHM-CKA, REINFORCE and
 hidden-state matching and adaptive teacher assignment
 \cite{takezawa2021supervisedtreewasserstein,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}.
 
-For the trainable competitor methods, we keep the supervised term
-\(\mathcal{L}_{CE}\). The logits-only baselines differ only in the KD signal,
-but SHM-CKA also adds a hidden-state alignment term and REINFORCE
-also adds a REINFORCE-style policy term
+All trainable competitor methods retain the supervised term
+\(\mathcal{L}_{CE}\), so their differences come from the added transfer signal:
+the logits-only baselines change only the KD term, SHM-CKA adds hidden-state
+alignment and REINFORCE adds a policy-gradient term
 \cite{kornblith2019similarityrepresentations,williams1992simple,yuan2020reinforcedmultiteacherselection}.
 In the descriptions below, \(\gamma\) denotes a generic KD mixing coefficient.
 \(\alpha_{\mathrm{KD}}\) is reserved for the \methodname{} training objective
@@ -292,8 +265,7 @@ routing or gradient-aware weighting.
 that samples teachers and updates the selector with REINFORCE
 \cite{williams1992simple,yuan2020reinforcedmultiteacherselection}, providing
 an adaptive routing baseline that does not use the gradient-agreement
-refinement introduced by \methodname{}.
-The selector is trained with the policy-gradient term
+refinement introduced by \methodname{}. The selector is trained with the policy-gradient term
 \begin{equation}
 \mathcal{L}_{\mathrm{pol}}
 =
@@ -320,8 +292,6 @@ of \methodname{} on DocVQA while keeping the teacher set and training protocol
 close to the final method. The variants change one mechanism at a time so that
 the result table can separate teacher diversity, sparse routing,
 gradient-agreement weighting and EMA score smoothing.
-The effect of EMA smoothing is isolated in the \(\beta_{\mathrm{EMA}}=0\)
-ablation in Section~\ref{sec:ablation}.
 
 \textbf{Cross-family ULD.} The single-teacher cross-family baseline uses one teacher outside the SmolVLM
 family and optimizes
@@ -383,14 +353,3 @@ This row is an active-set-restricted router-weight ablation, not a pure
 router-only ablation over all routed teachers. The \(\beta_{\mathrm{EMA}}=0\)
 variant removes temporal smoothing by setting \(\hat{s}_i=s_i\) before
 score-softmax weighting.
-
-The training runs reported in this thesis rely on an offline teacher-logit
-preparation step and a remote logit-streaming infrastructure that are
-separate from the fair-comparison protocol described above. Teacher logits are
-generated once and stored on Cloudflare R2. During training, they are streamed
-lazily through a 100~GB local cache without copying the full logit store locally.
-Full engineering
-details, including the caching script, path conventions, streaming loader and
-the logit-streaming settings table, are given in
-Appendix~\ref{app:offline-teacher-logit-preparation} and
-Appendix~\ref{app:remote-logit-streaming}.

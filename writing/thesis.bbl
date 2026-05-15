@@ -68,6 +68,14 @@ Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor
   Elsen, Jack~W. Rae, Oriol Vinyals, and Laurent Sifre.
 \newblock Training compute-optimal large language models, 2022.
 
+\bibitem{wang2024qwen2vl}
+Peng Wang, Shuai Bai, Sinan Tan, Shijie Wang, Zhihao Fan, Jinze Bai, Keqin
+  Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Yang Fan, Kai Dang, Mengfei Du,
+  Xuancheng Ren, Rui Men, Dayiheng Liu, Chang Zhou, Jingren Zhou, and Junyang
+  Lin.
+\newblock Qwen2-vl: Enhancing vision-language model's perception of the world
+  at any resolution, 2024.
+
 \bibitem{hinton2015distillingknowledgeneuralnetwork}
 Geoffrey Hinton, Oriol Vinyals, and Jeff Dean.
 \newblock Distilling the knowledge in a neural network, 2015.
@@ -135,14 +143,6 @@ Yu-Chu Yu, Chi-Pin Huang, Jr-Jen Chen, Kai-Po Chang, Yung-Hsuan Lai, Fu-En
 \newblock Select and distill: Selective dual-teacher knowledge transfer for
   continual learning on vision-language models, 2024.
 
-\bibitem{wang2024qwen2vl}
-Peng Wang, Shuai Bai, Sinan Tan, Shijie Wang, Zhihao Fan, Jinze Bai, Keqin
-  Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Yang Fan, Kai Dang, Mengfei Du,
-  Xuancheng Ren, Rui Men, Dayiheng Liu, Chang Zhou, Jingren Zhou, and Junyang
-  Lin.
-\newblock Qwen2-vl: Enhancing vision-language model's perception of the world
-  at any resolution, 2024.
-
 \bibitem{chen2024internvl15}
 Zhe Chen, Weiyun Wang, Hao Tian, Shenglong Ye, Zhangwei Gao, Erfei Cui, Wenwen
   Tong, Kongzhi Hu, Jiapeng Luo, Zheng Ma, Ji~Ma, Jiaqi Wang, Xiaoyi Dong, Hang
@@ -200,6 +200,11 @@ Zhiyuan Fang, Jianfeng Wang, Xiaowei Hu, Lijuan Wang, Yezhou Yang, and Zicheng
 Sayantan Dasgupta and Trevor Cohn.
 \newblock Improving language model distillation through hidden state matching.
 \newblock In {\em International Conference on Learning Representations}, 2025.
+
+\bibitem{klabunde2023similarity}
+Max Klabunde, Tobias Schumacher, Markus Strohmaier, and Florian Lemmerich.
+\newblock Similarity of neural network models: A survey of functional and
+  representational measures, 2023.
 
 \bibitem{peyre2019computationaloptimaltransport}
 Gabriel Peyr{\'e} and Marco Cuturi.
@@ -275,6 +280,15 @@ Haodong Duan, Xinyu Fang, Junming Yang, et~al.
 \newblock Vlmevalkit: An open-source toolkit for evaluating large
   multi-modality models, 2024.
 
+\bibitem{rajbhandari2020zero}
+Samyam Rajbhandari, Jeff Rasley, Olatunji Ruwase, and Yuxiong He.
+\newblock Zero: Memory optimizations toward training trillion parameter models,
+  2020.
+
+\bibitem{chen2016sublinear}
+Tianqi Chen, Bing Xu, Chiyuan Zhang, and Carlos Guestrin.
+\newblock Training deep nets with sublinear memory cost, 2016.
+
 \bibitem{wikimedia_stop_sign_image}
 {Wikimedia Commons contributors}.
 \newblock File: Stop sign.jpg.
@@ -292,15 +306,6 @@ Haodong Duan, Xinyu Fang, Junming Yang, et~al.
 \newblock File: Bar chart.svg.
 \newblock Wikimedia Commons, 2016.
 \newblock CC BY-SA 4.0. Accessed: 2026-03-06.
-
-\bibitem{rajbhandari2020zero}
-Samyam Rajbhandari, Jeff Rasley, Olatunji Ruwase, and Yuxiong He.
-\newblock Zero: Memory optimizations toward training trillion parameter models,
-  2020.
-
-\bibitem{chen2016sublinear}
-Tianqi Chen, Bing Xu, Chiyuan Zhang, and Carlos Guestrin.
-\newblock Training deep nets with sublinear memory cost, 2016.
 
 \bibitem{smolvlm2_modelcard}
 {Hugging Face TB}.
@@ -341,11 +346,6 @@ Taiqiang Wu, Chaofan Tao, Jiahao Wang, Runming Yang, Zhe Zhao, and Ngai Wong.
   large language models.
 \newblock In {\em Proceedings of the 31st International Conference on
   Computational Linguistics}, page 5737{\textendash}5755, 2025.
-
-\bibitem{klabunde2023similarity}
-Max Klabunde, Tobias Schumacher, Markus Strohmaier, and Florian Lemmerich.
-\newblock Similarity of neural network models: A survey of functional and
-  representational measures, 2023.
 
 \bibitem{cloudflare_r2_overview}
 {Cloudflare}.

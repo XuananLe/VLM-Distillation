@@ -13,12 +13,16 @@ including extracting information from scanned documents, understanding visually
 rich scenes and grounding language instructions in physical environments
 \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering,driess2023palme,brohan2023rt2}.
 
+
 Driven by neural scaling laws, the most capable VLMs are usually built on large
 language backbones trained with large multimodal corpora. This recipe reliably
 improves performance but also raises computational cost
-\cite{kaplan2020scalinglaws,hoffmann2022trainingcomputeoptimal}. As model size
-grows, the gap between what is achievable in research and what is deployable
-in practice widens accordingly. The \textbf{highest-scoring models are often the
+\cite{kaplan2020scalinglaws,hoffmann2022trainingcomputeoptimal}. A recent open
+VLM family shows the same spread: Qwen2-VL studies 2B, 7B and 72B variants, so
+the largest reported variant is \textbf{36 times} larger than the smallest one
+\cite{wang2024qwen2vl}. As model size grows, the gap between what is achievable
+in research and what is deployable in practice widens accordingly. The
+\textbf{highest-scoring models are often the
 hardest to deploy} when latency, memory footprint, energy consumption and
 hardware constraints matter. In robotics and embodied AI, an agent must process
 visual observations, interpret language instructions and produce action
@@ -35,14 +39,13 @@ student avoids training from scratch on the same large-scale corpora and learns
 from the teacher's output distributions and internal representations,
 which carry richer information than hard labels alone
 \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
-Distillation has been widely used to produce smaller models that \textbf{retain part
-of the capability of their larger counterparts} and recent lightweight VLMs
+Distillation has been widely used to produce smaller models that \textbf{retain
+much of the capability of their larger counterparts}, and recent lightweight VLMs
 demonstrate that this direction is viable for latency-sensitive and
 cost-sensitive deployment
 \cite{chu2023mobilevlm,zhou2024tinyllava,marafioti2025smolvlm}.
 
-However, distillation in the VLM setting cannot be treated as a straightforward
-compression problem. Existing approaches each address part of the challenge,
+Existing approaches each address part of the challenge,
 but \textbf{none covers it fully}. Response-based distillation aligns teacher and
 student output distributions effectively when both share a tokenizer, but
 \textbf{breaks down} when teacher and student use \textbf{different vocabularies}
@@ -59,7 +62,7 @@ methods show the value of pooling several teachers, but fixed or globally
 learned weights can mix useful supervision with low-utility or conflicting signals
 \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
 
-These limitations are most severe in text-rich visual reasoning tasks such as
+These limitations are \textbf{most severe} in text-rich visual reasoning tasks such as
 document question answering, chart interpretation and scene text understanding.
 Although recent open-source VLMs have narrowed the gap with proprietary systems
 on common benchmarks \cite{wang2024qwen2vl,chen2024internvl15,chen2024internvl25},
@@ -71,13 +74,12 @@ resolution} for heterogeneous VLM distillation.
 
 This thesis evaluates \textbf{\gracefull{} (\gracename{})} using VLM-Eval-Kit
 on TextVQA, DocVQA and ChartQA with SmolVLM-500M and SmolVLM-256M as student
-models. In the four-teacher setting, \methodname{}
+models. In our setting, \methodname{}
 moves SmolVLM-500M closer to the highest-scoring teacher by closing \(55.03\%\),
 \(39.53\%\) and \(55.34\%\) of original teacher-student gaps of
-22.95, 34.38 and 31.44 points on TextVQA, DocVQA and ChartQA. This reduction
-supports deployment of smaller student VLMs in text-rich VQA
-scenarios.
-The study is guided by three research questions:
+22.95, 34.38 and 31.44 points on TextVQA, DocVQA and ChartQA, supporting
+deployment of student VLMs in VQA scenarios. The research questions focus on
+performance, component effects and training cost:
 
 \begin{itemize}
 \item \textbf{RQ1: Performance.} How does \methodname{} compare
@@ -91,45 +93,37 @@ the final performance?
 does \methodname{} introduce during training?
 \end{itemize}
 
-This thesis addresses this gap through three contributions to knowledge
-distillation for a pool of heterogeneous vision-language models.
+\newpage
 
-\noindent \textbf{First, trie-Wasserstein cross-tokenizer distillation loss.}
-We formulate a tokenizer-agnostic KD objective that maps teacher and student
-token vocabularies onto a shared UTF-8 byte trie and computes a \(W_1\)
-optimal-transport distance through subtree-mass imbalances. Compared with
-ranked-mass baselines such as ULD, the trie-Wasserstein loss preserves the
-lexical structure of decoded token strings: tokens that share a long byte
-prefix are cheaper to transport across than unrelated tokens. A sparse
-top-\(K_{\mathrm{TW}}\) support with a residual tail edge keeps per-position
-cost bounded without discarding low-probability mass.
+This thesis addresses this gap through three contributions. First, a
+\textbf{trie-Wasserstein KD loss} maps teacher and student vocabularies onto a
+shared UTF-8 byte trie and computes a \(W_1\) optimal-transport distance through
+subtree-mass imbalances. Unlike standard ULD losses, this objective
+\textbf{preserves the lexical structure} of decoded token strings: tokens that share a
+long byte prefix are cheaper to transport across than unrelated ones, making
+the loss well-suited to OCR-heavy outputs where correct and near-correct answers
+often differ only in prefixes, suffixes or whitespace conventions. Second,
+\textbf{gradient-agreement refinement} scores each routed teacher by comparing
+its KD gradient against the supervised CE gradient using cosine similarity,
+stabilizes the scores with an exponential moving average and geometrically
+blends them with the router's own weights, ensuring that only teachers whose
+update directions are \textbf{compatible} with the supervised objective \textbf{can contribute} to training. Finally, \textbf{GRACE} integrates the trie-Wasserstein
+loss, a sparse top-\(k\) teacher routing network and gradient-agreement
+refinement into a single end-to-end objective, where each component \textbf{corrects
+one failure the previous cannot fix}. Evaluated on TextVQA, DocVQA and ChartQA
+with SmolVLM-500M and SmolVLM-256M under a four-teacher pool, \methodname{}
+improves over direct fine-tuning, same-family KD, ULD and heterogeneous
+multi-teacher baselines, closing \textbf{up to 55\% of the teacher-student gap}.
 
-\noindent \textbf{Second, gradient-agreement refinement of routed teacher weights.}
-We introduce a post-routing correction mechanism that scores each routed
-teacher by comparing its KD gradient against the student's supervised CE
-gradient with cosine similarity. The scores are stabilized with an
-exponential moving average, converted to weights through a score-softmax and
-geometrically blended with the router's own weights. This refinement detects
-and suppresses teachers whose KD direction conflicts with the supervised
-objective, a failure mode that sparse routing alone cannot prevent.
+\vspace{1em}
 
-\noindent \textbf{Finally, GRACE as an integrated framework for heterogeneous multi-teacher
-VLM distillation.}
-We combine the trie-Wasserstein loss, a sparse top-\(k\) teacher routing
-network and gradient-agreement refinement into a single end-to-end training
-objective. Empirical evaluation on TextVQA, DocVQA and ChartQA with
-SmolVLM-500M and SmolVLM-256M students under a four-teacher pool shows that
-\methodname{} improves over direct finetuning, same-family KD, cross-family
-ULD and the compared heterogeneous multi-teacher baselines, closing up to
-55\% of the teacher-student gap.
-
-The remainder of this thesis is structured as follows.
-Chapter~\ref{chap:preliminaries} provides background on VLMs, knowledge
+The remainder of this thesis is structured as follows. Chapter~\ref{chap:preliminaries} provides background on VLMs, knowledge
 distillation, tokenizer-mismatched distribution matching, sparse routing and
 gradient conflict resolution. Chapter~\ref{chap:proposed-method} presents
 \methodname{} in full, covering the trie-Wasserstein objective, sparse teacher
 router, gradient-agreement refinement and combined training objective.
-Chapter~\ref{chap:evaluation-methodology} describes the datasets, baselines,
-metrics and implementation details. Chapter~\ref{chap:experiment-results}
-reports results across RQ1 to RQ3. The thesis concludes with the main
+Chapter~\ref{chap:evaluation-methodology} describes the experimental setup,
+datasets and evaluation metrics, baselines and ablation settings.
+Chapter~\ref{chap:experiment-results} reports the main comparison, ablation
+study, efficiency analysis and discussion. The thesis concludes with the main
 findings and future directions.

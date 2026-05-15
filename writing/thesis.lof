@@ -1,26 +1,26 @@
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \contentsline {figure}{\numberline {2.1}{\ignorespaces Representative architecture families of modern vision-language models.}}{5}{figure.caption.2}%
-\contentsline {figure}{\numberline {2.2}{\ignorespaces Geometric behavior of Wasserstein distance.}}{10}{figure.caption.4}%
-\contentsline {figure}{\numberline {2.3}{\ignorespaces Discrete optimal transport views.}}{11}{figure.caption.5}%
+\contentsline {figure}{\numberline {2.2}{\ignorespaces Geometric behavior of Wasserstein distance.}}{9}{figure.caption.4}%
+\contentsline {figure}{\numberline {2.3}{\ignorespaces Discrete optimal transport views.}}{10}{figure.caption.5}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {3.1}{\ignorespaces Overview of the GRACE architecture.}}{20}{figure.caption.6}%
-\contentsline {figure}{\numberline {3.2}{\ignorespaces Shared-trie tokenizer matching.\relax }}{25}{figure.caption.8}%
-\contentsline {figure}{\numberline {3.3}{\ignorespaces Sparse trie-Wasserstein support.\relax }}{27}{figure.caption.9}%
-\contentsline {figure}{\numberline {3.4}{\ignorespaces Teacher routing network.\relax }}{28}{figure.caption.10}%
-\contentsline {figure}{\numberline {3.5}{\ignorespaces Top-\(k\) routing dynamics.}}{29}{figure.caption.11}%
-\contentsline {figure}{\numberline {3.6}{\ignorespaces Representative KD weighting regimes.}}{33}{figure.caption.12}%
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Overview of the GRACE architecture.}}{17}{figure.caption.6}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces Shared-trie tokenizer matching.\relax }}{21}{figure.caption.8}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Sparse trie-Wasserstein support.\relax }}{22}{figure.caption.9}%
+\contentsline {figure}{\numberline {3.4}{\ignorespaces Teacher routing network.\relax }}{23}{figure.caption.10}%
+\contentsline {figure}{\numberline {3.5}{\ignorespaces Top-\(k\) routing dynamics.}}{24}{figure.caption.11}%
+\contentsline {figure}{\numberline {3.6}{\ignorespaces Representative KD weighting regimes.}}{27}{figure.caption.12}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {4.1}{\ignorespaces Representative dataset examples.}}{36}{figure.caption.13}%
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Representative dataset examples.}}{29}{figure.caption.13}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {5.1}{\ignorespaces Grouped benchmark comparison.}}{45}{figure.caption.19}%
-\contentsline {figure}{\numberline {5.2}{\ignorespaces DEX-AR overview.}}{46}{figure.caption.20}%
-\contentsline {figure}{\numberline {5.3}{\ignorespaces Representative TextVQA attention example.}}{47}{figure.caption.21}%
-\contentsline {figure}{\numberline {5.4}{\ignorespaces Uniform and GRACE training curves.}}{48}{figure.caption.22}%
-\contentsline {figure}{\numberline {5.5}{\ignorespaces Routed-teacher load examples.}}{49}{figure.caption.23}%
-\contentsline {figure}{\numberline {5.6}{\ignorespaces Final-layer CKA heatmaps.}}{52}{figure.caption.26}%
-\contentsline {figure}{\numberline {5.7}{\ignorespaces Vision-layer CKA heatmaps.}}{53}{figure.caption.27}%
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Grouped benchmark comparison.}}{37}{figure.caption.19}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces DEX-AR overview.}}{38}{figure.caption.20}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces Representative TextVQA attention example.}}{39}{figure.caption.21}%
+\contentsline {figure}{\numberline {5.4}{\ignorespaces Uniform and GRACE training curves.}}{39}{figure.caption.22}%
+\contentsline {figure}{\numberline {5.5}{\ignorespaces Routed-teacher load examples.}}{40}{figure.caption.23}%
+\contentsline {figure}{\numberline {5.6}{\ignorespaces Final-layer CKA heatmaps.}}{43}{figure.caption.26}%
+\contentsline {figure}{\numberline {5.7}{\ignorespaces Vision-layer CKA heatmaps.}}{44}{figure.caption.27}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {B.1}{\ignorespaces R2 teacher-logit storage.}}{75}{figure.caption.33}%
-\contentsline {figure}{\numberline {B.2}{\ignorespaces Training with remote teacher logits.\relax }}{76}{figure.caption.34}%
+\contentsline {figure}{\numberline {B.1}{\ignorespaces R2 teacher-logit storage.}}{65}{figure.caption.36}%
+\contentsline {figure}{\numberline {B.2}{\ignorespaces Training with remote teacher logits.\relax }}{66}{figure.caption.37}%
