@@ -23,6 +23,8 @@
 \usepackage{url}
 \usepackage{tikz}
 \usepackage{float}
+\usepackage{algorithm}
+\usepackage{algpseudocode}
 \usepackage{placeins}
 \usepackage{needspace}
 \usepackage{pdflscape}
@@ -81,9 +83,13 @@
 %\renewcommand{\cftsecpresnum}{Chapter\space}
 \renewcommand{\cftchappresnum}{Chapter }
 \AtBeginDocument{\addtolength\cftchapnumwidth{\widthof{\bfseries Chapter }}}
-\setlength{\parskip}{0pt}
 \setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
 \setlength{\parfillskip}{0pt plus 0.55\textwidth}
+\setlength{\abovedisplayskip}{0.7em}
+\setlength{\belowdisplayskip}{0.7em}
+\setlength{\abovedisplayshortskip}{0.5em}
+\setlength{\belowdisplayshortskip}{0.5em}
 %
 \newcommand{\gracename}{GRACE}
 \newcommand{\gracefull}{Gradient-Routed Alignment with Capacity-aware Experts}

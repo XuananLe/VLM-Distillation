@@ -32,10 +32,10 @@
     {1}{177.42606pt}\LT@entry 
     {1}{188.80699pt}}
 \@writefile{toc}{\contentsline {chapter}{List of Abbreviations}{viii}{chapter*.1}\protected@file@percent }
-\citation{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning}
-\citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering,driess2023palme,brohan2023rt2}
+\citation{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning,singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
 \citation{kaplan2020scalinglaws,hoffmann2022trainingcomputeoptimal}
-\citation{wang2024qwen2vl}
+\citation{bai2025qwen25vl,dai2024nvlm,meta2024llama32,grattafiori2024llama3}
+\citation{nvidia2024h100}
 \citation{driess2023palme,brohan2023rt2}
 \citation{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}
 \citation{chu2023mobilevlm,zhou2024tinyllava,marafioti2025smolvlm}
@@ -65,14 +65,14 @@
 \pp@pagectr{footnote}{3}{17}{4}
 \citation{vaswani2017attentionneed}
 \citation{vaswani2017attentionneed,hinton2015distillingknowledgeneuralnetwork}
+\citation{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}
 \@writefile{lof}{\contentsline {figure}{\numberline {2.1}{\ignorespaces Representative architecture families of modern vision-language models.}}{5}{figure.caption.2}\protected@file@percent }
 \providecommand*\caption@xref[2]{\@setref\relax\@undefined{#1}}
 \newlabel{fig:prelim-vlm-families}{{2.1}{5}{Representative architecture families of modern vision-language models}{figure.caption.2}{}}
-\citation{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}
 \citation{hinton2015distillingknowledgeneuralnetwork}
 \citation{hinton2015distillingknowledgeneuralnetwork,lin1991jensen,boizard2024towardscrosstokenizerdistillation}
-\@writefile{toc}{\contentsline {section}{\numberline {2.2}Knowledge Distillation}{6}{section.2.2}\protected@file@percent }
 \citation{liu2023visualinstructiontuning}
+\@writefile{toc}{\contentsline {section}{\numberline {2.2}Knowledge Distillation}{6}{section.2.2}\protected@file@percent }
 \citation{hinton2015distillingknowledgeneuralnetwork,lin1991jensen}
 \citation{hinton2015distillingknowledgeneuralnetwork}
 \citation{xu2024surveyknowledgedistillationlarge,fang2021compressingvlm}
@@ -80,212 +80,230 @@
 \citation{klabunde2023similarity,dasgupta2025improving}
 \citation{boizard2024towardscrosstokenizerdistillation}
 \citation{peyre2019computationaloptimaltransport}
+\citation{flamary_otml_2019}
+\citation{takezawa2021supervisedtreewasserstein,peyre2019computationaloptimaltransport}
 \@writefile{lot}{\contentsline {table}{\numberline {2.1}{\ignorespaces Summary of response-level and feature-level KD objectives.\relax }}{8}{table.caption.3}\protected@file@percent }
 \newlabel{tab:prelim-kd-objectives}{{2.1}{8}{Summary of response-level and feature-level KD objectives.\relax }{table.caption.3}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {2.3}Tokenizer-Agnostic Distribution Matching}{8}{section.2.3}\protected@file@percent }
-\citation{flamary_otml_2019}
-\citation{takezawa2021supervisedtreewasserstein,peyre2019computationaloptimaltransport}
+\pp@pagectr{footnote}{4}{21}{8}
 \citation{takezawa2021supervisedtreewasserstein,leyamadafukumizucuturi2019treesliced}
 \citation{leyamadafukumizucuturi2019treesliced}
 \citation{takezawa2021supervisedtreewasserstein}
 \citation{wikimedia_optimal_transport_matrix_image,peyre2019computationaloptimaltransport}
+\citation{dasgupta2025improving}
 \@writefile{lof}{\contentsline {figure}{\numberline {2.2}{\ignorespaces Geometric behavior of Wasserstein distance.}}{9}{figure.caption.4}\protected@file@percent }
 \newlabel{fig:wasserstein-geometry}{{2.2}{9}{Geometric behavior of Wasserstein distance}{figure.caption.4}{}}
-\pp@pagectr{footnote}{4}{22}{9}
 \newlabel{eq:prelim-tree-wasserstein}{{2.11}{9}{Tokenizer-Agnostic Distribution Matching}{equation.2.3.11}{}}
 \pp@pagectr{footnote}{5}{22}{9}
-\citation{dasgupta2025improving}
 \citation{kornblith2019similarityrepresentations}
 \citation{kornblith2019similarityrepresentations,klabunde2023similarity}
-\citation{kornblith2019similarityrepresentations,klabunde2023similarity,dasgupta2025improving}
+\citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,deepseekai2024deepseekv2strongeconomicalefficient}
 \newlabel{fig:prelim-tree-ot}{{2.3a}{10}{Tree metrics for Wasserstein variants.\relax }{figure.caption.5}{}}
 \newlabel{sub@fig:prelim-tree-ot}{{a}{10}{Tree metrics for Wasserstein variants.\relax }{figure.caption.5}{}}
 \newlabel{fig:prelim-optimal-transport}{{2.3b}{10}{Transport plan matrix.\relax }{figure.caption.5}{}}
 \newlabel{sub@fig:prelim-optimal-transport}{{b}{10}{Transport plan matrix.\relax }{figure.caption.5}{}}
 \@writefile{lof}{\contentsline {figure}{\numberline {2.3}{\ignorespaces Discrete optimal transport views.}}{10}{figure.caption.5}\protected@file@percent }
-\citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,deepseekai2024deepseekv2strongeconomicalefficient}
+\@writefile{toc}{\contentsline {section}{\numberline {2.4}Sparse Routing and Expert Selection}{10}{section.2.4}\protected@file@percent }
+\newlabel{sec:prelim-sparse-routing}{{2.4}{10}{Sparse Routing and Expert Selection}{section.2.4}{}}
 \citation{shazeer2017outrageouslylargeneuralnetworks,lepikhin2020gshard,zhou2022mixtureofexpertswithexpertchoice}
-\@writefile{toc}{\contentsline {section}{\numberline {2.4}Sparse Routing and Expert Selection}{11}{section.2.4}\protected@file@percent }
-\newlabel{sec:prelim-sparse-routing}{{2.4}{11}{Sparse Routing and Expert Selection}{section.2.4}{}}
 \citation{fedus2022switchtransformersscalingtrillion}
+\newlabel{eq:prelim-soft-hard-load}{{2.17}{11}{Sparse Routing and Expert Selection}{equation.2.4.17}{}}
+\newlabel{eq:prelim-switch-load-balance}{{2.18}{11}{Sparse Routing and Expert Selection}{equation.2.4.18}{}}
 \citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion}
-\newlabel{eq:prelim-soft-hard-load}{{2.17}{12}{Sparse Routing and Expert Selection}{equation.2.4.17}{}}
-\newlabel{eq:prelim-switch-load-balance}{{2.18}{12}{Sparse Routing and Expert Selection}{equation.2.4.18}{}}
 \citation{zhu2021studentcustomized,yuan2020reinforcedmultiteacherselection,yu2020gradient}
-\citation{zhu2021studentcustomized}
-\citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
 \@writefile{toc}{\contentsline {section}{\numberline {2.5}Multi-Teacher Distillation}{13}{section.2.5}\protected@file@percent }
-\citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
 \citation{zhu2021studentcustomized,yu2020gradient}
-\citation{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge,fang2021compressingvlm,hu2024visualprogramdistillation,yang2024clipcid}
-\citation{boizard2024towardscrosstokenizerdistillation,takezawa2021supervisedtreewasserstein,leyamadafukumizucuturi2019treesliced,dasgupta2025improving}
-\citation{kornblith2019similarityrepresentations,dasgupta2025improving}
-\citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
-\citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}
+\citation{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}
+\citation{fang2021compressingvlm,hu2024visualprogramdistillation,yang2024clipcid}
+\citation{boizard2024towardscrosstokenizerdistillation,dasgupta2025improving}
+\citation{takezawa2021supervisedtreewasserstein,leyamadafukumizucuturi2019treesliced}
+\citation{kornblith2019similarityrepresentations}
+\citation{dasgupta2025improving}
 \@writefile{toc}{\contentsline {section}{\numberline {2.6}Related Work}{14}{section.2.6}\protected@file@percent }
 \newlabel{sec:related-work-gap}{{2.6}{14}{Related Work}{section.2.6}{}}
+\citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
+\citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhou2022mixtureofexpertswithexpertchoice}
 \citation{zhu2021studentcustomized,yu2020gradient}
-\citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
-\citation{boizard2024towardscrosstokenizerdistillation}
-\citation{zhu2021studentcustomized,yu2020gradient}
-\pp@pagectr{footnote}{6}{29}{16}
-\@writefile{toc}{\contentsline {chapter}{\numberline {3}Proposed Method}{16}{chapter.3}\protected@file@percent }
+\citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhu2021studentcustomized}
+\pp@pagectr{footnote}{6}{30}{17}
+\@writefile{toc}{\contentsline {chapter}{\numberline {3}Proposed Method}{17}{chapter.3}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:proposed-method}{{3}{16}{Proposed Method}{chapter.3}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {3.1}Method Overview and Problem Formulation}{16}{section.3.1}\protected@file@percent }
-\newlabel{sec:method-overview-formulation}{{3.1}{16}{Method Overview and Problem Formulation}{section.3.1}{}}
-\citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhu2021studentcustomized}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.1}{\ignorespaces Overview of the GRACE architecture.}}{17}{figure.caption.6}\protected@file@percent }
-\newlabel{fig:grace-architecture}{{3.1}{17}{Overview of the GRACE architecture}{figure.caption.6}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {3.1}{\ignorespaces Main notation.\relax }}{18}{table.caption.7}\protected@file@percent }
-\newlabel{tab:notation}{{3.1}{18}{Main notation.\relax }{table.caption.7}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {3.2}Trie-Wasserstein Cross-Tokenizer Distillation}{19}{section.3.2}\protected@file@percent }
-\newlabel{sec:trie-wasserstein-distillation}{{3.2}{19}{Trie-Wasserstein Cross-Tokenizer Distillation}{section.3.2}{}}
+\newlabel{chap:proposed-method}{{3}{17}{Proposed Method}{chapter.3}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.1}Method Overview and Problem Formulation}{17}{section.3.1}\protected@file@percent }
+\newlabel{sec:method-overview-formulation}{{3.1}{17}{Method Overview and Problem Formulation}{section.3.1}{}}
+\gdef \LT@ii {\LT@entry 
+    {1}{122.36096pt}\LT@entry 
+    {1}{304.46277pt}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.1}{\ignorespaces Overview of the GRACE architecture.}}{18}{figure.caption.6}\protected@file@percent }
+\newlabel{fig:grace-architecture}{{3.1}{18}{Overview of the GRACE architecture}{figure.caption.6}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {3.1}{\ignorespaces Notation table.\relax }}{18}{table.3.1}\protected@file@percent }
+\newlabel{tab:notation}{{3.1}{18}{Notation table.\relax }{table.3.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.2}Byte-Trie Wasserstein Distillation}{19}{section.3.2}\protected@file@percent }
+\newlabel{sec:byte-trie-wasserstein-distillation}{{3.2}{19}{Byte-Trie Wasserstein Distillation}{section.3.2}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.2.1}Shared Byte Trie}{19}{subsection.3.2.1}\protected@file@percent }
+\citation{mathew2021docvqadatasetvqadocument}
 \citation{takezawa2021supervisedtreewasserstein,peyre2019computationaloptimaltransport}
-\newlabel{eq:tw_edge_weight}{{3.2}{20}{Shared Byte Trie}{equation.3.2.2}{}}
+\newlabel{eq:tw_edge_weight}{{3.1}{20}{Shared Byte Trie}{equation.3.2.1}{}}
 \@writefile{toc}{\contentsline {subsection}{\numberline {3.2.2}Sparse Support and Residual Tail Edge}{20}{subsection.3.2.2}\protected@file@percent }
-\@writefile{lof}{\contentsline {figure}{\numberline {3.2}{\ignorespaces Shared-trie tokenizer matching.\relax }}{21}{figure.caption.8}\protected@file@percent }
-\newlabel{fig:grace-trie-shared}{{3.2}{21}{Shared-trie tokenizer matching.\relax }{figure.caption.8}{}}
-\@writefile{toc}{\contentsline {subsection}{\numberline {3.2.3}Trie-Wasserstein Objective}{21}{subsection.3.2.3}\protected@file@percent }
+\@writefile{lof}{\contentsline {figure}{\numberline {3.2}{\ignorespaces Shared byte-trie tokenizer matching.\relax }}{21}{figure.caption.7}\protected@file@percent }
+\newlabel{fig:grace-trie-shared}{{3.2}{21}{Shared byte-trie tokenizer matching.\relax }{figure.caption.7}{}}
 \citation{peyre2019computationaloptimaltransport,takezawa2021supervisedtreewasserstein}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.3}{\ignorespaces Sparse trie-Wasserstein support.\relax }}{22}{figure.caption.9}\protected@file@percent }
-\newlabel{fig:grace-trie-sparse-tail}{{3.3}{22}{Sparse trie-Wasserstein support.\relax }{figure.caption.9}{}}
-\newlabel{eq:trie-wasserstein-objective}{{3.6}{22}{Trie-Wasserstein Objective}{equation.3.2.6}{}}
-\newlabel{eq:token_tw}{{3.7}{22}{Trie-Wasserstein Objective}{equation.3.2.7}{}}
-\newlabel{eq:per_teacher_tw}{{3.8}{22}{Trie-Wasserstein Objective}{equation.3.2.8}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.3}{\ignorespaces Sparse Byte-Trie Wasserstein support.\relax }}{22}{figure.caption.8}\protected@file@percent }
+\newlabel{fig:grace-trie-sparse-tail}{{3.3}{22}{Sparse Byte-Trie Wasserstein support.\relax }{figure.caption.8}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.2.3}Byte-Trie Wasserstein Objective}{22}{subsection.3.2.3}\protected@file@percent }
+\newlabel{eq:trie-wasserstein-objective}{{3.5}{22}{Byte-Trie Wasserstein Objective}{equation.3.2.5}{}}
+\newlabel{eq:token_tw}{{3.6}{22}{Byte-Trie Wasserstein Objective}{equation.3.2.6}{}}
+\newlabel{eq:per_teacher_tw}{{3.7}{22}{Byte-Trie Wasserstein Objective}{equation.3.2.7}{}}
 \citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,yuan2020reinforcedmultiteacherselection}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.4}{\ignorespaces Teacher routing network.\relax }}{23}{figure.caption.10}\protected@file@percent }
-\newlabel{fig:deep-router}{{3.4}{23}{Teacher routing network.\relax }{figure.caption.10}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.4}{\ignorespaces Teacher routing network.\relax }}{23}{figure.caption.9}\protected@file@percent }
+\newlabel{fig:deep-router}{{3.4}{23}{Teacher routing network.\relax }{figure.caption.9}{}}
 \@writefile{toc}{\contentsline {section}{\numberline {3.3}Teacher Routing Network}{23}{section.3.3}\protected@file@percent }
 \newlabel{sec:teacher-routing-network}{{3.3}{23}{Teacher Routing Network}{section.3.3}{}}
 \citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion}
-\citation{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.5}{\ignorespaces Top-\(k\) routing dynamics.}}{24}{figure.caption.11}\protected@file@percent }
-\newlabel{fig:grace-routing-dynamics}{{3.5}{24}{Top-\(k\) routing dynamics}{figure.caption.11}{}}
-\newlabel{eq:constrained_gate_weights}{{3.9}{24}{Teacher Routing Network}{equation.3.3.9}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.5}{\ignorespaces Top-\(k\) routing dynamics.}}{24}{figure.caption.10}\protected@file@percent }
+\newlabel{fig:grace-routing-dynamics}{{3.5}{24}{Top-\(k\) routing dynamics}{figure.caption.10}{}}
+\newlabel{eq:constrained_gate_weights}{{3.8}{24}{Teacher Routing Network}{equation.3.3.8}{}}
+\citation{yu2020gradient}
 \@writefile{toc}{\contentsline {section}{\numberline {3.4}Gradient-Agreement Refinement}{25}{section.3.4}\protected@file@percent }
+\newlabel{sec:gradient-agreement}{{3.4}{25}{Gradient-Agreement Refinement}{section.3.4}{}}
 \newlabel{sec:gradient-agreement-refinement}{{3.4}{25}{Gradient-Agreement Refinement}{section.3.4}{}}
-\newlabel{eq:grace-gradient-agreement-score}{{3.12}{25}{Gradient-Agreement Refinement}{equation.3.4.12}{}}
-\newlabel{eq:grace-sample-active-set}{{3.13}{25}{Gradient-Agreement Refinement}{equation.3.4.13}{}}
-\newlabel{eq:grace_softmax}{{3.14}{26}{Gradient-Agreement Refinement}{equation.3.4.14}{}}
-\newlabel{eq:effective_teacher_weights}{{3.15}{26}{Gradient-Agreement Refinement}{equation.3.4.15}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {3.6}{\ignorespaces Representative KD weighting regimes.}}{27}{figure.caption.12}\protected@file@percent }
-\newlabel{fig:grace-alignment-cases}{{3.6}{27}{Representative KD weighting regimes}{figure.caption.12}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {3.5}Routed KD Aggregation and Final Objective}{27}{section.3.5}\protected@file@percent }
-\newlabel{sec:routed-kd-final-objective}{{3.5}{27}{Routed KD Aggregation and Final Objective}{section.3.5}{}}
-\newlabel{eq:sample-kd}{{3.16}{27}{Routed KD Aggregation and Final Objective}{equation.3.5.16}{}}
-\newlabel{eq:final-objective}{{3.17}{27}{Routed KD Aggregation and Final Objective}{equation.3.5.17}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.1}Agreement Score Computation}{25}{subsection.3.4.1}\protected@file@percent }
+\newlabel{sec:agreement-score-computation}{{3.4.1}{25}{Agreement Score Computation}{subsection.3.4.1}{}}
+\newlabel{eq:grace-gradient-agreement-score}{{3.11}{25}{Agreement Score Computation}{equation.3.4.11}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.2}Warmup, EMA Smoothing and Active Set}{26}{subsection.3.4.2}\protected@file@percent }
+\newlabel{sec:agreement-smoothing-active-set}{{3.4.2}{26}{Warmup, EMA Smoothing and Active Set}{subsection.3.4.2}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.6}{\ignorespaces EMA smoothing.}}{26}{figure.caption.11}\protected@file@percent }
+\newlabel{fig:grace-ema-smoothing}{{3.6}{26}{EMA smoothing}{figure.caption.11}{}}
+\newlabel{eq:grace-sample-active-set}{{3.12}{26}{Warmup, EMA Smoothing and Active Set}{equation.3.4.12}{}}
+\newlabel{eq:grace_softmax}{{3.13}{26}{Warmup, EMA Smoothing and Active Set}{equation.3.4.13}{}}
+\@writefile{toc}{\contentsline {subsection}{\numberline {3.4.3}Fallback, Uniform and Blended Weighting}{26}{subsection.3.4.3}\protected@file@percent }
+\newlabel{sec:agreement-weighting-rule}{{3.4.3}{26}{Fallback, Uniform and Blended Weighting}{subsection.3.4.3}{}}
+\newlabel{eq:effective_teacher_weights}{{3.14}{27}{Fallback, Uniform and Blended Weighting}{equation.3.4.14}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.7}{\ignorespaces GRACE score refinement.}}{27}{figure.caption.12}\protected@file@percent }
+\newlabel{fig:grace-score-refinement}{{3.7}{27}{GRACE score refinement}{figure.caption.12}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.8}{\ignorespaces Representative GRACE weighting cases.}}{27}{figure.caption.13}\protected@file@percent }
+\newlabel{fig:grace-weighting-cases}{{3.8}{27}{Representative GRACE weighting cases}{figure.caption.13}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.9}{\ignorespaces Sample-wise weight refinement.}}{28}{figure.caption.14}\protected@file@percent }
+\newlabel{fig:grace-sample-weight-path}{{3.9}{28}{Sample-wise weight refinement}{figure.caption.14}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {3.5}Routed KD Aggregation and Final Objective}{28}{section.3.5}\protected@file@percent }
+\newlabel{sec:routed-kd-final-objective}{{3.5}{28}{Routed KD Aggregation and Final Objective}{section.3.5}{}}
+\newlabel{eq:sample-kd}{{3.15}{28}{Routed KD Aggregation and Final Objective}{equation.3.5.15}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {3.10}{\ignorespaces Sample-specific weighting.}}{28}{figure.caption.15}\protected@file@percent }
+\newlabel{fig:grace-sample-specific-weighting}{{3.10}{28}{Sample-specific weighting}{figure.caption.15}{}}
+\newlabel{eq:final-objective}{{3.16}{29}{Routed KD Aggregation and Final Objective}{equation.3.5.16}{}}
+\@writefile{loa}{\contentsline {algorithm}{\numberline {1}{\ignorespaces One GRACE training step\relax }}{29}{algorithm.1}\protected@file@percent }
+\newlabel{alg:grace-training-step}{{1}{29}{One GRACE training step\relax }{algorithm.1}{}}
 \citation{marafioti2025smolvlm}
 \citation{duan2024vlmevalkit}
 \citation{liu2023visualinstructiontuning}
 \citation{rajbhandari2020zero,chen2016sublinear}
-\pp@pagectr{footnote}{7}{41}{28}
-\@writefile{toc}{\contentsline {chapter}{\numberline {4}Evaluation Methodology}{28}{chapter.4}\protected@file@percent }
+\citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
+\pp@pagectr{footnote}{7}{43}{30}
+\@writefile{toc}{\contentsline {chapter}{\numberline {4}Evaluation Methodology}{30}{chapter.4}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:evaluation-methodology}{{4}{28}{Evaluation Methodology}{chapter.4}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4.1}Experimental Setup}{28}{section.4.1}\protected@file@percent }
-\newlabel{lst:llava-format}{{4.1}{28}{Representative LLaVA-style sample used after dataset conversion}{lstlisting.4.1}{}}
-\@writefile{lol}{\contentsline {lstlisting}{\numberline {4.1}Representative LLaVA-style sample used after dataset conversion.}{28}{lstlisting.4.1}\protected@file@percent }
-\citation{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}
+\newlabel{chap:evaluation-methodology}{{4}{30}{Evaluation Methodology}{chapter.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4.1}Experimental Setup}{30}{section.4.1}\protected@file@percent }
+\newlabel{lst:llava-format}{{4.1}{30}{Representative LLaVA-style sample used after dataset conversion}{lstlisting.4.1}{}}
+\@writefile{lol}{\contentsline {lstlisting}{\numberline {4.1}Representative LLaVA-style sample used after dataset conversion.}{30}{lstlisting.4.1}\protected@file@percent }
 \citation{singh2019vqamodelsread}
 \citation{mathew2021docvqadatasetvqadocument}
 \citation{masry2022chartqabenchmarkquestionanswering}
 \citation{wikimedia_stop_sign_image,wikimedia_receipt_swiss_image,wikimedia_bar_chart_image}
-\@writefile{lof}{\contentsline {figure}{\numberline {4.1}{\ignorespaces Representative dataset examples.}}{29}{figure.caption.13}\protected@file@percent }
-\newlabel{fig:dataset-samples}{{4.1}{29}{Representative dataset examples}{figure.caption.13}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4.2}Datasets}{29}{section.4.2}\protected@file@percent }
-\pp@pagectr{footnote}{8}{42}{29}
+\@writefile{lof}{\contentsline {figure}{\numberline {4.1}{\ignorespaces Representative dataset examples.}}{31}{figure.caption.16}\protected@file@percent }
+\newlabel{fig:dataset-samples}{{4.1}{31}{Representative dataset examples}{figure.caption.16}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4.2}Datasets}{31}{section.4.2}\protected@file@percent }
+\pp@pagectr{footnote}{8}{44}{31}
 \citation{singh2019vqamodelsread}
 \citation{mathew2021docvqadatasetvqadocument}
 \citation{masry2022chartqabenchmarkquestionanswering}
-\citation{smolvlm2_modelcard,marafioti2025smolvlm,hinton2015distillingknowledgeneuralnetwork,lin1991jensen,cui2024sinkhorn}
+\citation{smolvlm2_modelcard,marafioti2025smolvlm}
+\citation{qwen2vl2b_modelcard,wang2024qwen2vl}
+\citation{qwen25vl3b_modelcard,bai2025qwen25vl}
+\citation{internvl3_blog}
+\citation{gemma3_technical_report}
+\citation{hinton2015distillingknowledgeneuralnetwork,lin1991jensen,cui2024sinkhorn}
 \citation{boizard2024towardscrosstokenizerdistillation}
 \citation{takezawa2021supervisedtreewasserstein,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}
 \citation{kornblith2019similarityrepresentations,williams1992simple,yuan2020reinforcedmultiteacherselection}
-\@writefile{lot}{\contentsline {table}{\numberline {4.1}{\ignorespaces Dataset split sizes.}}{30}{table.caption.14}\protected@file@percent }
-\newlabel{tab:dataset-sizes}{{4.1}{30}{Dataset split sizes}{table.caption.14}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {4.3}Baselines}{30}{section.4.3}\protected@file@percent }
-\newlabel{sec:baselines}{{4.3}{30}{Baselines}{section.4.3}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {4.1}{\ignorespaces Dataset split sizes.}}{32}{table.caption.17}\protected@file@percent }
+\newlabel{tab:dataset-sizes}{{4.1}{32}{Dataset split sizes}{table.caption.17}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4.3}Baselines}{32}{section.4.3}\protected@file@percent }
+\newlabel{sec:baselines}{{4.3}{32}{Baselines}{section.4.3}{}}
 \citation{hinton2015distillingknowledgeneuralnetwork}
 \citation{cui2024sinkhorn,wen2023fdistill}
 \citation{lin1991jensen,cui2024sinkhorn}
+\@writefile{lot}{\contentsline {table}{\numberline {4.2}{\ignorespaces Baseline groups.}}{33}{table.caption.18}\protected@file@percent }
+\newlabel{tab:baseline-groups}{{4.2}{33}{Baseline groups}{table.caption.18}{}}
 \citation{boizard2024towardscrosstokenizerdistillation}
 \citation{boizard2024towardscrosstokenizerdistillation,dasgupta2025improving,kornblith2019similarityrepresentations}
-\@writefile{lot}{\contentsline {table}{\numberline {4.2}{\ignorespaces Baseline groups.}}{31}{table.caption.15}\protected@file@percent }
-\newlabel{tab:baseline-groups}{{4.2}{31}{Baseline groups}{table.caption.15}{}}
 \citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}
 \citation{williams1992simple,yuan2020reinforcedmultiteacherselection}
-\@writefile{toc}{\contentsline {section}{\numberline {4.4}Ablation Settings}{32}{section.4.4}\protected@file@percent }
-\newlabel{sec:ablation-settings}{{4.4}{32}{Ablation Settings}{section.4.4}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {4.4}Ablation Settings}{34}{section.4.4}\protected@file@percent }
+\newlabel{sec:ablation-settings}{{4.4}{34}{Ablation Settings}{section.4.4}{}}
+\citation{marafioti2025smolvlm}
 \citation{duan2024vlmevalkit}
-\citation{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge,dasgupta2025improving}
-\citation{boizard2024towardscrosstokenizerdistillation}
-\citation{williams1992simple,yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
-\pp@pagectr{footnote}{9}{47}{34}
-\@writefile{toc}{\contentsline {chapter}{\numberline {5}Experiment Results}{34}{chapter.5}\protected@file@percent }
+\citation{marafioti2025smolvlm}
+\citation{qwen25vl3b_modelcard,bai2025qwen25vl}
+\citation{internvl3_blog}
+\citation{gemma3_technical_report}
+\citation{qwen2vl2b_modelcard,wang2024qwen2vl}
+\citation{smolvlm2_modelcard,marafioti2025smolvlm}
+\citation{qwen2vl2b_modelcard,wang2024qwen2vl,qwen25vl3b_modelcard,bai2025qwen25vl,internvl3_blog,gemma3_technical_report}
+\pp@pagectr{footnote}{9}{49}{36}
+\@writefile{toc}{\contentsline {chapter}{\numberline {5}Experiment Results}{36}{chapter.5}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{chap:experiment-results}{{5}{34}{Experiment Results}{chapter.5}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.1}Main Comparison Results}{34}{section.5.1}\protected@file@percent }
-\newlabel{sec:main-comparison-results}{{5.1}{34}{Main Comparison Results}{section.5.1}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.1}{\ignorespaces Original SmolVLM student results.}}{34}{table.caption.16}\protected@file@percent }
-\newlabel{tab:smolvlm-original-results}{{5.1}{34}{Original SmolVLM student results}{table.caption.16}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.2}{\ignorespaces Teacher and reference-model results.}}{34}{table.caption.17}\protected@file@percent }
-\newlabel{tab:teacher-original-results}{{5.2}{34}{Teacher and reference-model results}{table.caption.17}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.3}{\ignorespaces Main benchmark comparison.}}{36}{table.caption.18}\protected@file@percent }
-\newlabel{tab:main-comparison}{{5.3}{36}{Main benchmark comparison}{table.caption.18}{}}
-\citation{bousselham2026dexar}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces Grouped benchmark comparison.}}{37}{figure.caption.19}\protected@file@percent }
-\newlabel{fig:c5-results-bars}{{5.1}{37}{Grouped benchmark comparison}{figure.caption.19}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces DEX-AR overview.}}{38}{figure.caption.20}\protected@file@percent }
-\newlabel{fig:dexar-architecture}{{5.2}{38}{DEX-AR overview}{figure.caption.20}{}}
-\newlabel{fig:textvqa-input}{{5.3a}{39}{Input image\relax }{figure.caption.21}{}}
-\newlabel{sub@fig:textvqa-input}{{a}{39}{Input image\relax }{figure.caption.21}{}}
-\newlabel{fig:textvqa-orig}{{5.3b}{39}{Original SmolVLM-500M\relax }{figure.caption.21}{}}
-\newlabel{sub@fig:textvqa-orig}{{b}{39}{Original SmolVLM-500M\relax }{figure.caption.21}{}}
-\newlabel{fig:textvqa-grace}{{5.3c}{39}{\methodname {} SmolVLM-500M\relax }{figure.caption.21}{}}
-\newlabel{sub@fig:textvqa-grace}{{c}{39}{\methodname {} SmolVLM-500M\relax }{figure.caption.21}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces Representative TextVQA attention example.}}{39}{figure.caption.21}\protected@file@percent }
-\newlabel{fig:textvqa-sample3-qualitative}{{5.3}{39}{Representative TextVQA attention example}{figure.caption.21}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces Uniform and GRACE training curves.}}{39}{figure.caption.22}\protected@file@percent }
-\newlabel{fig:training-curve-comparison}{{5.4}{39}{Uniform and GRACE training curves}{figure.caption.22}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces Routed-teacher load examples.}}{40}{figure.caption.23}\protected@file@percent }
-\newlabel{fig:router-collapse-comparison}{{5.5}{40}{Routed-teacher load examples}{figure.caption.23}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.4}{\ignorespaces Relative gains of GRACE{}.}}{40}{table.caption.24}\protected@file@percent }
-\newlabel{tab:grace-relative-gains}{{5.4}{40}{Relative gains of \methodname {}}{table.caption.24}{}}
-\citation{hinton2015distillingknowledgeneuralnetwork}
-\@writefile{lot}{\contentsline {table}{\numberline {5.5}{\ignorespaces Gap-to-teacher analysis for SmolVLM-500M.}}{41}{table.caption.25}\protected@file@percent }
-\newlabel{tab:grace-gap-to-teacher}{{5.5}{41}{Gap-to-teacher analysis for SmolVLM-500M}{table.caption.25}{}}
+\newlabel{chap:experiment-results}{{5}{36}{Experiment Results}{chapter.5}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.1}Main Comparison Results}{36}{section.5.1}\protected@file@percent }
+\newlabel{sec:main-comparison-results}{{5.1}{36}{Main Comparison Results}{section.5.1}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.1}{\ignorespaces Student and teacher model results.}}{36}{table.caption.19}\protected@file@percent }
+\newlabel{tab:all-results}{{5.1}{36}{Student and teacher model results}{table.caption.19}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.2}{\ignorespaces Main benchmark comparison.}}{37}{table.caption.20}\protected@file@percent }
+\newlabel{tab:main-comparison}{{5.2}{37}{Main benchmark comparison}{table.caption.20}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.1}{\ignorespaces Grouped benchmark comparison.}}{38}{figure.caption.21}\protected@file@percent }
+\newlabel{fig:c5-results-bars}{{5.1}{38}{Grouped benchmark comparison}{figure.caption.21}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.2}{\ignorespaces Uniform and GRACE training curves.}}{38}{figure.caption.22}\protected@file@percent }
+\newlabel{fig:training-curve-comparison}{{5.2}{38}{Uniform and GRACE training curves}{figure.caption.22}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.3}{\ignorespaces Routed-teacher load examples.}}{39}{figure.caption.23}\protected@file@percent }
+\newlabel{fig:router-collapse-comparison}{{5.3}{39}{Routed-teacher load examples}{figure.caption.23}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.3}{\ignorespaces Relative gains of GRACE{}.}}{40}{table.caption.24}\protected@file@percent }
+\newlabel{tab:grace-relative-gains}{{5.3}{40}{Relative gains of \methodname {}}{table.caption.24}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.4}{\ignorespaces Gap-to-teacher analysis for SmolVLM-500M.}}{40}{table.caption.25}\protected@file@percent }
+\newlabel{tab:grace-teacher-gap}{{5.4}{40}{Gap-to-teacher analysis for SmolVLM-500M}{table.caption.25}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {5.2}Ablation Study}{41}{section.5.2}\protected@file@percent }
+\newlabel{sec:ablation}{{5.2}{41}{Ablation Study}{section.5.2}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {5.5}{\ignorespaces DocVQA component ablation.}}{41}{table.caption.26}\protected@file@percent }
+\newlabel{tab:docvqa-planned-ablation}{{5.5}{41}{DocVQA component ablation}{table.caption.26}{}}
+\citation{hinton2015distillingknowledgeneuralnetwork,boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}
+\@writefile{toc}{\contentsline {section}{\numberline {5.3}Efficiency Analysis}{42}{section.5.3}\protected@file@percent }
+\newlabel{sec:efficiency-analysis}{{5.3}{42}{Efficiency Analysis}{section.5.3}{}}
 \citation{wu2025rethinking}
-\citation{kornblith2019similarityrepresentations}
-\citation{klabunde2023similarity}
-\citation{kornblith2019similarityrepresentations}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.6}{\ignorespaces Final-layer CKA heatmaps.}}{43}{figure.caption.26}\protected@file@percent }
-\newlabel{fig:exp-cka-multi-dataset}{{5.6}{43}{Final-layer CKA heatmaps}{figure.caption.26}{}}
-\@writefile{lof}{\contentsline {figure}{\numberline {5.7}{\ignorespaces Vision-layer CKA heatmaps.}}{44}{figure.caption.27}\protected@file@percent }
-\newlabel{fig:exp-cka-vision-multi-dataset}{{5.7}{44}{Vision-layer CKA heatmaps}{figure.caption.27}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {5.2}Ablation Study}{44}{section.5.2}\protected@file@percent }
-\newlabel{sec:ablation}{{5.2}{44}{Ablation Study}{section.5.2}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {5.6}{\ignorespaces DocVQA component ablation.}}{45}{table.caption.28}\protected@file@percent }
-\newlabel{tab:docvqa-planned-ablation}{{5.6}{45}{DocVQA component ablation}{table.caption.28}{}}
-\@writefile{toc}{\contentsline {paragraph}{Routing without gradient refinement.}{45}{table.caption.28}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{\numberline {5.3}Efficiency Analysis}{47}{section.5.3}\protected@file@percent }
-\newlabel{sec:efficiency-analysis}{{5.3}{47}{Efficiency Analysis}{section.5.3}{}}
-\citation{hinton2015distillingknowledgeneuralnetwork,boizard2024towardscrosstokenizerdistillation}
-\citation{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}
-\@writefile{toc}{\contentsline {section}{\numberline {5.4}Discussion}{48}{section.5.4}\protected@file@percent }
-\@writefile{toc}{\contentsline {paragraph}{First-order interpretation of gradient-agreement refinement.}{48}{section.5.4}\protected@file@percent }
+\citation{kornblith2019similarityrepresentations,klabunde2023similarity}
+\@writefile{toc}{\contentsline {section}{\numberline {5.4}Discussion}{43}{section.5.4}\protected@file@percent }
+\newlabel{sec:discussion}{{5.4}{43}{Discussion}{section.5.4}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.4}{\ignorespaces Final-layer CKA heatmaps.}}{44}{figure.caption.27}\protected@file@percent }
+\newlabel{fig:exp-cka-multi-dataset}{{5.4}{44}{Final-layer CKA heatmaps}{figure.caption.27}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.5}{\ignorespaces Vision-layer CKA heatmaps.}}{44}{figure.caption.28}\protected@file@percent }
+\newlabel{fig:exp-cka-vision-multi-dataset}{{5.5}{44}{Vision-layer CKA heatmaps}{figure.caption.28}{}}
 \citation{yu2020gradient}
-\citation{kornblith2019similarityrepresentations,dasgupta2025improving}
+\citation{bousselham2026dexar}
+\citation{singh2019vqamodelsread}
+\newlabel{fig:textvqa-input}{{5.6a}{45}{Input image\relax }{figure.caption.29}{}}
+\newlabel{sub@fig:textvqa-input}{{a}{45}{Input image\relax }{figure.caption.29}{}}
+\newlabel{fig:textvqa-orig}{{5.6b}{45}{Original SmolVLM-500M\relax }{figure.caption.29}{}}
+\newlabel{sub@fig:textvqa-orig}{{b}{45}{Original SmolVLM-500M\relax }{figure.caption.29}{}}
+\newlabel{fig:textvqa-grace}{{5.6c}{45}{\methodname {} SmolVLM-500M\relax }{figure.caption.29}{}}
+\newlabel{sub@fig:textvqa-grace}{{c}{45}{\methodname {} SmolVLM-500M\relax }{figure.caption.29}{}}
+\@writefile{lof}{\contentsline {figure}{\numberline {5.6}{\ignorespaces Representative TextVQA attention example.}}{45}{figure.caption.29}\protected@file@percent }
+\newlabel{fig:textvqa-sample3-qualitative}{{5.6}{45}{Representative TextVQA attention example}{figure.caption.29}{}}
 \citation{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}
-\@writefile{toc}{\contentsline {chapter}{Conclusion and Future Work}{50}{section*.30}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{Summary}{50}{section*.31}\protected@file@percent }
-\@writefile{toc}{\contentsline {section}{Limitations}{50}{section*.32}\protected@file@percent }
+\@writefile{toc}{\contentsline {chapter}{Conclusion and Future Work}{46}{section*.31}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{Summary}{46}{section*.32}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{Limitations}{46}{section*.33}\protected@file@percent }
 \citation{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}
-\@writefile{toc}{\contentsline {section}{Future Work}{51}{section*.33}\protected@file@percent }
+\@writefile{toc}{\contentsline {section}{Future Work}{47}{section*.34}\protected@file@percent }
 \bibdata{references}
 \bibcite{alayrac2022flamingovisuallanguagemodel}{{1}{}{{}}{{}}}
 \bibcite{li2023blip2bootstrappinglanguageimagepretraining}{{2}{}{{}}{{}}}
@@ -293,95 +311,109 @@
 \bibcite{singh2019vqamodelsread}{{4}{}{{}}{{}}}
 \bibcite{mathew2021docvqadatasetvqadocument}{{5}{}{{}}{{}}}
 \bibcite{masry2022chartqabenchmarkquestionanswering}{{6}{}{{}}{{}}}
-\bibcite{driess2023palme}{{7}{}{{}}{{}}}
-\bibcite{brohan2023rt2}{{8}{}{{}}{{}}}
-\@writefile{toc}{\contentsline {chapter}{References}{52}{section*.34}\protected@file@percent }
-\bibcite{kaplan2020scalinglaws}{{9}{}{{}}{{}}}
-\bibcite{hoffmann2022trainingcomputeoptimal}{{10}{}{{}}{{}}}
-\bibcite{wang2024qwen2vl}{{11}{}{{}}{{}}}
-\bibcite{hinton2015distillingknowledgeneuralnetwork}{{12}{}{{}}{{}}}
-\bibcite{xu2024surveyknowledgedistillationlarge}{{13}{}{{}}{{}}}
-\bibcite{chu2023mobilevlm}{{14}{}{{}}{{}}}
-\bibcite{zhou2024tinyllava}{{15}{}{{}}{{}}}
-\bibcite{marafioti2025smolvlm}{{16}{}{{}}{{}}}
-\bibcite{boizard2024towardscrosstokenizerdistillation}{{17}{}{{}}{{}}}
-\bibcite{takezawa2021supervisedtreewasserstein}{{18}{}{{}}{{}}}
-\bibcite{leyamadafukumizucuturi2019treesliced}{{19}{}{{}}{{}}}
-\bibcite{kornblith2019similarityrepresentations}{{20}{}{{}}{{}}}
-\bibcite{yuan2020reinforcedmultiteacherselection}{{21}{}{{}}{{}}}
-\bibcite{zhang2023adaptivemultiteachermetalearning}{{22}{}{{}}{{}}}
-\bibcite{yu2024selectdistill}{{23}{}{{}}{{}}}
-\bibcite{chen2024internvl15}{{24}{}{{}}{{}}}
-\bibcite{chen2024internvl25}{{25}{}{{}}{{}}}
-\bibcite{radford2021learningtransferablevisualmodels}{{26}{}{{}}{{}}}
-\bibcite{zhai2023sigmoidlosslanguageimage}{{27}{}{{}}{{}}}
-\bibcite{vaswani2017attentionneed}{{28}{}{{}}{{}}}
-\bibcite{lin1991jensen}{{29}{}{{}}{{}}}
-\bibcite{fang2021compressingvlm}{{30}{}{{}}{{}}}
-\bibcite{dasgupta2025improving}{{31}{}{{}}{{}}}
-\bibcite{klabunde2023similarity}{{32}{}{{}}{{}}}
-\bibcite{peyre2019computationaloptimaltransport}{{33}{}{{}}{{}}}
-\bibcite{flamary_otml_2019}{{34}{}{{}}{{}}}
-\bibcite{wikimedia_optimal_transport_matrix_image}{{35}{}{{}}{{}}}
-\bibcite{shazeer2017outrageouslylargeneuralnetworks}{{36}{}{{}}{{}}}
-\bibcite{fedus2022switchtransformersscalingtrillion}{{37}{}{{}}{{}}}
-\bibcite{deepseekai2024deepseekv2strongeconomicalefficient}{{38}{}{{}}{{}}}
-\bibcite{lepikhin2020gshard}{{39}{}{{}}{{}}}
-\bibcite{zhou2022mixtureofexpertswithexpertchoice}{{40}{}{{}}{{}}}
-\bibcite{zhu2021studentcustomized}{{41}{}{{}}{{}}}
-\bibcite{yu2020gradient}{{42}{}{{}}{{}}}
-\bibcite{hu2024visualprogramdistillation}{{43}{}{{}}{{}}}
-\bibcite{yang2024clipcid}{{44}{}{{}}{{}}}
-\bibcite{duan2024vlmevalkit}{{45}{}{{}}{{}}}
-\bibcite{rajbhandari2020zero}{{46}{}{{}}{{}}}
-\bibcite{chen2016sublinear}{{47}{}{{}}{{}}}
-\bibcite{wikimedia_stop_sign_image}{{48}{}{{}}{{}}}
-\bibcite{wikimedia_receipt_swiss_image}{{49}{}{{}}{{}}}
-\bibcite{wikimedia_bar_chart_image}{{50}{}{{}}{{}}}
-\bibcite{smolvlm2_modelcard}{{51}{}{{}}{{}}}
-\bibcite{cui2024sinkhorn}{{52}{}{{}}{{}}}
-\bibcite{williams1992simple}{{53}{}{{}}{{}}}
-\bibcite{wen2023fdistill}{{54}{}{{}}{{}}}
-\bibcite{bousselham2026dexar}{{55}{}{{}}{{}}}
-\bibcite{wu2025rethinking}{{56}{}{{}}{{}}}
-\bibcite{cloudflare_r2_overview}{{57}{}{{}}{{}}}
-\bibcite{cloudflare_r2_s3}{{58}{}{{}}{{}}}
-\bibcite{fsspec_features}{{59}{}{{}}{{}}}
-\bibcite{fsspec_api}{{60}{}{{}}{{}}}
+\bibcite{kaplan2020scalinglaws}{{7}{}{{}}{{}}}
+\bibcite{hoffmann2022trainingcomputeoptimal}{{8}{}{{}}{{}}}
+\bibcite{bai2025qwen25vl}{{9}{}{{}}{{}}}
+\bibcite{dai2024nvlm}{{10}{}{{}}{{}}}
+\@writefile{toc}{\contentsline {chapter}{References}{48}{section*.35}\protected@file@percent }
+\bibcite{meta2024llama32}{{11}{}{{}}{{}}}
+\bibcite{grattafiori2024llama3}{{12}{}{{}}{{}}}
+\bibcite{nvidia2024h100}{{13}{}{{}}{{}}}
+\bibcite{driess2023palme}{{14}{}{{}}{{}}}
+\bibcite{brohan2023rt2}{{15}{}{{}}{{}}}
+\bibcite{hinton2015distillingknowledgeneuralnetwork}{{16}{}{{}}{{}}}
+\bibcite{xu2024surveyknowledgedistillationlarge}{{17}{}{{}}{{}}}
+\bibcite{chu2023mobilevlm}{{18}{}{{}}{{}}}
+\bibcite{zhou2024tinyllava}{{19}{}{{}}{{}}}
+\bibcite{marafioti2025smolvlm}{{20}{}{{}}{{}}}
+\bibcite{boizard2024towardscrosstokenizerdistillation}{{21}{}{{}}{{}}}
+\bibcite{takezawa2021supervisedtreewasserstein}{{22}{}{{}}{{}}}
+\bibcite{leyamadafukumizucuturi2019treesliced}{{23}{}{{}}{{}}}
+\bibcite{kornblith2019similarityrepresentations}{{24}{}{{}}{{}}}
+\bibcite{yuan2020reinforcedmultiteacherselection}{{25}{}{{}}{{}}}
+\bibcite{zhang2023adaptivemultiteachermetalearning}{{26}{}{{}}{{}}}
+\bibcite{yu2024selectdistill}{{27}{}{{}}{{}}}
+\bibcite{wang2024qwen2vl}{{28}{}{{}}{{}}}
+\bibcite{chen2024internvl15}{{29}{}{{}}{{}}}
+\bibcite{chen2024internvl25}{{30}{}{{}}{{}}}
+\bibcite{radford2021learningtransferablevisualmodels}{{31}{}{{}}{{}}}
+\bibcite{zhai2023sigmoidlosslanguageimage}{{32}{}{{}}{{}}}
+\bibcite{vaswani2017attentionneed}{{33}{}{{}}{{}}}
+\bibcite{lin1991jensen}{{34}{}{{}}{{}}}
+\bibcite{fang2021compressingvlm}{{35}{}{{}}{{}}}
+\bibcite{dasgupta2025improving}{{36}{}{{}}{{}}}
+\bibcite{klabunde2023similarity}{{37}{}{{}}{{}}}
+\bibcite{peyre2019computationaloptimaltransport}{{38}{}{{}}{{}}}
+\bibcite{flamary_otml_2019}{{39}{}{{}}{{}}}
+\bibcite{wikimedia_optimal_transport_matrix_image}{{40}{}{{}}{{}}}
+\bibcite{shazeer2017outrageouslylargeneuralnetworks}{{41}{}{{}}{{}}}
+\bibcite{fedus2022switchtransformersscalingtrillion}{{42}{}{{}}{{}}}
+\bibcite{deepseekai2024deepseekv2strongeconomicalefficient}{{43}{}{{}}{{}}}
+\bibcite{lepikhin2020gshard}{{44}{}{{}}{{}}}
+\bibcite{zhou2022mixtureofexpertswithexpertchoice}{{45}{}{{}}{{}}}
+\bibcite{zhu2021studentcustomized}{{46}{}{{}}{{}}}
+\bibcite{yu2020gradient}{{47}{}{{}}{{}}}
+\bibcite{hu2024visualprogramdistillation}{{48}{}{{}}{{}}}
+\bibcite{yang2024clipcid}{{49}{}{{}}{{}}}
+\bibcite{duan2024vlmevalkit}{{50}{}{{}}{{}}}
+\bibcite{rajbhandari2020zero}{{51}{}{{}}{{}}}
+\bibcite{chen2016sublinear}{{52}{}{{}}{{}}}
+\bibcite{wikimedia_stop_sign_image}{{53}{}{{}}{{}}}
+\bibcite{wikimedia_receipt_swiss_image}{{54}{}{{}}{{}}}
+\bibcite{wikimedia_bar_chart_image}{{55}{}{{}}{{}}}
+\bibcite{smolvlm2_modelcard}{{56}{}{{}}{{}}}
+\bibcite{qwen2vl2b_modelcard}{{57}{}{{}}{{}}}
+\bibcite{qwen25vl3b_modelcard}{{58}{}{{}}{{}}}
+\bibcite{internvl3_blog}{{59}{}{{}}{{}}}
+\bibcite{gemma3_technical_report}{{60}{}{{}}{{}}}
+\bibcite{cui2024sinkhorn}{{61}{}{{}}{{}}}
+\bibcite{williams1992simple}{{62}{}{{}}{{}}}
+\bibcite{wen2023fdistill}{{63}{}{{}}{{}}}
+\bibcite{wu2025rethinking}{{64}{}{{}}{{}}}
+\bibcite{bousselham2026dexar}{{65}{}{{}}{{}}}
+\bibcite{cloudflare_r2_overview}{{66}{}{{}}{{}}}
+\bibcite{cloudflare_r2_s3}{{67}{}{{}}{{}}}
+\bibcite{fsspec_features}{{68}{}{{}}{{}}}
+\bibcite{fsspec_api}{{69}{}{{}}{{}}}
 \citation{peyre2019computationaloptimaltransport,takezawa2021supervisedtreewasserstein}
 \@writefile{toc}{\renewcommand {\cftchappresnum }{Appendix }}
 \@writefile{toc}{\setlength {\cftchapnumwidth }{6.5em}}
-\pp@pagectr{footnote}{10}{72}{59}
-\@writefile{toc}{\contentsline {chapter}{\numberline {A}Proof of the Closed-Form Trie-Wasserstein}{59}{appendix.A}\protected@file@percent }
+\pp@pagectr{footnote}{10}{68}{55}
+\@writefile{toc}{\contentsline {chapter}{\numberline {A}Proof of the Closed-Form Trie-Wasserstein}{55}{appendix.A}\protected@file@percent }
 \@writefile{lof}{\addvspace {10\p@ }}
 \@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{app:tree-wasserstein-proof}{{A}{59}{Proof of the Closed-Form Trie-Wasserstein}{appendix.A}{}}
-\gdef \LT@ii {\LT@entry 
-    {1}{162.23138pt}\LT@entry 
-    {1}{289.69917pt}}
-\pp@pagectr{footnote}{11}{75}{62}
-\@writefile{toc}{\contentsline {chapter}{\numberline {B}Implementation Details}{62}{appendix.B}\protected@file@percent }
-\@writefile{lof}{\addvspace {10\p@ }}
-\@writefile{lot}{\addvspace {10\p@ }}
-\newlabel{app:experiment-parameters}{{B}{62}{Implementation Details}{appendix.B}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {B.1}{\ignorespaces Experiment parameters.}}{62}{table.B.1}\protected@file@percent }
-\newlabel{tab:experiment-parameters}{{B.1}{62}{Experiment parameters}{table.B.1}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {B.1}Baseline Implementation}{63}{section.B.1}\protected@file@percent }
-\newlabel{app:baseline-implementation-details}{{B.1}{63}{Baseline Implementation}{section.B.1}{}}
-\citation{cloudflare_r2_overview,cloudflare_r2_s3}
-\@writefile{toc}{\contentsline {section}{\numberline {B.2}Offline Teacher-Logit Preparation}{64}{section.B.2}\protected@file@percent }
-\newlabel{app:offline-teacher-logit-preparation}{{B.2}{64}{Offline Teacher-Logit Preparation}{section.B.2}{}}
-\citation{fsspec_features,fsspec_api}
-\@writefile{lof}{\contentsline {figure}{\numberline {B.1}{\ignorespaces R2 teacher-logit storage.}}{65}{figure.caption.36}\protected@file@percent }
-\newlabel{fig:r2-storage}{{B.1}{65}{R2 teacher-logit storage}{figure.caption.36}{}}
-\@writefile{toc}{\contentsline {section}{\numberline {B.3}Remote Logit Streaming During Training}{65}{section.B.3}\protected@file@percent }
-\newlabel{app:remote-logit-streaming}{{B.3}{65}{Remote Logit Streaming During Training}{section.B.3}{}}
+\newlabel{app:tree-wasserstein-proof}{{A}{55}{Proof of the Closed-Form Trie-Wasserstein}{appendix.A}{}}
+\citation{marafioti2025smolvlm}
+\citation{qwen25vl3b_modelcard,bai2025qwen25vl}
+\citation{qwen2vl2b_modelcard,wang2024qwen2vl}
+\citation{internvl3_blog}
+\citation{gemma3_technical_report}
 \gdef \LT@iii {\LT@entry 
     {1}{162.23138pt}\LT@entry 
     {1}{289.69917pt}}
-\@writefile{lof}{\contentsline {figure}{\numberline {B.2}{\ignorespaces Training with remote teacher logits.\relax }}{66}{figure.caption.37}\protected@file@percent }
-\newlabel{fig:r2-cache-training}{{B.2}{66}{Training with remote teacher logits.\relax }{figure.caption.37}{}}
-\@writefile{lot}{\contentsline {table}{\numberline {B.2}{\ignorespaces Logit-streaming settings.}}{66}{table.B.2}\protected@file@percent }
-\newlabel{tab:implementation-settings}{{B.2}{66}{Logit-streaming settings}{table.B.2}{}}
+\pp@pagectr{footnote}{11}{71}{58}
+\@writefile{toc}{\contentsline {chapter}{\numberline {B}Implementation Details}{58}{appendix.B}\protected@file@percent }
+\@writefile{lof}{\addvspace {10\p@ }}
+\@writefile{lot}{\addvspace {10\p@ }}
+\newlabel{app:experiment-parameters}{{B}{58}{Implementation Details}{appendix.B}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {B.1}{\ignorespaces Experiment parameters.}}{58}{table.B.1}\protected@file@percent }
+\newlabel{tab:experiment-parameters}{{B.1}{58}{Experiment parameters}{table.B.1}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {B.1}Baseline Implementation}{59}{section.B.1}\protected@file@percent }
+\newlabel{app:baseline-implementation-details}{{B.1}{59}{Baseline Implementation}{section.B.1}{}}
+\citation{cloudflare_r2_overview,cloudflare_r2_s3}
+\@writefile{toc}{\contentsline {section}{\numberline {B.2}Offline Teacher-Logit Preparation}{60}{section.B.2}\protected@file@percent }
+\newlabel{app:offline-teacher-logit-preparation}{{B.2}{60}{Offline Teacher-Logit Preparation}{section.B.2}{}}
+\citation{fsspec_features,fsspec_api}
+\@writefile{lof}{\contentsline {figure}{\numberline {B.1}{\ignorespaces R2 teacher-logit storage.}}{61}{figure.caption.37}\protected@file@percent }
+\newlabel{fig:r2-storage}{{B.1}{61}{R2 teacher-logit storage}{figure.caption.37}{}}
+\@writefile{toc}{\contentsline {section}{\numberline {B.3}Remote Logit Streaming During Training}{61}{section.B.3}\protected@file@percent }
+\newlabel{app:remote-logit-streaming}{{B.3}{61}{Remote Logit Streaming During Training}{section.B.3}{}}
+\gdef \LT@iv {\LT@entry 
+    {1}{162.23138pt}\LT@entry 
+    {1}{289.69917pt}}
+\@writefile{lof}{\contentsline {figure}{\numberline {B.2}{\ignorespaces Training with remote teacher logits.\relax }}{62}{figure.caption.38}\protected@file@percent }
+\newlabel{fig:r2-cache-training}{{B.2}{62}{Training with remote teacher logits.\relax }{figure.caption.38}{}}
+\@writefile{lot}{\contentsline {table}{\numberline {B.2}{\ignorespaces Logit-streaming settings.}}{62}{table.B.2}\protected@file@percent }
+\newlabel{tab:implementation-settings}{{B.2}{62}{Logit-streaming settings}{table.B.2}{}}
 \providecommand\NAT@force@numbers{}\NAT@force@numbers
-\gdef \@abspage@last{79}
+\gdef \@abspage@last{75}

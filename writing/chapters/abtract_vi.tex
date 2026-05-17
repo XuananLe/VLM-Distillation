@@ -17,10 +17,10 @@ thể trộn tín hiệu hữu ích với tín hiệu không liên quan hoặc x
 
 Để giải quyết bài toán trên, khóa luận đề xuất \methodfull{}
 (\methodname{}), một khung chưng cất cho truyền tri thức VLM đa giáo viên không
-đồng nhất. \methodname{} kết hợp ba cơ chế: chưng cất trie-Wasserstein trên cây
+đồng nhất. \methodname{} kết hợp ba cơ chế: chưng cất Byte-Trie Wasserstein trên cây
 byte UTF-8 dùng chung, định tuyến giáo viên thưa top-$k$ từ trạng thái ẩn của
 mô hình học sinh và tinh chỉnh trọng số bằng độ đồng thuận gradient. Hàm mất
-mát trie-Wasserstein giúp so sánh phân phối đầu ra của giáo viên và học sinh
+mát Byte-Trie Wasserstein giúp so sánh phân phối đầu ra của giáo viên và học sinh
 giữa các bộ tách từ khác nhau. Định tuyến thưa chọn các giáo viên phù hợp với
 từng mẫu. Tinh chỉnh bằng độ đồng thuận gradient sau đó điều chỉnh trọng số đã
 định tuyến theo mức độ căn chỉnh giữa gradient chưng cất của từng giáo viên và

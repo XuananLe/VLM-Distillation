@@ -16,14 +16,13 @@ conflicting ones.
 
 To address this problem, the thesis proposes \gracefull{} (\gracename{}), a
 distillation framework for heterogeneous teacher-to-student VLM transfer.
-\gracename{} combines three mechanisms: trie-Wasserstein knowledge
+\gracename{} combines three mechanisms: Byte-Trie Wasserstein knowledge
 distillation over a shared UTF-8 byte trie, sparse top-$k$ teacher routing from
 student hidden states and gradient-agreement refinement of routed teacher
-weights. The trie-Wasserstein loss makes teacher and student output
-distributions comparable across tokenizers. Sparse routing selects
-sample-relevant teachers. Gradient-agreement refinement then adjusts routed
-weights according to whether each teacher's distillation gradient aligns with
-the supervised cross-entropy gradient.
+weights. The Byte-Trie Wasserstein loss makes teacher and student output
+distributions comparable across tokenizers, while sparse routing and
+gradient-agreement refinement select teachers relevant to each sample and weight them
+by CE-gradient alignment.
 
 
 Experiments on TextVQA, DocVQA and ChartQA evaluate \methodname{} with
@@ -34,8 +33,7 @@ DocVQA and ChartQA, compared with original student scores of 56.75, 59.52 and
 27.71\% over the original student and close 55.03\%, 39.53\% and 55.34\% of
 the original gap to the highest-scoring teacher. For SmolVLM-256M, \methodname{}
 reaches 60.73, 60.48 and 72.32 on the same benchmarks. Across the reported
-experiments, \methodname{} improves over direct finetuning, same-family logits
-KD, cross-family ULD and the compared heterogeneous multi-teacher baselines.
+experiments, \methodname{} improves over direct fine-tuning, same-family logit-based KD, cross-family ULD and the compared heterogeneous multi-teacher baselines.
 
 
 \vspace*{1cm}

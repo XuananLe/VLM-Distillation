@@ -32,6 +32,48 @@ Ahmed Masry, Do~Xuan Long, Jia~Qing Tan, Shafiq Joty, and Enamul Hoque.
 \newblock Chartqa: A benchmark for question answering about charts with visual
   and logical reasoning, 2022.
 
+\bibitem{kaplan2020scalinglaws}
+Jared Kaplan, Sam McCandlish, Tom Henighan, Tom~B. Brown, Benjamin Chess, Rewon
+  Child, Scott Gray, Alec Radford, Jeffrey Wu, and Dario Amodei.
+\newblock Scaling laws for neural language models, 2020.
+
+\bibitem{hoffmann2022trainingcomputeoptimal}
+Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor
+  Cai, Eliza Rutherford, Diego de~Las~Casas, Lisa~Anne Hendricks, Johannes
+  Welbl, Aidan Clark, Tom Hennigan, Eric Noland, Katie Millican, George van~den
+  Driessche, Bogdan Damoc, Aurelia Guy, Simon Osindero, Karen Simonyan, Erich
+  Elsen, Jack~W. Rae, Oriol Vinyals, and Laurent Sifre.
+\newblock Training compute-optimal large language models, 2022.
+
+\bibitem{bai2025qwen25vl}
+Shuai Bai, Keqin Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Sibo Song, Kai
+  Dang, Peng Wang, Shijie Wang, Jun Tang, et~al.
+\newblock Qwen2.5-vl technical report, 2025.
+
+\bibitem{dai2024nvlm}
+Wenliang Dai, Nayeon Lee, Boxin Wang, Zhuolin Yang, Zihan Liu, Jon Barker,
+  Tuomas Rintamaki, Mohammad Shoeybi, Bryan Catanzaro, and Wei Ping.
+\newblock Nvlm: Open frontier-class multimodal llms, 2024.
+
+\bibitem{meta2024llama32}
+{Meta AI}.
+\newblock Llama 3.2: Revolutionizing edge ai and vision with open, customizable
+  models.
+\newblock Meta AI blog, 2024.
+\newblock Accessed: 2026-05-17.
+
+\bibitem{grattafiori2024llama3}
+Aaron Grattafiori, Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Abhishek
+  Kadian, Ahmad Al-Dahle, Aiesha Letman, Akhil Mathur, Alan Schelten, Alex
+  Vaughan, et~al.
+\newblock The llama 3 herd of models, 2024.
+
+\bibitem{nvidia2024h100}
+{NVIDIA}.
+\newblock Nvidia h100 tensor core gpu.
+\newblock Product page, 2024.
+\newblock Accessed: 2026-05-17.
+
 \bibitem{driess2023palme}
 Danny Driess, Fei Xia, Mehdi S.~M. Sajjadi, Corey Lynch, Aakanksha Chowdhery,
   Brian Ichter, Ayzaan Wahid, Jonathan Tompson, Quan Vuong, Tianhe Yu, Wenlong
@@ -54,27 +96,6 @@ Anthony Brohan, Noah Brown, Justice Carbajal, Yevgen Chebotar, Xi~Chen,
   Ted Xiao, Peng Xu, Sichun Xu, Tianhe Yu, and Brianna Zitkovich.
 \newblock Rt-2: Vision-language-action models transfer web knowledge to robotic
   control, 2023.
-
-\bibitem{kaplan2020scalinglaws}
-Jared Kaplan, Sam McCandlish, Tom Henighan, Tom~B. Brown, Benjamin Chess, Rewon
-  Child, Scott Gray, Alec Radford, Jeffrey Wu, and Dario Amodei.
-\newblock Scaling laws for neural language models, 2020.
-
-\bibitem{hoffmann2022trainingcomputeoptimal}
-Jordan Hoffmann, Sebastian Borgeaud, Arthur Mensch, Elena Buchatskaya, Trevor
-  Cai, Eliza Rutherford, Diego de~Las~Casas, Lisa~Anne Hendricks, Johannes
-  Welbl, Aidan Clark, Tom Hennigan, Eric Noland, Katie Millican, George van~den
-  Driessche, Bogdan Damoc, Aurelia Guy, Simon Osindero, Karen Simonyan, Erich
-  Elsen, Jack~W. Rae, Oriol Vinyals, and Laurent Sifre.
-\newblock Training compute-optimal large language models, 2022.
-
-\bibitem{wang2024qwen2vl}
-Peng Wang, Shuai Bai, Sinan Tan, Shijie Wang, Zhihao Fan, Jinze Bai, Keqin
-  Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Yang Fan, Kai Dang, Mengfei Du,
-  Xuancheng Ren, Rui Men, Dayiheng Liu, Chang Zhou, Jingren Zhou, and Junyang
-  Lin.
-\newblock Qwen2-vl: Enhancing vision-language model's perception of the world
-  at any resolution, 2024.
 
 \bibitem{hinton2015distillingknowledgeneuralnetwork}
 Geoffrey Hinton, Oriol Vinyals, and Jeff Dean.
@@ -142,6 +163,14 @@ Yu-Chu Yu, Chi-Pin Huang, Jr-Jen Chen, Kai-Po Chang, Yung-Hsuan Lai, Fu-En
   Yang, and Yu-Chiang~Frank Wang.
 \newblock Select and distill: Selective dual-teacher knowledge transfer for
   continual learning on vision-language models, 2024.
+
+\bibitem{wang2024qwen2vl}
+Peng Wang, Shuai Bai, Sinan Tan, Shijie Wang, Zhihao Fan, Jinze Bai, Keqin
+  Chen, Xuejing Liu, Jialin Wang, Wenbin Ge, Yang Fan, Kai Dang, Mengfei Du,
+  Xuancheng Ren, Rui Men, Dayiheng Liu, Chang Zhou, Jingren Zhou, and Junyang
+  Lin.
+\newblock Qwen2-vl: Enhancing vision-language model's perception of the world
+  at any resolution, 2024.
 
 \bibitem{chen2024internvl15}
 Zhe Chen, Weiyun Wang, Hao Tian, Shenglong Ye, Zhangwei Gao, Erfei Cui, Wenwen
@@ -313,6 +342,30 @@ Tianqi Chen, Bing Xu, Chiyuan Zhang, and Carlos Guestrin.
 \newblock Hugging Face, 2025.
 \newblock Accessed: 2026-04-02.
 
+\bibitem{qwen2vl2b_modelcard}
+{Qwen Team}.
+\newblock Qwen2-vl-2b-instruct model card.
+\newblock Hugging Face, 2024.
+\newblock Accessed: 2026-04-01.
+
+\bibitem{qwen25vl3b_modelcard}
+{Qwen Team}.
+\newblock Qwen2.5-vl-3b-instruct model card.
+\newblock Hugging Face, 2025.
+\newblock Accessed: 2026-04-01.
+
+\bibitem{internvl3_blog}
+{OpenGVLab}.
+\newblock Internvl 3.0.
+\newblock Project blog, 2025.
+\newblock Accessed: 2026-04-01.
+
+\bibitem{gemma3_technical_report}
+{Gemma Team} and {Google DeepMind}.
+\newblock Gemma 3 technical report.
+\newblock Technical report, 2025.
+\newblock Accessed: 2026-04-01.
+
 \bibitem{cui2024sinkhorn}
 Yifan Cui, Wei Wang, Yifei Wang, Yao Lu, Haoyu Wang, Fuzhen Zhuang, Qing He,
   and Chuan Shi.
@@ -334,18 +387,17 @@ Yuqiao Wen, Zichao Li, Wenyu Du, and Lili Mou.
   Computational Linguistics (Volume 1: Long Papers)}, page
   10817{\textendash}10834. Association for Computational Linguistics, 2023.
 
-\bibitem{bousselham2026dexar}
-Walid Bousselham, Rishikesh Jadhav, Simon de~Mathelin, Fran{\c{c}}ois Fleuret,
-  and Pascal Frossard.
-\newblock Dex-ar: Explainability in multimodal large language models with deep
-  expectation and attention rollout, 2026.
-
 \bibitem{wu2025rethinking}
 Taiqiang Wu, Chaofan Tao, Jiahao Wang, Runming Yang, Zhe Zhao, and Ngai Wong.
 \newblock Rethinking kullback-leibler divergence in knowledge distillation for
   large language models.
 \newblock In {\em Proceedings of the 31st International Conference on
   Computational Linguistics}, page 5737{\textendash}5755, 2025.
+
+\bibitem{bousselham2026dexar}
+Walid Bousselham, Angie Boggust, Hendrik Strobelt, and Hilde Kuehne.
+\newblock Dex-ar: A dynamic explainability method for autoregressive
+  vision-language models, 2026.
 
 \bibitem{cloudflare_r2_overview}
 {Cloudflare}.
