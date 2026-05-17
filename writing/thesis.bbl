@@ -68,12 +68,6 @@ Aaron Grattafiori, Abhimanyu Dubey, Abhinav Jauhri, Abhinav Pandey, Abhishek
   Vaughan, et~al.
 \newblock The llama 3 herd of models, 2024.
 
-\bibitem{nvidia2024h100}
-{NVIDIA}.
-\newblock Nvidia h100 tensor core gpu.
-\newblock Product page, 2024.
-\newblock Accessed: 2026-05-17.
-
 \bibitem{driess2023palme}
 Danny Driess, Fei Xia, Mehdi S.~M. Sajjadi, Corey Lynch, Aakanksha Chowdhery,
   Brian Ichter, Ayzaan Wahid, Jonathan Tompson, Quan Vuong, Tianhe Yu, Wenlong
@@ -291,18 +285,6 @@ Tianhe Yu, Saurabh Kumar, Abhishek Gupta, Sergey Levine, Karol Hausman, and
 \newblock Gradient surgery for multi-task learning.
 \newblock In {\em Advances in Neural Information Processing Systems},
   volume~33, page 5824{\textendash}5836, 2020.
-
-\bibitem{hu2024visualprogramdistillation}
-Yushi Hu, Otilia Stretcu, Chun-Ta Lu, Krishnamurthy Viswanathan, Kenji Hata,
-  Enming Luo, Ranjay Krishna, and Ariel Fuxman.
-\newblock Visual program distillation: Distilling tools and programmatic
-  reasoning into vision-language models, 2024.
-
-\bibitem{yang2024clipcid}
-Kaicheng Yang, Tiancheng Gu, Xiang An, Haiqiang Jiang, Xiangzi Dai, Ziyong
-  Feng, Weidong Cai, and Jiankang Deng.
-\newblock Clip-cid: Efficient clip distillation via cluster-instance
-  discrimination, 2024.
 
 \bibitem{duan2024vlmevalkit}
 Haodong Duan, Xinyu Fang, Junming Yang, et~al.

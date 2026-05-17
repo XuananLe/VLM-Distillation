@@ -1,20 +1,20 @@
 \chapter{Background and Related Work}
 \label{chap:preliminaries}
 
-Three bodies of prior work bear directly on GRACE: knowledge distillation,
+Three bodies of prior work bear directly on this thesis: knowledge distillation,
 tokenizer-agnostic distribution matching and sparse expert routing. The final
 section shows where these converge into the research gap the thesis addresses.
 
 \section{Vision-Language Models}
 
 Modern vision-language models often combine a vision encoder with a language
-model. On the visual side, many systems use a Vision Transformer pretrained
-with an image-text objective, commonly CLIP
-\cite{radford2021learningtransferablevisualmodels} or SigLIP
+model. On the visual side, many systems use a \textbf{Vision Transformer} pretrained
+with an image-text objective, commonly \textbf{CLIP}
+\cite{radford2021learningtransferablevisualmodels} or \textbf{SigLIP}
 \cite{zhai2023sigmoidlosslanguageimage}, which converts an image into a
 sequence of patch embeddings that capture both local and global visual
 features. A connector module then fuses these visual tokens with text, using
-cross-attention, a Q-Former or a learned projector
+cross-attention, a \textbf{Q-Former} or a learned projector
 \cite{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning}. This design separates visual perception from language generation: the vision
 encoder produces a compact sequence of image features, while the language model
 provides the autoregressive prior used to answer questions. VLM families differ
@@ -150,13 +150,13 @@ answer token. When \(\tau>1\), the softmax distribution becomes flatter and
 low-rank alternatives receive non-negligible probability. When \(\tau<1\), the
 distribution becomes sharper and approaches hard-label supervision. The teacher's tail distribution often encodes semantic alternatives
 such as related words, number formats or subword variants.
-The same softening applies before Byte-Trie Wasserstein matching. Since
-student and teacher temperatures may be chosen independently, \(\tau_t\)
+Since student and teacher temperatures may be chosen independently, \(\tau_t\)
 controls how much dark knowledge the teacher exposes, whereas
-\(\tau_s\) controls the smoothness of the student distribution under matching.
+\(\tau_s\) controls the smoothness of the student distribution being matched.
 
-GRACE restricts distillation to the supervised answer positions, matching the
-span evaluated at test time~\cite{liu2023visualinstructiontuning}.
+For multimodal question answering, distillation is naturally restricted to the
+supervised answer positions, matching the span evaluated at
+test time~\cite{liu2023visualinstructiontuning}.
 The KD loss therefore masks ignored tokens and truncates student and teacher
 answer spans to a common length, producing a signal that works across different teacher and student tokenizers.
 Let \(\Omega_b^{CE}\) denote the non-ignored student answer positions for
@@ -277,8 +277,8 @@ vocabularies with decoding maps into a shared string space \(\mathcal{S}\):
 Transport-based objectives replace same-vocabulary KL with a distance over
 probability mass on a shared string support.
 
-Optimal transport compares two probability measures by the minimum cost required
-to move mass from one to the other
+\textbf{Optimal transport} compares two probability measures by the minimum
+cost required to move mass from one to the other
 \cite{peyre2019computationaloptimaltransport}. For probability measures
 \(\mu_s\) and \(\mu_t\), the \(p\)-Wasserstein cost is
 \begin{equation}
@@ -389,8 +389,8 @@ Here, \(A_s\) and \(A_t\) denote alignment operations that place student and
 teacher activations in a comparable space. This family applies to heterogeneous models because it avoids direct vocabulary
 comparison and can draw on visual, textual or fused multimodal representations \cite{dasgupta2025improving}.
 
-Centered Kernel Alignment (CKA) compares representations through their
-similarity structure and avoids direct elementwise hidden-state matching
+\textbf{Centered Kernel Alignment} (CKA) compares representations through
+their similarity structure and avoids direct elementwise hidden-state matching
 \cite{kornblith2019similarityrepresentations}. Given activation matrices
 \(\mathbf{X}\in\mathbb{R}^{n\times d_x}\) and
 \(\mathbf{Y}\in\mathbb{R}^{n\times d_y}\) over the same \(n\) examples, the
@@ -449,8 +449,8 @@ when the total expert count is large. The same abstraction transfers directly to
 a frozen expert that contributes a weighted distillation loss for a subset of samples.
 
 Sparse routing also needs mechanisms that prevent collapse onto a small subset
-of experts. In a sparse MoE layer, collapse is both a modeling problem and a
-systems problem: the overloaded experts determine the step latency, while
+of experts. In a sparse \textbf{Mixture of Experts} (MoE) layer, collapse is both a
+modeling problem and a systems problem: the overloaded experts determine the step latency, while
 under-used experts receive few gradients and remain poorly specialized
 \cite{shazeer2017outrageouslylargeneuralnetworks,lepikhin2020gshard,zhou2022mixtureofexpertswithexpertchoice}.
 Let a mini-batch contain \(T\) routed items and let \(N\) denote the number of
@@ -490,7 +490,7 @@ ones. The routing statistics used by many auxiliary losses can be written as a
 \end{equation}
 Here, \(\bar{p}_i\) measures how much probability mass the router gives to
 expert \(i\) before hard selection, whereas \(\bar{q}_i\) measures how often the
-expert is actually selected after sparse routing. The Switch Transformer
+expert is actually selected after sparse routing. The \textbf{Switch Transformer}
 balancing loss uses their scaled dot product
 \cite{fedus2022switchtransformersscalingtrillion}:
 \begin{equation}
@@ -509,8 +509,8 @@ through the top-\(k\) decision, but \(\bar{p}_i\) is differentiable. The loss
 therefore gives the router a gradient signal that discourages assigning high
 average probability to already busy experts.
 
-In GRACE, entropy and \(z\)-loss terms stabilize sparse teacher selection while
-the task and distillation losses remain the main training objectives.
+Entropy and \(z\)-loss terms are commonly used to stabilize sparse selection
+while the task and distillation losses remain the main training objectives.
 
 Sparse routing is most effective when the best expert for a given input
 depends on that input
@@ -546,9 +546,7 @@ A sample-adaptive scheme uses \(w_i^{(b)}\):
 w_i^{(b)}=0 \ \text{for} \ i\notin\mathcal{S}_b .
 \end{equation}
 The sparsity constraint caps the number of active experts and limits the
-influence of low-utility teachers on any given update.
-
-Distillation can reuse this routing framework by treating frozen teachers as
+influence of low-utility teachers on any given update. Distillation can reuse this routing framework by treating frozen teachers as
 experts, with the router selecting which teachers supervise each sample.
 Teacher \(T_i\) contributes loss \(\mathcal{L}_{KD}^{(b,i)}\) for sample
 \(b\). A routed distillation loss takes the form
@@ -564,7 +562,7 @@ MoE, the experts here are frozen, so only the student and router parameters
 receive gradient updates. Routing in a distillation setting faces an additional
 complication: teacher quality varies with the input, the current student state
 and the task objective. A high router score can still produce a KD gradient that
-conflicts with supervised learning, so GRACE adds gradient agreement after routing
+conflicts with supervised learning, motivating gradient-aware teacher weighting after routing
 \cite{zhu2021studentcustomized,yuan2020reinforcedmultiteacherselection,yu2020gradient}.
 
 \section{Multi-Teacher Distillation}
@@ -629,9 +627,9 @@ optimization setting studied by gradient-conflict methods
 \cite{zhu2021studentcustomized,yu2020gradient}. In multi-teacher distillation,
 each teacher contributes a separate KD gradient, so selecting a teacher subset
 does not by itself verify that the selected gradients support the supervised
-update. GRACE therefore uses routing to propose candidate teachers and
-gradient-agreement refinement to check whether their KD gradients align with
-the supervised CE objective.
+update. This motivates a two-stage design in which routing proposes candidate
+teachers and a post-routing compatibility check verifies whether their KD
+gradients align with the supervised CE objective.
 
 \section{Related Work}
 \label{sec:related-work-gap}
@@ -642,85 +640,72 @@ multi-teacher selection. Each addresses part of the problem, but no prior method
 constraints together.
 
 \textbf{Response-based and vocabulary-mismatched KD.}
-Response-based KD transfers teacher output distributions to the student
-\cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
-In multimodal models, it has been used for compressing VLMs or transferring
-vision-language behavior from larger models to smaller ones
-\cite{fang2021compressingvlm,hu2024visualprogramdistillation,yang2024clipcid}.
-This family supervises the output distribution used at prediction time, which
-directly matches the generation objective. Its main limitation in heterogeneous
-teacher-student settings is the shared-vocabulary assumption: KL, reverse KL
-and Jensen-Shannon losses compare coordinates that are only meaningful when
-teacher and student token indices refer to the same vocabulary items.
+Response-based KD transfers teacher output distributions to the student and
+supervises the output used at prediction time, which directly matches the
+generation objective
+\cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge,fang2021compressingvlm}.
+Its main limitation in heterogeneous settings is the shared-vocabulary
+assumption: KL, reverse KL and Jensen-Shannon losses compare coordinates that
+are only meaningful when teacher and student token indices refer to the same
+vocabulary items.
 
 Cross-tokenizer KD methods relax this assumption by comparing decoded strings
-or probability mass over a shared support
-\cite{boizard2024towardscrosstokenizerdistillation,dasgupta2025improving}.
+or probability mass over a shared support. \textbf{ULD}~\cite{boizard2024towardscrosstokenizerdistillation}
+sorts each vocabulary's probability vector in descending order and computes
+their L1 distance, avoiding any shared-index requirement.
 Optimal-transport and tree-Wasserstein methods are especially relevant because
 they define a ground geometry between tokens rather than requiring exact
 token-index equality
 \cite{takezawa2021supervisedtreewasserstein,leyamadafukumizucuturi2019treesliced}.
-These methods provide the vocabulary-independent loss that GRACE uses at the
-output level. All are formulated as single-teacher objectives, however: none
-decides which teacher should supervise a given sample, and none checks whether
-a chosen teacher's KD gradient conflicts with the supervised CE objective.
+These methods provide vocabulary-independent output matching, but they are
+formulated as single-teacher objectives: none decides which teacher should
+supervise a given sample, and none checks whether a chosen teacher's KD
+gradient conflicts with the supervised CE objective.
 
 \textbf{Representation matching and CKA alignment.}
 Representation-level distillation avoids the vocabulary problem by matching
-hidden states, attention maps or similarity structure rather than output-token
-probabilities. CKA is a common tool for comparing representations because it
-measures similarity structure while being invariant to orthogonal changes of
-basis and isotropic scaling \cite{kornblith2019similarityrepresentations}.
-This makes CKA applicable even when teacher and student tokenizers or hidden
-dimensions differ. Recent cross-tokenizer work also uses
-representation-level information as a complementary alignment signal
-\cite{dasgupta2025improving}.
-
-The limitation is that representation similarity is not the same as answer
-distribution matching. Two models can have similar hidden-state geometry while
-their language heads assign different probabilities to answer tokens. This gap matters directly for VQA, where a small probability shift among OCR
-strings or numeric answers changes the final evaluated score. Representation
-matching also leaves the teacher-selection question unresolved: it can compare
-a teacher and student once a teacher has been chosen, but it does not specify
-which teacher should dominate for a given sample. For these reasons, this thesis
-treats representation matching as a diagnostic baseline and keeps output-level
-distribution matching as the primary distillation signal.
+hidden states or similarity structure rather than output-token probabilities.
+\textbf{Centered Kernel Alignment} (CKA) measures similarity structure while
+being invariant to orthogonal transformations and isotropic scaling, making it
+applicable across heterogeneous tokenizers and hidden dimensions
+\cite{kornblith2019similarityrepresentations,dasgupta2025improving}. Its
+limitation is that representation similarity is not the same as answer
+distribution matching: two models can have similar hidden-state geometry while
+their language heads assign different probabilities to the same answer tokens.
+Representation matching also leaves teacher selection unresolved. For these
+reasons, this thesis treats it as a diagnostic baseline and keeps output-level
+matching as the primary distillation signal.
 
 \textbf{Multi-teacher KD and sparse routing.}
-Multi-teacher KD studies how to combine several teachers rather than relying on
-a single supervisor. Reinforcement-based and meta-learning approaches learn
-teacher weights or selection policies that adapt over training
+Multi-teacher KD studies how to combine several teachers. Reinforcement-based
+and meta-learning approaches learn teacher weights or selection policies that
+adapt over training
 \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,
-yu2024selectdistill}. These methods show that teacher diversity raises student accuracy when teachers
-make complementary errors. They also identify a core challenge: teacher choice
-must be sample-dependent,
-because the best teacher for document layout may differ from the best teacher
-for chart reasoning or natural scene text.
+yu2024selectdistill}, identifying a core challenge: teacher choice must be
+sample-dependent, because the best teacher for document layout may differ from
+the best for chart reasoning or scene text.
 
 Sparse expert routing selects only a subset of experts per input
 \cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,
-zhou2022mixtureofexpertswithexpertchoice}. In a distillation setting, the
-experts are frozen teachers and the selected objects are teacher losses rather
-than forward-pass expert activations. The distinction is that routing only estimates teacher relevance. A routed teacher can still produce a KD
+zhou2022mixtureofexpertswithexpertchoice}. Applied to distillation, routing
+only estimates teacher relevance: a routed teacher can still produce a KD
 gradient that conflicts with the supervised CE objective, so sparse routing
 must be paired with an objective-compatibility check.
 
 \textbf{Gradient-conflict resolution.}
-Gradient-conflict methods measure whether multiple objectives induce compatible
-updates on shared parameters. Student-customized distillation and gradient
-surgery methods show that conflicting gradients can harm learning and that
-gradient direction filters or reweights auxiliary objectives
-\cite{zhu2021studentcustomized,yu2020gradient}. These ideas apply directly to multi-teacher KD, where each teacher contributes
-a separate KD gradient.
-However, prior gradient-conflict methods do not address cross-tokenizer output
-matching, and they do not provide a sparse teacher-selection mechanism for a
-heterogeneous VLM teacher pool.
+Gradient-conflict methods show that conflicting objectives can harm learning
+and that gradient direction filters or reweights auxiliary objectives
+\cite{zhu2021studentcustomized,yu2020gradient}. These ideas apply directly to
+multi-teacher KD, but prior methods do not address cross-tokenizer output
+matching and do not provide a sparse teacher-selection mechanism for a
+heterogeneous VLM pool.
 
-No existing method closes all four gaps simultaneously. Vocabulary-aligned KD
-breaks across tokenizers. Cross-tokenizer transport fixes that but assumes a
-single teacher. Representation matching avoids the vocabulary problem but
-produces no answer-calibrated signal and leaves teacher selection unresolved.
-Routing-based methods select teachers but none verify gradient compatibility.
-GRACE addresses all four within one framework by combining a Byte-Trie
-Wasserstein output loss, sparse teacher routing and gradient-agreement
-refinement.
+No existing method closes all four gaps simultaneously.
+\textbf{Vocabulary-aligned KD} breaks across tokenizers.
+\textbf{Cross-tokenizer transport} fixes that but assumes a single teacher.
+\textbf{Representation matching} avoids the vocabulary problem but produces no
+answer-calibrated signal and leaves teacher selection unresolved.
+\textbf{Routing-based methods} select teachers but none verify gradient
+compatibility. These gaps motivate a unified framework that combines
+\textbf{vocabulary-independent output matching}, \textbf{sparse teacher
+routing} and \textbf{gradient-agreement refinement}.

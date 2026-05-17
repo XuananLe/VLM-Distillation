@@ -2,16 +2,17 @@
 \addvspace {10\p@ }
 \contentsline {table}{\numberline {2.1}{\ignorespaces Summary of response-level and feature-level KD objectives.\relax }}{8}{table.caption.3}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {3.1}{\ignorespaces Notation table.\relax }}{18}{table.3.1}%
+\contentsline {table}{\numberline {3.1}{\ignorespaces Notation table.\relax }}{17}{table.3.1}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {4.1}{\ignorespaces Dataset split sizes.}}{32}{table.caption.17}%
-\contentsline {table}{\numberline {4.2}{\ignorespaces Baseline groups.}}{33}{table.caption.18}%
+\contentsline {table}{\numberline {4.1}{\ignorespaces Dataset split sizes.}}{31}{table.caption.17}%
+\contentsline {table}{\numberline {4.2}{\ignorespaces Baseline groups.}}{32}{table.caption.18}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {5.1}{\ignorespaces Student and teacher model results.}}{36}{table.caption.19}%
-\contentsline {table}{\numberline {5.2}{\ignorespaces Main benchmark comparison.}}{37}{table.caption.20}%
-\contentsline {table}{\numberline {5.3}{\ignorespaces Relative gains of GRACE{}.}}{40}{table.caption.24}%
-\contentsline {table}{\numberline {5.4}{\ignorespaces Gap-to-teacher analysis for SmolVLM-500M.}}{40}{table.caption.25}%
-\contentsline {table}{\numberline {5.5}{\ignorespaces DocVQA component ablation.}}{41}{table.caption.26}%
+\contentsline {table}{\numberline {5.1}{\ignorespaces Student and teacher model results.}}{35}{table.caption.19}%
+\contentsline {table}{\numberline {5.2}{\ignorespaces Main benchmark comparison.}}{36}{table.caption.20}%
+\contentsline {table}{\numberline {5.3}{\ignorespaces Relative gains of GRACE{}.}}{39}{table.caption.24}%
+\contentsline {table}{\numberline {5.4}{\ignorespaces Gap-to-teacher analysis for SmolVLM-500M.}}{39}{table.caption.25}%
+\contentsline {table}{\numberline {5.5}{\ignorespaces DocVQA component ablation.}}{40}{table.caption.26}%
+\contentsline {table}{\numberline {5.6}{\ignorespaces ULD vs.\ Byte-Trie Wasserstein under equal ranked masses.}}{43}{table.caption.27}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
 \contentsline {table}{\numberline {B.1}{\ignorespaces Experiment parameters.}}{58}{table.B.1}%

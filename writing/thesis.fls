@@ -1528,8 +1528,6 @@ INPUT chapters/c1/c1_introduction.tex
 INPUT ./chapters/c1/c1_introduction.tex
 INPUT ./chapters/c1/c1_introduction.tex
 INPUT chapters/c1/c1_introduction.tex
-INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vnr17.tfm
-INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vnbx12.tfm
 INPUT /usr/share/texlive/texmf-dist/fonts/tfm/jknappen/ec/tcrm1200.tfm
 INPUT ./chapters/c2/c2_chapter.tex
 INPUT ./chapters/c2/c2_chapter.tex
@@ -1538,6 +1536,8 @@ INPUT chapters/c2/c2_chapter.tex
 INPUT ./chapters/c2/c2_chapter.tex
 INPUT ./chapters/c2/c2_chapter.tex
 INPUT chapters/c2/c2_chapter.tex
+INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vnr17.tfm
+INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vnbx12.tfm
 INPUT ./figures/clip_architecture_family.png
 INPUT ./figures/clip_architecture_family.png
 INPUT figures/clip_architecture_family.png
@@ -1713,6 +1713,7 @@ INPUT ./figures/GRACE-non-collapse.png
 INPUT figures/GRACE-non-collapse.png
 INPUT ./figures/GRACE-non-collapse.png
 INPUT ./figures/GRACE-non-collapse.png
+INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vntt10.tfm
 INPUT ./figures/cka_last_textvqa_qwen2vl2b_smolvlm500m.png
 INPUT ./figures/cka_last_textvqa_qwen2vl2b_smolvlm500m.png
 INPUT figures/cka_last_textvqa_qwen2vl2b_smolvlm500m.png
@@ -1784,7 +1785,6 @@ INPUT ./figures/r2_cache_training.png
 INPUT figures/r2_cache_training.png
 INPUT ./figures/r2_cache_training.png
 INPUT ./figures/r2_cache_training.png
-INPUT /usr/share/texlive/texmf-dist/fonts/tfm/vntex/vnr/vntt10.tfm
 INPUT thesis.aux
 INPUT ./thesis.out
 INPUT ./thesis.out

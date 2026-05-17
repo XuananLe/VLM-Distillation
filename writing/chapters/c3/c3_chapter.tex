@@ -29,9 +29,9 @@ indices, so the KD loss compares decoded token content through a shared
 string space. Second, teacher usefulness is sample-dependent: a
 teacher that is useful for document layout may be less useful for chart
 reasoning or natural scene text. Third, teacher relevance and optimization
-compatibility can diverge when a teacher's logits look correct but its gradient conflicts with the CE objective. GRACE addresses these
-constraints with Byte-Trie Wasserstein matching, sparse teacher routing and
-gradient-agreement refinement.
+compatibility can diverge when a teacher's logits look correct but its gradient conflicts with the CE objective. GRACE addresses these constraints with \textbf{Byte-Trie Wasserstein}
+matching, \textbf{sparse teacher routing} and \textbf{gradient-agreement
+refinement}.
 
 \begin{figure}[!htbp]
 \centering

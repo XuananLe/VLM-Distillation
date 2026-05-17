@@ -112,8 +112,8 @@ ChartQA (H+M, combined) & 28,299 & 1,920 & 2,500 & 32,719 \\
 }
 \end{table}
 
-The official metrics are dataset-specific: TextVQA uses VQA Accuracy, DocVQA
-uses ANLS and ChartQA uses Relaxed Accuracy. For TextVQA, the per-question
+The official metrics are dataset-specific: TextVQA uses \textbf{VQA Accuracy},
+DocVQA uses \textbf{ANLS} and ChartQA uses \textbf{Relaxed Accuracy}. For TextVQA, the per-question
 score for a predicted answer \(\hat{a}\) is
 \(s_{\text{VQA}}=\min(\#\text{annotators that provided }\hat{a}/3,1)\), and
 the final score is the mean over all questions \cite{singh2019vqamodelsread}.
@@ -192,8 +192,8 @@ full fine-tuning baseline. The same-family baselines use
 forward KL, reverse KL and Jensen-Shannon distillation, isolating standard
 teacher-student transfer when the tokenizer and vocabulary are aligned
 \cite{hinton2015distillingknowledgeneuralnetwork,lin1991jensen,cui2024sinkhorn}.
-The different-family single-teacher setting uses ULD with Qwen2-VL-2B-Instruct
-outside the SmolVLM family, testing transfer across mismatched tokenizers with one
+The different-family single-teacher setting uses ULD with
+\textbf{Qwen2-VL-2B-Instruct} outside the SmolVLM family, testing transfer across mismatched tokenizers with one
 teacher \cite{boizard2024towardscrosstokenizerdistillation}. The heterogeneous
 teacher setting compares uniform averaging, SHM-CKA, REINFORCE and
 \methodname{} over a mixed teacher pool, separating static averaging,

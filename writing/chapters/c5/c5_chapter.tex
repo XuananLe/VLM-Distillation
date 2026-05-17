@@ -412,6 +412,33 @@ proximity, giving lower transport cost to tokens with similar decoded content.
 This is why \methodname{} improves over ULD even with the same Qwen2-VL teacher
 in the pool.
 
+ULD measures the L1 gap between two rank-sorted probability vectors: it detects whether teacher and student distribute
+probability similarly across rank positions, but rank-\(k\) in one vocabulary
+need not decode to a similar string as rank-\(k\) in the other. Unlike ULD, our loss measures transport through the shared trie, so
+probability mass on \texttt{<wb>invoice} in the teacher and mass on
+\texttt{in} in the student are connected by a short trie path and penalized
+in proportion to their byte distance, not their rank gap. For OCR and document tasks where
+teacher and student split answer strings at different subword boundaries, this
+distinction is direct: ULD cannot credit partial byte-level agreement, whereas
+Byte-Trie Wasserstein does. Table~\ref{tab:uld-vs-tw} makes this concrete.
+
+\begin{table}[H]
+\centering
+\caption[ULD vs.\ Byte-Trie Wasserstein under equal ranked masses.]{Equal
+ranked masses give identical ULD loss; byte-prefix overlap separates the
+trie-Wasserstein losses.}
+\label{tab:uld-vs-tw}
+\small
+\begin{tabular}{lcc}
+\toprule
+\textbf{Teacher / student token} & \(\ell_{\mathrm{ULD}}\) & \(\ell_{\mathrm{TW}}\) \\
+\midrule
+\texttt{doc} / \texttt{document} & 0.20 & 0.60 \\
+\texttt{abc} / \texttt{def}      & 0.20 & 3.29 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
 \textbf{Representation matching and SHM-CKA.}
 SHM-CKA tests whether hidden-state alignment alone transfers knowledge across
 heterogeneous teachers. It is competitive on ChartQA for SmolVLM-500M but
@@ -471,7 +498,7 @@ as corrective reweighting \cite{yu2020gradient}.
 
 \textbf{Visual grounding.}
 To inspect whether distillation changes which image regions the student attends
-to, we use DEX-AR attribution maps \cite{bousselham2026dexar}, which aggregate
+to, we use \textbf{DEX-AR} attribution maps \cite{bousselham2026dexar}, which aggregate
 token-level visual attributions into a sequence-level heatmap for autoregressive
 VLMs. Figure~\ref{fig:textvqa-sample3-qualitative} shows a representative
 TextVQA example \cite{singh2019vqamodelsread} where the question asks

@@ -1,15 +1,11 @@
 \chapter{Introduction}
 \label{chap:introduction}
 
-\section*{Motivation}
-
 \textbf{Vision-language models (VLMs)} link a vision encoder, a multimodal
 connector and an autoregressive language decoder to read text embedded in
 images, interpret document layouts, parse charts and answer questions about
 visual scenes
-\cite{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning,singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
-
-Neural scaling laws push the most capable VLMs toward larger language backbones
+\cite{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning,singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. Neural scaling laws push the most capable VLMs toward larger language backbones
 and more extensive multimodal training, consistently improving performance at the
 cost of compute and memory
 \cite{kaplan2020scalinglaws,hoffmann2022trainingcomputeoptimal}. Current frontier
@@ -20,16 +16,16 @@ and open-access VLMs
 In bfloat16 inference, storing weights alone requires roughly \(2P\) bytes for
 \(P\) parameters, placing these models at approximately 144 GB, 180 GB and
 810 GB before key-value cache, activations and runtime overhead, well above the
-80 GB of a single H100 \cite{nvidia2024h100}. Serving them therefore requires
-multi-GPU configurations, raising latency, energy cost and infrastructure
+capacity of even the most powerful GPUs. Serving them therefore requires
+multi-GPU clusters, raising latency, energy cost and infrastructure
 complexity. These deployment barriers extend beyond research: robotics, embodied
 AI, mobile applications, document-processing pipelines and enterprise systems all
 impose real-time, cost and security constraints that the largest models cannot
 meet \cite{driess2023palme,brohan2023rt2}.
 
 \textbf{Knowledge distillation} addresses this tension by transferring knowledge
-from a large teacher model to a compact student. Rather than learning from raw
-annotations alone, the student is trained against the teacher's output
+from a large teacher model to a more compact student. Rather than learning from hard labels, 
+the student is trained with the teacher's output
 distributions and intermediate representations, which carry soft probability
 signals over alternative answers and provide richer supervision than one-hot labels
 \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
@@ -38,9 +34,12 @@ accuracy, with recent lightweight VLMs reaching competitive benchmark scores
 under resource constraints
 \cite{chu2023mobilevlm,zhou2024tinyllava,marafioti2025smolvlm}.
 
-\section*{Research Gaps and Proposed Approach}
 
-No single approach resolves all of these constraints simultaneously. Response-based
+Distilling a compact VLM from a heterogeneous pool of teachers introduces
+constraints beyond standard KD: teacher and student may use incompatible
+tokenizers, different teachers specialize in different visual domains and a
+teacher selected may still push the student away from the
+supervised objective. No single approach handles all three. Response-based
 distillation aligns teacher and student output distributions effectively but
 requires a shared tokenizer
 \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
@@ -82,8 +81,6 @@ introduce during training?
 
 \newpage{}
 
-\section*{Contributions}
-
 This thesis makes three main contributions:
 
 \begin{itemize}
@@ -98,18 +95,17 @@ This thesis makes three main contributions:
     against the supervised CE objective.
 
     \item \textbf{Empirical validation on VQA benchmarks.}
-    We evaluate the full framework on TextVQA, DocVQA and ChartQA with two
+    We evaluate the full framework on \textbf{TextVQA}, \textbf{DocVQA} and \textbf{ChartQA} with two
     SmolVLM students and a heterogeneous four-teacher pool. The results show
     that \methodname{} outperforms fine-tuning, same-family KD, cross-family ULD
     and multi-teacher baselines, while ablations show that routing is
     unreliable until gradient-agreement refinement is added.
 \end{itemize}
 
-Evaluated with VLM-Eval-Kit on TextVQA, DocVQA and ChartQA, \methodname{}
-with SmolVLM-500M as student closes 55\%, 40\% and 55\% of the original
+Evaluated with VLM-Eval-Kit on \textbf{TextVQA}, \textbf{DocVQA} and \textbf{ChartQA}, \methodname{}
+with \textbf{SmolVLM-500M} as student closes 55\%, 40\% and 55\% of the original
 teacher-student gap on the three benchmarks.
 
-\section*{Thesis Organization}
 
 The remainder of this thesis is structured as follows. Chapter~\ref{chap:preliminaries} provides background on VLMs, knowledge
 distillation, distribution matching across mismatched tokenizers, sparse routing and
