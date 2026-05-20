@@ -5,7 +5,6 @@ from einops import rearrange, reduce
 
 
 def unwrap_tensor(output):
-    """Return the first tensor found inside a nested model output structure."""
     if isinstance(output, torch.Tensor):
         return output
     if isinstance(output, (tuple, list)):
@@ -31,7 +30,6 @@ def unwrap_tensor(output):
 
 
 def get_hidden_states_from_outputs(outputs):
-    """Extract the hidden-state tuple from a Hugging Face style forward output."""
     hidden_states = getattr(outputs, "hidden_states", None)
     if hidden_states is not None:
         return tuple(hidden_states)
@@ -67,7 +65,6 @@ def get_hidden_states_from_outputs(outputs):
 
 
 def get_decoder_hidden_states(outputs):
-    """Return transformer-block hidden states and skip embeddings when they are exposed."""
     hidden_states = get_hidden_states_from_outputs(outputs)
     if not hidden_states:
         raise RuntimeError("Model returned an empty hidden_states tuple.")
@@ -77,15 +74,12 @@ def get_decoder_hidden_states(outputs):
 
 
 def pool_model_hidden_states(hidden_states: torch.Tensor, attention_mask) -> torch.Tensor:
-    """Pool hidden states into one vector per sample for matching or diagnostics."""
     if hidden_states.ndim == 1:
         return rearrange(hidden_states, "d -> 1 d")
     if hidden_states.ndim == 2:
         return reduce(hidden_states, "t d -> 1 d", "mean")
     if hidden_states.ndim != 3:
-        raise ValueError(
-            f"Unsupported hidden-state shape for model-layer pooling: {tuple(hidden_states.shape)}"
-        )
+        raise ValueError(f"Unsupported hidden-state shape for model-layer pooling: {tuple(hidden_states.shape)}")
 
     if attention_mask is not None and attention_mask.ndim == 2 and attention_mask.shape == hidden_states.shape[:2]:
         pooled_hidden_states = torch.masked.mean(
@@ -98,7 +92,6 @@ def pool_model_hidden_states(hidden_states: torch.Tensor, attention_mask) -> tor
 
 
 def infer_batch_size(inputs: Dict[str, torch.Tensor]) -> int:
-    """Infer batch size from the first non-scalar tensor in a model input dict."""
     for value in inputs.values():
         if isinstance(value, torch.Tensor) and value.ndim > 0:
             return int(value.shape[0])

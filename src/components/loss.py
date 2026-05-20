@@ -1,5 +1,6 @@
 import torch
 import torch.nn.functional as F
+
 from src.components.cka import linear_cka_loss
 from src.components.trie_wasserstein import TrieWassersteinLoss
 
@@ -184,11 +185,15 @@ def forward_kl(
     # L = T^2 * KL(p_teacher || p_student) with p_student = softmax(z_s / T_s).
     with torch.no_grad():
         teacher_probs = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
-    return F.kl_div(
-        F.log_softmax(student_logits.float() / student_temperature, dim=-1),
-        teacher_probs,
-        reduction="batchmean",
-    ) * student_temperature ** 2
+    return (
+        F.kl_div(
+            F.log_softmax(student_logits.float() / student_temperature, dim=-1),
+            teacher_probs,
+            reduction="batchmean",
+        )
+        * student_temperature**2
+    )
+
 
 def reverse_kl(
     student_logits: torch.Tensor,
@@ -202,11 +207,14 @@ def reverse_kl(
     # L = T^2 * KL(p_student || p_teacher).
     with torch.no_grad():
         teacher_log_probs = F.log_softmax(teacher_logits.float() / teacher_temperature, dim=-1)
-    return F.kl_div(
-        teacher_log_probs,
-        F.softmax(student_logits.float() / student_temperature, dim=-1),
-        reduction="batchmean",
-    ) * student_temperature ** 2
+    return (
+        F.kl_div(
+            teacher_log_probs,
+            F.softmax(student_logits.float() / student_temperature, dim=-1),
+            reduction="batchmean",
+        )
+        * student_temperature**2
+    )
 
 
 def jensen_shannon_divergence(
@@ -223,10 +231,11 @@ def jensen_shannon_divergence(
         t = F.softmax(teacher_logits.float() / teacher_temperature, dim=-1)
     m = 0.5 * (s + t)
     # JSD(s, t) = 0.5 * KL(s || m) + 0.5 * KL(t || m), where m = 0.5 * (s + t).
-    return 0.5 * (
-        F.kl_div(s.log(), m, reduction="batchmean") +
-        F.kl_div(t.log(), m, reduction="batchmean")
-    ) * student_temperature ** 2
+    return (
+        0.5
+        * (F.kl_div(s.log(), m, reduction="batchmean") + F.kl_div(t.log(), m, reduction="batchmean"))
+        * student_temperature**2
+    )
 
 
 DISTILLATION_LOSSES = {

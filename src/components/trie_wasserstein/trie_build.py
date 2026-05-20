@@ -3,9 +3,9 @@ from __future__ import annotations
 import torch
 
 from src.constants import EOS_SENTINEL
+
 from .canonicalization import canonicalize_token_piece
 from .types import BoundaryKind, TrieBuildResult, TrieNode, TrieRuntimeState
-
 
 BOUNDARY_EDGE_SYMBOLS: dict[BoundaryKind, int] = {
     "none": 0,
@@ -16,13 +16,9 @@ BOUNDARY_EDGE_SYMBOLS: dict[BoundaryKind, int] = {
 
 
 def assert_no_sentinel_collision() -> None:
-    boundary_symbols = {
-        symbol for kind, symbol in BOUNDARY_EDGE_SYMBOLS.items() if kind != "none"
-    }
+    boundary_symbols = {symbol for kind, symbol in BOUNDARY_EDGE_SYMBOLS.items() if kind != "none"}
     if EOS_SENTINEL in boundary_symbols:
-        raise ValueError(
-            f"EOS_SENTINEL={EOS_SENTINEL!r} collides with boundary edge sentinels"
-        )
+        raise ValueError(f"EOS_SENTINEL={EOS_SENTINEL!r} collides with boundary edge sentinels")
 
 
 def insert_child_edge(
@@ -87,6 +83,7 @@ def build_tokenizer_paths(
     tokenizer,
     vocab_size: int,
     ignored_token_ids: tuple[int, ...],
+    non_text_token_ids: tuple[int, ...],
     root: TrieNode,
     edge_weights: list[float],
     rho: float,
@@ -94,12 +91,19 @@ def build_tokenizer_paths(
     underscore_is_boundary_marker: bool,
 ) -> TrieBuildResult:
     ignored_token_ids_set = set(ignored_token_ids)
+    non_text_token_ids_set = set(non_text_token_ids)
     token_paths: list[list[int]] = []
     ignored_mask = torch.zeros(vocab_size, dtype=torch.bool)
+    non_text_mask = torch.zeros(vocab_size, dtype=torch.bool)
 
     for token_id in range(vocab_size):
         if token_id in ignored_token_ids_set:
             ignored_mask[token_id] = True
+            token_paths.append([])
+            continue
+
+        if token_id in non_text_token_ids_set:
+            non_text_mask[token_id] = True
             token_paths.append([])
             continue
 
@@ -125,6 +129,7 @@ def build_tokenizer_paths(
     return TrieBuildResult(
         token_paths=token_paths,
         ignored_mask=ignored_mask,
+        non_text_mask=non_text_mask,
     )
 
 
@@ -137,6 +142,8 @@ def build_trie_state_from_tokenizers(
     rho: float,
     student_tokenizer,
     teacher_tokenizer,
+    student_non_text_token_ids: tuple[int, ...] = (),
+    teacher_non_text_token_ids: tuple[int, ...] = (),
     boundary_weight: float = 0.05,
     student_underscore_is_boundary_marker: bool = False,
     teacher_underscore_is_boundary_marker: bool = False,
@@ -153,6 +160,7 @@ def build_trie_state_from_tokenizers(
         tokenizer=student_tokenizer,
         vocab_size=student_vocab_size,
         ignored_token_ids=student_ignored_token_ids,
+        non_text_token_ids=student_non_text_token_ids,
         root=root,
         edge_weights=edge_weights,
         rho=rho,
@@ -163,6 +171,7 @@ def build_trie_state_from_tokenizers(
         tokenizer=teacher_tokenizer,
         vocab_size=teacher_vocab_size,
         ignored_token_ids=teacher_ignored_token_ids,
+        non_text_token_ids=teacher_non_text_token_ids,
         root=root,
         edge_weights=edge_weights,
         rho=rho,
@@ -177,7 +186,9 @@ def build_trie_state_from_tokenizers(
         edge_weights=torch.tensor(edge_weights, dtype=torch.float32),
         student_token_paths=student_paths.token_paths,
         student_ignored_mask=student_paths.ignored_mask,
+        student_non_text_mask=student_paths.non_text_mask,
         teacher_token_paths=teacher_paths.token_paths,
         teacher_ignored_mask=teacher_paths.ignored_mask,
+        teacher_non_text_mask=teacher_paths.non_text_mask,
         tail_edge_id=tail_edge_id,
     )

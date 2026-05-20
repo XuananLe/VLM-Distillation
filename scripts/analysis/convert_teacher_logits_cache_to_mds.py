@@ -1,6 +1,5 @@
 import argparse
 import io
-import os
 import sys
 from pathlib import Path
 
@@ -11,10 +10,9 @@ if str(ROOT_DIR) not in sys.path:
 import torch
 from streaming import MDSWriter
 
+
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Repack per-sample teacher-logits caches into sharded MDS datasets."
-    )
+    parser = argparse.ArgumentParser(description="Repack per-sample teacher-logits caches into sharded MDS datasets.")
     parser.add_argument(
         "--input-dir",
         required=True,
@@ -104,14 +102,8 @@ def write_teacher_dataset(
 
     output_teacher_dir = output_root / teacher_slug
     output_teacher_dir.mkdir(parents=True, exist_ok=True)
-    remote_teacher_dir = (
-        join_remote_uri(remote_output_root, teacher_slug) if remote_output_root else None
-    )
-    writer_out = (
-        (str(output_teacher_dir), remote_teacher_dir)
-        if remote_teacher_dir
-        else str(output_teacher_dir)
-    )
+    remote_teacher_dir = join_remote_uri(remote_output_root, teacher_slug) if remote_output_root else None
+    writer_out = (str(output_teacher_dir), remote_teacher_dir) if remote_teacher_dir else str(output_teacher_dir)
 
     columns = {
         "dataset_index": "int",
@@ -161,10 +153,7 @@ def main() -> None:
             exist_ok=args.exist_ok,
             keep_local=args.keep_local,
         )
-        print(
-            f"converted {teacher_model_id} -> "
-            f"{output_dir / teacher_model_id.split('/')[-1]}"
-        )
+        print(f"converted {teacher_model_id} -> {output_dir / teacher_model_id.split('/')[-1]}")
 
 
 if __name__ == "__main__":

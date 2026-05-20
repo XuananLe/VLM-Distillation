@@ -220,9 +220,7 @@ def get_specific_layer(model, layer_index):
         layer_index = vision_info["total_layers"] + layer_index
 
     if layer_index < 0 or layer_index >= vision_info["total_layers"]:
-        raise IndexError(
-            f"Layer index {layer_index} out of range (0-{vision_info['total_layers'] - 1})"
-        )
+        raise IndexError(f"Layer index {layer_index} out of range (0-{vision_info['total_layers'] - 1})")
 
     vision_encoder = resolve_module_path(model, vision_info["encoder_path"])
     layers = extract_layers_by_architecture(vision_encoder, architecture_type)

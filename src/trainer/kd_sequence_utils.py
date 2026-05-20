@@ -32,11 +32,9 @@ def prepare_distillation_sequences(
     min_len = min(student_logits_masked.size(0), teacher_logits_masked.size(0))
     if ce_grad_masked is not None:
         min_len = min(min_len, ce_grad_masked.size(0))
- 
+
     if min_len == 0:
-        raise ValueError(
-            "Student and teacher labels have no aligned supervised answer tokens after masking."
-        )
+        raise ValueError("Student and teacher labels have no aligned supervised answer tokens after masking.")
 
     return (
         student_logits_masked[:min_len],

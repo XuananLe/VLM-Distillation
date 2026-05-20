@@ -1,4 +1,6 @@
-from src.components.reinforced_teacher_selection import ReinforcedTeacherSelectionPolicy
+from src.components.reinforced_teacher_selection import (
+    ReinforcedTeacherSelectionPolicy,
+)
 
 
 def normalize_teacher_models(teacher_model, teacher_count: int | None):
@@ -11,20 +13,14 @@ def normalize_teacher_models(teacher_model, teacher_count: int | None):
     if teacher_model is None:
         teacher_models = []
     else:
-        teacher_models = (
-            list(teacher_model)
-            if isinstance(teacher_model, (list, tuple))
-            else [teacher_model]
-        )
+        teacher_models = list(teacher_model) if isinstance(teacher_model, (list, tuple)) else [teacher_model]
 
     if teacher_count is None:
         teacher_count = len(teacher_models)
     if teacher_count < 1:
         raise ValueError("DistillationTrainer requires at least one teacher.")
     if teacher_models and len(teacher_models) != teacher_count:
-        raise ValueError(
-            "teacher_count must match the number of teacher models when both are provided."
-        )
+        raise ValueError("teacher_count must match the number of teacher models when both are provided.")
 
     # Live teachers are inference-only in the trainer: keep them in eval mode and
     # freeze gradients so only the student path participates in optimization.
@@ -143,8 +139,7 @@ def log_distillation_trainer_setup(
                     print(f"    - student {match['student_layer_index']} -> {teacher_terms}")
             else:
                 layer_pairs = [
-                    (match["student_layer_index"], match["teacher_layer_indices"][0])
-                    for match in soft_matches
+                    (match["student_layer_index"], match["teacher_layer_indices"][0]) for match in soft_matches
                 ]
                 print(f"  - Teacher {teacher_index} layer pairs: {layer_pairs}")
     else:
@@ -157,18 +152,12 @@ def log_distillation_trainer_setup(
         print(f"  - GRACE warmup ratio: {grace_warmup_ratio}")
         print(f"  - GRACE epsilon: {grace_epsilon}")
         print(f"  - GRACE softmax beta: {grace_softmax_beta}")
-        print(
-            "  - GRACE router blend lambda: "
-            f"{grace_router_blend_lambda}"
-        )
+        print(f"  - GRACE router blend lambda: {grace_router_blend_lambda}")
         print(f"  - GRACE EMA decay: {grace_ema_decay}")
     elif num_teachers > 1 and teacher_weighting_strategy == "reinforced_selection":
         print(f"  - Reinforced selection warmup ratio: {reinforced_selection_warmup_ratio}")
         print(f"  - Reinforced selection reward type: {reinforced_selection_reward_type}")
-        print(
-            f"  - Reinforced selection reward EMA decay: "
-            f"{reinforced_selection_reward_ema_decay}"
-        )
+        print(f"  - Reinforced selection reward EMA decay: {reinforced_selection_reward_ema_decay}")
         print(f"  - Reinforced selection policy alpha: {reinforced_selection_policy_alpha}")
     if alpha == 0.0 and layer_distillation_enabled:
         print("  - Loss weighting: CE + layer distillation")

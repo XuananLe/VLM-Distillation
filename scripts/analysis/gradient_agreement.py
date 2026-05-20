@@ -215,9 +215,7 @@ def load_vlm_runtime(
         padding_side="right",
     )
     if processor is None:
-        raise ValueError(
-            f"Could not load an AutoProcessor for multimodal model {model_id!r}."
-        )
+        raise ValueError(f"Could not load an AutoProcessor for multimodal model {model_id!r}.")
     model = load_model(
         model_id=model_id,
         model_type=model_type,
@@ -313,10 +311,7 @@ def compute_single_teacher_uld_loss(
         student_answer_positions.append(student_positions)
 
         if student_positions.numel() == 0 or teacher_positions.numel() == 0:
-            raise ValueError(
-                "Student and teacher labels have no supervised answer tokens "
-                f"for sample {sample_index}."
-            )
+            raise ValueError(f"Student and teacher labels have no supervised answer tokens for sample {sample_index}.")
 
         student_slice = student_logits[sample_index, student_positions]
         teacher_slice = teacher_logits[sample_index, teacher_positions]
@@ -427,9 +422,7 @@ def main() -> None:
     dataset_name = canonical_dataset_name(args.dataset)
     dtype = resolve_dtype(args.dtype)
     if args.loss_function != "uld_loss":
-        raise ValueError(
-            f"This script is hard-wired to `uld_loss`. Received --loss-function={args.loss_function!r}."
-        )
+        raise ValueError(f"This script is hard-wired to `uld_loss`. Received --loss-function={args.loss_function!r}.")
 
     if args.device.startswith("cuda") and not torch.cuda.is_available():
         raise RuntimeError("CUDA was requested but is not available.")
@@ -547,7 +540,7 @@ def main() -> None:
                 f"ce={ce_losses[-1]:.4f} kd={kd_losses[-1]:.4f} running_sample_cos={running_mean:.4f}",
                 flush=True,
             )
- 
+
     elapsed_seconds = time.time() - start_time
     report = build_report(
         args=args,

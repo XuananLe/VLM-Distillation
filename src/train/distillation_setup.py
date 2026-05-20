@@ -3,22 +3,18 @@ from dataclasses import field
 from pydantic import model_validator
 from pydantic.dataclasses import dataclass
 
+
 @dataclass
 class DistillationArguments:
-    student_model_id: str = field(
-        metadata={"help": "Student model ID or path."}
-    )
+    student_model_id: str = field(metadata={"help": "Student model ID or path."})
 
     teacher_model_ids: list[str] = field(
-        default_factory=list,
-        metadata={"help": "Teacher model IDs. Pass as repeated values after --teacher_model_ids."}
+        default_factory=list, metadata={"help": "Teacher model IDs. Pass as repeated values after --teacher_model_ids."}
     )
 
     teacher_logits_cache_dir: str | None = field(
         default=None,
-        metadata={
-            "help": "Local teacher-logits cache root, for example /workspace/cache."
-        },
+        metadata={"help": "Local teacher-logits cache root, for example /workspace/cache."},
     )
 
     teacher_weighting_strategy: str = field(
@@ -70,27 +66,21 @@ class DistillationArguments:
 
     trie_wasserstein_topk: int = field(
         default=64,
-        metadata={"help": "Sparse top-k used by trie_wasserstein_loss before routing leftover probability mass to the residual tail edge."},
+        metadata={
+            "help": "Sparse top-k used by trie_wasserstein_loss before routing leftover probability mass to the residual tail edge."
+        },
     )
 
-    student_temperature: float = field(
-        default=2.0,
-        metadata={"help": "Student softmax temperature for KD."}
-    )
+    student_temperature: float = field(default=2.0, metadata={"help": "Student softmax temperature for KD."})
 
-    teacher_temperature: float = field(
-        default=2.0,
-        metadata={"help": "Teacher softmax temperature for KD."}
-    )
+    teacher_temperature: float = field(default=2.0, metadata={"help": "Teacher softmax temperature for KD."})
 
     skip_student_eos: bool = field(
-        default=False,
-        metadata={"help": "Optionally drop the last supervised student token from KD."}
+        default=False, metadata={"help": "Optionally drop the last supervised student token from KD."}
     )
 
     skip_teacher_eos: bool = field(
-        default=False,
-        metadata={"help": "Optionally drop the last supervised teacher token from KD."}
+        default=False, metadata={"help": "Optionally drop the last supervised teacher token from KD."}
     )
 
     alpha: float = field(
@@ -115,7 +105,9 @@ class DistillationArguments:
 
     grace_threshold: float = field(
         default=0.0,
-        metadata={"help": "GRACE threshold: keep a routed teacher active only when its agreement score exceeds this threshold."},
+        metadata={
+            "help": "GRACE threshold: keep a routed teacher active only when its agreement score exceeds this threshold."
+        },
     )
 
     grace_warmup_ratio: float = field(
@@ -151,7 +143,9 @@ class DistillationArguments:
 
     reinforced_selection_warmup_ratio: float = field(
         default=0.1,
-        metadata={"help": "Fraction of training steps to pretrain reinforced teacher selection with all teachers active."},
+        metadata={
+            "help": "Fraction of training steps to pretrain reinforced teacher selection with all teachers active."
+        },
     )
 
     reinforced_selection_reward_type: str = field(
@@ -235,32 +229,24 @@ class DistillationArguments:
             raise ValueError("--reinforced_selection_reward_ema_decay must be in [0, 1).")
 
         layer_args_configured = bool(
-            self.layer_match_json_path
-            or self.student_layer_indices
-            or self.teacher_layer_indices
+            self.layer_match_json_path or self.student_layer_indices or self.teacher_layer_indices
         )
         if self.layer_distill_source == "none":
             if self.layer_distill_weight > 0.0 or layer_args_configured:
-                raise ValueError(
-                    "Layer distillation arguments require --layer_distill_source vision or model."
-                )
+                raise ValueError("Layer distillation arguments require --layer_distill_source vision or model.")
         else:
             if self.layer_distill_weight <= 0.0:
                 raise ValueError("--layer_distill_weight must be > 0 when layer distillation is enabled.")
             if self.layer_match_json_path:
                 if self.student_layer_indices or self.teacher_layer_indices:
-                    raise ValueError(
-                        "Use either --layer_match_json_path or manual layer indices, not both."
-                    )
+                    raise ValueError("Use either --layer_match_json_path or manual layer indices, not both.")
             else:
                 if not self.student_layer_indices:
                     raise ValueError("--student_layer_indices must be provided when layer distillation is enabled.")
                 if not self.teacher_layer_indices:
                     raise ValueError("--teacher_layer_indices must be provided when layer distillation is enabled.")
                 if len(self.student_layer_indices) != len(self.teacher_layer_indices):
-                    raise ValueError(
-                        "--student_layer_indices and --teacher_layer_indices must have the same length."
-                    )
+                    raise ValueError("--student_layer_indices and --teacher_layer_indices must have the same length.")
         return self
 
 
@@ -317,45 +303,18 @@ def log_distillation_setup(
     if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing":
         print(f"Teacher Gate Top-k: {distillation_args.teacher_gate_top_k}")
         print(f"Teacher Gate Entropy Alpha: {distillation_args.teacher_gate_entropy_alpha}")
-        print(
-            f"Teacher Gate Router Z-Loss Alpha: "
-            f"{distillation_args.teacher_gate_router_z_loss_alpha}"
-        )
+        print(f"Teacher Gate Router Z-Loss Alpha: {distillation_args.teacher_gate_router_z_loss_alpha}")
         print(f"GRACE Threshold: {distillation_args.grace_threshold}")
         print(f"GRACE Warmup Ratio: {distillation_args.grace_warmup_ratio}")
-        print(
-            f"GRACE Epsilon: "
-            f"{distillation_args.grace_epsilon}"
-        )
-        print(
-            f"GRACE Softmax Beta: "
-            f"{distillation_args.grace_softmax_beta}"
-        )
-        print(
-            f"GRACE Router Blend Lambda: "
-            f"{distillation_args.grace_router_blend_lambda}"
-        )
-        print(
-            f"GRACE EMA Decay: "
-            f"{distillation_args.grace_ema_decay}"
-        )
+        print(f"GRACE Epsilon: {distillation_args.grace_epsilon}")
+        print(f"GRACE Softmax Beta: {distillation_args.grace_softmax_beta}")
+        print(f"GRACE Router Blend Lambda: {distillation_args.grace_router_blend_lambda}")
+        print(f"GRACE EMA Decay: {distillation_args.grace_ema_decay}")
     elif len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "reinforced_selection":
-        print(
-            f"Reinforced Selection Warmup Ratio: "
-            f"{distillation_args.reinforced_selection_warmup_ratio}"
-        )
-        print(
-            f"Reinforced Selection Reward Type: "
-            f"{distillation_args.reinforced_selection_reward_type}"
-        )
-        print(
-            f"Reinforced Selection Reward EMA Decay: "
-            f"{distillation_args.reinforced_selection_reward_ema_decay}"
-        )
-        print(
-            f"Reinforced Selection Policy Alpha: "
-            f"{distillation_args.reinforced_selection_policy_alpha}"
-        )
+        print(f"Reinforced Selection Warmup Ratio: {distillation_args.reinforced_selection_warmup_ratio}")
+        print(f"Reinforced Selection Reward Type: {distillation_args.reinforced_selection_reward_type}")
+        print(f"Reinforced Selection Reward EMA Decay: {distillation_args.reinforced_selection_reward_ema_decay}")
+        print(f"Reinforced Selection Policy Alpha: {distillation_args.reinforced_selection_policy_alpha}")
     if training_args.gradient_checkpointing:
         print(f"Gradient Checkpointing Kwargs: {gradient_checkpointing_kwargs}")
     print("=" * 80)

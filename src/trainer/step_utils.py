@@ -5,16 +5,16 @@ from einops import einsum
 
 from src.components.grace import apply_grace_routing
 from src.components.reinforced_teacher_selection import compute_reinforced_selection_state
-from src.trainer.teacher_loss_utils import compute_teacher_loss_matrix
+from src.trainer.distillation_utils import (
+    build_cached_teacher_target_batches,
+    build_live_teacher_batches,
+)
 from src.trainer.routing_utils import (
     apply_teacher_gate_topk,
     compute_teacher_gate_entropy_loss,
     compute_teacher_gate_z_loss,
 )
-from src.trainer.distillation_utils import (
-    build_cached_teacher_target_batches,
-    build_live_teacher_batches,
-)
+from src.trainer.teacher_loss_utils import compute_teacher_loss_matrix
 
 
 @dataclass(slots=True)
@@ -37,9 +37,7 @@ def prepare_teacher_batch_sources(*, inputs, num_teachers: int, teacher_models):
             num_teachers,
         )
     elif cached_teacher_target_batches is None:
-        raise ValueError(
-            "No teacher inputs were found in the batch. Provide teacher models or cached teacher logits."
-        )
+        raise ValueError("No teacher inputs were found in the batch. Provide teacher models or cached teacher logits.")
     return TeacherBatchSources(
         live_teacher_batches=live_teacher_batches,
         cached_teacher_target_batches=cached_teacher_target_batches,
@@ -89,11 +87,7 @@ def build_student_forward_state(*, trainer, model, student_inputs):
         if trainer.teacher_gate is not None
         else None
     )
-    teacher_router_weights = (
-        torch.softmax(teacher_router_logits, dim=-1)
-        if teacher_router_logits is not None
-        else None
-    )
+    teacher_router_weights = torch.softmax(teacher_router_logits, dim=-1) if teacher_router_logits is not None else None
 
     return {
         "student_outputs": student_outputs,
@@ -148,7 +142,6 @@ def build_teacher_loss_state(
     model,
     student_logits,
     student_labels,
-    ce_loss,
     teacher_target_batches,
 ):
     (
@@ -161,7 +154,6 @@ def build_teacher_loss_state(
         student_logits=student_logits,
         student_labels=student_labels,
         model=model,
-        ce_loss=ce_loss,
         teacher_target_batches=teacher_target_batches,
         collect_grace_tensors=trainer.should_apply_grace_routing(),
         collect_teacher_targets_for_selection=trainer.teacher_weighting_strategy == "reinforced_selection",
@@ -238,17 +230,10 @@ def resolve_teacher_weighting_state(
             missing_rows = ~routed_teacher_mask.any(dim=-1)
             if missing_rows.any():
                 bad_indices = missing_rows.nonzero(as_tuple=True)[0].tolist()
-                raise ValueError(
-                    "Router produced no available teacher assignments for samples "
-                    f"{bad_indices}."
-                )
-            teacher_mix_weights = routed_teacher_weights.to(
-                dtype=teacher_loss_matrix.dtype
-            )
+                raise ValueError(f"Router produced no available teacher assignments for samples {bad_indices}.")
+            teacher_mix_weights = routed_teacher_weights.to(dtype=teacher_loss_matrix.dtype)
             teacher_mix_weights = teacher_mix_weights / (
-                teacher_mix_weights.sum(dim=-1, keepdim=True).clamp(
-                    min=torch.finfo(teacher_mix_weights.dtype).eps
-                )
+                teacher_mix_weights.sum(dim=-1, keepdim=True).clamp(min=torch.finfo(teacher_mix_weights.dtype).eps)
             )
     else:
         # Full GRACE blends router availability with gradient agreement scores.

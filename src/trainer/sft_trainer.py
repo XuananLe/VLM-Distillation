@@ -20,9 +20,7 @@ class SmolVLMSFTTrainer(Trainer):
             return super().create_optimizer()
 
         trainable_named_parameters = [
-            (name, parameter)
-            for name, parameter in self.model.named_parameters()
-            if parameter.requires_grad
+            (name, parameter) for name, parameter in self.model.named_parameters() if parameter.requires_grad
         ]
 
         def uses_weight_decay(parameter_name: str) -> bool:

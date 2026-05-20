@@ -14,6 +14,7 @@
 \usepackage[protrusion=false,expansion=true]{microtype}
 \usepackage{booktabs}
 \usepackage{array}
+\usepackage{tabularx}
 \usepackage{siunitx}
 \usepackage[unicode]{hyperref}
 \usepackage[left=3cm,right=2cm,top=2.5cm,bottom=3cm]{geometry}
@@ -59,9 +60,9 @@
 \def\l@table{\@dottedtocline{1}{1em}{2.2em}}
 \makeatother
 
-\titleformat{\chapter}[display]   
-{\normalfont\huge\bfseries}{Chapter \thechapter}{0pt}{\LARGE}
-\titlespacing*{\chapter}{0cm}{-\topskip}{0pt}[0pt]
+\titleformat{\chapter}[display]
+{\normalfont\huge\bfseries}{Chapter \thechapter}{8pt}{\LARGE}
+\titlespacing*{\chapter}{0cm}{0pt}{16pt}[0pt]
 \titleformat{\section}
 {\fontsize{15}{15}\selectfont\bfseries}
 {\thesection}{1em}{}

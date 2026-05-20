@@ -33,10 +33,7 @@ def finalize_teacher_data(
     if teacher_data["pixel_values"] is not None:
         return teacher_data
 
-    raise ValueError(
-        "Teacher encoder did not produce image tensors. "
-        f"teacher_model_id={teacher_model_id!r}"
-    )
+    raise ValueError(f"Teacher encoder did not produce image tensors. teacher_model_id={teacher_model_id!r}")
 
 
 def encode_teacher_data(

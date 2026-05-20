@@ -1,9 +1,9 @@
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
+import torch
 from pydantic import BaseModel, ConfigDict, Field
 from safetensors.torch import load_file
-import torch
 
 
 class TeacherCacheMetadata(BaseModel):
@@ -74,8 +74,7 @@ class TeacherLogitsCache:
             for teacher_model_id in provided_teacher_ids:
                 if teacher_model_id in entries_by_teacher:
                     raise ValueError(
-                        "Multiple teacher-logits cache roots provide the same teacher. "
-                        f"teacher={teacher_model_id}"
+                        f"Multiple teacher-logits cache roots provide the same teacher. teacher={teacher_model_id}"
                     )
                 entries_by_teacher[teacher_model_id] = TeacherCacheEntry(
                     teacher_model_id=teacher_model_id,
@@ -84,9 +83,7 @@ class TeacherLogitsCache:
                 )
 
         missing_teacher_ids = [
-            teacher_model_id
-            for teacher_model_id in teacher_model_ids
-            if teacher_model_id not in entries_by_teacher
+            teacher_model_id for teacher_model_id in teacher_model_ids if teacher_model_id not in entries_by_teacher
         ]
         if missing_teacher_ids:
             raise FileNotFoundError(
@@ -104,9 +101,7 @@ class TeacherLogitsCache:
         entry = self.entries[teacher_index]
         sample_path = entry.sample_dir / entry.file_name_template.format(dataset_index=dataset_index)
         if not sample_path.exists():
-            raise FileNotFoundError(
-                f"Cached teacher logits not found for sample {dataset_index}: {sample_path}"
-            )
+            raise FileNotFoundError(f"Cached teacher logits not found for sample {dataset_index}: {sample_path}")
         if sample_path.suffix == ".safetensors":
             return load_file(sample_path, device="cpu")
         return torch.load(sample_path, map_location="cpu")

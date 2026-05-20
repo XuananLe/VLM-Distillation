@@ -1,118 +1,144 @@
 \chapter{Introduction}
 \label{chap:introduction}
 
-\textbf{Vision-language models (VLMs)} link a vision encoder, a multimodal
-connector and an autoregressive language decoder to read text embedded in
-images, interpret document layouts, parse charts and answer questions about
-visual scenes
-\cite{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning,singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}. Neural scaling laws push the most capable VLMs toward larger language backbones
-and more extensive multimodal training, consistently improving performance at the
-cost of compute and memory
-\cite{kaplan2020scalinglaws,hoffmann2022trainingcomputeoptimal}. Current frontier
-models make this tension concrete: Qwen2.5-VL-72B, NVLM-D 1.0 72B, Meta's
-Llama 3.2 Vision 90B and Llama 3-V 405B represent the upper range of open-weight
-and open-access VLMs
-\cite{bai2025qwen25vl,dai2024nvlm,meta2024llama32,grattafiori2024llama3}.
-In bfloat16 inference, storing weights alone requires roughly \(2P\) bytes for
-\(P\) parameters, placing these models at approximately 144 GB, 180 GB and
-810 GB before key-value cache, activations and runtime overhead, well above the
-capacity of even the most powerful GPUs. Serving them therefore requires
-multi-GPU clusters, raising latency, energy cost and infrastructure
-complexity. These deployment barriers extend beyond research: robotics, embodied
-AI, mobile applications, document-processing pipelines and enterprise systems all
-impose real-time, cost and security constraints that the largest models cannot
-meet \cite{driess2023palme,brohan2023rt2}.
+The ability to reason jointly over images and text has become central to a
+wide range of real-world tasks. Automated document processing pipelines
+extract tables, figures and key fields from millions of scanned pages daily.
+Financial and scientific workflows depend on systems that can read charts and
+answer quantitative questions about them. Scene-text understanding is
+increasingly embedded in consumer devices, enabling features from translation
+overlays to accessibility tools. Getting a model to read text in an image or
+answer a question about a chart was a research challenge just a few years ago,
+but it is now a core component of production systems. Across all
+of these settings, the underlying requirement is the same: a model that can
+interpret visual content and produce accurate, grounded text responses.
+\textbf{Vision-language models (VLMs)} have emerged as the leading approach,
+combining a vision encoder, a multimodal connector and an autoregressive
+language decoder into a unified architecture capable of handling this full
+range of tasks
+\cite{alayrac2022flamingovisuallanguagemodel,li2023blip2bootstrappinglanguageimagepretraining,liu2023visualinstructiontuning,singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+Over the past few years these models have advanced rapidly: modern systems
+can parse receipts, describe medical images and answer free-form questions
+about charts with accuracy that matches or surpasses specialist tools on
+several benchmarks \cite{bai2025qwen25vl,wang2024qwen2vl,chen2024internvl25}.
 
-\textbf{Knowledge distillation} addresses this tension by transferring knowledge
-from a large teacher model to a more compact student. Rather than learning from hard labels, 
-the student is trained with the teacher's output
-distributions and intermediate representations, which carry soft probability
-signals over alternative answers and provide richer supervision than one-hot labels
+This progress, however, has come with a steep increase in model size. Neural
+scaling laws favour larger language backbones and the most capable
+open-weight VLMs, such as Qwen2.5-VL-72B and Llama 3-V 405B, require tens
+to hundreds of gigabytes just to store their weights, well beyond the memory
+budget of a single GPU
+\cite{kaplan2020scalinglaws,hoffmann2022trainingcomputeoptimal,bai2025qwen25vl,grattafiori2024llama3}.
+Serving them demands multi-GPU clusters that are incompatible with the
+latency, cost and privacy constraints of deployment in edge devices, mobile
+applications, robotics and on-premise enterprise systems
+\cite{driess2023palme,brohan2023rt2}. The result is a growing gap between
+what the best models can do and what can realistically be deployed: a model
+that can read a receipt or interpret a chart is only useful if it can
+actually run where those tasks arise and for most practical settings the
+frontier models cannot.
+
+\textbf{Knowledge distillation} offers a principled route to closing this
+gap. Rather than training a compact model from scratch on \textit{hard labels}, the
+student is trained to match the teacher's \textit{soft output distributions}, which
+carry probability signals over alternative answers that provide far richer
+supervision than one-hot targets
 \cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
-Distillation has produced compact models that retain most of their teachers'
-accuracy, with recent lightweight VLMs reaching competitive benchmark scores
-under resource constraints
-\cite{chu2023mobilevlm,zhou2024tinyllava,marafioti2025smolvlm}.
+Recent lightweight VLMs produced by distillation reach competitive benchmark
+scores at a fraction of the teacher's compute cost
+\cite{chu2023mobilevlm,zhou2024tinyllava,marafioti2025smolvlm}. A natural
+and attractive extension is to distill from a \textit{pool} of teachers drawn
+from different model families, each specialising in different visual domains.
+In practice, no single model is the strongest teacher across all task types:
+one family may have been pretrained on richer document corpora, making it a
+better supervisor for layout-heavy samples, while another may have stronger
+chart or scene-text representations. Pooling their supervision could expose
+a single compact student to a breadth of complementary capabilities that no
+individual teacher can provide on its own.
 
+In practice, however, heterogeneous multi-teacher distillation is harder
+than it first appears and the challenges compound in ways that existing
+methods do not anticipate. Teachers from different families use incompatible
+tokenizers, making the standard approach of comparing output distributions
+at shared vocabulary indices invalid. Teacher usefulness also varies per
+sample: the strongest supervisor for a chart question is rarely the best
+choice for a scanned receipt or a scene-text image, so fixed-weight
+averaging dilutes or wastes the most relevant signals. Most critically, even
+a well-matched teacher can produce KD gradients that directly oppose the
+supervised learning objective, degrading the student instead of improving it.
+These three constraints, \textbf{tokenizer mismatch}, \textbf{per-sample teacher relevance}
+and \textbf{gradient conflict}, must be resolved simultaneously, yet no existing
+method addresses all three at once
+\cite{boizard2024towardscrosstokenizerdistillation,yuan2020reinforcedmultiteacherselection,yu2024selectdistill}.
 
-Distilling a compact VLM from a heterogeneous pool of teachers introduces
-constraints beyond standard KD: teacher and student may use incompatible
-tokenizers, different teachers specialize in different visual domains and a
-teacher selected may still push the student away from the
-supervised objective. No single approach handles all three. Response-based
-distillation aligns teacher and student output distributions effectively but
-requires a shared tokenizer
-\cite{hinton2015distillingknowledgeneuralnetwork,xu2024surveyknowledgedistillationlarge}.
-Transport-based methods remove this constraint by comparing probability mass
-over decoded strings, yet they are typically formulated for single-teacher transfer,
-leaving sample-level teacher selection outside their scope
-\cite{boizard2024towardscrosstokenizerdistillation,takezawa2021supervisedtreewasserstein,leyamadafukumizucuturi2019treesliced}.
-Representation matching through hidden states or CKA provides a
-tokenizer-independent signal but does not calibrate answer probabilities or
-resolve conflicts between teachers
-\cite{kornblith2019similarityrepresentations}. Multi-teacher distillation improves by pooling supervision from several teachers;
-however, fixed or globally learned weights can mix helpful teacher outputs with
-weak or conflicting ones at the sample level
-\cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.
+\textbf{\gracefull{} (\gracename{})} treats each of the three constraints as
+a first-class design requirement, not an edge case. To handle
+tokenizer mismatch, it encodes all decoded tokens as UTF-8 byte sequences
+and compares teacher and student output distributions through a shared byte
+trie. Tokens that spell similar strings incur low transport cost regardless
+of which vocabulary produced them, giving a meaningful signal
+even when teacher and student tokenizers are completely different. To handle
+per-sample teacher relevance, a lightweight router conditioned on the
+student's own hidden states selects a small subset of teachers for each
+input, so the supervision mix adapts to the content of the image and
+question instead of remaining fixed across all training samples. To handle
+gradient conflict, a refinement step measures how well each selected
+teacher's KD gradient aligns with the supervised CE gradient and
+down-weights any teacher whose signal would pull the student away from the
+correct answer even when that teacher appears relevant.
 
-These gaps are most acute for text-heavy visual tasks, including document QA,
-chart interpretation and scene-text understanding, where teachers from different
-families tokenize the same answer strings differently and complement each other
-across task types. Although recent open-source VLMs have
-narrowed the gap to proprietary systems on standard benchmarks
-\cite{wang2024qwen2vl,chen2024internvl15,chen2024internvl25}, compact models
-still struggle when fine visual details, document structure and numerical
-relations must all be captured. To address these constraints, this thesis proposes and evaluates
-\textbf{\gracefull{} (\gracename{})}, a heterogeneous multi-teacher VLM
-distillation framework that combines \textbf{tokenizer-agnostic} distribution
-matching, \textbf{sample-dependent} teacher selection and \textbf{gradient-aware
-conflict resolution}. Three research questions guide the evaluation:
+Together, these three components form a distillation framework in which
+teacher diversity is genuinely put to use: each sample receives supervision
+from the teachers most suited to it, filtered by both content relevance and
+optimization compatibility. With a 500M-parameter student and a four-teacher
+pool drawn from three model families, \methodname{} closes more
+than half the original teacher-student gap on two of three benchmarks. This
+result suggests that capable VLMs can be built on a single GPU and that
+the primary obstacle to doing so is not model size but the quality and
+consistency of the distillation signal. This thesis investigates three
+questions to characterise where these gains come from:
 
 \begin{itemize}
-\item \textbf{RQ1: Performance.} How does \methodname{} compare
-with direct fine-tuning, same-family logit-based KD, ULD and
-heterogeneous multi-teacher baselines on the target VQA benchmarks?
-\item \textbf{RQ2: Component Analysis.} How much do trie-Wasserstein KD,
-sparse top-\(k\) routing and gradient-agreement refinement contribute to
-the final performance?
+\item \textbf{RQ1: Performance.} How does \methodname{} compare with direct
+fine-tuning, same-family logit-based KD, cross-tokenizer single-teacher
+distillation and heterogeneous multi-teacher baselines on the target VQA
+benchmarks?
+\item \textbf{RQ2: Component Analysis.} How much do the cross-tokenizer
+distillation loss, the routing mechanism and the gradient-conflict resolution
+step contribute to the final performance?
 \item \textbf{RQ3: Efficiency.} What runtime overhead does \methodname{}
 introduce during training?
 \end{itemize}
-
-\newpage{}
 
 This thesis makes three main contributions:
 
 \begin{itemize}
     \item \textbf{Byte-Trie Wasserstein distillation.}
-    We propose a Byte-Trie Wasserstein KD loss that maps teacher and
-    student tokens onto a shared UTF-8 byte trie, comparing byte paths
-    rather than vocabulary indices to resolve tokenizer mismatch.
+    We propose a KD loss that maps teacher and student tokens onto a shared
+    UTF-8 byte trie and compares output distributions through byte-path
+    proximity. Without this, direct output comparison across heterogeneous
+    teachers is invalid. The proposed loss removes this assumption entirely, enabling
+    distillation from any teacher regardless of its tokenizer or vocabulary
+    size.
 
     \item \textbf{Objective-aware multi-teacher weighting.}
-    We introduce a mechanism for weighting routed teachers where top-\(k\) routing
-    selects candidate teachers and gradient agreement filters their KD signals
-    against the supervised CE objective.
+    Top-\(k\) routing selects candidate teachers per sample, gradient
+    agreement then filters their KD signals against the supervised CE
+    objective, suppressing teachers whose gradients conflict with learning.
 
     \item \textbf{Empirical validation on VQA benchmarks.}
-    We evaluate the full framework on \textbf{TextVQA}, \textbf{DocVQA} and \textbf{ChartQA} with two
-    SmolVLM students and a heterogeneous four-teacher pool. The results show
-    that \methodname{} outperforms fine-tuning, same-family KD, cross-family ULD
-    and multi-teacher baselines, while ablations show that routing is
-    unreliable until gradient-agreement refinement is added.
+    We evaluate \methodname{} on \textbf{TextVQA}, \textbf{DocVQA} and
+    \textbf{ChartQA} with two SmolVLM students and a four-teacher
+    heterogeneous pool. \methodname{} outperforms all compared baselines,
+    with SmolVLM-500M it closes 55\%, 40\% and 55\% of the original
+    teacher-student gap on the three benchmarks. 
 \end{itemize}
 
-Evaluated with VLM-Eval-Kit on \textbf{TextVQA}, \textbf{DocVQA} and \textbf{ChartQA}, \methodname{}
-with \textbf{SmolVLM-500M} as student closes 55\%, 40\% and 55\% of the original
-teacher-student gap on the three benchmarks.
-
-
-The remainder of this thesis is structured as follows. Chapter~\ref{chap:preliminaries} provides background on VLMs, knowledge
-distillation, distribution matching across mismatched tokenizers, sparse routing and
-gradient conflict resolution. Chapter~\ref{chap:proposed-method} presents
-\methodname{} in full, covering the Byte-Trie Wasserstein objective, sparse teacher
-router, gradient-agreement refinement and combined training objective.
-Chapter~\ref{chap:evaluation-methodology} describes the experimental setup,
-datasets and evaluation metrics, baselines and ablation settings.
-Chapter~\ref{chap:experiment-results} reports the main comparison, ablation
-study, efficiency analysis and discussion. A concluding chapter summarizes the main findings, identifies three limitations of the current evaluation and outlines four future directions: repeated-run evaluation, reduced teacher-logit storage and I/O cost, visual token alignment and reasoning-oriented distillation.
+The thesis is organized as follows. Chapter~\ref{chap:preliminaries} reviews
+Vision-Language Models (VLMs), Knowledge Distillation (KD), cross-tokenizer
+matching, sparse routing and gradient conflict resolution.
+Chapter~\ref{chap:proposed-method} presents \methodname{} in detail.
+Chapter~\ref{chap:evaluation-methodology} describes the datasets, evaluation
+metrics, baselines and ablation settings. Chapter~\ref{chap:experiment-results}
+reports the main comparative results, ablation studies, efficiency analysis
+and discussion. Finally, Chapter~5 summarizes the key findings and discusses
+limitations and directions for future work.

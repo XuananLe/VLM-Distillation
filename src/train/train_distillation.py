@@ -9,7 +9,7 @@ import torch
 from transformers import (
     HfArgumentParser,
 )
-from src.trainer.distillation_trainer import DistillationTrainer
+
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, TrainingArguments
 from src.train.distillation_setup import (
@@ -20,14 +20,14 @@ from src.train.model_setup import (
     load_processor_bundle,
     load_vlm_bundle,
 )
+from src.trainer.distillation_trainer import DistillationTrainer
+
 
 def train_distillation():
     """
     Parse args, load models/data, and run one distillation training job.
     """
-    parser = HfArgumentParser(
-        (DataArguments, TrainingArguments, DistillationArguments)
-    )
+    parser = HfArgumentParser((DataArguments, TrainingArguments, DistillationArguments))
 
     data_args, training_args, distillation_args = parser.parse_args_into_dataclasses()
     if distillation_args.grace_warmup_ratio > 0.0 and training_args.deepspeed:
@@ -37,11 +37,7 @@ def train_distillation():
             "or set --grace_warmup_ratio 0."
         )
 
-    compute_dtype = (
-        torch.float16 if training_args.fp16
-        else torch.bfloat16 if training_args.bf16
-        else torch.float32
-    )
+    compute_dtype = torch.float16 if training_args.fp16 else torch.bfloat16 if training_args.bf16 else torch.float32
     teacher_ids = list(distillation_args.teacher_model_ids)
     student_layer_indices = list(distillation_args.student_layer_indices)
     teacher_layer_indices = list(distillation_args.teacher_layer_indices)
@@ -75,9 +71,7 @@ def train_distillation():
 
     if layer_distillation_enabled:
         if distillation_args.teacher_logits_cache_dir:
-            print(
-                "\nLayer distillation enabled; loading live teacher models in addition to cached teacher logits."
-            )
+            print("\nLayer distillation enabled; loading live teacher models in addition to cached teacher logits.")
         else:
             print("\nLayer distillation enabled; loading live teacher models.")
         teacher_models = []

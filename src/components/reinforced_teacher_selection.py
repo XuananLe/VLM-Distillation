@@ -4,9 +4,12 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import einsum, rearrange
+
 from src.components.pooling import masked_mean_pool_sequence
 from src.components.teacher_gate import Gate
+
 # https://arxiv.org/pdf/2012.06048
+
 
 def compute_reinforced_teacher_descriptor_stats(
     *,
@@ -23,14 +26,15 @@ def compute_reinforced_teacher_descriptor_stats(
             positions = positions[:-1]
         if positions.numel() == 0:
             raise ValueError(
-                "Teacher labels contain no supervised answer tokens for reinforced selection "
-                f"at sample {sample_index}."
+                f"Teacher labels contain no supervised answer tokens for reinforced selection at sample {sample_index}."
             )
 
         supervised_logits = sample_logits.index_select(dim=0, index=positions)
         teacher_probs = F.softmax(supervised_logits.float() / teacher_temperature, dim=-1)
         mean_confidence = teacher_probs.max(dim=-1).values.mean()
-        token_entropy = -(teacher_probs * teacher_probs.clamp_min(torch.finfo(teacher_probs.dtype).eps).log()).sum(dim=-1)
+        token_entropy = -(teacher_probs * teacher_probs.clamp_min(torch.finfo(teacher_probs.dtype).eps).log()).sum(
+            dim=-1
+        )
         normalized_entropy = token_entropy / max(math.log(teacher_probs.size(-1)), 1.0)
         stats.append(
             torch.stack(
@@ -195,21 +199,27 @@ def compute_reinforced_selection_state(
             # Bernoulli log-prob of the sampled multi-teacher action for REINFORCE.
             # log pi(a|s) = sum_t [a_t log p_t + (1-a_t) log(1-p_t)].
             log_prob = (
-                selection_mask_float * policy_probs.log()
-                + (1.0 - selection_mask_float) * (1.0 - policy_probs).log()
-            ).sum(dim=-1).mean()
+                (selection_mask_float * policy_probs.log() + (1.0 - selection_mask_float) * (1.0 - policy_probs).log())
+                .sum(dim=-1)
+                .mean()
+            )
             # reward1: R = -CE
             # reward2: R = -CE - mean_selected_teacher_KD
             reward = -student_ce_loss.detach()
             if reward_type == "reward2":
-                reward = reward - (
-                    einsum(
-                        teacher_loss_matrix,
-                        selection_mask_float,
-                        "batch teacher, batch teacher -> batch",
+                reward = (
+                    reward
+                    - (
+                        einsum(
+                            teacher_loss_matrix,
+                            selection_mask_float,
+                            "batch teacher, batch teacher -> batch",
+                        )
+                        / selection_mask_float.sum(dim=-1).clamp(min=1.0)
                     )
-                    / selection_mask_float.sum(dim=-1).clamp(min=1.0)
-                ).mean().detach()
+                    .mean()
+                    .detach()
+                )
             baseline_source = reward.detach().to(dtype=policy_logits.dtype, device=policy_logits.device)
             reward_baseline = (
                 None
@@ -243,9 +253,7 @@ def compute_reinforced_selection_state(
         "batch teacher, batch teacher -> batch",
     ).mean()
     policy_entropy = (
-        -(policy_probs * policy_probs.log() + (1.0 - policy_probs) * (1.0 - policy_probs).log())
-        .sum(dim=-1)
-        .mean()
+        -(policy_probs * policy_probs.log() + (1.0 - policy_probs) * (1.0 - policy_probs).log()).sum(dim=-1).mean()
     )
 
     metrics = {

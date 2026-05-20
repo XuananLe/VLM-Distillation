@@ -36,7 +36,7 @@ MANIFEST
 # Installer logs
 pip-log.txt
 pip-delete-this-directory.txt
-
+.zed/
 # Unit test / coverage reports
 htmlcov/
 .tox/
@@ -168,6 +168,8 @@ tf-logs
 tmp/
 scripts_tmp/
 logs/*.log
+artifacts/dexar_lfm25_vqa30/
+artifacts/dexar_model_suite_30/
 
 testing.ipynb
 writing/

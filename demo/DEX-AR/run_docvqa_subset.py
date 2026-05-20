@@ -90,10 +90,22 @@ def parse_args() -> argparse.Namespace:
         help="Whether to explain the model answer or the first ground-truth answer.",
     )
     parser.add_argument(
+        "--prompt-style",
+        choices=("vqa", "paper"),
+        default="vqa",
+        help="Use dataset-question VQA prompts or the paper caption/classification prompts.",
+    )
+    parser.add_argument(
         "--output-root",
         type=Path,
         default=Path("./docvqa_subset"),
         help="Directory to write per-sample outputs and summary.json.",
+    )
+    parser.add_argument(
+        "--max-consecutive-failures",
+        type=int,
+        default=30,
+        help="Abort after this many consecutive processable rows fail.",
     )
     return parser.parse_args()
 
@@ -114,7 +126,24 @@ def resolve_device(device: str) -> str:
     return device
 
 
-def build_vqa_prompt(dataset_name: str, model_family: str, question: str) -> str:
+def build_vqa_prompt(
+    dataset_name: str,
+    model_family: str,
+    question: str,
+    prompt_style: str = "vqa",
+) -> str:
+    if prompt_style == "paper":
+        if model_family == "llava":
+            return "USER: <image>\nClassify the image.\nASSISTANT:"
+        if model_family == "paligemma":
+            return "cap en\n"
+        if model_family == "florence2":
+            return "<DETAILED_CAPTION>"
+
+    if model_family == "paligemma":
+        return f"answer en {question}\n"
+    if model_family == "florence2":
+        return question.strip()
     if model_family == "smolvlm":
         if dataset_name == "chartqa":
             return (
@@ -182,6 +211,8 @@ def build_vqa_prompt(dataset_name: str, model_family: str, question: str) -> str
         )
     if model_family == "llava":
         return f"USER: <image>\n{instruction}\nASSISTANT:"
+    if model_family == "internvl":
+        return f"<image>\n{instruction}"
     return f"<image>\n{instruction}\nAnswer:"
 
 
@@ -195,14 +226,19 @@ def candidate_images(model: DexarWrapper, image: Image.Image):
             yielded.add(yielded_key)
             yield prepared_name, prepared_image
 
-    contained = ImageOps.contain(
-        rgb_image,
-        (model.recommended_image_size, model.recommended_image_size),
-    )
-    contained_key = (f"contained_{model.recommended_image_size}", contained.size)
-    if contained_key not in yielded:
-        yielded.add(contained_key)
-        yield contained_key[0], contained
+    contained_sizes = [model.recommended_image_size]
+    if model.model_family == "qwen2vl":
+        contained_sizes.extend([384, 336, 280, 224, 168])
+
+    for contained_size in contained_sizes:
+        contained = ImageOps.contain(
+            rgb_image,
+            (contained_size, contained_size),
+        )
+        contained_key = (f"contained_{contained_size}", contained.size)
+        if contained_key not in yielded:
+            yielded.add(contained_key)
+            yield contained_key[0], contained
 
     if model.model_family != "qwen2vl":
         square = rgb_image.resize(
@@ -213,6 +249,13 @@ def candidate_images(model: DexarWrapper, image: Image.Image):
             yield square_key[0], square
 
 
+def cleanup_cuda(model: DexarWrapper) -> None:
+    model.model.zero_grad(set_to_none=True)
+    if torch.cuda.is_available():
+        torch.cuda.empty_cache()
+        torch.cuda.ipc_collect()
+
+
 def generate_answer(
     model: DexarWrapper,
     image: Image.Image,
@@ -220,6 +263,16 @@ def generate_answer(
     max_new_tokens: int,
 ) -> str:
     device = next(model.model.parameters()).device
+    custom_generate_answer = getattr(model.backend, "custom_generate_answer", None)
+    if custom_generate_answer is not None:
+        return custom_generate_answer(
+            model.backend,
+            image,
+            prompt,
+            max_new_tokens,
+            device,
+        )
+
     encoded_prompt = model.backend.encode_prompt(prompt=prompt, image=image, device=device)
     generation_inputs = dict(encoded_prompt.model_inputs)
 
@@ -292,6 +345,18 @@ def save_visualizations(
         save_path=str(unfiltered_dir / "per_token_heatmaps.png"),
     )
 
+    torch.save(
+        {
+            "per_token_heatmaps": result.per_token_heatmaps.detach().cpu(),
+            "per_token_heatmaps_unfiltered": result.per_token_heatmaps_unfiltered.detach().cpu(),
+            "token_weights": result.token_weights.detach().cpu(),
+            "sentence_heatmap": result.sentence_heatmap.detach().cpu(),
+            "sentence_heatmap_unfiltered": result.sentence_heatmap_unfiltered.detach().cpu(),
+            "tokens": result.tokens,
+        },
+        output_dir / "heatmaps.pt",
+    )
+
 
 def main() -> None:
     args = parse_args()
@@ -327,9 +392,19 @@ def main() -> None:
 
     successes: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []
+    consecutive_failures = 0
 
     for row_index in range(args.offset, len(dataset)):
         if len(successes) >= args.subset_size:
+            break
+        if (
+            args.max_consecutive_failures > 0
+            and consecutive_failures >= args.max_consecutive_failures
+        ):
+            print(
+                "Stopping early after "
+                f"{consecutive_failures} consecutive failed processable rows."
+            )
             break
 
         sample = dataset[row_index]
@@ -344,7 +419,12 @@ def main() -> None:
         )
         output_dir.mkdir(parents=True, exist_ok=True)
 
-        prompt = build_vqa_prompt(dataset_name, model.model_family, question)
+        prompt = build_vqa_prompt(
+            dataset_name,
+            model.model_family,
+            question,
+            prompt_style=args.prompt_style,
+        )
 
         print(
             f"[sample {len(successes) + 1}/{args.subset_size}] "
@@ -396,6 +476,7 @@ def main() -> None:
                         "generated_answer": generated_answer,
                         "target_sentence": target_sentence,
                         "target_mode": args.target_mode,
+                        "prompt_style": args.prompt_style,
                         "image_preparation": image_prep,
                         "original_image_size": list(source_image.size),
                         "input_image_size": list(prepared_image.size),
@@ -410,20 +491,19 @@ def main() -> None:
                         encoding="utf-8",
                     )
                     successes.append(metadata | {"output_dir": str(output_dir)})
+                    consecutive_failures = 0
                     print(
                         f"  saved -> {output_dir} "
                         f"(target={target_sentence!r}, prep={image_prep})"
                     )
 
                     del result
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
+                    cleanup_cuda(model)
                     break
                 except (OSError, RuntimeError, TypeError, ValueError) as sample_exc:  # noqa: PERF203
                     last_error = sample_exc
                     print(f"  retry after {image_prep} failed: {sample_exc}")
-                    if torch.cuda.is_available():
-                        torch.cuda.empty_cache()
+                    cleanup_cuda(model)
             else:
                 assert last_error is not None
                 raise last_error
@@ -435,6 +515,7 @@ def main() -> None:
                 "error": str(exc),
             }
             failures.append(failure)
+            consecutive_failures += 1
             print(f"  failed -> {failure}")
 
     summary = {
@@ -448,9 +529,11 @@ def main() -> None:
         "layer_index": args.layer_index,
         "device": device,
         "target_mode": args.target_mode,
+        "prompt_style": args.prompt_style,
         "output_root": str(args.output_root),
         "samples": successes,
         "failures": failures,
+        "consecutive_failures_at_end": consecutive_failures,
     }
     (args.output_root / "summary.json").write_text(
         json.dumps(summary, indent=2, ensure_ascii=False),

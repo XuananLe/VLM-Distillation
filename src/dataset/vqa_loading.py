@@ -79,10 +79,7 @@ def load_dataset_split(
         fallback_hub = source["fallback_hub"]
         if fallback_hub and "Dataset scripts are no longer supported" in str(exc):
             if log_fallback:
-                print(
-                    f"Dataset '{source['hub']}' uses a dataset script. "
-                    f"Falling back to '{fallback_hub}'."
-                )
+                print(f"Dataset '{source['hub']}' uses a dataset script. Falling back to '{fallback_hub}'.")
             return load_hf_dataset(fallback_hub, source["fallback_config"], split), fallback_hub
         raise
 
@@ -138,17 +135,14 @@ def infer_schema(dataset: Any, *, require_answer_field: bool) -> dict[str, str |
     all_fields = list(features.keys())
     image_fields = [name for name, feature in features.items() if is_image_feature(feature)]
     string_fields = [name for name, feature in features.items() if is_string_feature(feature)]
-    string_sequence_fields = [
-        name for name, feature in features.items() if is_sequence_of_strings_feature(feature)
-    ]
+    string_sequence_fields = [name for name, feature in features.items() if is_sequence_of_strings_feature(feature)]
 
     image_field = image_fields[0] if image_fields else ("image" if "image" in all_fields else None)
     if image_field is None:
         raise ValueError(f"Unable to infer image field from schema: {all_fields}")
 
-    question_field = (
-        pick_exact_name(string_fields, QUESTION_NAME_PRIORITY)
-        or pick_contains_name(string_fields, QUESTION_NAME_PRIORITY)
+    question_field = pick_exact_name(string_fields, QUESTION_NAME_PRIORITY) or pick_contains_name(
+        string_fields, QUESTION_NAME_PRIORITY
     )
     if question_field is None:
         raise ValueError(f"Unable to infer question field from schema: {all_fields}")
@@ -164,9 +158,7 @@ def infer_schema(dataset: Any, *, require_answer_field: bool) -> dict[str, str |
 
     id_field = pick_exact_name(all_fields, ID_NAME_PRIORITY) or pick_contains_name(all_fields, ("id",))
     image_name_field = (
-        pick_exact_name(all_fields, IMAGE_NAME_PRIORITY)
-        or pick_contains_name(all_fields, ("imageid",))
-        or id_field
+        pick_exact_name(all_fields, IMAGE_NAME_PRIORITY) or pick_contains_name(all_fields, ("imageid",)) or id_field
     )
 
     return {

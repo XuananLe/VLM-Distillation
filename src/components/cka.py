@@ -35,9 +35,7 @@ def linear_cka_loss(features_a: torch.Tensor, features_b: torch.Tensor) -> torch
     Differentiable CKA loss used by older layer-distillation code paths.
     """
     if features_a.shape[0] != features_b.shape[0]:
-        raise ValueError(
-            f"Sample count mismatch: {features_a.shape[0]} vs {features_b.shape[0]}."
-        )
+        raise ValueError(f"Sample count mismatch: {features_a.shape[0]} vs {features_b.shape[0]}.")
     if features_a.shape[0] < 2:
         return features_a.new_tensor(0.0)
 
@@ -55,9 +53,7 @@ def compute_cka_from_matrices(
     Compatibility helper used by the plotting script.
     """
     if features_a.shape[0] != features_b.shape[0]:
-        raise AssertionError(
-            f"Sample count mismatch: {features_a.shape[0]} vs {features_b.shape[0]}."
-        )
+        raise AssertionError(f"Sample count mismatch: {features_a.shape[0]} vs {features_b.shape[0]}.")
 
     centered_a = features_a - features_a.mean(dim=0)
     centered_b = features_b - features_b.mean(dim=0)

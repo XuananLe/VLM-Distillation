@@ -13,20 +13,18 @@ from torch.utils.data import Dataset
 
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments
-from src.trainer.distillation_utils import (
-    build_live_teacher_batches,
-)
-from src.trainer.setup_utils import normalize_teacher_models
 from src.train.model_setup import (
     load_processor_bundle,
     load_vlm_bundle,
 )
+from src.trainer.distillation_utils import (
+    build_live_teacher_batches,
+)
+from src.trainer.setup_utils import normalize_teacher_models
 
 
 def parse_args() -> argparse.Namespace:
-    parser = argparse.ArgumentParser(
-        description="Cache supervised-token teacher logits for offline distillation."
-    )
+    parser = argparse.ArgumentParser(description="Cache supervised-token teacher logits for offline distillation.")
     parser.add_argument(
         "--student-model-id",
         default="HuggingFaceTB/SmolVLM-500M-Instruct",
@@ -185,10 +183,7 @@ def save_sample(
             sample_path,
         )
         return
-    raise ValueError(
-        "Unsupported cache sample extension. Use .safetensors or .pt: "
-        f"{sample_path}"
-    )
+    raise ValueError(f"Unsupported cache sample extension. Use .safetensors or .pt: {sample_path}")
 
 
 def main() -> None:
@@ -241,15 +236,19 @@ def main() -> None:
                     **prepared_inputs,
                     return_dict=True,
                     output_hidden_states=False,
-            )
+                )
             teacher_logits = teacher_outputs.logits.detach()
             supervised_labels = prepared_labels
 
             sample_mask = supervised_labels[0].ne(-100)
-            sample_logits = teacher_logits[0][sample_mask].to(
-                dtype=storage_dtype,
-                device="cpu",
-            ).contiguous()
+            sample_logits = (
+                teacher_logits[0][sample_mask]
+                .to(
+                    dtype=storage_dtype,
+                    device="cpu",
+                )
+                .contiguous()
+            )
             sample_labels = supervised_labels[0][sample_mask].to(device="cpu").contiguous()
             total_supervised_tokens[teacher_idx] += int(sample_mask.sum().item())
             save_sample(

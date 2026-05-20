@@ -8,26 +8,31 @@ def build_signed_edge_contributions(
     scaled_logits: torch.Tensor,
     token_paths: list[list[int]],
     ignored_mask: torch.Tensor,
+    non_text_mask: torch.Tensor,
     tail_edge_id: int,
     topk: int,
     sign: float,
-) -> list[dict[int, torch.Tensor]]:
-    valid_count = int((~ignored_mask).sum().item())
-    if valid_count <= 0:
-        raise ValueError("All trie tokens are ignored; cannot build edge contributions.")
+) -> tuple[list[dict[int, torch.Tensor]], torch.Tensor]:
+    pathable_mask = (~ignored_mask) & (~non_text_mask)
+    pathable_count = int(pathable_mask.sum().item())
+    if pathable_count <= 0:
+        raise ValueError("Trie loss has no text tokens with byte paths.")
 
-    k = min(topk, valid_count)
+    k = min(topk, pathable_count)
     row_edge_masses: list[dict[int, torch.Tensor]] = []
+    row_non_text_masses: list[torch.Tensor] = []
 
     for row_logits in scaled_logits:
-        # Special and extended tokens must not appear in the normalizer; otherwise
-        # they steal probability mass even though no semantic trie path can use it.
-        masked_logits = row_logits.masked_fill(ignored_mask, float("-inf"))
-        kept_logits, kept_token_ids = torch.topk(masked_logits, k=k, dim=-1, sorted=False)
+        active_logits = row_logits.masked_fill(ignored_mask, float("-inf"))
+        pathable_logits = row_logits.masked_fill(~pathable_mask, float("-inf"))
+        kept_logits, kept_token_ids = torch.topk(pathable_logits, k=k, dim=-1, sorted=False)
 
-        log_z = torch.logsumexp(masked_logits, dim=-1)
+        log_z = torch.logsumexp(active_logits, dim=-1)
         kept_masses = (kept_logits - log_z).exp()
-        tail_mass = (1.0 - kept_masses.sum()).clamp_min(0.0)
+        pathable_mass = (pathable_logits - log_z).exp().sum()
+        tail_mass = (pathable_mass - kept_masses.sum()).clamp_min(0.0)
+        non_text_logits = row_logits.masked_fill(~(non_text_mask & ~ignored_mask), float("-inf"))
+        non_text_mass = torch.nan_to_num((non_text_logits - log_z).exp().sum())
 
         edge_masses: dict[int, torch.Tensor] = {}
         for token_id, mass in zip(kept_token_ids, kept_masses):
@@ -40,8 +45,9 @@ def build_signed_edge_contributions(
 
         edge_masses[tail_edge_id] = tail_mass * float(sign)
         row_edge_masses.append(edge_masses)
+        row_non_text_masses.append(non_text_mass)
 
-    return row_edge_masses
+    return row_edge_masses, torch.stack(row_non_text_masses)
 
 
 def reduce_signed_edge_contributions_to_tree_loss(

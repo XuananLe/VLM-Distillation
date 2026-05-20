@@ -35,10 +35,7 @@ def pool_vision_features(
             group_lengths = torch.as_tensor(group_counts, device=features.device, dtype=torch.long)
             if group_lengths.le(0).any():
                 bad_indices = group_lengths.le(0).nonzero(as_tuple=True)[0].tolist()
-                raise ValueError(
-                    "Vision grouping produced no vision features for samples "
-                    f"{bad_indices}."
-                )
+                raise ValueError(f"Vision grouping produced no vision features for samples {bad_indices}.")
 
             if features.ndim == 2:
                 flat_features = features
@@ -66,6 +63,4 @@ def pool_vision_features(
         return reduce(features, "b c h w -> b c", "mean")
     if features.ndim >= 2 and batch_size == 1:
         return reduce(rearrange(features, "... d -> (...) d"), "n d -> 1 d", "mean")
-    raise ValueError(
-        f"Unsupported vision feature shape {tuple(features.shape)} for batch size {batch_size}."
-    )
+    raise ValueError(f"Unsupported vision feature shape {tuple(features.shape)} for batch size {batch_size}.")

@@ -1,0 +1,4 @@
+<image>
+Answer the question using a short text span from the document.
+Question: what is the date mentioned in this letter?
+Answer:

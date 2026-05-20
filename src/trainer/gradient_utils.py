@@ -1,11 +1,11 @@
 import torch
 
+
 def trainable_parameters(model) -> tuple[torch.nn.Parameter, ...]:
     parameters = tuple(parameter for parameter in model.parameters() if parameter.requires_grad)
     if not parameters:
         raise ValueError("GRACE parameter gradients require at least one trainable student parameter.")
     return parameters
-
 
 
 # d loss / d w_i
@@ -24,6 +24,7 @@ def compute_parameter_grads(
             allow_unused=True,
         )
     )
+
 
 # cosine = dot(CE_grad, KD_grad) / (||CE_grad|| * ||KD_grad||)
 # https://www.vegardstikbakke.com/python-keyword-only/

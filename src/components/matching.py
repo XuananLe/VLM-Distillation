@@ -60,8 +60,7 @@ def resolve_student_teacher_similarity(
         }
 
     raise ValueError(
-        f"Unsupported keys: student_key={student_key}, teacher_key={teacher_key}. "
-        "Use 'model_a' or 'model_b'."
+        f"Unsupported keys: student_key={student_key}, teacher_key={teacher_key}. Use 'model_a' or 'model_b'."
     )
 
 

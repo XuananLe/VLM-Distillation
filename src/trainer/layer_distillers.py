@@ -19,11 +19,9 @@ class LayerDistiller(Protocol):
     student_layer_indices: list[int]
     teacher_layer_soft_matches: list[list[dict]]
 
-    def student_forward_kwargs(self) -> dict:
-        ...
+    def student_forward_kwargs(self) -> dict: ...
 
-    def capture_student(self, model):
-        ...
+    def capture_student(self, model): ...
 
     def student_representations(
         self,
@@ -31,8 +29,7 @@ class LayerDistiller(Protocol):
         student_inputs,
         student_outputs,
         captured_outputs,
-    ):
-        ...
+    ): ...
 
     def compute_loss(
         self,
@@ -40,8 +37,7 @@ class LayerDistiller(Protocol):
         teacher_models,
         live_teacher_batches,
         student_layer_representations,
-    ):
-        ...
+    ): ...
 
 
 @dataclass(slots=True)
@@ -187,35 +183,20 @@ def create_layer_distiller(
     teacher_layer_indices: list[int],
 ) -> LayerDistiller:
     if layer_distill_source == "none":
-        if (
-            layer_distill_weight > 0.0
-            or layer_match_json_path
-            or student_layer_indices
-            or teacher_layer_indices
-        ):
-            raise ValueError(
-                "Layer distillation arguments were provided while --layer_distill_source is `none`."
-            )
+        if layer_distill_weight > 0.0 or layer_match_json_path or student_layer_indices or teacher_layer_indices:
+            raise ValueError("Layer distillation arguments were provided while --layer_distill_source is `none`.")
         return NoLayerDistiller()
 
     if layer_distill_source not in {"vision", "model"}:
-        raise ValueError(
-            f"--layer_distill_source must be `none`, `vision` or `model`, got {layer_distill_source!r}."
-        )
+        raise ValueError(f"--layer_distill_source must be `none`, `vision` or `model`, got {layer_distill_source!r}.")
     if layer_distill_weight <= 0.0:
-        raise ValueError(
-            "--layer_distill_weight must be > 0 when layer distillation is enabled."
-        )
+        raise ValueError("--layer_distill_weight must be > 0 when layer distillation is enabled.")
     if not teacher_models:
         raise ValueError("Layer distillation requires live teacher models to be loaded.")
     if not student_layer_indices and not layer_match_json_path:
-        raise ValueError(
-            "Layer distillation requires --student_layer_indices or --layer_match_json_path."
-        )
+        raise ValueError("Layer distillation requires --student_layer_indices or --layer_match_json_path.")
     if not teacher_layer_indices and not layer_match_json_path:
-        raise ValueError(
-            "Layer distillation requires --teacher_layer_indices or --layer_match_json_path."
-        )
+        raise ValueError("Layer distillation requires --teacher_layer_indices or --layer_match_json_path.")
 
     resolved_student_indices, teacher_layer_soft_matches = setup_layer_matching(
         model,

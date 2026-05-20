@@ -3,7 +3,9 @@ from contextlib import contextmanager
 import torch
 from transformers import AutoModel
 from transformers.modeling_utils import PreTrainedModel, init, local_torch_dtype
+
 # https://huggingface.co/OpenGVLab/InternVL3-1B/tree/main
+
 
 @contextmanager
 def internvl_transformers5_load_context():

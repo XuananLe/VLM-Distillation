@@ -1,5 +1,6 @@
 import torch
 
+
 # [batch, sequence_length, hidden_dim] -> [batch, hidden_dim]
 def masked_mean_pool_sequence(
     tensor: torch.Tensor,

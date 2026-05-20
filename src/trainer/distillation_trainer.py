@@ -3,13 +3,13 @@ from typing import override
 from transformers import PreTrainedModel, Trainer
 
 from src.components.teacher_gate import Gate
+from src.trainer.layer_distillers import create_layer_distiller
 from src.trainer.metrics_utils import build_distillation_train_metrics
 from src.trainer.setup_utils import (
     log_distillation_trainer_setup,
     normalize_teacher_models,
     resolve_reinforced_teacher_selector,
 )
-from src.trainer.layer_distillers import create_layer_distiller
 from src.trainer.step_utils import (
     build_layer_distillation_state,
     build_student_forward_state,
@@ -58,7 +58,7 @@ class DistillationTrainer(Trainer):
         trie_wasserstein_rho: float = 0.7,
         trie_wasserstein_topk: int = 64,
         *args,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
@@ -180,12 +180,8 @@ class DistillationTrainer(Trainer):
         if not isinstance(inputs, dict):
             return super()._prepare_inputs(inputs)
 
-        teacher_inputs = {
-            key: value for key, value in inputs.items() if key.startswith("teacher")
-        }
-        student_inputs = {
-            key: value for key, value in inputs.items() if not key.startswith("teacher")
-        }
+        teacher_inputs = {key: value for key, value in inputs.items() if key.startswith("teacher")}
+        student_inputs = {key: value for key, value in inputs.items() if not key.startswith("teacher")}
 
         prepared_inputs = super()._prepare_inputs(student_inputs)
         prepared_inputs.update(teacher_inputs)
@@ -202,6 +198,7 @@ class DistillationTrainer(Trainer):
         if total_steps <= 0:
             return True
         import math
+
         warmup_steps = math.ceil(total_steps * self.grace_warmup_ratio)
         return self.state.global_step >= warmup_steps
 
@@ -214,14 +211,13 @@ class DistillationTrainer(Trainer):
         if total_steps <= 0:
             return False
         import math
+
         warmup_steps = math.ceil(total_steps * self.reinforced_selection_warmup_ratio)
         return self.state.global_step < warmup_steps
 
     def skip_logits_distillation(self) -> bool:
         return (
-            self.alpha == 0.0
-            and self.layer_distillation_enabled
-            and self.teacher_weighting_strategy == "uniform_mean"
+            self.alpha == 0.0 and self.layer_distillation_enabled and self.teacher_weighting_strategy == "uniform_mean"
         )
 
     @override
@@ -280,7 +276,6 @@ class DistillationTrainer(Trainer):
                 model=model,
                 student_logits=student_forward_state["student_logits"],
                 student_labels=student_inputs["labels"],
-                ce_loss=ce_loss,
                 teacher_target_batches=teacher_target_batches,
             )
             teacher_weighting_state = resolve_teacher_weighting_state(

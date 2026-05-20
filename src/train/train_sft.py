@@ -44,19 +44,14 @@ def trainable_parameter_summary(model) -> str:
 
 def train():
     """Parse args, build the SFT stack, and run one full supervised fine-tuning job."""
-    parser = HfArgumentParser(
-        (ModelArguments, DataArguments, TrainingArguments))
-    
+    parser = HfArgumentParser((ModelArguments, DataArguments, TrainingArguments))
+
     model_args, data_args, training_args = parser.parse_args_into_dataclasses()
 
     if not model_args.model_id:
         raise ValueError("`model_id` must be provided explicitly for SFT training.")
 
-    compute_dtype = (
-        torch.float16 if training_args.fp16
-        else torch.bfloat16 if training_args.bf16
-        else torch.float32
-    )
+    compute_dtype = torch.float16 if training_args.fp16 else torch.bfloat16 if training_args.bf16 else torch.float32
     model, processor, _, _ = load_vlm_bundle(
         model_id=model_args.model_id,
         cache_dir=training_args.cache_dir,
@@ -73,15 +68,9 @@ def train():
         training_args.gradient_checkpointing_kwargs = {"use_reentrant": True}
     model.config.tokenizer_padding_side = processor.tokenizer.padding_side
 
-    data_module = make_supervised_data_module(processor=processor,
-                                              data_args=data_args)
+    data_module = make_supervised_data_module(processor=processor, data_args=data_args)
 
-    trainer = SmolVLMSFTTrainer(
-        model=model,
-        args=training_args,
-        processing_class=processor,
-        **data_module
-    )
+    trainer = SmolVLMSFTTrainer(model=model, args=training_args, processing_class=processor, **data_module)
 
     if list(Path(training_args.output_dir).glob("checkpoint-*")):
         trainer.train(resume_from_checkpoint=True)
@@ -92,7 +81,6 @@ def train():
 
     model.config.use_cache = True
     trainer.save_model(training_args.output_dir)
-
 
 
 if __name__ == "__main__":

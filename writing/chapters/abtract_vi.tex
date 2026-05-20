@@ -6,38 +6,35 @@
 
 \begin{small}
 
-Khóa luận này nghiên cứu bài toán chưng cất tri thức đa giáo viên không đồng
-nhất cho mô hình thị giác-ngôn ngữ (VLM). Mục tiêu là truyền tri thức từ một
+Khóa luận này nghiên cứu bài toán chưng cất tri thức đa giáo viên khác kiến trúc cho mô hình thị giác-ngôn ngữ (VLM). Mục tiêu là truyền tri thức từ một
 tập mô hình giáo viên đóng băng sang một mô hình học sinh nhỏ hơn khi các giáo
 viên thuộc những họ mô hình khác nhau, sử dụng bộ tách từ khác nhau và có mức
 độ hữu ích thay đổi theo từng mẫu. Trong bối cảnh này, chưng cất trực tiếp theo
-chỉ số token không còn hợp lệ và phép lấy trung bình cố định giữa giáo viên có
-thể trộn tín hiệu hữu ích với tín hiệu không liên quan hoặc xung đột.
+chỉ số token không còn hợp lệ và phép lấy trung bình đều giữa các giáo viên
+không giải quyết được khó khăn thứ ba: nó trộn lẫn tín hiệu hữu ích với tín
+hiệu xung đột mà không phân biệt.
 
 
 Để giải quyết bài toán trên, khóa luận đề xuất \methodfull{}
-(\methodname{}), một khung chưng cất cho truyền tri thức VLM đa giáo viên không
-đồng nhất. \methodname{} kết hợp ba cơ chế: chưng cất Byte-Trie Wasserstein trên cây
-byte UTF-8 dùng chung, định tuyến giáo viên thưa top-$k$ từ trạng thái ẩn của
-mô hình học sinh và tinh chỉnh trọng số bằng độ đồng thuận gradient. Hàm mất
-mát Byte-Trie Wasserstein giúp so sánh phân phối đầu ra của giáo viên và học sinh
+(\methodname{}), một khung chưng cất tri thức VLM đa giáo viên khác kiến trúc.
+\methodname{} kết hợp ba cơ chế: chưng cất Byte-Trie Wasserstein trên cây byte
+UTF-8 dùng chung, định tuyến giáo viên thưa top-$k$ dựa trên trạng thái ẩn của
+mô hình học sinh và điều chỉnh trọng số theo độ đồng thuận gradient. Hàm mất
+mát Byte-Trie Wasserstein so sánh phân phối đầu ra của giáo viên và học sinh
 giữa các bộ tách từ khác nhau. Định tuyến thưa chọn các giáo viên phù hợp với
-từng mẫu. Tinh chỉnh bằng độ đồng thuận gradient sau đó điều chỉnh trọng số đã
-định tuyến theo mức độ căn chỉnh giữa gradient chưng cất của từng giáo viên và
-gradient cross-entropy có giám sát.
+từng mẫu. Cơ chế đồng thuận gradient sau đó điều chỉnh trọng số đã định tuyến
+theo mức độ căn chỉnh giữa gradient chưng cất của từng giáo viên và gradient
+của tổn thất CE có giám sát.
 
 
 Thực nghiệm trên TextVQA, DocVQA và ChartQA đánh giá \methodname{} với hai mô
-hình học sinh SmolVLM-500M và SmolVLM-256M trong thiết lập bốn giáo viên không
-đồng nhất. Với SmolVLM-500M, \methodname{} đạt 69.38, 73.11 và 80.20 trên
-TextVQA, DocVQA và ChartQA, so với điểm gốc 56.75, 59.52 và 62.80 của mô hình
-học sinh. Các kết quả này tương ứng với mức cải thiện tương đối 22.26\%,
-22.83\% và 27.71\% so với mô hình gốc, đồng thời thu hẹp 55.03\%, 39.53\% và
-55.34\% khoảng cách ban đầu tới giáo viên có điểm cao nhất. Với SmolVLM-256M,
-\methodname{} đạt 60.73, 60.48 và 72.32 trên cùng ba bộ đánh giá. Trên các
-thực nghiệm được báo cáo, \methodname{} vượt qua tinh chỉnh trực tiếp, chưng
-cất logits cùng họ mô hình, ULD khác họ mô hình và các phương pháp đa giáo
-viên không đồng nhất được so sánh.
+hình học sinh SmolVLM-500M và SmolVLM-256M với tập bốn giáo viên khác kiến trúc.
+Với SmolVLM-500M, \methodname{} đạt 69.38, 73.11 và 80.20 trên TextVQA,
+DocVQA và ChartQA, thu hẹp lần lượt 55.03\%, 39.53\% và 55.34\% khoảng cách
+ban đầu tới giáo viên có điểm cao nhất. Với SmolVLM-256M, \methodname{} đạt
+60.73, 60.48 và 72.32 trên cùng ba bộ đánh giá. Nhìn chung, \methodname{}
+vượt qua tinh chỉnh trực tiếp, chưng cất logits cùng họ mô hình, ULD khác họ
+mô hình và các phương pháp đa giáo viên không đồng nhất được so sánh.
 
 \vspace*{1cm}
 \textbf{Từ khóa:} mô hình thị giác-ngôn ngữ, chưng cất tri thức, chưng cất đa

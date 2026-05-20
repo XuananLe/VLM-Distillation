@@ -5,10 +5,11 @@ from typing import Dict, Optional
 import torch
 import transformers
 import ujson as json
-from torch.utils.data import Dataset
 from PIL import Image
+from torch.utils.data import Dataset
 
 from src.params import DataArguments
+
 from .conversation_encoders import (
     encode_teacher_data,
     encode_with_processor,
@@ -27,8 +28,8 @@ from .teacher_logits_cache import TeacherLogitsCache
 #       "teacher_0_cached_labels": tensor(...),
 # }
 
-class SupervisedDataset(Dataset):
 
+class SupervisedDataset(Dataset):
     def __init__(
         self,
         data_path: str | list,
@@ -51,9 +52,7 @@ class SupervisedDataset(Dataset):
         self.teacher_logits_cache = None
         if teacher_logits_cache_dir is not None:
             if not teacher_model_ids:
-                raise ValueError(
-                    "teacher_model_ids must be provided when using cached teacher logits."
-                )
+                raise ValueError("teacher_model_ids must be provided when using cached teacher logits.")
             self.teacher_logits_cache = TeacherLogitsCache(
                 cache_dir=teacher_logits_cache_dir,
                 teacher_model_ids=teacher_model_ids,
@@ -61,11 +60,7 @@ class SupervisedDataset(Dataset):
             )
 
         processor_teacher_count = len(self.teacher_processors)
-        cache_teacher_count = (
-            self.teacher_logits_cache.teacher_count
-            if self.teacher_logits_cache is not None
-            else 0
-        )
+        cache_teacher_count = self.teacher_logits_cache.teacher_count if self.teacher_logits_cache is not None else 0
         if processor_teacher_count and cache_teacher_count and processor_teacher_count != cache_teacher_count:
             raise ValueError(
                 "Teacher processor count does not match the teacher-logits cache count. "

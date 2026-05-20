@@ -53,19 +53,13 @@ def build_distillation_train_metrics(
     metrics["teacher_gate_entropy_loss"] = (
         teacher_gate_entropy_loss.item() if teacher_gate_entropy_loss is not None else 0.0
     )
-    metrics["teacher_gate_router_z_loss"] = (
-        teacher_gate_z_loss.item() if teacher_gate_z_loss is not None else 0.0
-    )
-    metrics["teacher_gate_router_entropy"] = mean_categorical_entropy(
-        teacher_router_weights
-    ).item()
-    metrics["teacher_gate_routed_entropy"] = mean_categorical_entropy(
-        routed_teacher_weights
-    ).item()
+    metrics["teacher_gate_router_z_loss"] = teacher_gate_z_loss.item() if teacher_gate_z_loss is not None else 0.0
+    metrics["teacher_gate_router_entropy"] = mean_categorical_entropy(teacher_router_weights).item()
+    metrics["teacher_gate_routed_entropy"] = mean_categorical_entropy(routed_teacher_weights).item()
     metrics["teacher_gate_mix_entropy"] = mean_categorical_entropy(logged_teacher_mix_weights).item()
     metrics["teacher_gate_active_teachers"] = (
-        routed_teacher_weights > 0
-    ).to(dtype=logged_teacher_mix_weights.dtype).sum(dim=-1).mean().item()
+        (routed_teacher_weights > 0).to(dtype=logged_teacher_mix_weights.dtype).sum(dim=-1).mean().item()
+    )
     metrics["teacher_grace_routing_active"] = float(grace_routing_active)
     metrics.update(
         {
@@ -74,9 +68,7 @@ def build_distillation_train_metrics(
         }
     )
     if teacher_grace_scores is not None and teacher_grace_active_mask is not None:
-        metrics.update(
-            summarize_teacher_vector("teacher_grace_score", teacher_grace_scores)
-        )
+        metrics.update(summarize_teacher_vector("teacher_grace_score", teacher_grace_scores))
         metrics.update(
             {
                 f"teacher_grace_active_{teacher_index}": active.item()
@@ -97,16 +89,12 @@ def build_distillation_train_metrics(
             )
 
     if teacher_grace_weights is not None:
-        metrics.update(
-            summarize_teacher_vector("teacher_grace_weight", teacher_grace_weights)
-        )
+        metrics.update(summarize_teacher_vector("teacher_grace_weight", teacher_grace_weights))
         normalized_grace_weights = teacher_grace_weights / teacher_grace_weights.sum(
             dim=-1,
             keepdim=True,
         ).clamp(min=torch.finfo(teacher_grace_weights.dtype).eps)
-        metrics["teacher_grace_entropy"] = mean_categorical_entropy(
-            normalized_grace_weights
-        ).item()
+        metrics["teacher_grace_entropy"] = mean_categorical_entropy(normalized_grace_weights).item()
         metrics["teacher_grace_fallback_rate"] = teacher_grace_fallback_rate.item()
         metrics["teacher_grace_uniform_rate"] = teacher_grace_fallback_rate.item()
 

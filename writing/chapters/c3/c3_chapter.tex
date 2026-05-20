@@ -1,11 +1,11 @@
-\chapter{Proposed Method}
+\chapter{GRACE: A Heterogeneous Multi-Teacher Distillation Framework}
 \label{chap:proposed-method}
 
 GRACE addresses three constraints that existing methods handle separately:
-vocabulary mismatch between teacher and student, variable teacher usefulness
-across samples, and KD gradients that conflict with the supervised CE
-objective. Each component of the framework resolves the limitation the
-previous one leaves open.
+\textbf{vocabulary mismatch} between teacher and student, \textbf{variable teacher usefulness}
+across samples and \textbf{KD gradients that conflict} with the supervised CE
+objective. The three components are introduced in this order, with each one
+addressing a constraint that the previous component leaves open.
 
 \section{Method Overview and Problem Formulation}
 \label{sec:method-overview-formulation}
@@ -24,14 +24,14 @@ teacher pool. For each sample \(b\), the student produces logits
 \(\mathbf{z}_s^{(b)}\) and teacher \(T_i\) provides logits
 \(\mathbf{z}_t^{(b,i)}\).
 
-Three constraints shape the GRACE design. First, teacher and student output spaces use different token
-indices, so the KD loss compares decoded token content through a shared
-string space. Second, teacher usefulness is sample-dependent: a
-teacher that is useful for document layout may be less useful for chart
-reasoning or natural scene text. Third, teacher relevance and optimization
-compatibility can diverge when a teacher's logits look correct but its gradient conflicts with the CE objective. GRACE addresses these constraints with \textbf{Byte-Trie Wasserstein}
-matching, \textbf{sparse teacher routing} and \textbf{gradient-agreement
-refinement}.
+Teacher and student output spaces use different token indices, so naive KD
+compares unrelated vocabulary positions. Teacher usefulness is also
+sample-dependent: a model strong at document layout need not be strong at
+chart reasoning. Relevance alone is not enough: a teacher that appears well-matched to the
+sample can still produce a KD gradient that pushes against the supervised CE
+objective. GRACE addresses these constraints with \textbf{Byte-Trie
+Wasserstein} matching, \textbf{sparse teacher routing} and
+\textbf{gradient-agreement refinement}.
 
 \begin{figure}[!htbp]
 \centering
@@ -41,13 +41,13 @@ refinement}.
 \end{figure}
 
 
-Figure~\ref{fig:grace-architecture} summarizes the full training pipeline.
-The router uses pooled student hidden states to select a sparse teacher subset;
-Byte-Trie Wasserstein KD then computes a per-teacher loss by matching decoded
-token paths through a shared byte trie. Gradient-agreement refinement adjusts
-the selected teacher weights by how well each teacher's KD gradient aligns
-with the supervised CE objective. The final objective combines supervised
-cross-entropy, this routed KD signal and two router regularization terms
+The full pipeline is depicted in Figure~\ref{fig:grace-architecture}.
+The router uses pooled student hidden states to select a sparse teacher subset.
+The Byte-Trie Wasserstein Loss then computes a per-teacher loss by matching
+decoded token paths through a shared byte trie. Gradient-agreement refinement
+reweights the selected teachers by how well each teacher's KD gradient aligns
+with the CE objective. The final objective combines supervised cross-entropy,
+this routed KD signal and two router regularization terms
 \cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,zhu2021studentcustomized}.
 
 A GRACE update starts from a mini-batch
@@ -57,9 +57,9 @@ A GRACE update starts from a mini-batch
 and the frozen teacher pool \(\mathcal{T}\). The student first
 produces logits, hidden states and the supervised cross-entropy loss for the answer tokens. The
 router then uses the pooled student hidden state to select a sparse routed set
-\(\mathcal{R}_b\) for each sample. For every selected teacher, Byte-Trie Wasserstein
-KD computes a per-teacher loss \(\mathcal{L}_{KD}^{(b,i)}\), using the shared
-byte-trie geometry to compare student and teacher output distributions.
+\(\mathcal{R}_b\) for each sample. For every selected teacher, the Byte-Trie Wasserstein Loss computes a
+per-teacher loss \(\mathcal{L}_{KD}^{(b,i)}\), comparing student and teacher
+distributions via the shared byte trie.
 Gradient-agreement refinement then adjusts routed teacher weights by
 comparing each teacher's KD gradient with the supervised CE gradient. The routed KD signal for sample \(b\)
 is the weighted combination of teacher-specific losses:
@@ -69,19 +69,18 @@ is the weighted combination of teacher-specific losses:
 \sum_{i\in\mathcal{R}_b}
 w_i^{(b)}\mathcal{L}_{KD}^{(b,i)}.
 \]
-The final weights \(w_i^{(b)}\) are determined by both the router and the
-gradient-agreement refinement step. The method introduces several hyperparameters
+The method introduces several hyperparameters
 (\(\rho_{\mathrm{trie}}\), \(\eta_{\mathrm{boundary}}\), \(K_{\mathrm{TW}}\),
 \(k_{\mathrm{route}}\), \(\beta_{\mathrm{EMA}}\), \(\lambda_{\mathrm{blend}}\)
-and others); their values and the ablation study that isolates the most
-influential ones are reported in Appendix~\ref{app:experiment-parameters} and
-Section~\ref{sec:ablation} respectively. The main notation
-used throughout the method is listed in Table~\ref{tab:notation}.
+and others). Hyperparameter values and sensitivity analysis are in
+Appendix~\ref{app:experiment-parameters} and Section~\ref{sec:ablation}.
+Notation is collected in Table~\ref{tab:notation}.
 
 {
-\footnotesize
-\setlength{\tabcolsep}{4pt}
-\begin{longtable}{@{}p{0.26\textwidth}p{0.66\textwidth}@{}}
+\scriptsize
+\setlength{\tabcolsep}{3pt}
+\renewcommand{\arraystretch}{1.08}
+\begin{longtable}{@{}>{\raggedright\arraybackslash}p{0.24\textwidth}p{0.68\textwidth}@{}}
 \caption{Notation table.}
 \label{tab:notation}\\
 \toprule
@@ -92,24 +91,49 @@ Symbol & Meaning \\
 Symbol & Meaning \\
 \midrule
 \endhead
-\(\mathcal{D}\), \(\mathcal{B}\) & Training set and mini-batch. \\
-\(S_{\theta}\), \(\mathcal{T}=\{T_i\}_{i=1}^{N}\), \(G_{\phi}\) & Trainable student VLM, frozen teacher pool and teacher routing network. \\
-\addlinespace[5pt]
-\(\mathbf{z}_s^{(b)}\), \(\mathbf{z}_t^{(b,i)}\), \(p_{s,j}^{(b)}\), \(p_{t,j}^{(b,i)}\) & Student and teacher logits and softened distributions. \\
-\(\Omega_b^{CE}\), \(\Omega_{b,i}^{KD}\) & Supervised CE positions and matched KD positions. \\
-\(\mathbf{H}_s\), \(\mathbf{h}\) & Student hidden states and pooled routing feature. \\
-\addlinespace[5pt]
-\(\rho_{\mathrm{trie}}\), \(\eta_{\mathrm{boundary}}\), \(K_{\mathrm{TW}}\), \(e_{\mathrm{tail}}\) & Byte-trie edge decay, boundary-edge weight, sparse support size and residual tail edge. \\
-\(\mathcal{K}_{s,j}^{(b)}\), \(\mathcal{K}_{t,j}^{(b,i)}\), \(r_{s,j}^{(b)}\), \(r_{t,j}^{(b,i)}\) & Retained top-\(K_{\mathrm{TW}}\) token sets and residual tail masses. \\
-\(m_{s,j}^{(b)}(e)\), \(m_{t,j}^{(b,i)}(e)\), \(\ell_{TW}\) & Sparse subtree masses and token-level Byte-Trie Wasserstein loss. \\
-\addlinespace[5pt]
-\(k_{\mathrm{route}}\), \(\mathbf{r}\), \(\mathbf{p}\), \(\mathcal{R}_b\), \(\hat{\mathbf{p}}^{(b)}\) & Router top-\(k\), router logits, soft router weights, routed teacher set and renormalized routed weights. \\
-\addlinespace[5pt]
-\(s_i\), \(\hat{s}_i\), \(\mathcal{A}_b\), \(\boldsymbol{\omega}^{(b)}\), \(\mathbf{w}^{(b)}\) & Agreement scores, active routed set, score-softmax weights and final KD weights. \\
-\(\mathbf{g}_{CE}\), \(\mathbf{g}_i\), \(\delta\), \(\beta_{\mathrm{EMA}}\), \(\beta_{\mathrm{score}}\) & CE and KD gradients, agreement threshold, EMA decay and score-softmax sharpness. \\
-\addlinespace[5pt]
-\(\mathcal{L}_{CE}\), \(\mathcal{L}_{KD}^{(b,i)}\), \(\bar{\mathcal{L}}_{KD}^{(b)}\), \(\mathcal{L}\) & Supervised CE loss, per-teacher KD loss, sample-level routed KD loss and final objective. \\
-\(\mathcal{L}_{ent}\), \(\mathcal{L}_{z}\), \(\alpha_{\mathrm{KD}}\), \(\lambda_{\mathrm{ent}}\), \(\lambda_z\) & Router regularizers and final-objective weights. \\
+\(\mathcal{D}\) & Training set. \\
+\(\mathcal{B}\) & Mini-batch. \\
+\(S_{\theta}\) & Trainable student VLM. \\
+\(\mathcal{T}=\{T_i\}_{i=1}^{N}\) & Frozen teacher pool. \\
+\(G_{\phi}\) & Teacher routing network. \\
+\addlinespace[4pt]
+\(\mathbf{z}_s^{(b)}\), \(\mathbf{z}_t^{(b,i)}\) & Student and teacher logits. \\
+\(p_{s,j}^{(b)}\), \(p_{t,j}^{(b,i)}\) & Softened token distributions. \\
+\(\Omega_b^{CE}\) & Supervised CE positions. \\
+\(\Omega_{b,i}^{KD}\) & Matched KD positions. \\
+\(\mathbf{H}_s\) & Student hidden states. \\
+\(\mathbf{h}\) & Pooled routing feature. \\
+\addlinespace[4pt]
+\(\rho_{\mathrm{trie}}\) & Byte-trie edge decay. \\
+\(\eta_{\mathrm{boundary}}\) & Boundary-edge weight. \\
+\(K_{\mathrm{TW}}\) & Sparse support size. \\
+\(e_{\mathrm{tail}}\) & Residual tail edge. \\
+\(\mathcal{K}_{s,j}^{(b)}\), \(\mathcal{K}_{t,j}^{(b,i)}\) & Retained top-\(K_{\mathrm{TW}}\) token sets. \\
+\(r_{s,j}^{(b)}\), \(r_{t,j}^{(b,i)}\) & Residual tail masses. \\
+\(m_{s,j}^{(b)}(e)\), \(m_{t,j}^{(b,i)}(e)\) & Sparse subtree masses. \\
+\(q_{s,j}^{(b)}\) & Student non-text mass. \\
+\(\lambda_{\mathrm{nt}}\) & Non-text penalty weight. \\
+\(\ell_{TW}\) & Token-level Byte-Trie Wasserstein loss. \\
+\addlinespace[4pt]
+\(k_{\mathrm{route}}\) & Number of routed teachers. \\
+\(\mathbf{r}\), \(\mathbf{p}\) & Router logits and soft router weights. \\
+\(\mathcal{R}_b\) & Routed teacher set. \\
+\(\hat{\mathbf{p}}^{(b)}\) & Renormalized routed weights. \\
+\addlinespace[4pt]
+\(s_i\), \(\hat{s}_i\) & Raw and EMA-smoothed agreement scores. \\
+\(\mathbf{g}_{CE}\), \(\mathbf{g}_i\) & CE and teacher-specific KD gradients. \\
+\(\delta\) & Agreement threshold. \\
+\(\mathcal{A}_b\) & Active routed teacher set. \\
+\(\boldsymbol{\omega}^{(b)}\) & Score-softmax weights. \\
+\(\mathbf{w}^{(b)}\) & Final KD weights. \\
+\(\beta_{\mathrm{EMA}}\), \(\beta_{\mathrm{score}}\) & EMA decay and score-softmax sharpness. \\
+\addlinespace[4pt]
+\(\mathcal{L}_{CE}\) & Supervised CE loss. \\
+\(\mathcal{L}_{KD}^{(b,i)}\) & Per-teacher KD loss. \\
+\(\bar{\mathcal{L}}_{KD}^{(b)}\) & Sample-level routed KD loss. \\
+\(\mathcal{L}\) & Final objective. \\
+\(\mathcal{L}_{ent}\), \(\mathcal{L}_{z}\) & Router regularizers. \\
+\(\alpha_{\mathrm{KD}}\), \(\lambda_{\mathrm{ent}}\), \(\lambda_z\) & Final-objective weights. \\
 \bottomrule
 \end{longtable}
 }
@@ -119,9 +143,20 @@ Symbol & Meaning \\
 \section{Byte-Trie Wasserstein Distillation}
 \label{sec:byte-trie-wasserstein-distillation}
 
+The first obstacle in cross-tokenizer KD is that token indices are not
+comparable across different vocabularies: index \(j\) in one model may decode
+to an unrelated string in another. The Byte-Trie Wasserstein loss removes this
+assumption by building a shared UTF-8 byte trie over all tokenizer vocabularies
+and measuring transport cost through \textbf{byte-path proximity}.
+
 For sample \(b\) and teacher \(T_i\), GRACE restricts KD to matched answer
 positions \(\Omega_{b,i}^{KD}\), after masking ignored labels and truncating
-student and teacher answer spans to a common length. At each position
+student and teacher answer spans to a common length. Restricting to answer
+positions aligns the distillation span with the supervised CE objective,
+which also acts only on answer tokens. Applying KD across all sequence
+positions would push the student's distribution on image and question tokens
+that it is not trained to predict, introducing gradient noise outside the
+supervised span. At each position
 \(j \in \Omega_{b,i}^{KD}\), the student and teacher logits define softened
 distributions
 \[
@@ -133,45 +168,37 @@ p^{(b,i)}_{t,j}
 =
 \mathrm{softmax}\!\left(z^{(b,i)}_{t,j}/\tau_t\right).
 \]
-The remaining computation has three steps: map decoded tokens into a shared
-byte trie, approximate the full vocabulary distributions with sparse retained
-supports and residual tail mass, and compute the tree-Wasserstein loss from
-subtree-mass imbalances.
+Dividing by \(\tau > 1\) spreads probability mass across the vocabulary,
+revealing the teacher's relative confidence over near-correct alternatives
+rather than collapsing it onto the single argmax token. A token the teacher
+ranks second or third with non-trivial probability signals that it is a
+plausible alternative, providing a richer gradient signal than a one-hot
+target would.
+The computation proceeds in three steps. It precomputes \textit{canonical byte paths}
+for all vocabulary tokens in a shared trie, retains \textit{sparse lexical supports} at
+each answer position and computes the tree-Wasserstein loss from per-edge
+subtree-mass imbalances. Visual placeholders and control tokens are excluded
+from the trie comparison and handled through a separate non-text penalty.
 
 \subsection{Shared Byte Trie}
 
 Applying KD by token index requires aligned vocabularies, but with different
-tokenizers the same index may correspond to unrelated decoded strings. GRACE therefore maps decoded teacher and student tokens into a shared UTF-8
-byte trie. Each token's boundary markers are separated from its lexical
-content; the content is normalized and encoded as bytes, then terminated with
-an EOS sentinel so that complete tokens remain distinct from strict prefixes.
+tokenizers the same index may correspond to unrelated decoded strings. GRACE
+therefore builds one \textbf{UTF-8 byte trie} shared by the teacher and student
+tokenizers. Each token piece is decoded, normalized and split into \textit{lexical
+content} and \textit{boundary metadata}. The lexical content determines the main byte
+path, while whitespace, continuation and end-word markers are represented as
+low-cost boundary information rather than as separate root branches.
 
-This canonicalization suppresses tokenizer artifacts during trie-based matching. Many tokenizers encode word boundaries with visible markers
-or leading whitespace, even when the underlying answer string is the same.
-GRACE separates this boundary information from the byte path of the token content. The
-normalized content determines the main trie path, while boundary markers are
-represented by optional low-cost boundary edges. Tokens sharing lexical content therefore land close in the trie, while the
-low-weight boundary edges still penalize whitespace differences when present.
-
-A document-style answer string such as ``invoice'', in the DocVQA setting
-\cite{mathew2021docvqadatasetvqadocument}, illustrates the problem.
-A tokenizer with an explicit word-boundary marker may produce it as a single
-token \texttt{<wb>invoice}, where \texttt{<wb>} marks the word boundary, while
-another tokenizer splits it into \texttt{in} and \texttt{voice}. Without canonicalization,
-\texttt{<wb>invoice} and \texttt{in} share no index and the loss cannot relate
-them. After canonicalization, the boundary marker is stripped from the main
-path and placed on a low-cost boundary edge; the byte sequence
-\texttt{invoice} is inserted into the trie, where \texttt{in} already occupies
-the same prefix. Transport between \texttt{<wb>invoice} and \texttt{in} is
-therefore low, reflecting the genuine lexical overlap rather than an index
-coincidence.
-
-Appending an EOS sentinel prevents prefix collapse by creating distinct
-terminal paths, so \texttt{doc} is distinguishable from the prefix of \texttt{document}.
-
-The trie defines the ground-cost geometry for token comparison. Content and EOS
-edges receive weights that decay with depth, while optional boundary edges receive a
-small fixed weight:
+This \textbf{canonicalization} suppresses tokenizer artifacts during trie-based
+matching: tokens with the same decoded content share byte-prefix edges even
+when their tokenizers use different whitespace or continuation conventions.
+An \textbf{EOS sentinel} is appended to each content path, which prevents prefix
+collapse by making a complete token such as \texttt{doc} distinct from the
+prefix of \texttt{document}. When boundary metadata is present, it is attached
+after the terminal content path, so it can affect the cost without preventing
+lexical prefixes from matching. Content and EOS edges receive weights that
+decay with depth, while optional boundary edges receive a small fixed weight:
 \begin{equation}
 w(e)=
 \begin{cases}
@@ -181,8 +208,28 @@ w(e)=
 \label{eq:tw_edge_weight}
 \end{equation}
 where \(0<\rho_{\mathrm{trie}}<1\), \(\eta_{\mathrm{boundary}}\ge 0\) and
-\(d(e)\) is the edge depth. Thus, tokens sharing long byte prefixes receive
-low transport cost under the trie metric even if they come from different tokenizers
+\(d(e)\) is the edge depth. The decay encodes the intuition that early
+divergence carries more semantic weight: two tokens that differ at depth 1
+share no bytes and are completely unrelated, while two tokens that diverge
+only at depth 5 share a long prefix and are morphological variants of the
+same word. Since \(d_T\) sums only the symmetric-difference edges,
+depth-decayed weights make this distinction precise because early-diverging
+pairs accumulate more total edge weight than late-diverging ones.
+The trie-induced distance between two tokens
+\(u\) and \(v\) is the total weight of the edges on exactly one of their paths:
+\begin{equation}
+d_T(u,v)
+=
+\sum_{e\,\in\,\pi(u)\,\triangle\,\pi(v)}
+w(e),
+\label{eq:trie-token-distance}
+\end{equation}
+where \(\pi(u)\,\triangle\,\pi(v)\) is the symmetric difference of the two
+edge sets. Tokens that share a long byte prefix have small \(d_T\), while
+tokens with no shared prefix pay the full path weight. This metric is the ground
+cost that the Wasserstein objective minimises, making it explicit why
+\texttt{doc} and \texttt{document} are closer than \texttt{doc} and \texttt{xyz}
+regardless of which tokenizer produced them
 \cite{takezawa2021supervisedtreewasserstein,peyre2019computationaloptimaltransport}.
 
 \begin{figure}
@@ -243,47 +290,58 @@ low transport cost under the trie metric even if they come from different tokeni
 \label{fig:grace-trie-shared}
 \end{figure}
 
+The trie in Figure~\ref{fig:grace-trie-shared} contains four tokens:
+\texttt{doc}, \texttt{document}, \texttt{rece} and \texttt{receipt}.
+The two document-related tokens share the path \texttt{d}$\to$\texttt{o}$\to$\texttt{c}
+before branching: \texttt{doc} terminates at the EOS node after \texttt{c},
+while \texttt{document} continues through five additional edges to its own
+EOS. The two receipt-related tokens share \texttt{r}$\to$\texttt{e}$\to$\texttt{c}$\to$\texttt{e}
+before branching similarly. Edge weights on content edges decay as
+\(1,\rho_{\mathrm{trie}},\rho_{\mathrm{trie}}^2,\ldots\) with depth, so
+the transport cost between any two tokens is proportional to the length of
+the byte path they do \emph{not} share: tokens with long common prefixes
+incur low transport cost regardless of which tokenizer produced them.
+
 \subsection{Sparse Support and Residual Tail Edge}
 
-Using the complete vocabulary trie at every answer position is computationally
-prohibitive, scaling with the number of vocabulary entries per position.
-GRACE therefore keeps only the top-\(K_{\mathrm{TW}}\) student and teacher
-tokens after masking ignored entries. The retained tokens are inserted along
-their canonical trie paths, while all omitted probability mass is collapsed into
-a residual tail edge \(e_{\mathrm{tail}}\). This preserves total probability
-mass while keeping the active edge set small.
+The shared trie is built once from the tokenizer vocabularies, but evaluating
+every token path at every answer position is computationally prohibitive.
+GRACE therefore keeps only the top-\(K_{\mathrm{TW}}\) lexical student and
+teacher tokens after masking ignored entries. The retained tokens reuse their
+canonical trie paths, while unretained lexical probability mass is collapsed
+into a \textbf{residual tail edge} \(e_{\mathrm{tail}}\). Non-text visual or control
+tokens are not forced into the byte trie. Their probability mass is handled
+outside the tree comparison so the transport geometry remains lexical.
 
 Let \(K_{\mathrm{TW}}\) denote the sparse trie support size. Let
-\(\mathcal{V}_s^\star\) and \(\mathcal{V}_t^\star\) denote the non-ignored
-student and teacher vocabularies. Before constructing the sparse trie, the
-student and teacher probabilities are renormalized over the non-ignored
-vocabularies so that the retained and residual masses form valid
-distributions. Ignored entries are excluded from the softmax normalizer before
-top-\(K_{\mathrm{TW}}\) selection.
+\(\mathcal{V}_{s,\mathrm{text}}^\star\) and
+\(\mathcal{V}_{t,\mathrm{text}}^\star\) denote the non-ignored student and
+teacher tokens that have lexical byte paths. Ignored entries are excluded from
+the softmax normalizer before top-\(K_{\mathrm{TW}}\) selection.
 Let
-\(\mathcal{K}_{s,j}^{(b)}\subset\mathcal{V}_s^\star\) and
-\(\mathcal{K}_{t,j}^{(b,i)}\subset\mathcal{V}_t^\star\) be the retained token
-sets. The residual mass assigned to the tail edge is
+\(\mathcal{K}_{s,j}^{(b)}\subset\mathcal{V}_{s,\mathrm{text}}^\star\) and
+\(\mathcal{K}_{t,j}^{(b,i)}\subset\mathcal{V}_{t,\mathrm{text}}^\star\) be the retained token
+sets. The residual lexical mass assigned to the tail edge is
 \begin{equation}
 r_{s,j}^{(b)}
 =
-1-\sum_{v\in\mathcal{K}_{s,j}^{(b)}}p_{s,j}^{(b)}(v),
+\sum_{v\in\mathcal{V}_{s,\mathrm{text}}^\star\setminus\mathcal{K}_{s,j}^{(b)}}
+p_{s,j}^{(b)}(v),
 \qquad
 r_{t,j}^{(b,i)}
 =
-1-\sum_{v\in\mathcal{K}_{t,j}^{(b,i)}}p_{t,j}^{(b,i)}(v).
+\sum_{v\in\mathcal{V}_{t,\mathrm{text}}^\star\setminus\mathcal{K}_{t,j}^{(b,i)}}
+p_{t,j}^{(b,i)}(v).
 \end{equation}
-The residual tail preserves probability mass outside the retained
-top-\(K_{\mathrm{TW}}\) support. For the student distribution,
+Let \(q_{s,j}^{(b)}\) denote the student probability assigned to non-text
+tokens. For the student distribution,
 \[
 \sum_{v\in\mathcal{K}_{s,j}^{(b)}}p_{s,j}^{(b)}(v)
-+ r_{s,j}^{(b)} = 1,
++ r_{s,j}^{(b)}
++ q_{s,j}^{(b)}
+= 1,
 \]
-and the same identity holds for the teacher. The retained top-\(K_{\mathrm{TW}}\) paths are compared explicitly while the
-rest of the probability mass is pooled into the shared tail.
-When teacher distributions are softened, non-trivial probability mass can lie outside the top answer token.
-
-Let \(\pi(v)\) be the trie path for token \(v\), including canonical content
+with the analogous identity for the teacher. Let \(\pi(v)\) be the trie path for token \(v\), including canonical content
 edges, the EOS edge and any optional boundary edge. Let
 \(e_{\mathrm{tail}}\) be the global residual tail edge with
 \(w(e_{\mathrm{tail}})=1\). For any active trie edge \(e\), the sparse subtree
@@ -312,13 +370,24 @@ p_{t,j}^{(b,i)}(v)
 \label{fig:grace-trie-sparse-tail}
 \end{figure}
 
+The three-step sparse construction (Figure~\ref{fig:grace-trie-sparse-tail})
+proceeds left to right. The left panel shows the student distribution: the
+top-\(K_{\mathrm{TW}}\) lexical tokens are retained and the remaining lexical
+mass is collapsed into the residual edge. The centre panel shows the same
+operation for the teacher. The right panel shows the per-edge subtree masses
+that result: the student (blue bars) and teacher (orange bars) masses are
+compared at each active edge, while the green line shows the corresponding
+edge weight \(w(e)\), which decays with depth for content edges and returns
+to its maximum at the residual tail edge.
+
 \subsection{Byte-Trie Wasserstein Objective}
 
-Given the shared trie, each distribution induces subtree masses on active
-edges. In the dense form, let \(\mathcal{V}_s\) and \(\mathcal{V}_t\) denote
-the student and teacher token vocabularies at a given answer position. For edge
-\(e\), \(m_s(e)\) and \(m_t(e)\) measure how much student and teacher
-probability passes through that edge:
+With the trie structure and sparse supports defined, the loss is computed as a
+weighted sum of per-edge subtree-mass imbalances. Writing the dense case first
+makes the formula clearest: let \(\mathcal{V}_s\) and \(\mathcal{V}_t\) denote
+the full student and teacher vocabularies at a given answer position and let
+\(m_s(e)\) and \(m_t(e)\) measure how much probability each distribution routes
+through edge \(e\):
 \[
 m_s(e)
 =
@@ -336,6 +405,7 @@ W_T(p_s,p_t)
 w(e)\left|m_s(e)-m_t(e)\right|.
 \label{eq:trie-wasserstein-objective}
 \end{equation}
+
 This form follows from the standard \(W_1\) Kantorovich optimal transport
 problem under the trie-induced tree metric
 \cite{peyre2019computationaloptimaltransport,takezawa2021supervisedtreewasserstein}.
@@ -350,12 +420,16 @@ The token-level Byte-Trie Wasserstein loss is
 w(e)\,
 \left|
 m_{s,j}^{(b)}(e)-m_{t,j}^{(b,i)}(e)
-\right|,
+\right|
++
+\lambda_{\mathrm{nt}}q_{s,j}^{(b)},
 \label{eq:token_tw}
 \end{equation}
 where \(\mathcal{E}_{act,j}^{(b,i)}\) contains the active canonical content
 edges, EOS edges, optional boundary edges and the residual tail edge from the
-student and teacher supports.
+student and teacher supports. The \textbf{non-text penalty} with
+\(\lambda_{\mathrm{nt}}\ge 0\) discourages probability mass on visual or
+control tokens without assigning those tokens a lexical byte path.
 
 The per-sample, per-teacher KD loss is the mean over supervised answer
 tokens:
@@ -368,33 +442,60 @@ tokens:
 \label{eq:per_teacher_tw}
 \end{equation}
 
-The Byte-Trie Wasserstein loss performs exact transport under the trie metric.
-The complexity analysis below describes the cost of evaluating this sparse
-per-edge formula during training.
+The gradient of the trie term with respect to the student probability on
+retained token \(v\) at position \(j\) is
+\begin{equation}
+\frac{\partial\,\ell_{TW}}{\partial\,p_{s,j}^{(b)}(v)}
+=
+\sum_{e\,\in\,\pi(v)}
+w(e)\cdot\mathrm{sign}\!\left(m_{s,j}^{(b)}(e)-m_{t,j}^{(b,i)}(e)\right),
+\quad v\in\mathcal{K}_{s,j}^{(b)}.
+\label{eq:tw-gradient}
+\end{equation}
+The gradient for token \(v\) accumulates signed corrections along every edge
+on its byte path. Tokens sharing a byte prefix with the teacher's
+high-probability region therefore receive correlated gradient updates, nudging
+the student toward semantically related strings. This \textbf{prefix-coupling} is
+absent from rank-based losses such as ULD, which updates each rank position
+independently of decoded string content. The tree term itself remains exact
+Wasserstein transport under the trie metric, while the non-text penalty is
+additive and independent of that geometry.
 
 \textbf{Complexity Analysis.}
 The shared byte trie is built once with cost
 \(O(V_s\bar{L}_s + V_t\bar{L}_t)\), where \(V_s,V_t\) are the student and
 teacher vocabulary sizes and \(\bar{L}_s,\bar{L}_t\) are average trie-path
 lengths. During training, each aligned answer position keeps only the
-top-\(K_{\mathrm{TW}}\) student and teacher tokens and accumulates probability
-mass along their active trie paths. The per-position cost is
+top-\(K_{\mathrm{TW}}\) lexical student and teacher tokens and accumulates
+probability mass along their active trie paths. The per-position cost is
 \[
 O\!\left((V_s+V_t)\log K_{\mathrm{TW}}
 + K_{\mathrm{TW}}(\bar{L}_s+\bar{L}_t) + A\right),
 \]
 where \(A\) is the number of active trie edges. Thus, sparse Byte-Trie Wasserstein
 matching avoids materializing the dense \(|V_s|\times |V_t|\) optimal-transport
-matrix.
-
+matrix. The approximation error relative to the dense loss is bounded by the
+total unretained mass: since all edge weights satisfy \(w(e)\le 1\) and
+reassigning unretained mass to the tail edge changes each edge contribution by
+at most one unit,
+\begin{equation}
+\left|\ell_{TW}^{\mathrm{sparse}}-\ell_{TW}^{\mathrm{dense}}\right|
+\le
+r_{s,j}^{(b)}+r_{t,j}^{(b,i)}.
+\label{eq:tw-sparse-error}
+\end{equation}
+The bound becomes small when \(K_{\mathrm{TW}}\) is large enough that the tail
+masses are small and it vanishes when the retained set covers the full
+vocabulary.
 
 \section{Teacher Routing Network}
 \label{sec:teacher-routing-network}
 
-Uniform teacher averaging ignores how each teacher performs across different samples. GRACE therefore uses a student-conditioned router to propose a small teacher
-set for each sample before gradient-agreement refinement adjusts their weights. The full pipeline
-from pooled student features to sparse top-\(k\) teacher selection is shown in
-Figure~\ref{fig:deep-router}
+With the cross-tokenizer loss defined, GRACE next decides which teachers to
+activate for each training sample. Uniform teacher averaging ignores how each
+teacher performs across different samples. GRACE therefore uses a
+\textbf{student-conditioned router} to propose a small teacher set per sample.
+Figure~\ref{fig:deep-router} shows the full routing pipeline
 \cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion,yuan2020reinforcedmultiteacherselection}.
 
 \begin{figure}
@@ -409,23 +510,42 @@ head. GRACE pools the supervised answer positions to obtain the routing feature
 \[
 \mathbf{h}^{(b)}=\mathrm{Pool}(\mathbf{H}_s^{(b)}).
 \]
-Answer-position pooling restricts the routing feature to the supervised span
-of the sequence, so the router sees a representation in which visual context,
-question text and answer states have already interacted. Teacher usefulness
-depends on the answer span being generated, not only on the input type.
+\textbf{Answer-position pooling} restricts the routing feature to the supervised span,
+so the router conditions on a representation that mixes visual context,
+question text and answer content, which jointly determine which teacher is most
+useful for a given sample.
 
-A learned MLP router \(G_{\phi}(\cdot)\) maps this feature to teacher logits
+A learned \textbf{MLP router} \(G_{\phi}(\cdot)\) maps this feature to teacher logits
 and soft weights:
 \[
 \mathbf{r}^{(b)}=G_{\phi}(\mathbf{h}^{(b)}),
 \qquad
 \mathbf{p}^{(b)}=\mathrm{softmax}(\mathbf{r}^{(b)}).
 \]
+Concretely, \(G_{\phi}\) is a \textbf{gated MLP} with a SwiGLU-style block. The
+hidden projection is split into a \textit{value} branch and a \textit{gate}
+branch and their element-wise product
+\(\mathrm{SiLU}(\mathbf{g})\odot\mathbf{v}\) forms the routing
+representation before the final linear head.
+A plain linear projection cannot capture the non-linear feature interactions
+that determine teacher usefulness because whether a particular teacher is the best
+supervisor depends on joint patterns in \(\mathbf{h}^{(b)}\), such as the
+image being chart-heavy \textit{and} the question requesting a numerical
+value, not on either cue alone.
+The gating mechanism addresses this directly: one branch creates a rich
+intermediate representation from the student hidden state and the other
+branch learns which dimensions of that representation are actually relevant
+for the routing decision, suppressing irrelevant features rather than
+propagating them.
 The router then keeps the top-\(k_{\mathrm{route}}\) teachers:
 \[
 \mathcal{R}_b=\mathrm{TopK}(\mathbf{r}^{(b)},\min(k_{\mathrm{route}},N)).
 \]
-Non-selected weights are zeroed and the selected weights are renormalized:
+Hard selection is used rather than a soft threshold because keeping
+low-weight teachers still requires computing the full Byte-Trie Wasserstein
+loss for each one. Eliminating them entirely removes their noise from the
+distillation signal rather than merely downweighting it.
+Weights outside \(\mathcal{R}_b\) are zeroed and the rest renormalized:
 \begin{equation}
 \hat{p}_i^{(b)}
 =
@@ -433,22 +553,25 @@ Non-selected weights are zeroed and the selected weights are renormalized:
 {\sum_{j=1}^{N}\mathbf{1}[j\in\mathcal{R}_b] p_j^{(b)}}.
 \label{eq:constrained_gate_weights}
 \end{equation}
-The router determines which frozen teachers contribute to each student update
-without modifying the student architecture. Because \(\mathbf{h}^{(b)}\)
-reflects the current student hidden states, the routed set \(\mathcal{R}_b\)
-changes as the student evolves, so teacher selection adapts to both input
-content and the current student state.
+Because \(\mathbf{h}^{(b)}\) reflects the current student hidden states,
+the routed set \(\mathcal{R}_b\) changes as the student evolves, so teacher
+selection adapts to both input content and the current student state.
+Top-\(k\) routing also limits the active teacher set to
+\(k_{\mathrm{route}}\) candidates and separates candidate selection from final
+weighting: the router proposes teachers by input relevance and
+Section~\ref{sec:gradient-agreement} adjusts their weights by gradient
+compatibility.
 
-Top-\(k\) routing has two roles. First, it makes the teacher mixture sparse:
-only \(k_{\mathrm{route}}\) teacher losses can enter routed KD regardless of
-pool size. Second, it separates candidate selection from final weighting. The
-router proposes a candidate teacher set; Section~\ref{sec:gradient-agreement}
-then describes how gradient agreement refines their weights. Router probability
-captures input-level relevance; gradient agreement checks whether the selected
-KD gradients support the supervised objective.
-
-Figure~\ref{fig:grace-routing-dynamics} contrasts dense teacher probabilities
-with the sparse routed assignment.
+The effect of top-\(k\) routing across eight samples and four teachers is
+visible in Figure~\ref{fig:grace-routing-dynamics}. In the leftmost heatmap,
+\(T_1\) consistently receives the highest soft gate weight, followed by
+\(T_2\), while \(T_3\) and \(T_4\) remain low throughout. The top-\(k\)
+mask (second panel) retains only \(T_1\) and \(T_2\) for all samples,
+zeroing the rest. After renormalization, the routed weights
+\(\hat{\mathbf{p}}^{(b)}\) (third panel) are split between \(T_1\) and
+\(T_2\), with \(T_1\) holding the majority. The bar chart on the right
+confirms that \(T_1\) and \(T_2\) capture all routing assignments in this
+mini-batch, while \(T_3\) and \(T_4\) receive none.
 
 \begin{figure}
     \centering
@@ -457,8 +580,9 @@ with the sparse routed assignment.
     \label{fig:grace-routing-dynamics}
 \end{figure}
 
-Two auxiliary terms regularize teacher selection. The entropy term is a negative-entropy regularizer that discourages premature
-routing collapse
+Hard top-\(k\) selection can cause the router to \textbf{collapse onto a single teacher}
+if left unconstrained, so GRACE uses entropy and \(z\)-loss stabilizers. The
+entropy term discourages premature \textbf{routing collapse}
 \cite{shazeer2017outrageouslylargeneuralnetworks,fedus2022switchtransformersscalingtrillion}:
 \begin{equation}
 \mathcal{L}_{ent}
@@ -472,10 +596,8 @@ The \(z\)-loss penalizes large router logit magnitudes:
 \frac{1}{B}\sum_{b=1}^{B}
 \left(\log \sum_{i=1}^{N} e^{r_i^{(b)}}\right)^2.
 \end{equation}
-The two terms serve different purposes. The entropy term discourages the
-router from assigning all samples to one teacher early in training, while the
-\(z\)-loss limits excessively sharp routing logits. These auxiliary losses
-stabilize teacher selection; CE and routed KD remain the main training signals.
+These auxiliary losses stabilize teacher selection, while CE and routed KD remain
+the main training signals.
 
 \section{Gradient-Agreement Refinement}
 \label{sec:gradient-agreement}
@@ -490,7 +612,7 @@ reweight each sample's routed teachers.
 
 Let \(\mathbf{g}_{CE}=\nabla_{\Theta}\mathcal{L}_{CE}\) be the supervised
 gradient over trainable student parameters \(\Theta\). For teacher \(T_i\),
-GRACE first averages its KD loss over the mini-batch and then computes
+GRACE averages its KD loss over the mini-batch to get
 \[
 \mathbf{g}_{i}
 =
@@ -500,7 +622,7 @@ GRACE first averages its KD loss over the mini-batch and then computes
 \mathcal{L}_{KD}^{(b,i)}\right),
 \]
 where \(\mathcal{L}_{KD}^{(b,i)}\) is the Byte-Trie Wasserstein loss from
-Equation~\ref{eq:per_teacher_tw}. The raw agreement score is the cosine
+Equation~\ref{eq:per_teacher_tw}. The raw \textbf{agreement score} is the cosine
 similarity
 \begin{equation}
 s_i
@@ -512,10 +634,10 @@ s_i
 }.
 \label{eq:grace-gradient-agreement-score}
 \end{equation}
-Cosine similarity is appropriate here because both the KD and CE losses
-optimize the same student parameters; it also normalizes for gradient magnitude,
-making the score independent of teacher-to-teacher scale differences.
-Consider one gradient step with routed KD:
+Cosine similarity is well-suited to this comparison: both losses optimize
+the same parameters and the normalization removes teacher-to-teacher scale
+differences. This is clearest from a first-order expansion of one gradient
+step with routed KD:
 \[
 \Delta\theta
 =
@@ -538,28 +660,30 @@ The first-order change in the supervised CE loss is
 \langle \mathbf{g}_{CE},\mathbf{g}_i\rangle .
 \]
 When \(\langle \mathbf{g}_{CE},\mathbf{g}_i\rangle>0\), teacher \(T_i\)'s KD
-direction supports the supervised CE update. When the inner product is
-negative, the teacher pushes against the supervised CE objective. GRACE weights each routed teacher's contribution by gradient agreement
-\cite{yu2020gradient}.
-
-The score \(s_i\) is batch-level, computed once per teacher, but produces
-per-sample variation through its intersection with each sample's routed set
+direction \textbf{supports} the supervised CE update. When the inner product is
+negative, the teacher \textbf{pushes against} the supervised CE objective. Under the
+simplex constraints \(w_i\ge 0\) and \(\sum_i w_i=1\), the unregularized
+first-order objective would place all KD weight on the routed teacher with the
+largest inner product \(\langle \mathbf{g}_{CE},\mathbf{g}_i\rangle\). GRACE uses cosine agreement instead, comparing \textbf{gradient directions and not
+magnitudes}. The score-softmax gives a smooth relaxation of the hard
+winner-take-all selection. Gradient agreement thus serves both roles:
+\textbf{filtering conflicting teachers} and \textbf{up-weighting} those whose KD direction aligns
+with the CE update
+\cite{yu2020gradient}. Each \(s_i\) is computed once per mini-batch at the teacher level and per-sample
+variation arises through intersection with each sample's routed set
 \(\mathcal{R}_b\).
 
 \subsection{Warmup, EMA Smoothing and Active Set}
 \label{sec:agreement-smoothing-active-set}
 
-GRACE converts raw agreement scores into final weights in four steps.
-During warmup (the first \(\rho_g T_{\mathrm{train}}\) steps), routed weights
-pass through unchanged: \(w_i^{(b)}=\hat{p}_i^{(b)}\). Skipping agreement
-scoring early in training reflects a stability choice: before the router has
-seen enough data, agreement scores computed from an unstable student are too
-noisy to filter reliably. After warmup, the steps
-are as follows. First, the raw score is thresholded:
+During \textbf{warmup} (the first \(\rho_g T_{\mathrm{train}}\) steps), routed weights
+are used unchanged: \(w_i^{(b)}=\hat{p}_i^{(b)}\). Agreement scoring is
+skipped early because an unstable student produces scores too noisy to be
+useful for filtering. After warmup, the raw score is first thresholded:
 \[
-\tilde{a}_i=\mathbf{1}[s_i>\delta].
+\tilde{a}_i=\mathbf{1}[s_i>\delta],
 \]
-Second, it is smoothed with EMA:
+then smoothed with \textbf{EMA}:
 \[
 \hat{s}_i
 =
@@ -567,12 +691,24 @@ Second, it is smoothed with EMA:
 +
 (1-\beta_{\mathrm{EMA}})s_i.
 \]
-A noisy batch agreement score fluctuates across training steps; EMA dampens
-this before softmax weighting, as Figure~\ref{fig:grace-ema-smoothing} shows.
-
-The raw score and smoothed score serve different purposes: \(s_i\) thresholds
-by current-batch agreement, while \(\hat{s}_i\) weights teachers to smooth out
-per-batch noise.
+A single mini-batch score is too noisy to be a reliable filter: a teacher
+that is consistently aligned may produce a negative score on one batch
+purely due to sampling variation. EMA accumulates a smoothed signal across
+steps so that filtering reflects a teacher's sustained directional tendency
+rather than reacting to individual batch fluctuations.
+In short, \(s_i\) captures the current-batch gradient direction and drives the
+threshold test, while \(\hat{s}_i\) accumulates a smoothed estimate across steps
+and drives the final weighting. Figure~\ref{fig:grace-ema-smoothing} illustrates
+both effects. The left panel shows that the per-batch score (orange) oscillates
+widely across training steps, while the EMA (blue) tracks a smooth, slowly-moving
+trend. The centre panel compares the current \(s_i\) and smoothed \(\hat{s}_i\)
+across four teachers for one step: \(T_4\) has a near-zero or negative current
+score that would suppress it if used directly, but its smoothed score remains
+slightly positive, reflecting recent history. The right panel shows the
+consequence for weighting: using raw batch scores concentrates almost all gradient
+weight on a single teacher, while using smoothed scores distributes weight more
+evenly across the active set, preventing a single noisy batch from dominating
+teacher selection.
 
 \begin{figure}[!htbp]
     \centering
@@ -581,14 +717,14 @@ per-batch noise.
     \label{fig:grace-ema-smoothing}
 \end{figure}
 
-Third, the active set for sample \(b\) is formed by intersecting the threshold
-flag \(\tilde{a}_i\) with the routed set:
+With smoothed scores in hand, GRACE constructs a \textbf{per-sample active set} by
+intersecting the threshold flag \(\tilde{a}_i\) with the routed set:
 \begin{equation}
 \mathcal{A}_b=\{i\in\mathcal{R}_b:\tilde{a}_i=1\}.
 \label{eq:grace-sample-active-set}
 \end{equation}
-Fourth, the smoothed scores are passed through a softmax over \(\mathcal{A}_b\)
-to produce agreement weights \(\omega\):
+Finally, the smoothed scores pass a softmax over \(\mathcal{A}_b\) to
+produce agreement weights \(\omega\):
 \begin{equation}
 \omega_i^{(b)}
 =
@@ -600,16 +736,27 @@ to produce agreement weights \(\omega\):
 },
 \label{eq:grace_softmax}
 \end{equation}
+These agreement weights \(\omega_i^{(b)}\) must then be combined with the
+router's relevance scores \(\hat{p}_i^{(b)}\). Three edge cases, an empty
+active set, nearly tied scores and a clear winner, each call for a different
+rule.
 
 \subsection{Fallback, Uniform and Blended Weighting}
 \label{sec:agreement-weighting-rule}
 
 The final rule, summarized in Figure~\ref{fig:grace-score-refinement}, chooses
-among three cases. If \(\mathcal{A}_b\) is empty, GRACE falls back to the
-routed weights \(\hat{p}^{(b)}\). If the score spread inside \(\mathcal{A}_b\)
-is below \(\epsilon_{\mathrm{fb}}\) (scores nearly tied), GRACE uses uniform
-weights over \(\mathcal{A}_b\).
-Otherwise, it geometrically blends the routed weights \(\hat{p}\) and the
+among three cases, each handling a failure mode the others cannot.
+If \(\mathcal{A}_b\) is empty, every selected teacher is conflicting and
+there is no agreement signal to use. GRACE \textbf{falls back} to the
+routed weights \(\hat{p}^{(b)}\) because they still reflect input-level
+relevance and training must continue.
+If the spread between the maximum and minimum agreement scores inside
+\(\mathcal{A}_b\) is below \(\epsilon_{\mathrm{fb}}\) (so the active
+teachers are nearly tied), acting on small score differences would amplify
+noise into meaningless weight differences. GRACE therefore uses
+\textbf{uniform weights} over \(\mathcal{A}_b\) as the more robust choice.
+Otherwise, when the agreement signal is strong enough to differentiate
+teachers, it \textbf{geometrically blends} the routed weights \(\hat{p}\) and the
 agreement weights \(\omega\):
 \begin{equation}
 w_i^{(b)}
@@ -624,6 +771,14 @@ w_i^{(b)}
 \end{equation}
 Here, \(\lambda_{\mathrm{blend}}\in[0,1]\) interpolates between pure score
 weighting and pure router weighting.
+The geometric form is deliberate: because the two terms are multiplied
+rather than added, a teacher with near-zero weight under either signal is
+suppressed in the final weight regardless of how high the other signal is.
+An arithmetic blend would allow a highly gradient-aligned teacher to be
+included despite low routing relevance, or vice versa.
+The geometric blend requires both signals to agree, with
+\(\lambda_{\mathrm{blend}}\) controlling how much each signal contributes
+to that joint decision.
 
 \begin{figure}[!htbp]
     \centering
@@ -632,12 +787,30 @@ weighting and pure router weighting.
     \label{fig:grace-score-refinement}
 \end{figure}
 
-Figure~\ref{fig:grace-weighting-cases} illustrates these three weighting
-outcomes after routing. When one active teacher is strongly preferred, the final weight shifts toward
-it. If the router and gradient agreement favor different teachers, the
-geometric blend preserves contributions from both. If active teacher scores are
-nearly equal, GRACE treats them as indistinguishable and uses uniform weights
-over the active set.
+The three panels of Figure~\ref{fig:grace-score-refinement} step through the
+refinement pipeline in order. On the left, the gradient-direction diagram
+shows \(\mathbf{g}_1\) (green) pointing in nearly the same direction as
+\(\mathbf{g}_{CE}\) (red), \(\mathbf{g}_f\) (orange) diverging at a
+moderate angle and \(\mathbf{g}_3\) (blue) pointing in the opposite
+direction, indicating conflict with the supervised update. The centre panel
+shows the consequence for weights. The teacher with the highest smoothed
+score receives a disproportionately large softmax weight, while the teacher
+whose score falls below the threshold is excluded from the active set
+entirely. On the right, the two non-fallback outcomes are contrasted: when
+the score spread exceeds \(\epsilon_{\mathrm{fb}}\), the geometric blend
+shifts the final weight toward the gradient-preferred teacher. When the
+spread is below the threshold, all active teachers receive equal final
+weights.
+
+Each of the three panels in Figure~\ref{fig:grace-weighting-cases}
+corresponds to one of the weighting rules. When gradient agreement strongly
+prefers one teacher (left panel, large \(\Delta\)), the final blended weight
+for that teacher is pulled well above its routed weight. When the router and
+gradient agreement favor different teachers (centre panel, moderate
+\(\Delta\)), the blend preserves meaningful contributions from both. When
+the score spread is negligible (right panel, \(\Delta<\epsilon\)), GRACE
+treats the active teachers as indistinguishable and assigns them equal
+weight.
 
 \begin{figure}[!htbp]
     \centering
@@ -646,9 +819,15 @@ over the active set.
     \label{fig:grace-weighting-cases}
 \end{figure}
 
-Figure~\ref{fig:grace-sample-weight-path} traces the per-sample weight path
-from dense router probabilities through top-\(k\) selection, agreement
-weights \(\omega\) and final blending.
+Following a single sample through all four stages
+(Figure~\ref{fig:grace-sample-weight-path}): the dense gate softmax
+\(\mathbf{p}\) assigns nonzero probability to all four teachers. Top-\(k\)
+selection then retains only \(T_1\) and \(T_2\) and renormalizes their
+weights. The agreement softmax \(\omega\) (third panel) amplifies \(T_1\)
+further based on its higher agreement score, leaving \(T_2\) with a smaller
+share. The geometric blend in the final panel produces a weight that
+lies between the router preference and the agreement preference, with
+neither signal dominating entirely.
 
 \begin{figure}[!htbp]
     \centering
@@ -659,13 +838,18 @@ weights \(\omega\) and final blending.
 
 \FloatBarrier
 
-Gradient-agreement refinement restricts the final mixture to the routed set
-\(\mathcal{R}_b\), so the final routed KD term contains at most
-\(k_{\mathrm{route}}\) nonzero teachers per sample. The per-teacher losses are computed before GRACE weights are applied, so the
-weighting step has access to all \(\mathcal{L}_{KD}^{(b,i)}\) values.
-
 \section{Routed KD Aggregation and Final Objective}
 \label{sec:routed-kd-final-objective}
+
+The three components described in the preceding sections, Byte-Trie
+Wasserstein matching, sparse routing and gradient-agreement refinement,
+each produce a per-teacher, per-sample quantity: a loss value
+$\mathcal{L}_{KD}^{(b,i)}$ and a final weight $w_i^{(b)}$. Gradient-agreement
+refinement restricts these weights to the routed set $\mathcal{R}_b$, so each
+sample draws on at most $k_{\mathrm{route}}$ teachers. This section combines
+both quantities into a single training objective whose key property is that
+$w_i^{(b)}$ is \textbf{sample-specific}, allowing different examples in the same
+mini-batch to draw on different teachers.
 
 At the sample level, only teachers in the routed set $\mathcal{R}_b$ contribute
 to the KD loss:
@@ -684,8 +868,8 @@ B^{-1}\sum_{b=1}^{B}\bar{\mathcal{L}}_{KD}^{(b)}.
 \]
 Because \(w_i^{(b)}\) is computed per sample, different examples in the same
 mini-batch can emphasize different teachers.
-Figure~\ref{fig:grace-sample-specific-weighting} illustrates this behavior for
-text-heavy, chart-heavy and ambiguous samples.
+Figure~\ref{fig:grace-sample-specific-weighting} shows this for text-heavy,
+chart-heavy and ambiguous samples.
 
 \begin{figure}[!htbp]
     \centering
@@ -694,11 +878,17 @@ text-heavy, chart-heavy and ambiguous samples.
     \label{fig:grace-sample-specific-weighting}
 \end{figure}
 
-\FloatBarrier
+Each panel compares the routed weight \(\hat{p}\) (blue) with the final
+weight \(w\) (green) across four teachers. For the text-heavy sample,
+\(T_1\) is already the top router choice and gradient agreement amplifies
+it further, while the lower-ranked teachers are suppressed. For the
+chart-heavy sample, \(T_3\) is preferred by the router and agreement
+reinforces this, shifting the dominant teacher away from \(T_1\). For the
+ambiguous sample, the router weights are spread across all four teachers
+and the agreement scores provide no strong signal, so the final weights
+remain close to the routed weights with no single teacher dominating.
 
-Because each per-teacher loss uses Byte-Trie Wasserstein matching, this term
-stays valid across heterogeneous tokenizers without requiring aligned token
-indices.
+\FloatBarrier
 
 The complete \methodname{} objective is
 \begin{equation}
@@ -715,8 +905,12 @@ The complete \methodname{} objective is
 \end{equation}
 where $\mathcal{L}_{CE}$ anchors the student to supervised answer tokens,
 $\mathcal{L}_{KD}$ transfers routed teacher supervision and $\mathcal{L}_{ent}$
-together with $\mathcal{L}_{z}$ regularize the router. Only $\theta$ and $\phi$
-are updated.
+together with $\mathcal{L}_{z}$ regularize the router, while teacher parameters
+remain frozen throughout. Together, the four terms directly address
+the three constraints from the opening of this chapter: $\mathcal{L}_{KD}$
+handles \textbf{tokenizer mismatch} through the byte-trie loss, the routing weights
+inside it handle \textbf{per-sample teacher relevance} and the gradient-agreement
+scores that set those weights handle \textbf{optimization conflict}.
 
 \begin{algorithm}[H]
 \caption{One GRACE training step}

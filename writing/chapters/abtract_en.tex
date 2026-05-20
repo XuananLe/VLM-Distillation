@@ -5,35 +5,30 @@
 \addcontentsline{toc}{chapter}{Abstract}
 \begin{small}
 
-This thesis studies heterogeneous multi-teacher knowledge distillation for
-vision-language models (VLMs). The problem is to transfer supervision from a
-pool of frozen teacher models to a smaller student when the teachers come from
-different model families, use different tokenizers and vary in usefulness
-across samples. In this setting, direct token-index distillation is invalid and
-fixed teacher averaging can mix helpful teacher signals with irrelevant or
-conflicting ones.
+Distilling a compact VLM from a heterogeneous teacher pool faces three
+difficulties simultaneously: mismatched tokenizers make direct KD invalid,
+teacher usefulness varies sample by sample and a routed teacher can still
+produce gradients that oppose the supervised objective. Fixed teacher averaging
+fails to address this third difficulty: it mixes helpful signals with
+conflicting ones without discrimination.
 
-
-To address this problem, the thesis proposes \gracefull{} (\gracename{}), a
-distillation framework for heterogeneous teacher-to-student VLM transfer.
-\gracename{} combines three mechanisms: Byte-Trie Wasserstein knowledge
-distillation over a shared UTF-8 byte trie, sparse top-$k$ teacher routing from
-student hidden states and gradient-agreement refinement of routed teacher
-weights. The Byte-Trie Wasserstein loss makes teacher and student output
-distributions comparable across tokenizers, while sparse routing and
-gradient-agreement refinement select teachers relevant to each sample and weight them
-by CE-gradient alignment.
-
+\gracefull{} (\gracename{}) addresses all three. It combines Byte-Trie
+Wasserstein knowledge distillation over a shared UTF-8 byte trie, sparse top-$k$
+teacher routing conditioned on student hidden states and gradient-agreement
+refinement of routed teacher weights. The Byte-Trie Wasserstein loss compares
+teacher and student output distributions across tokenizers without shared-index
+assumptions, while sparse routing and gradient-agreement refinement select
+teachers per sample and down-weight those whose KD gradients conflict with
+the CE objective.
 
 Experiments on TextVQA, DocVQA and ChartQA evaluate \methodname{} with
-SmolVLM-500M and SmolVLM-256M students under a four-teacher heterogeneous pool.
+SmolVLM-500M and SmolVLM-256M students with a four-teacher heterogeneous pool.
 For SmolVLM-500M, \methodname{} reaches 69.38, 73.11 and 80.20 on TextVQA,
-DocVQA and ChartQA, compared with original student scores of 56.75, 59.52 and
-62.80. These results correspond to relative gains of 22.26\%, 22.83\% and
-27.71\% over the original student and close 55.03\%, 39.53\% and 55.34\% of
-the original gap to the highest-scoring teacher. For SmolVLM-256M, \methodname{}
-reaches 60.73, 60.48 and 72.32 on the same benchmarks. Across the reported
-experiments, \methodname{} improves over direct fine-tuning, same-family logit-based KD, cross-family ULD and the compared heterogeneous multi-teacher baselines.
+DocVQA and ChartQA, closing 55.03\%, 39.53\% and 55.34\% of the original
+gap to the highest-scoring teacher. For SmolVLM-256M, \methodname{} reaches
+60.73, 60.48 and 72.32 on the same benchmarks. In all comparisons,
+\methodname{} improves over direct fine-tuning, same-family logit-based KD,
+cross-family ULD and the heterogeneous multi-teacher baselines.
 
 
 \vspace*{1cm}

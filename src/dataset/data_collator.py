@@ -1,20 +1,21 @@
 import re
-import torch
 from typing import Dict, Optional
 
+import torch
+
 from src.constants import IGNORE_INDEX
+
 from .data_utils import pad_frames, pad_sequence
 
 
 class DataCollatorForSupervisedDataset:
-
     def __init__(
         self,
         pad_token_id: int,
         teacher_pad_token_id: Optional[int] = None,
         teacher_pad_token_ids: Optional[list[Optional[int]]] = None,
     ):
-        self.pad_token_id         = pad_token_id
+        self.pad_token_id = pad_token_id
         self.teacher_pad_token_id = teacher_pad_token_id
         self.teacher_pad_token_ids = teacher_pad_token_ids or []
 
@@ -112,16 +113,14 @@ class DataCollatorForSupervisedDataset:
         )
 
     def __call__(self, examples):
-        batch_input_ids            = [e["input_ids"] for e in examples]
-        batch_label_ids            = [e["labels"] for e in examples]
-        batch_pixel_values         = [e.get("pixel_values") for e in examples]
+        batch_input_ids = [e["input_ids"] for e in examples]
+        batch_label_ids = [e["labels"] for e in examples]
+        batch_pixel_values = [e.get("pixel_values") for e in examples]
         batch_pixel_attention_mask = [e.get("pixel_attention_mask") for e in examples]
 
-        input_ids = pad_sequence(
-            batch_input_ids, padding_side='right', padding_value=self.pad_token_id
-        )
+        input_ids = pad_sequence(batch_input_ids, padding_side="right", padding_value=self.pad_token_id)
         attention_mask = input_ids != self.pad_token_id
-        labels         = pad_sequence(batch_label_ids, padding_side='right', padding_value=IGNORE_INDEX)
+        labels = pad_sequence(batch_label_ids, padding_side="right", padding_value=IGNORE_INDEX)
         pixel_values = pad_frames(batch_pixel_values, pad_value=0.0)
         pixel_attention_mask = pad_frames(batch_pixel_attention_mask, pad_value=0)
 

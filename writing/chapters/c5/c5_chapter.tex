@@ -1,63 +1,26 @@
 \chapter{Experiment Results}
 \label{chap:experiment-results}
 
-Results address the three research questions from
-Chapter~\ref{chap:introduction}: whether \methodname{} outperforms same-family,
-cross-family and heterogeneous baselines; which components account for the
-gains; and what training overhead the method adds.
+This chapter answers RQ1, RQ2 and RQ3 through main comparison results,
+ablation study and efficiency analysis, then discusses baseline behavior.
 
 \section{Main Comparison Results}
 \label{sec:main-comparison-results}
 
-We report the original performance of the two student models, \textbf{SmolVLM-500M} and
-\textbf{SmolVLM-256M} \cite{marafioti2025smolvlm}, using
-\textbf{VLM-Eval-Kit} \cite{duan2024vlmevalkit} under the evaluation pipeline described in
-Chapter~\ref{chap:evaluation-methodology}. Table~\ref{tab:all-results} reports
-these student-only starting points together with the teacher reference range used in the teacher-gap comparisons.
+Student and teacher reference scores are in Table~\ref{tab:all-results}
+(Chapter~\ref{chap:evaluation-methodology}). Using the highest teacher score
+per benchmark as the ceiling, the teacher-student gap is 22.95 points on
+TextVQA, 34.38 on DocVQA and 31.44 on ChartQA for SmolVLM-500M and
+correspondingly larger for SmolVLM-256M.
 
-\begin{table}[H]
-\centering
-\caption[Student and teacher model results.]{Student and teacher model results.}
-\label{tab:all-results}
-\begin{tabular}{lccc}
-\toprule
-\textbf{Model} & \textbf{TextVQA} & \textbf{DocVQA} & \textbf{ChartQA} \\
-\midrule
-\multicolumn{4}{l}{\textit{Student Models}} \\
-\midrule
-SmolVLM-500M & 56.75 & 59.52 & 62.80 \\
-SmolVLM-256M & 47.17 & 48.64 & 45.04 \\
-\midrule
-\multicolumn{4}{l}{\textit{Teacher Models}} \\
-\midrule
-Qwen2.5-VL-3B-Instruct & 79.30 & 93.90 & 94.24 \\
-InternVL3-1B & 74.10 & 81.90 & 75.30 \\
-Gemma-3-4B-it & 57.80 & 75.80 & 63.60 \\
-Qwen2-VL-2B-Instruct & 79.70 & 90.10 & 89.28 \\
-\bottomrule
-\end{tabular}
-\end{table}
-
-Model sources for Table~\ref{tab:all-results} are SmolVLM
-\cite{marafioti2025smolvlm}, Qwen2.5-VL
-\cite{qwen25vl3b_modelcard,bai2025qwen25vl}, InternVL3
-\cite{internvl3_blog}, Gemma 3 \cite{gemma3_technical_report} and Qwen2-VL
-\cite{qwen2vl2b_modelcard,wang2024qwen2vl}.
-
-Using the highest teacher score per benchmark as reference, the teacher-student
-gap reaches up to 34.38 points for SmolVLM-500M and 49.20 points for
-SmolVLM-256M, establishing the ceiling for these comparisons.
-
-Table~\ref{tab:main-comparison} collects the main results across four groups:
-(1) non-distillation references (original student and full fine-tuning),
-(2) same-family logit-based KD using \textbf{SmolVLM2-2.2B-Instruct}
-\cite{smolvlm2_modelcard,marafioti2025smolvlm} as teacher
-(forward KL, reverse KL, JSD), (3) cross-family single-teacher ULD and
-(4) multi-teacher methods (Uniform, SHM-CKA, REINFORCE and \methodname{}),
-all using the same four-teacher set spanning the Qwen, InternVL and Gemma
-families \cite{qwen2vl2b_modelcard,wang2024qwen2vl,
-qwen25vl3b_modelcard,bai2025qwen25vl,internvl3_blog,gemma3_technical_report}.
-Each cell reports the best completed run.
+Table~\ref{tab:main-comparison} collects non-distillation references,
+same-family KD with \textbf{SmolVLM2-2.2B-Instruct}
+\cite{smolvlm2_modelcard,marafioti2025smolvlm} (forward KL, reverse KL, JSD),
+cross-family ULD with a single teacher and multi-teacher methods (Uniform,
+SHM-CKA, REINFORCE and \methodname{}) sharing the same four-teacher pool from
+the Qwen, InternVL and Gemma families
+\cite{qwen2vl2b_modelcard,wang2024qwen2vl,qwen25vl3b_modelcard,bai2025qwen25vl,internvl3_blog,gemma3_technical_report}.
+Each cell reports the best run from our completed experiments.
 
 \begin{table}[H]
 \centering
@@ -125,26 +88,27 @@ Each cell reports the best completed run.
   & SmolVLM-500M & \textbf{69.38} & \textbf{73.11} & \textbf{80.20} \\
 & & & SmolVLM-256M & \textbf{60.73} & \textbf{60.48} & \textbf{72.32} \\
 \addlinespace[2pt]
-\multicolumn{7}{@{}l@{}}{\scriptsize \(\dagger\) Teacher pool: Qwen2-VL-2B-Instruct, Qwen2.5-VL-3B-Instruct, InternVL3-1B, Gemma-3-4B-it; model sources cited above.} \\
+\multicolumn{7}{@{}l@{}}{\scriptsize \(\dagger\) Teacher pool: Qwen2-VL-2B-Instruct, Qwen2.5-VL-3B-Instruct, InternVL3-1B and Gemma-3-4B-it. Model sources are cited above.} \\
 \bottomrule
 \end{tabular}
 }
 \end{table}
 
-\methodname{} is the top method for both student sizes across all three benchmarks. Fine-tuning barely improves over the original student scores, and same-family
+\methodname{} leads on all three benchmarks for both student sizes. Fine-tuning barely improves over the original student scores and same-family
 logit-based KD depends strongly on the divergence:
 forward KL improves slightly, while reverse KL and Jensen-Shannon often reduce
 performance.
-Cross-family ULD outperforms same-family KD, and uniform multi-teacher
-averaging improves further, confirming that heterogeneous teachers add
-information beyond same-family transfer. Compared with the strongest non-\methodname{} baseline,
-\methodname{} improves by +5.50, +3.52 and +3.32 points for SmolVLM-500M, and
+Cross-family ULD outperforms same-family KD and uniform multi-teacher
+averaging improves further, showing the gain from teacher diversity. Compared with the strongest non-\methodname{} baseline,
+\methodname{} improves by +5.50, +3.52 and +3.32 points for SmolVLM-500M and
 by +4.42, +1.95 and +3.58 points for SmolVLM-256M on TextVQA, DocVQA and
-ChartQA respectively. REINFORCE is the closest structural competitor, since it also
-routes adaptively, yet the 5.50-point gap on TextVQA for SmolVLM-500M
-indicates that gradient cosine similarity is a sharper teacher filter than a
-reward signal updated per evaluation checkpoint. Section~\ref{sec:discussion} examines Reverse KL and
-SHM-CKA in more detail.
+ChartQA respectively. REINFORCE is the closest structural competitor, since it also routes
+adaptively, yet GRACE leads by 5.50 points on TextVQA for SmolVLM-500M.
+The difference lies in the selection signal: cosine similarity between the KD
+and CE gradients is recomputed every mini-batch and directly measures
+optimization compatibility, while the REINFORCE reward is updated per
+evaluation checkpoint and captures gradient alignment only indirectly. Section~\ref{sec:discussion}
+examines both behaviors further.
 
 \begin{figure}[H]
     \centering
@@ -153,6 +117,16 @@ SHM-CKA in more detail.
     \label{fig:c5-results-bars}
 \end{figure}
 
+Figure~\ref{fig:c5-results-bars} summarises the comparison visually. Each
+panel groups TextVQA, DocVQA and ChartQA side by side, with three bars per
+benchmark: the original student (blue), the best non-\methodname{} baseline
+(orange) and \methodname{} (red). For SmolVLM-500M the red bar extends
+clearly above the orange on all three benchmarks, with the largest visible
+margin on TextVQA. For SmolVLM-256M the same pattern holds and the ChartQA
+group shows the most striking absolute lift: the original student sits near
+45, the best baseline reaches roughly 68 and \methodname{} extends further
+to 72.
+
 \begin{rqanswerbox}{Answer to RQ1}
 \methodname{} improves over direct fine-tuning, same-family logit-based KD,
 ULD and the compared heterogeneous multi-teacher baselines in
@@ -160,8 +134,7 @@ Table~\ref{tab:main-comparison}. The score order is
 \(\text{same-family logits}<\text{cross-family ULD}<
 \text{most multi-teacher settings}<\text{\methodname{}}\). Within the multi-teacher
 group, \methodname{} scores above Uniform, SHM-CKA and REINFORCE
-for both student sizes across the three benchmarks. Section~\ref{sec:ablation}
-then examines which GRACE components account for these gains.
+for both student sizes across the three benchmarks.
 \end{rqanswerbox}
 
 \begin{figure}[H]
@@ -182,7 +155,13 @@ then examines which GRACE components account for these gains.
 \end{figure}
 
 Figure~\ref{fig:training-curve-comparison} shows that the \methodname{} run
-has fewer sharp oscillations than Uniform on DocVQA.
+is noticeably smoother and more stable than the Uniform baseline on DocVQA.
+Under Uniform training, the CE loss spikes repeatedly to values above 0.8
+even after 2{,}000 steps, indicating that conflicting teacher gradients
+continue to disrupt updates late into training. \methodname{} descends more
+cleanly and converges to a lower final loss, consistent with the
+gradient-agreement filter removing teacher signals that oppose the supervised
+CE objective at each step.
 
 \begin{figure}[H]
     \centering
@@ -204,10 +183,14 @@ has fewer sharp oscillations than Uniform on DocVQA.
 \end{figure}
 
 
-Figure~\ref{fig:router-collapse-comparison} contrasts router collapse with
-distributed teacher selection. Without the full \methodname{} pipeline, the
-routed load concentrates on one teacher. With \methodname{}, the load stays
-distributed, so the student receives heterogeneous supervision throughout. Table~\ref{tab:grace-relative-gains} quantifies these gains.
+Figure~\ref{fig:router-collapse-comparison} shows the per-teacher soft gate
+load over training steps. Without the full \methodname{} pipeline, one
+teacher (load\_1) rapidly captures approximately 80\% of the routing weight
+within the first 100 steps and holds it throughout training, while the
+remaining two tracked teachers fall below 0.10 and stay there. With
+\methodname{} enabled, the three teacher loads remain in a 0.15 to 0.65 range
+throughout training, with natural variation across steps but no single
+teacher monopolising the pool. Table~\ref{tab:grace-relative-gains} quantifies these gains.
 Relative gain is computed as
 \((\text{\methodname} - \text{baseline}) / \text{baseline}\).
 
@@ -237,15 +220,13 @@ ChartQA & +27.28 (+60.57\%) & +22.64 (+45.57\%) & +8.64 (+13.57\%) & +3.58 (+5.2
 \end{tabular}
 \end{table}
 
-As Table~\ref{tab:grace-relative-gains} shows, gains over the original
-SmolVLM-500M student exceed 22\% on TextVQA and DocVQA and 27\% on ChartQA,
-with similar margins over direct fine-tuning. The gain over static uniform
-averaging is smaller but consistent, isolating the benefit of adaptive weighting over uniform teacher combination. The
-same trend holds for SmolVLM-256M, where gains reach +28.75\%, +24.34\% and
-+60.57\%.
+Table~\ref{tab:grace-relative-gains} shows gains over the original
+SmolVLM-500M student exceeding 22\% on TextVQA and DocVQA and 27\% on
+ChartQA, with similar margins over direct fine-tuning. The gain over static uniform averaging is smaller but consistent across both
+student sizes, with SmolVLM-256M showing the same relative pattern:
++28.75\%, +24.34\% and +60.57\%.
 
-For the teacher-gap analysis, the reference point is the highest-scoring
-teacher in the \methodname{} comparison pool reported in
+The teacher-gap reference is the highest teacher score in
 Table~\ref{tab:all-results}:
 \[
 g_{\mathrm{orig}} = y_T - y_{\mathrm{orig}},
@@ -274,21 +255,25 @@ ChartQA & 94.24 & 31.44 & 14.04 & 55.34\% \\
 
 \textbf{\methodname{} reduces the gap to the strongest teacher.}
 For SmolVLM-500M, \methodname{} closes 55.03\%, 39.53\% and 55.34\% of the
-original teacher-student gap on TextVQA, DocVQA and ChartQA. Using the strongest available teacher as the ceiling makes this gap estimate
-conservative.
+original teacher-student gap on TextVQA, DocVQA and ChartQA. Using the strongest available teacher as the upper bound makes this gap
+estimate conservative.
 
 \textbf{The distilled student can outperform individual teachers.}
 On TextVQA, \methodname{} reaches 69.38 and exceeds Gemma-3-4B-it at 57.80 by
 +11.58 points (+20.03\%). On ChartQA, it exceeds InternVL3-1B at 75.30 by
 +4.90 points (+6.51\%) and Gemma-3-4B-it at 63.60 by +16.60 points (+26.10\%).
-The routed mixture therefore draws on each teacher's strengths, occasionally
-surpassing individual teachers on specific benchmarks.
 
 \section{Ablation Study}
 \label{sec:ablation}
-This section answers RQ2 from Chapter~\ref{chap:introduction} by isolating the
-main components of \methodname{} on DocVQA. Section~\ref{sec:ablation-settings} defines the ablation variants; results
-for both student models are in Table~\ref{tab:docvqa-planned-ablation}.
+
+The ablation builds up the full \methodname{} pipeline one component at a
+time on DocVQA, keeping all other settings fixed (variants defined in
+Section~\ref{sec:ablation-settings}). The sequence is designed to separate
+three distinct questions: how much does teacher diversity help over a single
+teacher, what does sparse routing add on top of diversity and what does
+gradient-agreement refinement add on top of routing. Two further variants
+then isolate the contribution of EMA smoothing and score-based blending
+within the agreement step.
 
 \begin{table}[H]
 \centering
@@ -316,132 +301,166 @@ Full GRACE + trie-Wasserstein & {\textbf{60.48}} & {\textbf{73.11}} \\
 \end{tabular}
 \end{table}
 
-The ablations compare single-teacher ULD, uniform multi-teacher KD,
-routing-only KD and full GRACE to separate teacher diversity, routing and
-gradient-agreement effects. Table~\ref{tab:docvqa-planned-ablation} shows that
-full GRACE gives the highest DocVQA score for both SmolVLM-256M and
-SmolVLM-500M. Moving from single-teacher ULD to Uniform improves DocVQA by
-+3.46 and +4.31 points, confirming the value of heterogeneous teacher
-diversity. Routing only behaves inconsistently across student
-sizes: it improves SmolVLM-256M by +1.75 points over Uniform but reduces
-SmolVLM-500M by -6.36 points. The drop for SmolVLM-500M is, in our view, the
-most telling result of the ablation: a router that selects teachers without
-checking gradient alignment can be worse than no routing at all.
-Gradient-agreement refinement addresses this:
-full \methodname{} improves over Routing only by +3.03 points for
-SmolVLM-256M and +9.88 points for SmolVLM-500M. Removing EMA lowers DocVQA
-from 60.48 to 57.45 for SmolVLM-256M and from 73.11 to 71.25 for
-SmolVLM-500M. Setting \(\lambda_{\mathrm{blend}}=1.0\) also decreases both scores,
-so both EMA smoothing and score-based blending contribute to peak performance.
+\textbf{Teacher diversity.}
+Moving from single-teacher ULD to Uniform averaging over the full
+heterogeneous pool improves DocVQA by +3.46 points for SmolVLM-256M and
++4.31 points for SmolVLM-500M. The gain comes purely from exposing the
+student to a wider range of teacher signals, with no adaptive weighting.
+
+\textbf{Routing without gradient agreement.}
+Adding sparse top-\(k\) routing on top of Uniform produces inconsistent
+results. SmolVLM-256M improves by +1.75 points, but SmolVLM-500M
+\emph{drops} by 6.36 points, falling below even the no-routing Uniform
+baseline. This is the most informative result in the ablation: a router that
+selects teachers by relevance alone, without checking whether their KD
+gradients align with the supervised CE objective, \textbf{can actively hurt training}.
+The larger student is apparently more sensitive to this misalignment, since
+its capacity allows it to follow a bad routing signal further before
+self-correcting.
+
+\textbf{Gradient-agreement refinement.}
+Adding gradient-agreement refinement recovers and surpasses both previous
+variants. Full \methodname{} improves over Routing only by +3.03 points for
+SmolVLM-256M and +9.88 points for SmolVLM-500M. The recovery for the 500M
+student is particularly large, which is consistent with the earlier finding
+that the 500M student was most harmed by unfiltered routing.
+
+\textbf{EMA smoothing and score blending.}
+Removing EMA smoothing (\(\beta_{\mathrm{EMA}}=0\)) lowers DocVQA from 73.11
+to 71.25 for SmolVLM-500M and from 60.48 to 57.45 for SmolVLM-256M, showing
+that per-batch agreement scores are too noisy to use directly without
+temporal smoothing. Setting \(\lambda_{\mathrm{blend}}=1.0\), which removes
+the agreement-score softmax from the high-confidence case while keeping the
+threshold and fallback, also decreases both scores, confirming that
+score-weighted blending contributes independently of the other mechanisms.
 
 \Needspace{13\baselineskip}
 \begin{rqanswerbox}{Answer to RQ2}
-The ablation shows that heterogeneous teacher diversity improves over
-single-teacher ULD, while routing behaves inconsistently before
-gradient-agreement refinement is added. The largest contribution comes from
-gradient-agreement refinement, which accounts for the margins just reported.
-EMA smoothing and blending by agreement scores further improve final performance.
+Teacher diversity alone accounts for a consistent gain of roughly 3 to 4
+points over single-teacher ULD. Sparse routing without gradient-agreement
+refinement is unreliable: it helps the smaller student but hurts the larger
+one, demonstrating that \textit{relevance-based selection} is insufficient on its own.
+Gradient-agreement refinement is the \textbf{largest single contributor}, recovering
+and extending the gains lost to unfiltered routing. EMA smoothing and
+score-based blending each provide additional, independently verifiable
+improvements.
 \end{rqanswerbox}
+
 
 \section{Efficiency Analysis}
 \label{sec:efficiency-analysis}
-This section answers RQ3 by summarizing the training overhead introduced by
-\methodname{}. The main online costs come from three components:
-trie-Wasserstein support construction, teacher routing and gradient-agreement
-scoring. Trie-Wasserstein matching builds sparse token supports and accumulates
-trie-edge masses at answer positions. The router is an MLP over pooled student states; its cost scales with the
-hidden size and number of teachers. Gradient-agreement
-scoring introduces overhead from comparing teacher-specific KD gradients,
-bounded by top-\(k\) routing.
+The main online costs come from trie-Wasserstein support construction,
+teacher routing and gradient-agreement scoring. Trie-Wasserstein matching builds sparse token supports and accumulates
+trie-edge masses at answer positions. The router is an MLP over pooled student states and its cost scales with the
+hidden size and number of teachers. Gradient-agreement scoring adds per-teacher gradient comparisons, limited to
+the top-\(k\) routed teachers.
 
-Teacher inference is offline: cached logits remove the cost of running frozen
-teachers during training, shifting that computation to a one-time caching step. The main
-scaling factors are the number of teachers, the retained trie support size
-\(K_{\mathrm{TW}}\) and the number of routed teachers \(k_{\mathrm{route}}\).
-An average training run on the reported configurations costs approximately
-\textbf{14.41 USD}, excluding one-time offline teacher logit caching and remote
-storage. This figure covers the student forward and backward passes, sparse
-routing computation and gradient-agreement scoring for the full training run.
+Teacher inference is \textbf{offline}: logits are cached once before training, so each
+update only loads them from disk. The main scaling factors are the number of
+teachers, the retained trie support size \(K_{\mathrm{TW}}\) and the number
+of routed teachers \(k_{\mathrm{route}}\). An average training run on the
+reported configurations costs approximately \textbf{14.41 USD}, excluding
+one-time offline teacher logit caching and remote storage. Running the four
+teachers forward on the full training set to generate the cached logits is a
+one-time cost paid before training begins. The 14.41 USD figure covers only the
+student training itself, including all routing and agreement-scoring overhead. This is low enough to be run on a
+single rented GPU in a few hours, placing heterogeneous multi-teacher
+distillation within reach of researchers without dedicated compute
+infrastructure.
 
 \begin{rqanswerbox}{Answer to RQ3}
 \methodname{} adds overhead from trie-Wasserstein matching, routing and
 gradient-agreement scoring, while offline caching replaces repeated teacher forward passes with logit
 loading from cache. Per answer position,
 trie-Wasserstein matching scales with \(K_{\mathrm{TW}}\), routing scales with
-the number of teachers \(N\), and top-\(k\) routing keeps the active teacher
-count bounded by \(k_{\mathrm{route}}\). Thus, the method trades per-step
-matching and scoring cost for distillation with offline pre-cached teacher logits
-and sparse teacher selection at each step.
+the number of teachers \(N\) and top-\(k\) routing keeps the active teacher
+count bounded by \(k_{\mathrm{route}}\). The dominant cost is the per-step trie matching and agreement scoring, while teacher
+inference is paid once at caching.
 \end{rqanswerbox}
 
 \section{Discussion}
 \label{sec:discussion}
 
-The results show that heterogeneous distillation requires more than adding teachers
-to the loss: the gains come from combining cross-tokenizer output matching,
-sample-dependent routing and gradient reweighting after routing
+Heterogeneous distillation requires more than adding teachers to the loss:
+the gains come from combining cross-tokenizer output matching, sample-dependent
+routing and gradient reweighting after routing
 \cite{hinton2015distillingknowledgeneuralnetwork,boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}.
 Figure~\ref{fig:training-curve-comparison} shows fewer oscillations for
-\methodname{} than Uniform on DocVQA, consistent with restricting reweighting to the routed teacher subset.
+\methodname{} than Uniform on DocVQA, as expected when fewer teachers receive
+weight per step.
 
 \textbf{Behavior of same-family logit-based KD.}
-The same-family logit-based baselines show different behavior across distributional
-losses for distillation on answer tokens. Forward KL gives small but consistent
-gains, while Reverse KL performs substantially worse in this setting.
-A likely reason is that Reverse KL is weighted by the current student
-distribution, so tokens the teacher assigns high probability to but that the student currently assigns
-low probability receive weaker correction. This is undesirable for OCR-heavy
-and numerically sensitive VQA tasks, where teacher probability mass may appear on
-low-probability answer variants. Reverse KL is, in short, the wrong objective
-when the student must recover teacher probability mass on tokens it currently
-neglects. This explanation is limited to the reported
-KD experiments on answer tokens and should not be read as a general claim about
-Reverse KL in all distillation settings
-\cite{wu2025rethinking}.
+Same-family logit-based KD is sensitive to the divergence choice. Forward KL
+gives small but consistent gains, while Reverse KL performs substantially worse
+in this setting. Reverse KL weights its gradient by the current student distribution, so
+tokens the teacher scores highly but the student neglects receive weaker
+correction. The effect is worst on OCR-heavy and numerically sensitive tasks, where the
+correct answer token is often low-probability under the student's current
+distribution. Reverse KL is therefore poorly suited to this setting, where the student must
+recover teacher probability mass on tokens it currently neglects. The claim is specific to short answer tokens and Reverse KL can behave
+differently in other distillation settings \cite{wu2025rethinking}.
 
 \textbf{Cross-family ULD.}
-ULD consistently outperforms all same-family KD variants despite using only one
-teacher. The likely reason is that sorted-rank matching avoids the
-shared-vocabulary assumption entirely: comparing sorted probability vectors
-penalizes distributional shape differences without requiring that corresponding
-indices refer to the same token. ULD therefore sets the cross-family baseline that Uniform and \methodname{} must exceed.
-However, rank-based comparison discards the semantic relationship between tokens:
-two tokens with adjacent ranks but unrelated decoded strings are treated as
-equally close. Byte-Trie Wasserstein replaces rank proximity with byte-path
+This method consistently outperforms all same-family KD variants despite using only one
+teacher. \textbf{Sorted-rank matching} avoids the shared-vocabulary assumption entirely:
+comparing sorted probability vectors penalizes distributional shape differences
+without requiring that corresponding indices refer to the same token. ULD
+therefore sets the cross-family baseline that Uniform and \methodname{} must exceed.
+However, rank-based comparison discards the semantic relationship between
+tokens: two tokens with adjacent ranks but unrelated decoded strings receive
+the same low transport cost as two adjacent tokens whose strings are nearly
+identical. Byte-Trie Wasserstein replaces rank proximity with byte-path
 proximity, giving lower transport cost to tokens with similar decoded content.
 This is why \methodname{} improves over ULD even with the same Qwen2-VL teacher
 in the pool.
 
-ULD measures the L1 gap between two rank-sorted probability vectors: it detects whether teacher and student distribute
-probability similarly across rank positions, but rank-\(k\) in one vocabulary
-need not decode to a similar string as rank-\(k\) in the other. Unlike ULD, our loss measures transport through the shared trie, so
-probability mass on \texttt{<wb>invoice} in the teacher and mass on
-\texttt{in} in the student are connected by a short trie path and penalized
-in proportion to their byte distance, not their rank gap. For OCR and document tasks where
-teacher and student split answer strings at different subword boundaries, this
-distinction is direct: ULD cannot credit partial byte-level agreement, whereas
-Byte-Trie Wasserstein does. Table~\ref{tab:uld-vs-tw} makes this concrete.
+ULD measures the L1 gap between two rank-sorted probability vectors: it detects
+whether teacher and student distribute probability mass similarly across rank
+positions, but rank-\(k\) in one vocabulary need not decode to a similar string
+as rank-\(k\) in the other. Two token pairs with the same rank gap receive
+identical ULD loss regardless of whether their decoded strings are semantically
+related or completely unrelated. Unlike ULD, the Byte-Trie Wasserstein loss
+routes probability mass through the shared trie, so tokens with a longer shared
+byte prefix incur lower transport cost. For OCR and document tasks where teacher
+and student split answer strings at different subword boundaries, ULD cannot
+credit partial byte-level agreement, whereas Byte-Trie Wasserstein does.
+Table~\ref{tab:uld-vs-tw} illustrates this across four token pairs spanning
+the full range from exact match to no shared prefix.
 
 \begin{table}[H]
 \centering
-\caption[ULD vs.\ Byte-Trie Wasserstein under equal ranked masses.]{Equal
-ranked masses give identical ULD loss; byte-prefix overlap separates the
-trie-Wasserstein losses.}
+\caption[ULD vs.\ Byte-Trie Wasserstein under equal ranked masses.]{ULD vs.\ Byte-Trie Wasserstein under equal ranked masses.}
 \label{tab:uld-vs-tw}
 \small
-\begin{tabular}{lcc}
+\setlength{\tabcolsep}{7pt}
+\renewcommand{\arraystretch}{1.2}
+\begin{tabular}{@{}llcc@{}}
 \toprule
-\textbf{Teacher / student token} & \(\ell_{\mathrm{ULD}}\) & \(\ell_{\mathrm{TW}}\) \\
+\textbf{Teacher / student} & \textbf{Shared prefix} & \(\ell_{\mathrm{ULD}}\) & \(\ell_{\mathrm{TW}}\) \\
 \midrule
-\texttt{doc} / \texttt{document} & 0.20 & 0.60 \\
-\texttt{abc} / \texttt{def}      & 0.20 & 3.29 \\
+\texttt{doc} / \texttt{doc}           & \texttt{doc} (3 bytes, exact)  & 0.20 & 0.00 \\
+\texttt{invoice} / \texttt{invoices}  & \texttt{invoice} (7 bytes)     & 0.20 & 0.05 \\
+\texttt{doc} / \texttt{document}      & \texttt{doc} (3 bytes)         & 0.20 & 0.60 \\
+\texttt{abc} / \texttt{def}           & none (0 bytes)                 & 0.20 & 3.29 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
+All four rows carry the same rank-space probability difference, so ULD assigns
+an identical loss of 0.20 in every case and cannot distinguish any of them.
+Byte-Trie Wasserstein, by contrast, reflects the degree of byte-path overlap:
+an exact decoded match (\texttt{doc}/\texttt{doc}) has zero cost, a
+near-morphological variant (\texttt{invoice}/\texttt{invoices}) sharing a
+7-byte prefix pays only approximately 0.05, a shorter prefix overlap
+(\texttt{doc}/\texttt{document}, 3 shared bytes) costs 0.60 and a completely
+unrelated pair (\texttt{abc}/\texttt{def}, no shared bytes) pays the full
+3.29. The progression tracks intuitive semantic distance in a way that rank
+position cannot, which is why \methodname{} improves over ULD even when both
+distill from the same teacher.
+
 \textbf{Representation matching and SHM-CKA.}
-SHM-CKA tests whether hidden-state alignment alone transfers knowledge across
-heterogeneous teachers. It is competitive on ChartQA for SmolVLM-500M but
+SHM-CKA tests whether hidden-state alignment alone is sufficient for
+cross-family distillation. It is competitive on ChartQA for SmolVLM-500M but
 trails \methodname{} overall
 \cite{kornblith2019similarityrepresentations,klabunde2023similarity}.
 
@@ -479,36 +498,35 @@ trails \methodname{} overall
     \label{fig:exp-cka-vision-multi-dataset}
 \end{figure}
 
-Figures~\ref{fig:exp-cka-multi-dataset} and
-\ref{fig:exp-cka-vision-multi-dataset} show higher CKA values on DocVQA than
-TextVQA, especially across late language layers and middle vision layers.
-Nevertheless, Table~\ref{tab:main-comparison} shows that SHM-CKA trails
-output-level distillation in several settings, confirming that high CKA does
-not guarantee strong answer prediction. We read this as evidence that
-representation alignment and output calibration are largely orthogonal
-objectives in heterogeneous VLM distillation.
+Figure~\ref{fig:exp-cka-multi-dataset} shows full-model layer CKA between
+Qwen2-VL-2B and SmolVLM-500M across the last ten language layers of each
+model. On TextVQA, values range from 0.52 to 0.74, with the highest
+alignment at lower Qwen layers paired with later SmolVLM layers. On DocVQA,
+the entire matrix is compressed into a narrow 0.85 to 0.96 band with almost no
+variation across layer pairs, indicating that the two models are
+representationally similar at the language level for document inputs
+regardless of which layers are compared.
+Figure~\ref{fig:exp-cka-vision-multi-dataset} shows the corresponding
+vision-layer CKA across all 32 Qwen vision layers and 13 SmolVLM vision
+layers. Both datasets show a clear block structure: CKA is near zero for
+early Qwen vision layers 0 to 10 paired with any SmolVLM layer and rises
+to 0.7 to 1.0 in the upper-right block where later Qwen vision layers
+15 to 31 align with later SmolVLM vision layers 8 to 12.
+Nevertheless, SHM-CKA trails output-level distillation in
+Table~\ref{tab:main-comparison}. \textbf{High CKA does not imply strong answer
+prediction}: representation alignment and output calibration are largely
+orthogonal in heterogeneous VLM distillation.
 
 \textbf{First-order interpretation of gradient-agreement refinement.}
-The first-order analysis in Section~\ref{sec:gradient-agreement} shows that a
-teacher whose KD gradient conflicts with the CE gradient partially
-offsets the supervised update. Suppressing such teachers explains the
-ablation finding that gradient-agreement refinement outperforms routing alone,
-consistent with treating routing as candidate selection and gradient agreement
-as corrective reweighting \cite{yu2020gradient}.
+A teacher whose KD gradient conflicts with the CE gradient partially offsets
+the supervised update (first-order analysis in
+Section~\ref{sec:gradient-agreement}). Suppressing such teachers explains why
+gradient-agreement refinement outperforms routing alone, where routing acts as
+candidate selection and gradient agreement provides corrective reweighting
+\cite{yu2020gradient}.
 
+\Needspace{0.62\textheight}
 \textbf{Visual grounding.}
-To inspect whether distillation changes which image regions the student attends
-to, we use \textbf{DEX-AR} attribution maps \cite{bousselham2026dexar}, which aggregate
-token-level visual attributions into a sequence-level heatmap for autoregressive
-VLMs. Figure~\ref{fig:textvqa-sample3-qualitative} shows a representative
-TextVQA example \cite{singh2019vqamodelsread} where the question asks
-\emph{``who is this copyrighted by?''} and
-the relevant evidence is the copyright text on the lower-left border. The
-original SmolVLM-500M concentrates on the \emph{Virgin} logo; \methodname{}
-redirects attention to the copyright text, correctly locating the region needed
-to answer the question. The shift follows from the output-distribution supervision: pushing the student
-toward teacher probability mass on the correct answer tokens causes the model
-to attend to the image regions that support those tokens.
 
 \begin{figure}[H]
     \centering
@@ -536,3 +554,16 @@ to attend to the image regions that support those tokens.
     attention example.}
     \label{fig:textvqa-sample3-qualitative}
 \end{figure}
+
+\textbf{DEX-AR} attribution maps \cite{bousselham2026dexar} aggregate
+token-level visual attributions into a sequence-level heatmap for autoregressive
+VLMs, letting us check whether distillation shifts the student's attended
+regions. Figure~\ref{fig:textvqa-sample3-qualitative} shows a representative
+TextVQA example \cite{singh2019vqamodelsread} where the question asks
+\emph{``who is this copyrighted by?''} and
+the relevant evidence is the copyright text on the lower-left border. The
+original SmolVLM-500M concentrates on the \emph{Virgin} logo, while
+\methodname{} redirects attention to the copyright text, correctly finding the
+evidence region. Output-distribution supervision drives this shift: pushing the
+student toward teacher probability mass on correct answer tokens steers
+attention toward the image regions that support those tokens.

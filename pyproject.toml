@@ -235,3 +235,59 @@ dependencies = [
 
 [tool.uv]
 package = false
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+include = [
+  "pyproject.toml",
+  "modal_app.py",
+  "src/**/*.py",
+  "scripts/**/*.py",
+  "tests/**/*.py",
+]
+extend-exclude = [
+  "src/eval",
+]
+force-exclude = true
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]
+
+[tool.ruff.lint.per-file-ignores]
+"scripts/**/*.py" = ["E402"]
+"src/load_data.py" = ["E402"]
+"src/train/train_*.py" = ["E402"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.ty.environment]
+python = "./venv"
+python-version = "3.12"
+root = ["."]
+
+[tool.ty.src]
+include = ["src", "scripts", "tests", "modal_app.py"]
+exclude = ["src/eval"]
+
+[tool.ty.analysis]
+allowed-unresolved-imports = ["streaming"]
+replace-imports-with-any = [
+  "datasets.**",
+  "einops.**",
+  "matplotlib.**",
+  "modal.**",
+  "numpy.**",
+  "PIL.**",
+  "pydantic.**",
+  "safetensors.**",
+  "torch.**",
+  "tqdm.**",
+  "transformers.**",
+]
+
+[tool.ty.terminal]
+output-format = "concise"

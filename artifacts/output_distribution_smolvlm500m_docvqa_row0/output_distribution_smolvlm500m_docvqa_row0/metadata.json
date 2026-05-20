@@ -1,0 +1,23 @@
+{
+  "model_name": "HuggingFaceTB/SmolVLM-500M-Instruct",
+  "model_family": "smolvlm",
+  "dataset": "docvqa",
+  "loaded_from": "HuggingFaceM4/DocumentVQA",
+  "split": "train",
+  "row_index": 0,
+  "sample_id": "337",
+  "question": "what is the date mentioned in this letter?",
+  "ground_truth_answer": "1/8/93",
+  "generated_answer": "19/8",
+  "image_preparation": "original",
+  "original_image_size": [
+    1695,
+    2025
+  ],
+  "input_image_size": [
+    1695,
+    2025
+  ],
+  "max_new_tokens": 12,
+  "top_k": 20
+}

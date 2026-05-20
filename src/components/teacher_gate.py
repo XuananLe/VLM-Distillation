@@ -6,24 +6,24 @@ from src.components.pooling import masked_mean_pool_sequence
 
 SMOLVLM_MODEL_TYPES = {"smolvlm", "smolvlm2", "idefics3"}
 
-
+# student hidden size D
+# teacher count N
+# router hidden size H
 class DeepRouter(nn.Module):
     def __init__(self, input_size: int, num_experts: int):
         super().__init__()
         self.hidden_size = self.resolve_hidden_size(num_experts)
-        self.normalizer = nn.LayerNorm(input_size)
+        self.normalizer = nn.LayerNorm(input_size) # 2 * D
         self.up_proj = nn.Linear(input_size, self.hidden_size * 2)
         self.down_proj = nn.Linear(self.hidden_size, num_experts)
-
-        nn.init.xavier_uniform_(self.up_proj.weight) # inplace
+    
+        nn.init.xavier_uniform_(self.up_proj.weight)  # inplace
         nn.init.zeros_(self.up_proj.bias)
         nn.init.xavier_uniform_(self.down_proj.weight)
         nn.init.zeros_(self.down_proj.bias)
 
     @staticmethod
     def resolve_hidden_size(num_experts: int) -> int:
-        # This size ladder is heuristic: small teacher sets do not need a wide router,
-        # but larger mixtures get a wider hidden layer to avoid a severe bottleneck.
         if num_experts <= 4:
             return 64
         if num_experts <= 16:
@@ -33,10 +33,11 @@ class DeepRouter(nn.Module):
         return 512
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
-        hidden = self.normalizer(inputs)
+        # inputs [batch_size, hidden_features]
+        hidden = self.normalizer(inputs) # [batch_size, 2 * hidden_features]
         # Two-projection SwiGLU-style router block before the final expert logits.
         gate, value = self.up_proj(hidden).chunk(2, dim=-1)
-        hidden = F.silu(gate) * value
+        hidden = F.silu(gate) * value 
         return self.down_proj(hidden)
 
 
@@ -63,18 +64,12 @@ class Gate(nn.Module):
         lm_head = model.lm_head
 
         if model_type not in SMOLVLM_MODEL_TYPES:
-            raise ValueError(
-                "Teacher gate only supports SmolVLM-style students, got "
-                f"model_type={model_type!r}."
-            )
+            raise ValueError(f"Teacher gate only supports SmolVLM-style students, got model_type={model_type!r}.")
         if not isinstance(lm_head, nn.Linear):
-            raise ValueError(
-                "Teacher gate expects SmolVLM `lm_head` to be an nn.Linear module."
-            )
+            raise ValueError("Teacher gate expects SmolVLM `lm_head` to be an nn.Linear module.")
         if lm_head.in_features != hidden_size:
             raise ValueError(
-                "SmolVLM lm_head input size does not match text hidden size: "
-                f"{lm_head.in_features} != {hidden_size}."
+                f"SmolVLM lm_head input size does not match text hidden size: {lm_head.in_features} != {hidden_size}."
             )
         return int(hidden_size), lm_head
 
@@ -102,9 +97,7 @@ class Gate(nn.Module):
         if router_param is None:
             return
 
-        if router_param.device != reference.device or (
-            target_dtype is not None and router_param.dtype != target_dtype
-        ):
+        if router_param.device != reference.device or (target_dtype is not None and router_param.dtype != target_dtype):
             self.router.to(device=reference.device, dtype=target_dtype)
 
     def compute_router_logits(
@@ -127,6 +120,7 @@ class Gate(nn.Module):
             student_labels=student_labels,
         )
         return torch.softmax(router_logits, dim=-1)
+
 
 __all__ = [
     "DeepRouter",

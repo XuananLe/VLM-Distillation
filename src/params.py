@@ -5,16 +5,17 @@ import transformers.training_args as _ta
 from transformers import TrainingArguments as HFTrainingArguments
 
 
-
 @dataclass
 class ModelArguments:
     """Minimal model-selection arguments for the SFT entrypoint."""
+
     model_id: Optional[str] = field(default=None)
 
 
 @dataclass
 class TrainingArguments(HFTrainingArguments):
     """Project-specific extension of Hugging Face TrainingArguments."""
+
     cache_dir: Optional[str] = field(default=None)
     optim: str = field(default="adamw_torch")
     seed: int = field(default=42)
@@ -32,11 +33,9 @@ class TrainingArguments(HFTrainingArguments):
 
     max_seq_length: int = field(
         default=16384,
-        metadata={
-            "help":
-                "Maximum sequence length. Sequences will be right padded (and possibly truncated)."
-        },
+        metadata={"help": "Maximum sequence length. Sequences will be right padded (and possibly truncated)."},
     )
+
     def __post_init__(self):
         """Restore compatibility with TRL-mutated TrainingArguments field validation."""
         # TRL 0.17 mutates transformers.training_args._VALID_DICT_FIELDS to include
@@ -59,12 +58,9 @@ class TrainingArguments(HFTrainingArguments):
 @dataclass
 class DataArguments:
     """Dataset paths and image-loading options shared by SFT and distillation."""
-    data_path: str = field(
-        default=None, metadata={"help": "Path to the training data."}
-    )
-    eval_data_path: Optional[str] = field(
-        default=None, metadata={"help": "Optional path to the validation data."}
-    )
+
+    data_path: str = field(default=None, metadata={"help": "Path to the training data."})
+    eval_data_path: Optional[str] = field(default=None, metadata={"help": "Optional path to the validation data."})
     lazy_preprocess: bool = False
     image_folder: Optional[str] = field(default=None)
     strict_image_validation: bool = False

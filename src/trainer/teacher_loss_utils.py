@@ -2,7 +2,9 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 import torch
+import torch.nn.functional as F
 
+from src.constants import IGNORE_INDEX
 from src.trainer.gradient_utils import (
     compute_parameter_grads,
     parameter_gradient_cosine,
@@ -17,6 +19,41 @@ class TeacherTargetBatch:
     labels: torch.Tensor
 
 
+def compute_per_sample_ce_losses(
+    *,
+    student_logits: torch.Tensor,
+    student_labels: torch.Tensor,
+    ignore_index: int = IGNORE_INDEX,
+) -> torch.Tensor:
+    if student_logits.ndim != 3:
+        raise ValueError(f"student_logits must have shape [batch, seq, vocab], got {tuple(student_logits.shape)}")
+    if student_labels.ndim != 2:
+        raise ValueError(f"student_labels must have shape [batch, seq], got {tuple(student_labels.shape)}")
+    if student_logits.shape[:2] != student_labels.shape:
+        raise ValueError(
+            "student logits and labels must share batch/sequence shape, got "
+            f"{tuple(student_logits.shape[:2])} and {tuple(student_labels.shape)}."
+        )
+    if student_logits.size(1) < 2:
+        raise ValueError("Cannot compute per-sample CE with sequence length below 2.")
+
+    shifted_logits = student_logits[:, :-1, :].float().contiguous()
+    shifted_labels = student_labels[:, 1:].contiguous()
+    token_losses = F.cross_entropy(
+        shifted_logits.view(-1, shifted_logits.size(-1)),
+        shifted_labels.view(-1),
+        ignore_index=ignore_index,
+        reduction="none",
+    ).view(student_logits.size(0), -1)
+    supervised_mask = shifted_labels.ne(ignore_index)
+    missing_supervision = ~supervised_mask.any(dim=1)
+    if missing_supervision.any():
+        bad_indices = missing_supervision.nonzero(as_tuple=True)[0].tolist()
+        raise ValueError(f"Cannot compute per-sample GRACE CE losses without supervised tokens: {bad_indices}.")
+    supervised_counts = supervised_mask.sum(dim=1).to(dtype=token_losses.dtype)
+    return token_losses.sum(dim=1) / supervised_counts
+
+
 def resolve_teacher_target_batches(
     *,
     student_logits: torch.Tensor,
@@ -28,9 +65,7 @@ def resolve_teacher_target_batches(
     if cached_teacher_target_batches is not None:
         return [
             TeacherTargetBatch(
-                logits=prepare_input_fn(cached_teacher_logits).to(
-                    dtype=student_logits.dtype
-                ),
+                logits=prepare_input_fn(cached_teacher_logits).to(dtype=student_logits.dtype),
                 labels=prepare_input_fn(cached_teacher_labels),
             )
             for cached_teacher_logits, cached_teacher_labels in cached_teacher_target_batches
@@ -82,7 +117,6 @@ def compute_teacher_loss_matrix(
     student_logits: torch.Tensor,
     student_labels: torch.Tensor,
     model,
-    ce_loss: torch.Tensor,
     teacher_target_batches: Sequence[TeacherTargetBatch],
     collect_grace_tensors: bool,
     collect_teacher_targets_for_selection: bool,
@@ -111,27 +145,42 @@ def compute_teacher_loss_matrix(
     selection_teacher_labels = [] if collect_teacher_targets_for_selection else None
 
     grace_parameters = None
-    ce_parameter_grads = None
+    ce_parameter_grads_by_sample = None
     if collect_grace_tensors:
         grace_parameters = trainable_parameters(model)
-        ce_parameter_grads = compute_parameter_grads(
-            loss=ce_loss,
-            parameters=grace_parameters,
+        per_sample_ce_losses = compute_per_sample_ce_losses(
+            student_logits=student_logits,
+            student_labels=student_labels,
         )
+        # GRACE is meant to decide teacher usefulness for each example; averaging
+        # CE here would collapse it back into one batch-level teacher score.
+        ce_parameter_grads_by_sample = [
+            compute_parameter_grads(
+                loss=sample_ce_loss,
+                parameters=grace_parameters,
+            )
+            for sample_ce_loss in per_sample_ce_losses
+        ]
 
     def append_parameter_grace_score(teacher_loss: torch.Tensor) -> None:
-        if grace_parameters is None or ce_parameter_grads is None:
+        if grace_parameters is None or ce_parameter_grads_by_sample is None:
             return
-        kd_parameter_grads = compute_parameter_grads(
-            loss=teacher_loss.mean(),
-            parameters=grace_parameters,
-        )
-        agreement = parameter_gradient_cosine(
-            ce_parameter_grads,
-            kd_parameter_grads,
-            loss=teacher_loss,
-        ).to(device=student_logits.device)
-        per_sample_agreement = agreement.expand(student_logits.size(0))
+        per_sample_agreements = []
+        for sample_index, sample_teacher_loss in enumerate(teacher_loss):
+            # Keep the KD direction sample-local so teacher agreement can differ
+            # across examples in the same mini-batch.
+            kd_parameter_grads = compute_parameter_grads(
+                loss=sample_teacher_loss,
+                parameters=grace_parameters,
+            )
+            per_sample_agreements.append(
+                parameter_gradient_cosine(
+                    ce_parameter_grads_by_sample[sample_index],
+                    kd_parameter_grads,
+                    loss=sample_teacher_loss,
+                ).to(device=student_logits.device)
+            )
+        per_sample_agreement = torch.stack(per_sample_agreements)
         grace_scores.append(per_sample_agreement)
         grace_active_masks.append(per_sample_agreement > grace_threshold)
 
@@ -183,5 +232,6 @@ def compute_teacher_loss_matrix(
 __all__ = [
     "TeacherTargetBatch",
     "compute_teacher_loss_matrix",
+    "compute_per_sample_ce_losses",
     "resolve_teacher_target_batches",
 ]

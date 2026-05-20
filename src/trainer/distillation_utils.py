@@ -2,8 +2,9 @@ import contextlib
 from pathlib import Path
 
 import torch
-from einops import rearrange, reduce
+from einops import reduce
 
+from src.components.cka import linear_cka_loss
 from src.components.forward_utils import (
     get_decoder_hidden_states,
     infer_batch_size,
@@ -11,10 +12,8 @@ from src.components.forward_utils import (
     unwrap_tensor,
 )
 from src.components.matching import load_cka_json, topk_soft_match_student_teacher
-from src.components.cka import linear_cka_loss
 from src.components.vision_forward import infer_vision_group_counts, pool_vision_features
 from src.utils import find_vision_layer_indices, get_specific_layer
-
 
 REQUIRED_TEACHER_INPUTS = ("input_ids", "attention_mask", "pixel_values")
 OPTIONAL_TEACHER_INPUTS = ("pixel_attention_mask", "image_grid_thw", "image_flags", "image_sizes")
@@ -38,8 +37,7 @@ def resolve_layer_indices(total_layers: int, layer_indices: list[int], label: st
         normalized = total_layers + layer_index if layer_index < 0 else layer_index
         if normalized < 0 or normalized >= total_layers:
             raise IndexError(
-                f"{label} layer index {layer_index} resolved to {normalized}, "
-                f"but valid range is 0-{total_layers - 1}."
+                f"{label} layer index {layer_index} resolved to {normalized}, but valid range is 0-{total_layers - 1}."
             )
         resolved.append(int(normalized))
     return resolved
@@ -86,6 +84,7 @@ def capture_layer_outputs(model, layer_indices: list[int]):
                     """Store one hooked layer output after unwrapping nested tensors."""
                     del module, hook_inputs
                     raw_outputs[index] = unwrap_tensor(output)
+
                 return hook
 
             handle = layer.register_forward_hook(make_hook(layer_index))
@@ -116,11 +115,7 @@ def build_live_teacher_batches(inputs, num_teachers: int):
     prefixes = []
     if "teacher_input_ids" in inputs:
         prefixes.append("teacher")
-    prefixes.extend(
-        f"teacher_{index}"
-        for index in range(num_teachers)
-        if f"teacher_{index}_input_ids" in inputs
-    )
+    prefixes.extend(f"teacher_{index}" for index in range(num_teachers) if f"teacher_{index}_input_ids" in inputs)
 
     if not prefixes:
         raise ValueError("No live teacher inputs were found in the batch.")
@@ -143,11 +138,7 @@ def build_cached_teacher_target_batches(inputs, num_teachers: int):
     prefixes = []
     if "teacher_cached_logits" in inputs:
         prefixes.append("teacher")
-    prefixes.extend(
-        f"teacher_{index}"
-        for index in range(num_teachers)
-        if f"teacher_{index}_cached_logits" in inputs
-    )
+    prefixes.extend(f"teacher_{index}" for index in range(num_teachers) if f"teacher_{index}_cached_logits" in inputs)
 
     if not prefixes:
         return None
@@ -181,10 +172,7 @@ def find_layer_match_json(
 ) -> Path:
     for candidate_path in sorted(layer_match_dir.rglob("final_layers_cka_matrix.json")):
         payload = load_cka_json(str(candidate_path))
-        if (
-            payload["model_a_name"] == teacher_model_name
-            and payload["model_b_name"] == student_model_name
-        ):
+        if payload["model_a_name"] == teacher_model_name and payload["model_b_name"] == student_model_name:
             return candidate_path
     raise ValueError(
         "No layer-match artifact found for teacher/student pair: "
@@ -370,7 +358,8 @@ def compute_teacher_layer_distillation_loss(
     soft_match_losses = []
     for match in teacher_layer_soft_matches:
         weighted_losses = [
-            weight * linear_cka_loss(
+            weight
+            * linear_cka_loss(
                 student_layer_representations[match["student_layer_index"]],
                 teacher_layer_representations[teacher_layer_index],
             )

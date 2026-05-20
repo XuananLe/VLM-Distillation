@@ -4,9 +4,7 @@ import unicodedata
 
 from .types import BoundaryKind, CanonicalTokenPiece
 
-
 SMOLVLM_MODEL_ID_PREFIX = "huggingfacetb/smolvlm"
-
 
 def tokenizer_model_id(tokenizer) -> str:
     model_id = getattr(tokenizer, "name_or_path", None)
@@ -102,18 +100,10 @@ def split_marker(
     if len(raw_token) > 1 and raw_token.startswith("▁"):
         return "space", raw_token[1:]
 
-    if (
-        underscore_is_boundary_marker
-        and len(raw_token) > 1
-        and raw_token.startswith("_")
-    ):
+    if underscore_is_boundary_marker and len(raw_token) > 1 and raw_token.startswith("_"):
         return "space", raw_token[1:]
 
-    if (
-        hash_is_continuation_marker
-        and len(raw_token) > 2
-        and raw_token.startswith("##")
-    ):
+    if hash_is_continuation_marker and len(raw_token) > 2 and raw_token.startswith("##"):
         return "continuation", raw_token[2:]
 
     if len(raw_token) > 4 and raw_token.endswith("</w>"):

@@ -4,8 +4,7 @@ import torch
 def summarize_teacher_vector(prefix: str, values: torch.Tensor) -> dict[str, float]:
     """Average a `[batch, teacher]` tensor over the batch and emit per-teacher scalar metrics."""
     return {
-        f"{prefix}_{teacher_index}": value.item()
-        for teacher_index, value in enumerate(values.detach().mean(dim=0))
+        f"{prefix}_{teacher_index}": value.item() for teacher_index, value in enumerate(values.detach().mean(dim=0))
     }
 
 
@@ -31,10 +30,14 @@ def apply_teacher_gate_topk(
     batch_size, num_teachers = teacher_router_weights.shape
     top_k = min(teacher_gate_top_k, num_teachers)
     topk_indices = teacher_router_logits.topk(top_k, dim=-1).indices
-    topk_mask = torch.nn.functional.one_hot(
-        topk_indices,
-        num_classes=num_teachers,
-    ).sum(dim=1).to(dtype=torch.bool)
+    topk_mask = (
+        torch.nn.functional.one_hot(
+            topk_indices,
+            num_classes=num_teachers,
+        )
+        .sum(dim=1)
+        .to(dtype=torch.bool)
+    )
 
     routed_weights = torch.where(
         topk_mask,

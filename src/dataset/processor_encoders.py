@@ -68,7 +68,7 @@ def smolvlm_encode_conversation(
         if LLAVA_IMAGE_TOKEN not in user_text or images is None:
             raise ValueError("SmolVLM training samples must include image tokens and loaded images.")
         image_count = user_text.count(LLAVA_IMAGE_TOKEN)
-        turn_images = images[image_idx:image_idx + image_count]
+        turn_images = images[image_idx : image_idx + image_count]
         image_idx += image_count
 
         user_message = {
@@ -105,7 +105,7 @@ def smolvlm_encode_conversation(
             raise ValueError("SmolVLM conversation encoding shortened between turns.")
 
         prompt_delta = prompt_ids[:, previous_full_length:]
-        response_ids = full_ids[:, prompt_ids.size(1):]
+        response_ids = full_ids[:, prompt_ids.size(1) :]
 
         if prompt_delta.numel() > 0:
             all_input_ids.append(prompt_delta.squeeze(0).to(torch.long))
@@ -165,7 +165,7 @@ def qwen_encode_conversation(
         n_images = user_text.count(LLAVA_IMAGE_TOKEN)
         clean_text = user_text.replace(LLAVA_IMAGE_TOKEN, "").strip()
 
-        turn_images = images[image_idx:image_idx + n_images]
+        turn_images = images[image_idx : image_idx + n_images]
         image_idx += n_images
         user_content = [{"type": "image"}] * n_images + [{"type": "text", "text": clean_text}]
 
@@ -234,7 +234,7 @@ def gemma3_encode_conversation(
         n_images = user_text.count(LLAVA_IMAGE_TOKEN)
         clean_text = user_text.replace(LLAVA_IMAGE_TOKEN, "").strip()
 
-        turn_images = images[image_idx:image_idx + n_images]
+        turn_images = images[image_idx : image_idx + n_images]
         image_idx += n_images
         user_content = [{"type": "image", "image": image} for image in turn_images]
 
@@ -267,7 +267,7 @@ def gemma3_encode_conversation(
         if prompt_ids.size(1) > full_ids.size(1):
             raise ValueError("Gemma 3 prompt encoding is longer than full conversation encoding.")
 
-        response_ids = full_ids[:, prompt_ids.size(1):]
+        response_ids = full_ids[:, prompt_ids.size(1) :]
         input_ids = full_ids.squeeze(0)
         labels = torch.cat(
             [
@@ -317,7 +317,7 @@ def llava_next_encode_conversation(
         n_images = user_text.count(LLAVA_IMAGE_TOKEN)
         clean_text = user_text.replace(LLAVA_IMAGE_TOKEN, "").strip()
 
-        turn_images = images[image_idx:image_idx + n_images]
+        turn_images = images[image_idx : image_idx + n_images]
         image_idx += n_images
         user_content = [{"type": "image", "image": image} for image in turn_images]
 
@@ -350,7 +350,7 @@ def llava_next_encode_conversation(
         if prompt_ids.size(1) > full_ids.size(1):
             raise ValueError("LLaVA-NeXT prompt encoding is longer than full conversation encoding.")
 
-        response_ids = full_ids[:, prompt_ids.size(1):]
+        response_ids = full_ids[:, prompt_ids.size(1) :]
         input_ids = full_ids.squeeze(0)
         labels = torch.cat(
             [
@@ -408,25 +408,19 @@ def internvl3_encode_conversation(
         else:
             user_prompt = f"User: {user_input['value']}{EOS_TOKEN}\nAssistant: "
 
-        gpt_prompt = (
-            f"{gpt_response['value']}{EOS_TOKEN}"
-            if is_last_turn
-            else f"{gpt_response['value']}{EOS_TOKEN}\n"
-        )
+        gpt_prompt = f"{gpt_response['value']}{EOS_TOKEN}" if is_last_turn else f"{gpt_response['value']}{EOS_TOKEN}\n"
 
         if LLAVA_IMAGE_TOKEN not in user_prompt or images is None:
             raise ValueError("InternVL training samples must include image tokens and loaded images.")
 
-        turn_images = images[image_idx:image_idx + user_input["value"].count(LLAVA_IMAGE_TOKEN)]
+        turn_images = images[image_idx : image_idx + user_input["value"].count(LLAVA_IMAGE_TOKEN)]
         image_idx += len(turn_images)
         pixel_value_chunks = []
         for turn_image in turn_images:
             turn_pixel_values = build_internvl_pixel_values(turn_image, teacher_processor)
             pixel_value_chunks.append(turn_pixel_values)
             image_tokens = (
-                img_start_token
-                + img_context_token * (num_image_token * turn_pixel_values.shape[0])
-                + img_end_token
+                img_start_token + img_context_token * (num_image_token * turn_pixel_values.shape[0]) + img_end_token
             )
             user_prompt = user_prompt.replace(LLAVA_IMAGE_TOKEN, image_tokens, 1)
         pixel_values = torch.cat(pixel_value_chunks, dim=0)

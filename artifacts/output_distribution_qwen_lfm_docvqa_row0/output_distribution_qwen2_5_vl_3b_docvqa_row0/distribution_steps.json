@@ -1,0 +1,979 @@
+{
+  "metadata": {
+    "model_name": "Qwen/Qwen2.5-VL-3B-Instruct",
+    "model_family": "qwen2vl",
+    "dataset": "docvqa",
+    "loaded_from": "HuggingFaceM4/DocumentVQA",
+    "split": "train",
+    "row_index": 0,
+    "sample_id": "337",
+    "question": "what is the date mentioned in this letter?",
+    "ground_truth_answer": "1/8/93",
+    "generated_answer": "1/7/83",
+    "image_preparation": "contained_448",
+    "original_image_size": [
+      1695,
+      2025
+    ],
+    "input_image_size": [
+      375,
+      448
+    ],
+    "max_new_tokens": 12,
+    "top_k": 20
+  },
+  "steps": [
+    {
+      "step": 0,
+      "chosen_token_id": 16,
+      "chosen_token": "1",
+      "chosen_probability": 0.9777502417564392,
+      "entropy": 0.21856112778186798,
+      "normalized_entropy": 0.018318430607199315,
+      "top_mass": {
+        "1": 0.9777502417564392,
+        "5": 0.9842734336853027,
+        "10": 0.9897117614746094,
+        "20": 0.9922016859054565
+      },
+      "top_tokens": [
+        {
+          "rank": 1,
+          "token_id": 16,
+          "token": "1",
+          "probability": 0.9777502417564392
+        },
+        {
+          "rank": 2,
+          "token_id": 17,
+          "token": "2",
+          "probability": 0.0018582389457151294
+        },
+        {
+          "rank": 3,
+          "token_id": 14,
+          "token": "/",
+          "probability": 0.0017456539208069444
+        },
+        {
+          "rank": 4,
+          "token_id": 18,
+          "token": "3",
+          "probability": 0.0015166504308581352
+        },
+        {
+          "rank": 5,
+          "token_id": 15,
+          "token": "0",
+          "probability": 0.0014026723802089691
+        },
+        {
+          "rank": 6,
+          "token_id": 22,
+          "token": "7",
+          "probability": 0.001359516754746437
+        },
+        {
+          "rank": 7,
+          "token_id": 1916,
+          "token": "Date",
+          "probability": 0.0012771477922797203
+        },
+        {
+          "rank": 8,
+          "token_id": 20,
+          "token": "5",
+          "probability": 0.0011997692054137588
+        },
+        {
+          "rank": 9,
+          "token_id": 21,
+          "token": "6",
+          "probability": 0.0010262170108035207
+        },
+        {
+          "rank": 10,
+          "token_id": 19,
+          "token": "4",
+          "probability": 0.0005756555474363267
+        },
+        {
+          "rank": 11,
+          "token_id": 23,
+          "token": "8",
+          "probability": 0.0004146291466895491
+        },
+        {
+          "rank": 12,
+          "token_id": 51533,
+          "token": "RETURN",
+          "probability": 0.00038950800080783665
+        },
+        {
+          "rank": 13,
+          "token_id": 24,
+          "token": "9",
+          "probability": 0.00036023606662638485
+        },
+        {
+          "rank": 14,
+          "token_id": 1028,
+          "token": "date",
+          "probability": 0.0002437479270156473
+        },
+        {
+          "rank": 15,
+          "token_id": 28427,
+          "token": "July",
+          "probability": 0.00022193498443812132
+        },
+        {
+          "rank": 16,
+          "token_id": 322,
+          "token": "//",
+          "probability": 0.00019585694826673716
+        },
+        {
+          "rank": 17,
+          "token_id": 33727,
+          "token": "November",
+          "probability": 0.00019282047287561
+        },
+        {
+          "rank": 18,
+          "token_id": 7097,
+          "token": "DATE",
+          "probability": 0.00017832976300269365
+        },
+        {
+          "rank": 19,
+          "token_id": 785,
+          "token": "The",
+          "probability": 0.00016237111412920058
+        },
+        {
+          "rank": 20,
+          "token_id": 32,
+          "token": "A",
+          "probability": 0.00013046884851064533
+        }
+      ]
+    },
+    {
+      "step": 1,
+      "chosen_token_id": 14,
+      "chosen_token": "/",
+      "chosen_probability": 0.5832501649856567,
+      "entropy": 1.2732182741165161,
+      "normalized_entropy": 0.10671321492035421,
+      "top_mass": {
+        "1": 0.5832501649856567,
+        "5": 0.9591327905654907,
+        "10": 0.9861069917678833,
+        "20": 0.9966078400611877
+      },
+      "top_tokens": [
+        {
+          "rank": 1,
+          "token_id": 14,
+          "token": "/",
+          "probability": 0.5832501649856567
+        },
+        {
+          "rank": 2,
+          "token_id": 16,
+          "token": "1",
+          "probability": 0.20156586170196533
+        },
+        {
+          "rank": 3,
+          "token_id": 22,
+          "token": "7",
+          "probability": 0.15214990079402924
+        },
+        {
+          "rank": 4,
+          "token_id": 17,
+          "token": "2",
+          "probability": 0.01288567390292883
+        },
+        {
+          "rank": 5,
+          "token_id": 20,
+          "token": "5",
+          "probability": 0.009281203150749207
+        },
+        {
+          "rank": 6,
+          "token_id": 608,
+          "token": " /",
+          "probability": 0.0076943873427808285
+        },
+        {
+          "rank": 7,
+          "token_id": 21,
+          "token": "6",
+          "probability": 0.006581358145922422
+        },
+        {
+          "rank": 8,
+          "token_id": 15,
+          "token": "0",
+          "probability": 0.004523296840488911
+        },
+        {
+          "rank": 9,
+          "token_id": 23,
+          "token": "8",
+          "probability": 0.004183365497738123
+        },
+        {
+          "rank": 10,
+          "token_id": 220,
+          "token": " ",
+          "probability": 0.00399179570376873
+        },
+        {
+          "rank": 11,
+          "token_id": 24,
+          "token": "9",
+          "probability": 0.003868980798870325
+        },
+        {
+          "rank": 12,
+          "token_id": 18,
+          "token": "3",
+          "probability": 0.0024211464915424585
+        },
+        {
+          "rank": 13,
+          "token_id": 322,
+          "token": "//",
+          "probability": 0.0019152843160554767
+        },
+        {
+          "rank": 14,
+          "token_id": 19,
+          "token": "4",
+          "probability": 0.0011616788106039166
+        },
+        {
+          "rank": 15,
+          "token_id": 12,
+          "token": "-",
+          "probability": 0.0005573796224780381
+        },
+        {
+          "rank": 16,
+          "token_id": 13,
+          "token": ".",
+          "probability": 0.00018963884213007987
+        },
+        {
+          "rank": 17,
+          "token_id": 2575,
+          "token": "///",
+          "probability": 0.00011960371921304613
+        },
+        {
+          "rank": 18,
+          "token_id": 267,
+          "token": "st",
+          "probability": 0.00010554991604294628
+        },
+        {
+          "rank": 19,
+          "token_id": 19382,
+          "token": "/R",
+          "probability": 8.614733087597415e-05
+        },
+        {
+          "rank": 20,
+          "token_id": 442,
+          "token": " //",
+          "probability": 7.543312676716596e-05
+        }
+      ]
+    },
+    {
+      "step": 2,
+      "chosen_token_id": 22,
+      "chosen_token": "7",
+      "chosen_probability": 0.4165346622467041,
+      "entropy": 1.367510437965393,
+      "normalized_entropy": 0.11461619601218044,
+      "top_mass": {
+        "1": 0.4165346622467041,
+        "5": 0.9428521394729614,
+        "10": 0.9983642101287842,
+        "20": 0.9991467595100403
+      },
+      "top_tokens": [
+        {
+          "rank": 1,
+          "token_id": 22,
+          "token": "7",
+          "probability": 0.4165346622467041
+        },
+        {
+          "rank": 2,
+          "token_id": 16,
+          "token": "1",
+          "probability": 0.4037192165851593
+        },
+        {
+          "rank": 3,
+          "token_id": 23,
+          "token": "8",
+          "probability": 0.06799741089344025
+        },
+        {
+          "rank": 4,
+          "token_id": 17,
+          "token": "2",
+          "probability": 0.028791917487978935
+        },
+        {
+          "rank": 5,
+          "token_id": 21,
+          "token": "6",
+          "probability": 0.02580890618264675
+        },
+        {
+          "rank": 6,
+          "token_id": 24,
+          "token": "9",
+          "probability": 0.022423166781663895
+        },
+        {
+          "rank": 7,
+          "token_id": 20,
+          "token": "5",
+          "probability": 0.015411203727126122
+        },
+        {
+          "rank": 8,
+          "token_id": 18,
+          "token": "3",
+          "probability": 0.010427741333842278
+        },
+        {
+          "rank": 9,
+          "token_id": 19,
+          "token": "4",
+          "probability": 0.004849350079894066
+        },
+        {
+          "rank": 10,
+          "token_id": 220,
+          "token": " ",
+          "probability": 0.0024006024468690157
+        },
+        {
+          "rank": 11,
+          "token_id": 15,
+          "token": "0",
+          "probability": 0.0005273423157632351
+        },
+        {
+          "rank": 12,
+          "token_id": 608,
+          "token": " /",
+          "probability": 0.00010882323113037273
+        },
+        {
+          "rank": 13,
+          "token_id": 22714,
+          "token": "~/",
+          "probability": 6.600462802452967e-05
+        },
+        {
+          "rank": 14,
+          "token_id": 7646,
+          "token": "??",
+          "probability": 1.6951391444308683e-05
+        },
+        {
+          "rank": 15,
+          "token_id": 522,
+          "token": "</",
+          "probability": 1.3305299944477156e-05
+        },
+        {
+          "rank": 16,
+          "token_id": 4146,
+          "token": "xx",
+          "probability": 1.1741885828087106e-05
+        },
+        {
+          "rank": 17,
+          "token_id": 654,
+          "token": "ll",
+          "probability": 1.1741885828087106e-05
+        },
+        {
+          "rank": 18,
+          "token_id": 63,
+          "token": "`",
+          "probability": 9.002816113934387e-06
+        },
+        {
+          "rank": 19,
+          "token_id": 425,
+          "token": " B",
+          "probability": 8.932755918067414e-06
+        },
+        {
+          "rank": 20,
+          "token_id": 200,
+          "token": "\f",
+          "probability": 8.72582859301474e-06
+        }
+      ]
+    },
+    {
+      "step": 3,
+      "chosen_token_id": 14,
+      "chosen_token": "/",
+      "chosen_probability": 0.9963280558586121,
+      "entropy": 0.03557169437408447,
+      "normalized_entropy": 0.0029813975686587184,
+      "top_mass": {
+        "1": 0.9963280558586121,
+        "5": 0.998180627822876,
+        "10": 0.9992428421974182,
+        "20": 0.9996830821037292
+      },
+      "top_tokens": [
+        {
+          "rank": 1,
+          "token_id": 14,
+          "token": "/",
+          "probability": 0.9963280558586121
+        },
+        {
+          "rank": 2,
+          "token_id": 23,
+          "token": "8",
+          "probability": 0.0008402562234550714
+        },
+        {
+          "rank": 3,
+          "token_id": 220,
+          "token": " ",
+          "probability": 0.00043591918074525893
+        },
+        {
+          "rank": 4,
+          "token_id": 608,
+          "token": " /",
+          "probability": 0.0002949576883111149
+        },
+        {
+          "rank": 5,
+          "token_id": 11324,
+          "token": "/'",
+          "probability": 0.00028145057149231434
+        },
+        {
+          "rank": 6,
+          "token_id": 24,
+          "token": "9",
+          "probability": 0.00026856199838221073
+        },
+        {
+          "rank": 7,
+          "token_id": 322,
+          "token": "//",
+          "probability": 0.0002643983461894095
+        },
+        {
+          "rank": 8,
+          "token_id": 6,
+          "token": "'",
+          "probability": 0.00021579563326667994
+        },
+        {
+          "rank": 9,
+          "token_id": 16,
+          "token": "1",
+          "probability": 0.000184579796041362
+        },
+        {
+          "rank": 10,
+          "token_id": 22,
+          "token": "7",
+          "probability": 0.00012885747128166258
+        },
+        {
+          "rank": 11,
+          "token_id": 12,
+          "token": "-",
+          "probability": 0.0001248929329449311
+        },
+        {
+          "rank": 12,
+          "token_id": 13,
+          "token": ".",
+          "probability": 8.718932076590136e-05
+        },
+        {
+          "rank": 13,
+          "token_id": 151645,
+          "token": "<|im_end|>",
+          "probability": 4.453194924280979e-05
+        },
+        {
+          "rank": 14,
+          "token_id": 15,
+          "token": "0",
+          "probability": 4.183389319223352e-05
+        },
+        {
+          "rank": 15,
+          "token_id": 21,
+          "token": "6",
+          "probability": 3.869002830469981e-05
+        },
+        {
+          "rank": 16,
+          "token_id": 11930,
+          "token": "/.",
+          "probability": 2.4980157832033e-05
+        },
+        {
+          "rank": 17,
+          "token_id": 17,
+          "token": "2",
+          "probability": 2.4592876798124053e-05
+        },
+        {
+          "rank": 18,
+          "token_id": 63,
+          "token": "`",
+          "probability": 1.8856013412005268e-05
+        },
+        {
+          "rank": 19,
+          "token_id": 364,
+          "token": " '",
+          "probability": 1.7992531866184436e-05
+        },
+        {
+          "rank": 20,
+          "token_id": 19,
+          "token": "4",
+          "probability": 1.66403733601328e-05
+        }
+      ]
+    },
+    {
+      "step": 4,
+      "chosen_token_id": 23,
+      "chosen_token": "8",
+      "chosen_probability": 0.6085675954818726,
+      "entropy": 0.9195567965507507,
+      "normalized_entropy": 0.07707151558901723,
+      "top_mass": {
+        "1": 0.6085675954818726,
+        "5": 0.9939857721328735,
+        "10": 0.9997480511665344,
+        "20": 0.9998629689216614
+      },
+      "top_tokens": [
+        {
+          "rank": 1,
+          "token_id": 23,
+          "token": "8",
+          "probability": 0.6085675954818726
+        },
+        {
+          "rank": 2,
+          "token_id": 21,
+          "token": "6",
+          "probability": 0.33087244629859924
+        },
+        {
+          "rank": 3,
+          "token_id": 22,
+          "token": "7",
+          "probability": 0.03126058354973793
+        },
+        {
+          "rank": 4,
+          "token_id": 24,
+          "token": "9",
+          "probability": 0.016732584685087204
+        },
+        {
+          "rank": 5,
+          "token_id": 16,
+          "token": "1",
+          "probability": 0.006552574224770069
+        },
+        {
+          "rank": 6,
+          "token_id": 15,
+          "token": "0",
+          "probability": 0.002373185008764267
+        },
+        {
+          "rank": 7,
+          "token_id": 19,
+          "token": "4",
+          "probability": 0.0012121043400838971
+        },
+        {
+          "rank": 8,
+          "token_id": 220,
+          "token": " ",
+          "probability": 0.0008730459958314896
+        },
+        {
+          "rank": 9,
+          "token_id": 17,
+          "token": "2",
+          "probability": 0.0007825933862477541
+        },
+        {
+          "rank": 10,
+          "token_id": 20,
+          "token": "5",
+          "probability": 0.0005213195690885186
+        },
+        {
+          "rank": 11,
+          "token_id": 63,
+          "token": "`",
+          "probability": 3.717877916642465e-05
+        },
+        {
+          "rank": 12,
+          "token_id": 18,
+          "token": "3",
+          "probability": 3.385166564839892e-05
+        },
+        {
+          "rank": 13,
+          "token_id": 7646,
+          "token": "??",
+          "probability": 1.8694665413931943e-05
+        },
+        {
+          "rank": 14,
+          "token_id": 527,
+          "token": "’",
+          "probability": 4.915043973596767e-06
+        },
+        {
+          "rank": 15,
+          "token_id": 11909,
+          "token": "®",
+          "probability": 4.171343789494131e-06
+        },
+        {
+          "rank": 16,
+          "token_id": 73594,
+          "token": "```",
+          "probability": 3.888119863404427e-06
+        },
+        {
+          "rank": 17,
+          "token_id": 11616,
+          "token": "°",
+          "probability": 3.6811979953199625e-06
+        },
+        {
+          "rank": 18,
+          "token_id": 4,
+          "token": "%",
+          "probability": 3.274125219832058e-06
+        },
+        {
+          "rank": 19,
+          "token_id": 608,
+          "token": " /",
+          "probability": 2.7143451006850228e-06
+        },
+        {
+          "rank": 20,
+          "token_id": 364,
+          "token": " '",
+          "probability": 2.5300475954281865e-06
+        }
+      ]
+    },
+    {
+      "step": 5,
+      "chosen_token_id": 18,
+      "chosen_token": "3",
+      "chosen_probability": 0.5050245523452759,
+      "entropy": 0.8061631321907043,
+      "normalized_entropy": 0.06756756585670859,
+      "top_mass": {
+        "1": 0.5050245523452759,
+        "5": 0.9970036745071411,
+        "10": 0.9999176263809204,
+        "20": 0.9999781250953674
+      },
+      "top_tokens": [
+        {
+          "rank": 1,
+          "token_id": 18,
+          "token": "3",
+          "probability": 0.5050245523452759
+        },
+        {
+          "rank": 2,
+          "token_id": 24,
+          "token": "9",
+          "probability": 0.4744266867637634
+        },
+        {
+          "rank": 3,
+          "token_id": 20,
+          "token": "5",
+          "probability": 0.011692903004586697
+        },
+        {
+          "rank": 4,
+          "token_id": 23,
+          "token": "8",
+          "probability": 0.004301578737795353
+        },
+        {
+          "rank": 5,
+          "token_id": 17,
+          "token": "2",
+          "probability": 0.0015579286264255643
+        },
+        {
+          "rank": 6,
+          "token_id": 15,
+          "token": "0",
+          "probability": 0.001486585708335042
+        },
+        {
+          "rank": 7,
+          "token_id": 19,
+          "token": "4",
+          "probability": 0.0006700566736981273
+        },
+        {
+          "rank": 8,
+          "token_id": 22,
+          "token": "7",
+          "probability": 0.0003067743091378361
+        },
+        {
+          "rank": 9,
+          "token_id": 16,
+          "token": "1",
+          "probability": 0.00028371988446451724
+        },
+        {
+          "rank": 10,
+          "token_id": 21,
+          "token": "6",
+          "probability": 0.00016679029795341194
+        },
+        {
+          "rank": 11,
+          "token_id": 220,
+          "token": " ",
+          "probability": 3.037477108591702e-05
+        },
+        {
+          "rank": 12,
+          "token_id": 30,
+          "token": "?",
+          "probability": 1.6774540199548937e-05
+        },
+        {
+          "rank": 13,
+          "token_id": 70,
+          "token": "g",
+          "probability": 4.805986463907175e-06
+        },
+        {
+          "rank": 14,
+          "token_id": 4,
+          "token": "%",
+          "probability": 2.1662278868461726e-06
+        },
+        {
+          "rank": 15,
+          "token_id": 13,
+          "token": ".",
+          "probability": 2.13264365811483e-06
+        },
+        {
+          "rank": 16,
+          "token_id": 2,
+          "token": "#",
+          "probability": 1.0232537306364975e-06
+        },
+        {
+          "rank": 17,
+          "token_id": 3,
+          "token": "$",
+          "probability": 1.00738952824031e-06
+        },
+        {
+          "rank": 18,
+          "token_id": 9,
+          "token": "*",
+          "probability": 8.351552764906955e-07
+        },
+        {
+          "rank": 19,
+          "token_id": 41,
+          "token": "J",
+          "probability": 7.723924113633984e-07
+        },
+        {
+          "rank": 20,
+          "token_id": 5,
+          "token": "&",
+          "probability": 6.504195653178613e-07
+        }
+      ]
+    },
+    {
+      "step": 6,
+      "chosen_token_id": 151645,
+      "chosen_token": "<|im_end|>",
+      "chosen_probability": 0.9975130558013916,
+      "entropy": 0.020640941336750984,
+      "normalized_entropy": 0.0017299949692880065,
+      "top_mass": {
+        "1": 0.9975130558013916,
+        "5": 0.9997570514678955,
+        "10": 0.9998068809509277,
+        "20": 0.9998509883880615
+      },
+      "top_tokens": [
+        {
+          "rank": 1,
+          "token_id": 151645,
+          "token": "<|im_end|>",
+          "probability": 0.9975130558013916
+        },
+        {
+          "rank": 2,
+          "token_id": 13,
+          "token": ".",
+          "probability": 0.002049847040325403
+        },
+        {
+          "rank": 3,
+          "token_id": 220,
+          "token": " ",
+          "probability": 9.14823031052947e-05
+        },
+        {
+          "rank": 4,
+          "token_id": 659,
+          "token": " .",
+          "probability": 8.593966776970774e-05
+        },
+        {
+          "rank": 5,
+          "token_id": 11,
+          "token": ",",
+          "probability": 1.6660163964843377e-05
+        },
+        {
+          "rank": 6,
+          "token_id": 198,
+          "token": "\n",
+          "probability": 1.1098062714154366e-05
+        },
+        {
+          "rank": 7,
+          "token_id": 256,
+          "token": "  ",
+          "probability": 1.092600268748356e-05
+        },
+        {
+          "rank": 8,
+          "token_id": 26,
+          "token": ";",
+          "probability": 1.010489995678654e-05
+        },
+        {
+          "rank": 9,
+          "token_id": 481,
+          "token": " -",
+          "probability": 9.057975148607511e-06
+        },
+        {
+          "rank": 10,
+          "token_id": 320,
+          "token": " (",
+          "probability": 8.643179171485826e-06
+        },
+        {
+          "rank": 11,
+          "token_id": 671,
+          "token": " #",
+          "probability": 7.627579179825261e-06
+        },
+        {
+          "rank": 12,
+          "token_id": 14,
+          "token": "/",
+          "probability": 6.731314897479024e-06
+        },
+        {
+          "rank": 13,
+          "token_id": 2631,
+          "token": " Date",
+          "probability": 6.033911631675437e-06
+        },
+        {
+          "rank": 14,
+          "token_id": 1,
+          "token": "\"",
+          "probability": 4.346063633420272e-06
+        },
+        {
+          "rank": 15,
+          "token_id": 12,
+          "token": "-",
+          "probability": 4.082749001099728e-06
+        },
+        {
+          "rank": 16,
+          "token_id": 1112,
+          "token": "...",
+          "probability": 3.438019348322996e-06
+        },
+        {
+          "rank": 17,
+          "token_id": 608,
+          "token": " /",
+          "probability": 3.3847179565782426e-06
+        },
+        {
+          "rank": 18,
+          "token_id": 25,
+          "token": ":",
+          "probability": 3.0340413559315493e-06
+        },
+        {
+          "rank": 19,
+          "token_id": 8,
+          "token": ")",
+          "probability": 2.7841927021654556e-06
+        },
+        {
+          "rank": 20,
+          "token_id": 496,
+          "token": "..",
+          "probability": 2.6775321657623863e-06
+        }
+      ]
+    }
+  ]
+}

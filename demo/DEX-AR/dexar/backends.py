@@ -1,6 +1,7 @@
 import math
 from collections import deque
 from dataclasses import dataclass
+from types import SimpleNamespace
 from typing import Any
 
 import torch
@@ -42,8 +43,10 @@ def resolve_lm_head(model, text_backbone):
 
 def resolve_norm(text_backbone):
     for candidate in (text_backbone, getattr(text_backbone, "model", None)):
-        if candidate is not None and hasattr(candidate, "norm"):
-            return getattr(candidate, "norm")
+        if candidate is not None:
+            for attr_name in ("norm", "embedding_norm"):
+                if hasattr(candidate, attr_name):
+                    return getattr(candidate, attr_name)
     raise AttributeError("Could not resolve the final normalization layer.")
 
 
@@ -55,6 +58,12 @@ def resolve_layers(text_backbone):
         if layers is not None:
             return layers
     raise AttributeError("Could not resolve decoder layers on the text backbone.")
+
+
+def identity_norm():
+    from torch import nn
+
+    return nn.Identity()
 
 
 def resolve_device_map(device: str):
@@ -112,6 +121,8 @@ class DexarBackend:
     recommended_image_size: int
     base_image_seq_len: int | None = None
     spatial_merge_size: int | None = None
+    attention_layer_indices: tuple[int, ...] | None = None
+    custom_generate_answer: Any | None = None
 
     @property
     def num_layers(self) -> int:
@@ -121,19 +132,31 @@ class DexarBackend:
     def from_pretrained(cls, model_name: str, device: str):
         from transformers import AutoConfig
 
+        if "florence-2" in model_name.lower() or "florence2" in model_name.lower():
+            return load_florence2_backend(model_name, device)
+
         config = AutoConfig.from_pretrained(model_name, trust_remote_code=True)
         model_type = getattr(config, "model_type", None)
 
         if model_type == "llava":
             return load_llava_backend(model_name, device)
+        if model_type == "paligemma":
+            return load_paligemma_backend(model_name, device)
         if model_type in {"smolvlm", "idefics3"}:
             return load_smolvlm_backend(model_name, device)
         if model_type in {"qwen2_vl", "qwen2_5_vl"}:
             return load_qwen2vl_backend(model_name, device, model_type=model_type)
+        if model_type == "lfm2_vl":
+            return load_lfm2vl_backend(model_name, device)
+        if model_type == "gemma3":
+            return load_gemma3_backend(model_name, device)
+        if model_type == "internvl_chat" or "internvl" in model_name.lower():
+            return load_internvl_backend(model_name, device)
 
         raise ValueError(
             f"Unsupported model type {model_type!r} for DEX-AR. "
-            "Supported families: LLaVA, SmolVLM/Idefics3, and Qwen2-VL."
+            "Supported families: LLaVA, SmolVLM/Idefics3, Qwen2-VL, "
+            "LFM2-VL, Gemma 3, and InternVL."
         )
 
     def enable_dexar_gradients(self) -> None:
@@ -144,35 +167,68 @@ class DexarBackend:
         for parameter in self.lm_head.parameters():
             parameter.requires_grad = True
         self.model.eval()
-        self.model.config.output_attentions = True
-        self.model.config.output_hidden_states = True
+        for config in (self.model.config, getattr(self.text_backbone, "config", None)):
+            if config is not None:
+                config.output_attentions = True
+                config.output_hidden_states = True
 
     def encode_prompt(self, prompt: str, image, device: torch.device) -> EncodedPrompt:
-        if prompt.count("<image>") != 1:
+        if self.family not in {"paligemma", "florence2"} and prompt.count("<image>") != 1:
             raise ValueError(
                 "DEX-AR currently supports prompts with exactly one <image> placeholder."
             )
 
-        if self.family == "qwen2vl":
+        if self.family == "internvl":
+            return self._encode_internvl_prompt(prompt=prompt, image=image, device=device)
+
+        if self.family == "paligemma":
+            clean_prompt = prompt.replace("<image>", "").strip()
+            inputs = self.processor(
+                text=clean_prompt,
+                images=image,
+                return_tensors="pt",
+            )
+        elif self.family == "florence2":
+            clean_prompt = prompt.replace("<image>", "").strip()
+            inputs = self.processor(
+                text=clean_prompt,
+                images=image,
+                return_tensors="pt",
+            )
+        elif self.family in {"qwen2vl", "lfm2vl", "gemma3"}:
             prefix, suffix = prompt.split("<image>")
             content = []
             prefix = prefix.strip()
             suffix = suffix.strip()
             if prefix:
                 content.append({"type": "text", "text": prefix})
-            content.append({"type": "image"})
+            if self.family == "gemma3":
+                content.append({"type": "image", "image": image})
+            else:
+                content.append({"type": "image"})
             if suffix:
                 content.append({"type": "text", "text": suffix})
-            prompt_text = self.processor.apply_chat_template(
-                [{"role": "user", "content": content}],
-                tokenize=False,
-                add_generation_prompt=True,
-            )
-            inputs = self.processor(
-                text=[prompt_text],
-                images=[image],
-                return_tensors="pt",
-            )
+            messages = [{"role": "user", "content": content}]
+            if self.family == "gemma3":
+                inputs = self.processor.apply_chat_template(
+                    messages,
+                    tokenize=True,
+                    return_dict=True,
+                    return_tensors="pt",
+                    add_generation_prompt=True,
+                    do_pan_and_scan=False,
+                )
+            else:
+                prompt_text = self.processor.apply_chat_template(
+                    messages,
+                    tokenize=False,
+                    add_generation_prompt=True,
+                )
+                inputs = self.processor(
+                    text=[prompt_text],
+                    images=[image],
+                    return_tensors="pt",
+                )
         else:
             inputs = self.processor(text=prompt, images=image, return_tensors="pt")
         model_inputs = {
@@ -230,6 +286,43 @@ class DexarBackend:
                     "Qwen2-VL image token count does not match the merged spatial grid. "
                     f"Expected {expected_num_tokens}, got {num_image_tokens}."
                 )
+        elif self.family == "lfm2vl":
+            spatial_shapes = model_inputs.get("spatial_shapes")
+            if spatial_shapes is None:
+                raise ValueError("LFM2-VL processor output did not include spatial_shapes.")
+            if spatial_shapes.shape[0] != 1:
+                raise ValueError("DEX-AR currently supports a single LFM2-VL image per prompt.")
+
+            height_grid, width_grid = (int(x) for x in spatial_shapes[0].tolist())
+            downsample_factor = getattr(self.model.config, "downsample_factor", None)
+            if downsample_factor is None and hasattr(self.processor, "image_processor"):
+                downsample_factor = getattr(self.processor.image_processor, "downsample_factor", None)
+            downsample_factor = int(downsample_factor or 1)
+            image_grid = (
+                math.ceil(height_grid / downsample_factor),
+                math.ceil(width_grid / downsample_factor),
+            )
+            expected_num_tokens = image_grid[0] * image_grid[1]
+            if num_image_tokens != expected_num_tokens:
+                raise ValueError(
+                    "LFM2-VL image token count does not match the projected spatial grid. "
+                    f"Expected {expected_num_tokens}, got {num_image_tokens}."
+                )
+        elif self.family == "florence2":
+            spatial_tokens = num_image_tokens - 1
+            side = math.isqrt(spatial_tokens)
+            if side * side != spatial_tokens:
+                side = math.isqrt(num_image_tokens)
+                if side * side != num_image_tokens:
+                    raise ValueError(
+                        "Florence-2 image token count is not square after removing "
+                        f"the global token: {num_image_tokens} tokens."
+                    )
+            else:
+                image_positions = prompt_image_mask.nonzero(as_tuple=False).flatten()
+                prompt_image_mask = prompt_image_mask.clone()
+                prompt_image_mask[image_positions[0]] = False
+            image_grid = (side, side)
         else:
             side = math.isqrt(num_image_tokens)
             if side * side != num_image_tokens:
@@ -245,6 +338,79 @@ class DexarBackend:
             image_grid=image_grid,
         )
 
+    def _encode_internvl_prompt(self, prompt: str, image, device: torch.device) -> EncodedPrompt:
+        from src.dataset.internvl_utils import (
+            INTERNVL_IMG_CONTEXT_TOKEN,
+            INTERNVL_IMG_END_TOKEN,
+            INTERNVL_IMG_START_TOKEN,
+            build_internvl_pixel_values,
+        )
+
+        tokenizer = self.processor.tokenizer
+        clean_prompt = prompt.strip()
+        if "<image>" not in clean_prompt:
+            clean_prompt = "<image>\n" + clean_prompt
+
+        template = getattr(self.model, "conv_template", None)
+        if template is None:
+            query = f"User: {clean_prompt}\nAssistant:"
+        else:
+            import copy
+
+            template = copy.deepcopy(template)
+            template.system_message = getattr(self.model, "system_message", template.system_message)
+            template.append_message(template.roles[0], clean_prompt)
+            template.append_message(template.roles[1], None)
+            query = template.get_prompt()
+
+        image_processor_cfg = getattr(self.processor, "image_processor_cfg", {})
+        pixel_values = build_internvl_pixel_values(image, image_processor_cfg)
+        num_patches = int(pixel_values.shape[0])
+        num_image_token = int(getattr(self.model, "num_image_token", self.base_image_seq_len or 256))
+        image_tokens = (
+            INTERNVL_IMG_START_TOKEN
+            + INTERNVL_IMG_CONTEXT_TOKEN * num_image_token * num_patches
+            + INTERNVL_IMG_END_TOKEN
+        )
+        query = query.replace("<image>", image_tokens, 1)
+
+        image_token_id = tokenizer.convert_tokens_to_ids(INTERNVL_IMG_CONTEXT_TOKEN)
+        self.model.img_context_token_id = image_token_id
+
+        tokenized = tokenizer(query, return_tensors="pt")
+        model_inputs = {
+            "input_ids": tokenized["input_ids"].to(device),
+            "attention_mask": tokenized["attention_mask"].to(device),
+            "pixel_values": pixel_values.to(device=device, dtype=next(self.model.parameters()).dtype),
+            "image_flags": torch.ones((num_patches, 1), device=device, dtype=torch.long),
+        }
+
+        prompt_input_ids = model_inputs["input_ids"]
+        prompt_image_mask = prompt_input_ids[0] == image_token_id
+        num_image_tokens = int(prompt_image_mask.sum().item())
+        if num_image_tokens == 0:
+            raise ValueError("No InternVL image context tokens were found in the encoded prompt.")
+
+        tokens_per_patch = num_image_tokens // num_patches
+        side = math.isqrt(tokens_per_patch)
+        if side * side != tokens_per_patch:
+            raise ValueError(
+                "InternVL image token count per patch is not square: "
+                f"{tokens_per_patch} tokens."
+            )
+        if num_patches != 1:
+            raise ValueError(
+                "DEX-AR currently runs InternVL with one image tile for interpretable maps; "
+                f"got {num_patches} tiles."
+            )
+
+        return EncodedPrompt(
+            model_inputs=model_inputs,
+            prompt_input_ids=prompt_input_ids,
+            prompt_image_mask=prompt_image_mask,
+            image_grid=(side, side),
+        )
+
 
 def build_backend(
     *,
@@ -257,22 +423,33 @@ def build_backend(
     base_image_seq_len: int | None = None,
     spatial_merge_size: int | None = None,
     text_backbone=None,
+    norm=None,
+    custom_generate_answer=None,
 ) -> DexarBackend:
     if text_backbone is None:
         text_backbone = resolve_text_backbone(model)
+    if norm is None:
+        norm = resolve_norm(text_backbone)
     return DexarBackend(
         family=family,
         model=model,
         processor=processor,
         text_backbone=text_backbone,
         lm_head=resolve_lm_head(model, text_backbone),
-        norm=resolve_norm(text_backbone),
+        norm=norm,
         layers=resolve_layers(text_backbone),
         image_token_id=image_token_id,
         default_prompt=default_prompt,
         recommended_image_size=recommended_image_size,
         base_image_seq_len=base_image_seq_len,
         spatial_merge_size=spatial_merge_size,
+        custom_generate_answer=custom_generate_answer,
+        attention_layer_indices=tuple(
+            index
+            for index, layer_type in enumerate(getattr(text_backbone.config, "layer_types", ()))
+            if layer_type == "full_attention"
+        )
+        or None,
     )
 
 
@@ -306,6 +483,85 @@ def load_llava_backend(model_name: str, device: str) -> DexarBackend:
         image_token_id=image_token_id,
         default_prompt="USER: <image>\nDescribe the image. ASSISTANT:",
         recommended_image_size=336,
+    )
+
+
+def load_paligemma_backend(model_name: str, device: str) -> DexarBackend:
+    from transformers import AutoProcessor, PaliGemmaForConditionalGeneration
+
+    model = load_model_with_eager_attention(
+        PaliGemmaForConditionalGeneration,
+        model_name,
+        device=device,
+    )
+    processor = AutoProcessor.from_pretrained(model_name)
+
+    image_token_id = getattr(model.config, "image_token_index", None)
+    if image_token_id is None:
+        image_token_id = getattr(model.config, "image_token_id", None)
+    if image_token_id is None:
+        image_token_id = processor.tokenizer.convert_tokens_to_ids("<image>")
+
+    text_backbone = getattr(model, "language_model", None)
+    if text_backbone is None:
+        text_backbone = resolve_text_backbone(model)
+
+    vision_config = getattr(model.config, "vision_config", None)
+    recommended_image_size = int(getattr(vision_config, "image_size", 224) or 224)
+
+    return build_backend(
+        family="paligemma",
+        model=model,
+        processor=processor,
+        text_backbone=text_backbone,
+        image_token_id=image_token_id,
+        default_prompt="cap en\n",
+        recommended_image_size=recommended_image_size,
+    )
+
+
+def load_florence2_backend(model_name: str, device: str) -> DexarBackend:
+    from transformers import AutoProcessor, Florence2ForConditionalGeneration
+
+    load_kwargs = {
+        "device_map": resolve_device_map(device),
+        "torch_dtype": resolve_torch_dtype(device),
+        "trust_remote_code": False,
+    }
+    try:
+        model = Florence2ForConditionalGeneration.from_pretrained(
+            model_name,
+            attn_implementation="eager",
+            **load_kwargs,
+        )
+    except TypeError:
+        model = Florence2ForConditionalGeneration.from_pretrained(
+            model_name,
+            **load_kwargs,
+        )
+
+    try:
+        processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=False)
+    except (AttributeError, OSError, ValueError):
+        processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
+
+    image_token_id = getattr(model.config, "image_token_id", None)
+    if image_token_id is None:
+        image_token_id = processor.tokenizer.convert_tokens_to_ids("<image>")
+
+    language_model = model.model.language_model
+    text_backbone = language_model.decoder
+
+    return build_backend(
+        family="florence2",
+        model=model,
+        processor=processor,
+        text_backbone=text_backbone,
+        norm=identity_norm(),
+        image_token_id=image_token_id,
+        default_prompt="<DETAILED_CAPTION>",
+        recommended_image_size=768,
+        custom_generate_answer=generate_florence2_answer,
     )
 
 
@@ -400,3 +656,247 @@ def load_qwen2vl_backend(
         recommended_image_size=448,
         spatial_merge_size=spatial_merge_size,
     )
+
+
+def load_lfm2vl_backend(model_name: str, device: str) -> DexarBackend:
+    from transformers import AutoModelForImageTextToText, AutoProcessor
+
+    load_kwargs = {
+        "device_map": resolve_device_map(device),
+        "dtype": torch.bfloat16 if isinstance(device, str) and device.startswith("cuda") else torch.float32,
+    }
+    try:
+        model = AutoModelForImageTextToText.from_pretrained(
+            model_name,
+            attn_implementation="eager",
+            **load_kwargs,
+        )
+    except TypeError as exc:
+        if "attn_implementation" not in str(exc):
+            raise
+        model = AutoModelForImageTextToText.from_pretrained(
+            model_name,
+            _attn_implementation="eager",
+            **load_kwargs,
+        )
+    processor = AutoProcessor.from_pretrained(model_name)
+    if hasattr(processor, "image_processor"):
+        image_processor = processor.image_processor
+        if hasattr(image_processor, "do_image_splitting"):
+            image_processor.do_image_splitting = False
+        if hasattr(image_processor, "use_thumbnail"):
+            image_processor.use_thumbnail = False
+
+    image_token_id = getattr(processor, "image_token_id", None)
+    if image_token_id is None:
+        image_token_id = getattr(model.config, "image_token_id", None)
+    if image_token_id is None:
+        image_token = getattr(processor, "image_token", "<image>")
+        image_token_id = processor.tokenizer.convert_tokens_to_ids(image_token)
+
+    text_backbone = getattr(getattr(model, "model", None), "language_model", None)
+    if text_backbone is None:
+        text_backbone = resolve_text_backbone(model)
+
+    return build_backend(
+        family="lfm2vl",
+        model=model,
+        processor=processor,
+        text_backbone=text_backbone,
+        image_token_id=image_token_id,
+        default_prompt="<image>Describe the image.",
+        recommended_image_size=512,
+    )
+
+
+def load_gemma3_backend(model_name: str, device: str) -> DexarBackend:
+    from transformers import AutoProcessor, Gemma3ForConditionalGeneration
+
+    load_kwargs = {
+        "device_map": resolve_device_map(device),
+        "dtype": torch.bfloat16 if isinstance(device, str) and device.startswith("cuda") else torch.float32,
+        "trust_remote_code": True,
+    }
+    try:
+        model = Gemma3ForConditionalGeneration.from_pretrained(
+            model_name,
+            attn_implementation="eager",
+            **load_kwargs,
+        )
+    except TypeError as exc:
+        if "attn_implementation" not in str(exc):
+            raise
+        model = Gemma3ForConditionalGeneration.from_pretrained(
+            model_name,
+            _attn_implementation="eager",
+            **load_kwargs,
+        )
+
+    processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True, use_fast=False)
+    image_token_id = getattr(model.config, "image_token_index", None)
+    if image_token_id is None:
+        image_token_id = getattr(model.config, "image_token_id", None)
+    if image_token_id is None:
+        image_token_id = processor.tokenizer.convert_tokens_to_ids("<image_soft_token>")
+
+    text_backbone = getattr(getattr(model, "model", None), "language_model", None)
+    if text_backbone is None:
+        text_backbone = resolve_text_backbone(model)
+
+    return build_backend(
+        family="gemma3",
+        model=model,
+        processor=processor,
+        text_backbone=text_backbone,
+        image_token_id=image_token_id,
+        default_prompt="<image>Describe the image.",
+        recommended_image_size=896,
+    )
+
+
+def load_internvl_backend(model_name: str, device: str) -> DexarBackend:
+    from transformers import AutoTokenizer
+
+    from src.dataset.internvl_utils import (
+        INTERNVL_IMAGE_SIZE,
+        INTERNVL_IMG_CONTEXT_TOKEN,
+        INTERNVL_MAX_NUM_TILES,
+        INTERNVL_NUM_IMAGE_TOKEN,
+    )
+    from src.train.internvl_compat import load_internvl_model
+
+    resolved_device = "cuda" if device == "auto" and torch.cuda.is_available() else device
+    dtype = torch.bfloat16 if isinstance(resolved_device, str) and resolved_device.startswith("cuda") else torch.float32
+    model = load_internvl_model(
+        model_id=model_name,
+        cache_dir=None,
+        device=resolved_device,
+        compute_dtype=dtype,
+        use_flash_attn=False,
+    )
+    tokenizer = AutoTokenizer.from_pretrained(
+        model_name,
+        trust_remote_code=True,
+        use_fast=True,
+        padding_side="right",
+    )
+    image_token_id = tokenizer.convert_tokens_to_ids(INTERNVL_IMG_CONTEXT_TOKEN)
+    model.img_context_token_id = image_token_id
+
+    vision_config = getattr(model.config, "vision_config", None)
+    image_size = (
+        getattr(model.config, "force_image_size", None)
+        or getattr(vision_config, "image_size", INTERNVL_IMAGE_SIZE)
+    )
+    processor = SimpleNamespace(
+        tokenizer=tokenizer,
+        image_processor_cfg={
+            "model_id": model_name,
+            "tokenizer": tokenizer,
+            "image_size": image_size,
+            "normalize_type": "imagenet",
+            "max_num_tiles": 1,
+            "num_image_token": getattr(model, "num_image_token", INTERNVL_NUM_IMAGE_TOKEN),
+        },
+    )
+
+    return build_backend(
+        family="internvl",
+        model=model,
+        processor=processor,
+        text_backbone=model.language_model,
+        image_token_id=image_token_id,
+        default_prompt="<image>\nDescribe the image.",
+        recommended_image_size=image_size,
+        base_image_seq_len=getattr(model, "num_image_token", INTERNVL_NUM_IMAGE_TOKEN),
+        custom_generate_answer=generate_internvl_answer,
+    )
+
+
+def generate_internvl_answer(
+    backend: DexarBackend,
+    image,
+    prompt: str,
+    max_new_tokens: int,
+    device: torch.device,
+) -> str:
+    encoded_prompt = backend.encode_prompt(prompt=prompt, image=image, device=device)
+    generation_inputs = {
+        key: value
+        for key, value in encoded_prompt.model_inputs.items()
+        if key in {"input_ids", "attention_mask", "pixel_values"}
+    }
+    tokenizer = backend.processor.tokenizer
+    eos_token_id = tokenizer.eos_token_id
+    template = getattr(backend.model, "conv_template", None)
+    if template is not None:
+        candidate_eos = tokenizer.convert_tokens_to_ids(str(template.sep).strip())
+        if candidate_eos is not None and candidate_eos >= 0:
+            eos_token_id = candidate_eos
+
+    with torch.inference_mode():
+        generated_ids = backend.model.generate(
+            **generation_inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
+            eos_token_id=eos_token_id,
+            pad_token_id=tokenizer.pad_token_id or tokenizer.eos_token_id,
+        )
+    generated_text = tokenizer.batch_decode(
+        generated_ids,
+        skip_special_tokens=True,
+        clean_up_tokenization_spaces=False,
+    )[0].strip()
+    if template is not None:
+        generated_text = generated_text.split(str(template.sep).strip())[0].strip()
+    return generated_text
+
+
+def generate_florence2_answer(
+    backend: DexarBackend,
+    image,
+    prompt: str,
+    max_new_tokens: int,
+    device: torch.device,
+) -> str:
+    encoded_prompt = backend.encode_prompt(prompt=prompt, image=image, device=device)
+    generation_inputs = {
+        key: value
+        for key, value in encoded_prompt.model_inputs.items()
+        if key in {"input_ids", "attention_mask", "pixel_values"}
+    }
+    tokenizer = backend.processor.tokenizer
+
+    with torch.inference_mode():
+        generated_ids = backend.model.generate(
+            **generation_inputs,
+            max_new_tokens=max_new_tokens,
+            do_sample=False,
+            num_beams=3,
+            pad_token_id=tokenizer.pad_token_id,
+            eos_token_id=tokenizer.eos_token_id,
+        )
+
+    generated_text = backend.processor.batch_decode(
+        generated_ids,
+        skip_special_tokens=True,
+        clean_up_tokenization_spaces=False,
+    )[0].strip()
+
+    task_prompt = prompt.strip().split()[0] if prompt.strip().startswith("<") else None
+    post_process = getattr(backend.processor, "post_process_generation", None)
+    if task_prompt and post_process is not None:
+        try:
+            parsed = post_process(
+                generated_text,
+                task=task_prompt,
+                image_size=(image.width, image.height),
+            )
+            if isinstance(parsed, dict) and task_prompt in parsed:
+                value = parsed[task_prompt]
+                if isinstance(value, str):
+                    generated_text = value.strip()
+        except (KeyError, TypeError, ValueError):
+            pass
+
+    return generated_text

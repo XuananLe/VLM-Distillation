@@ -7,44 +7,41 @@
 \contentsline {chapter}{List of Tables}{vii}{Doc-Start}%
 \contentsline {chapter}{List of Abbreviations}{viii}{chapter*.1}%
 \contentsline {chapter}{\numberline {1}Introduction}{1}{chapter.1}%
-\contentsline {chapter}{\numberline {2}Background and Related Work}{4}{chapter.2}%
-\contentsline {section}{\numberline {2.1}Vision-Language Models}{4}{section.2.1}%
-\contentsline {section}{\numberline {2.2}Knowledge Distillation}{6}{section.2.2}%
+\contentsline {chapter}{\numberline {2}Background and Related Work}{5}{chapter.2}%
+\contentsline {section}{\numberline {2.1}Vision-Language Models}{5}{section.2.1}%
+\contentsline {section}{\numberline {2.2}Knowledge Distillation}{7}{section.2.2}%
 \contentsline {section}{\numberline {2.3}Tokenizer-Agnostic Distribution Matching}{8}{section.2.3}%
-\contentsline {section}{\numberline {2.4}Sparse Routing and Expert Selection}{10}{section.2.4}%
+\contentsline {section}{\numberline {2.4}Sparse Routing and Expert Selection}{11}{section.2.4}%
 \contentsline {section}{\numberline {2.5}Multi-Teacher Distillation}{13}{section.2.5}%
 \contentsline {section}{\numberline {2.6}Related Work}{14}{section.2.6}%
-\contentsline {chapter}{\numberline {3}Proposed Method}{16}{chapter.3}%
-\contentsline {section}{\numberline {3.1}Method Overview and Problem Formulation}{16}{section.3.1}%
-\contentsline {section}{\numberline {3.2}Byte-Trie Wasserstein Distillation}{18}{section.3.2}%
+\contentsline {chapter}{\numberline {3}GRACE: A Heterogeneous Multi-Teacher Distillation Framework}{15}{chapter.3}%
+\contentsline {section}{\numberline {3.1}Method Overview and Problem Formulation}{15}{section.3.1}%
+\contentsline {section}{\numberline {3.2}Byte-Trie Wasserstein Distillation}{17}{section.3.2}%
 \contentsline {subsection}{\numberline {3.2.1}Shared Byte Trie}{18}{subsection.3.2.1}%
 \contentsline {subsection}{\numberline {3.2.2}Sparse Support and Residual Tail Edge}{19}{subsection.3.2.2}%
 \contentsline {subsection}{\numberline {3.2.3}Byte-Trie Wasserstein Objective}{21}{subsection.3.2.3}%
 \contentsline {section}{\numberline {3.3}Teacher Routing Network}{22}{section.3.3}%
-\contentsline {section}{\numberline {3.4}Gradient-Agreement Refinement}{24}{section.3.4}%
-\contentsline {subsection}{\numberline {3.4.1}Agreement Score Computation}{24}{subsection.3.4.1}%
-\contentsline {subsection}{\numberline {3.4.2}Warmup, EMA Smoothing and Active Set}{25}{subsection.3.4.2}%
-\contentsline {subsection}{\numberline {3.4.3}Fallback, Uniform and Blended Weighting}{25}{subsection.3.4.3}%
-\contentsline {section}{\numberline {3.5}Routed KD Aggregation and Final Objective}{27}{section.3.5}%
-\contentsline {chapter}{\numberline {4}Evaluation Methodology}{29}{chapter.4}%
-\contentsline {section}{\numberline {4.1}Experimental Setup}{29}{section.4.1}%
-\contentsline {section}{\numberline {4.2}Datasets}{30}{section.4.2}%
-\contentsline {section}{\numberline {4.3}Baselines}{31}{section.4.3}%
-\contentsline {section}{\numberline {4.4}Ablation Settings}{33}{section.4.4}%
-\contentsline {chapter}{\numberline {5}Experiment Results}{35}{chapter.5}%
-\contentsline {section}{\numberline {5.1}Main Comparison Results}{35}{section.5.1}%
-\contentsline {section}{\numberline {5.2}Ablation Study}{40}{section.5.2}%
-\contentsline {section}{\numberline {5.3}Efficiency Analysis}{41}{section.5.3}%
-\contentsline {section}{\numberline {5.4}Discussion}{42}{section.5.4}%
-\contentsline {chapter}{Conclusion and Future Work}{46}{section*.32}%
-\contentsline {section}{Summary}{46}{section*.33}%
-\contentsline {section}{Limitations}{46}{section*.34}%
-\contentsline {section}{Future Work}{47}{section*.35}%
-\contentsline {chapter}{References}{48}{section*.36}%
+\contentsline {section}{\numberline {3.4}Gradient-Agreement Refinement}{25}{section.3.4}%
+\contentsline {subsection}{\numberline {3.4.1}Agreement Score Computation}{25}{subsection.3.4.1}%
+\contentsline {subsection}{\numberline {3.4.2}Warmup, EMA Smoothing and Active Set}{26}{subsection.3.4.2}%
+\contentsline {subsection}{\numberline {3.4.3}Fallback, Uniform and Blended Weighting}{27}{subsection.3.4.3}%
+\contentsline {section}{\numberline {3.5}Routed KD Aggregation and Final Objective}{29}{section.3.5}%
+\contentsline {chapter}{\numberline {4}Evaluation Methodology}{32}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Experimental Setup}{32}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Datasets}{33}{section.4.2}%
+\contentsline {section}{\numberline {4.3}Baselines}{34}{section.4.3}%
+\contentsline {section}{\numberline {4.4}Ablation Settings}{37}{section.4.4}%
+\contentsline {chapter}{\numberline {5}Experiment Results}{38}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Main Comparison Results}{38}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Ablation Study}{43}{section.5.2}%
+\contentsline {section}{\numberline {5.3}Efficiency Analysis}{44}{section.5.3}%
+\contentsline {section}{\numberline {5.4}Discussion}{45}{section.5.4}%
+\contentsline {chapter}{Conclusion and Future Work}{50}{section*.32}%
+\contentsline {chapter}{References}{51}{section*.33}%
 \renewcommand {\cftchappresnum }{Appendix }
 \setlength {\cftchapnumwidth }{6.5em}
-\contentsline {chapter}{\numberline {A}Proof of the Closed-Form Trie-Wasserstein}{55}{appendix.A}%
-\contentsline {chapter}{\numberline {B}Implementation Details}{58}{appendix.B}%
-\contentsline {section}{\numberline {B.1}Baseline Implementation}{59}{section.B.1}%
-\contentsline {section}{\numberline {B.2}Offline Teacher-Logit Preparation}{60}{section.B.2}%
-\contentsline {section}{\numberline {B.3}Remote Logit Streaming During Training}{61}{section.B.3}%
+\contentsline {chapter}{\numberline {A}Proof of the Closed-Form Trie-Wasserstein}{57}{appendix.A}%
+\contentsline {chapter}{\numberline {B}Implementation Details}{60}{appendix.B}%
+\contentsline {section}{\numberline {B.1}Baseline Implementation}{61}{section.B.1}%
+\contentsline {section}{\numberline {B.2}Offline Teacher-Logit Preparation}{62}{section.B.2}%
+\contentsline {section}{\numberline {B.3}Remote Logit Streaming During Training}{63}{section.B.3}%

@@ -2,81 +2,43 @@
 \phantomsection
 \addcontentsline{toc}{chapter}{Conclusion and Future Work}
 
-\section*{Summary}
-\phantomsection
-\addcontentsline{toc}{section}{Summary}
-This thesis studied knowledge distillation for heterogeneous vision-language
-models where teachers vary in usefulness across samples and differ from the
-student in tokenizer. Building on cross-tokenizer distillation, optimal transport and
-sparse routing
-\cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion},
-the work introduced \gracefull{} (\gracename{}), a routed multi-teacher
-framework that combines three main contributions: Byte-Trie Wasserstein
-tokenizer-agnostic distillation, sparse top-\(k\) teacher routing and gradient-agreement
-refinement.
+\textbf{Summary.} \gracefull{} (\gracename{}) addresses heterogeneous VLM
+distillation by combining Byte-Trie Wasserstein output matching, sparse
+top-\(k\) teacher routing and gradient-agreement refinement
+\cite{boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}.
+Together these three components resolve tokenizer mismatch, adapt teacher
+selection per sample and filter KD gradients that conflict with the
+supervised CE objective. On TextVQA, DocVQA and ChartQA, \methodname{}
+outperforms same-family, single-teacher and heterogeneous multi-teacher
+baselines, reaching 69.38, 73.11 and 80.20 with SmolVLM-500M and 60.73,
+60.48 and 72.32 with SmolVLM-256M. \methodname{} closes about 55\% of the
+teacher-student gap on TextVQA and ChartQA and about 40\% on DocVQA,
+suggesting that supervision design is a greater bottleneck than model
+capacity at this scale.
 
-Byte-Trie Wasserstein distillation maps decoded teacher and student tokens
-into a shared byte-trie structure and compares subtree probability masses
-across tokenizer vocabularies. The objective-aware refinement combines sparse
-routing, which selects teachers relevant to each sample, with gradient-agreement
-reweighting by the cosine alignment between each teacher's KD gradient and the
-supervised answer gradient. The empirical evaluation on TextVQA, DocVQA and
-ChartQA shows that this combination outperforms same-family, single-teacher
-and heterogeneous multi-teacher baselines.
+\textbf{Limitations.} Three limitations constrain the scope of the current results. \textbf{Cost-limited evaluation.} The single-run design precludes uncertainty estimates for small gaps between
+high-scoring baselines. An average run costs approximately 14.41 USD
+(Section~\ref{sec:efficiency-analysis}), excluding caching cost. 
 
-Across TextVQA, DocVQA and ChartQA, \methodname{} scores highest among the
-compared methods in Chapter~\ref{chap:experiment-results}. For
-SmolVLM-500M, it reaches 69.38 on TextVQA, 73.11 on DocVQA and 80.20 on
-ChartQA. For SmolVLM-256M, it reaches 60.73, 60.48 and 72.32 on the same three
-benchmarks. On SmolVLM-500M, \methodname{} closes about 55\% of the original
-teacher-student gap on TextVQA and ChartQA and about 40\% on DocVQA.
-Closing more than half the gap to teachers six times larger suggests that
-the supervision design, rather than model capacity, is the primary bottleneck
-for compact VLMs on these benchmarks.
+\textbf{Scope of validation.} The study covers VQA benchmarks and
+SmolVLM-family students, while broader task families, other student architectures
+and larger teacher pools are untested. Tasks with long-form answers,
+multi-image inputs, video reasoning or open-ended dialogue need different
+forms of teacher selection and answer supervision.
 
-\section*{Limitations}
-\phantomsection
-\addcontentsline{toc}{section}{Limitations}
-Three limitations qualify the current results. \textbf{Cost-limited evaluation.} The reported
-single-run design limits uncertainty analysis for small gaps between
-high-scoring baselines because confidence intervals and estimates from repeated runs are unavailable. As reported in
-Section~\ref{sec:efficiency-analysis}, an average run costs approximately
-14.41 USD before offline cache generation and storage cost. Although the main
-tables use a shared four-teacher pool and consistent hyperparameters, no uncertainty estimates are available for closely matched methods. Small score differences between high-scoring baselines should be treated with caution until repeated-run estimates are available.
+\textbf{Reasoning-oriented supervision.}
+GRACE uses teacher output distributions at answer tokens as its distillation
+signal, filtered by gradient agreement with the supervised loss. This fits the VQA setting, where targets are short final answers, but does not
+transfer intermediate reasoning traces or accommodate models that generate
+extended reasoning at test time. Handling this requires routing teachers by intermediate reasoning quality
+and distilling from multi-step traces, not just final-answer distributions.
 
-\textbf{Scope of validation.} The empirical study focuses on
-VQA benchmarks and SmolVLM-family students. The results support VQA
-distillation with compact projector-based students, while broader multimodal
-task families, other student architectures and larger teacher pools require
-further validation. Tasks with long-form answers, multi-image inputs, video reasoning or
-open-ended dialogue require different forms of teacher selection and answer
-supervision.
-
-\textbf{Reasoning-oriented model support remains outside the current scope.}
-GRACE currently distills teacher supervision through output distributions at answer tokens
-and gradient agreement with the supervised answer loss. This design fits the evaluated VQA setting, where the target is a short final
-answer. It focuses on supervision of final answers and
-leaves intermediate deliberation traces, hidden reasoning tokens and extended
-test-time reasoning for future work. If a teacher produces only a final answer
-distribution, GRACE can still use that distribution as a teacher signal. Future
-extensions should separate tokens in the reasoning phase from those in the
-answer phase, route teachers by the quality of intermediate reasoning, and
-define distillation objectives for multi-step reasoning traces.
-
-\section*{Future Work}
-\phantomsection
-\addcontentsline{toc}{section}{Future Work}
-Four directions remain. The most immediate gap is statistical: repeated runs
-with multiple random seeds would clarify which score differences between close
-multi-teacher baselines are reliable. On the systems side, more compact logit
-storage, adaptive cache loading and lower-cost agreement scoring would reduce
-the cost of scaling the method to larger datasets and teacher pools. Beyond
-output-level supervision, visual token alignment, cross-attention transfer and
-region-level matching could complement the current KD signal for tasks where
-the student must localize evidence before answering. Reasoning-oriented models
-raise a harder problem: distinguishing reasoning-phase tokens from
-final-answer tokens and specifying how teachers are selected when intermediate
-traces are available. Router input features, principled conflict resolution and
-teacher pools that combine specialized document, chart, general VLM and
-reasoning-oriented models are additional open questions
+\textbf{Future Work.} The most immediate need is statistical: repeated runs
+with multiple seeds would establish which score differences between
+multi-teacher baselines are reliable. On the systems side, more compact
+logit storage and lower-cost agreement scoring would make scaling to larger
+teacher pools practical. Extending \methodname{} beyond output-level
+supervision to visual grounding via token alignment or cross-attention
+transfer and to reasoning-oriented models where intermediate traces must be
+distilled alongside final answers are the two substantive open directions
 \cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill}.

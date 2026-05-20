@@ -1,6 +1,7 @@
 import os
 import subprocess
 from pathlib import Path
+
 import modal
 
 LOCAL_ROOT_DIR = Path(__file__).resolve().parent
@@ -13,6 +14,7 @@ CACHE_DIR = Path("/cache")
 MODAL_TRANSFORMERS_VERSION = os.environ.get("MODAL_TRANSFORMERS_VERSION", "5.1.0")
 MODAL_FLASH_ATTN_VERSION = os.environ.get("MODAL_FLASH_ATTN_VERSION", "2.8.3")
 MODAL_IMAGE_BUILD_GPU = os.environ.get("MODAL_IMAGE_BUILD_GPU", "L4")
+MODAL_GPU = os.environ.get("MODAL_GPU", "A100-80GB")
 R2_SECRET_NAME = os.environ.get("MODAL_R2_SECRET_NAME", "cloudflare-r2-secret")
 R2_ENDPOINT_URL = os.environ.get(
     "MODAL_R2_ENDPOINT_URL",
@@ -64,10 +66,7 @@ def build_modal_requirements_file() -> Path:
 build_modal_requirements_file()
 
 base_image = (
-    modal.Image.from_registry(
-        "nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04",
-        add_python="3.12"
-    )
+    modal.Image.from_registry("nvidia/cuda:12.6.3-cudnn-devel-ubuntu22.04", add_python="3.12")
     .apt_install(
         "git",
         "curl",
@@ -109,7 +108,7 @@ base_image = (
         "deepspeed==0.18.8",
     )
     .run_commands(
-        "python -c \"import flash_attn, transformers; "
+        'python -c "import flash_attn, transformers; '
         "symbols = ('AutoModelForImageTextToText', 'AutoProcessor'); "
         "missing = [symbol for symbol in symbols if not hasattr(transformers, symbol)]; "
         f"assert transformers.__version__ == '{MODAL_TRANSFORMERS_VERSION}'; "
@@ -137,11 +136,10 @@ base_image = (
     )
 )
 
+
 def build_r2_mount(bucket_name: str, key_prefix: str | None) -> modal.CloudBucketMount:
     if not R2_ENDPOINT_URL:
-        raise ValueError(
-            "MODAL_R2_ENDPOINT_URL must be set when enabling Cloudflare R2 mounts."
-        )
+        raise ValueError("MODAL_R2_ENDPOINT_URL must be set when enabling Cloudflare R2 mounts.")
     normalized_prefix = None
     if key_prefix:
         normalized_prefix = key_prefix if key_prefix.endswith("/") else f"{key_prefix}/"
@@ -152,6 +150,7 @@ def build_r2_mount(bucket_name: str, key_prefix: str | None) -> modal.CloudBucke
         secret=modal.Secret.from_name(R2_SECRET_NAME),
         read_only=True,
     )
+
 
 def build_modal_mounts() -> tuple[dict[str, object], list[modal.Volume]]:
     mounts: dict[str, object] = {
@@ -264,7 +263,7 @@ def exec_cmd_impl(cmd: str) -> None:
 
 
 @app.function(
-    gpu="A100-80GB",
+    gpu=MODAL_GPU,
     timeout=60 * 60 * 24,
     volumes=app_mounts,
 )
@@ -273,9 +272,7 @@ def exec_cmd(cmd: str) -> None:
 
 
 @app.local_entrypoint()
-def run(
-    cmd: str = r""""""
-) -> None:
+def run(cmd: str = r"""""") -> None:
     call = exec_cmd.spawn(cmd)
     print(f"Triggered Modal function call: {getattr(call, 'object_id', call)}")
     call.get()

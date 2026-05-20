@@ -75,9 +75,7 @@ def load_vlm(model_name: str, dtype: torch.dtype):
         padding_side="right",
     )
     if processor is None:
-        raise ValueError(
-            f"Could not load an AutoProcessor for multimodal model {model_name!r}."
-        )
+        raise ValueError(f"Could not load an AutoProcessor for multimodal model {model_name!r}.")
     model = load_model(
         model_id=model_name,
         model_type=model_type or resolve_model_type(model_name),
@@ -176,9 +174,7 @@ def prepare_forward_inputs(model, batch):
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Plot a layer-to-layer CKA heatmap between two VLM vision towers."
-    )
+    parser = argparse.ArgumentParser(description="Plot a layer-to-layer CKA heatmap between two VLM vision towers.")
     parser.add_argument("--model-a", default=DEFAULT_MODEL_A, help="First model ID.")
     parser.add_argument("--model-b", default=DEFAULT_MODEL_B, help="Second model ID.")
     parser.add_argument("--dataset", default="textvqa", help="Dataset alias or HF dataset id.")
@@ -367,12 +363,8 @@ def pick_probe_samples(
         if answer_item is not None and len(answer_preview) < 3:
             answer_preview.append(answer_item)
         if len(sample_id_preview) < 10:
-            sample_id_preview.append(
-                str(dataset_question_id) if dataset_question_id is not None else str(valid_index)
-            )
-        selected_actual_ids.append(
-            str(dataset_question_id) if dataset_question_id is not None else str(valid_index)
-        )
+            sample_id_preview.append(str(dataset_question_id) if dataset_question_id is not None else str(valid_index))
+        selected_actual_ids.append(str(dataset_question_id) if dataset_question_id is not None else str(valid_index))
 
         valid_index += 1
         if len(probe_samples) >= n_samples:
@@ -393,9 +385,7 @@ def pick_probe_samples(
         row_indices = [record["row_index"] for record in ordered_records]
         question_preview = [record["question"] for record in ordered_records[:3]]
         answer_preview = [
-            record["answer_preview"]
-            for record in ordered_records
-            if record["answer_preview"] is not None
+            record["answer_preview"] for record in ordered_records if record["answer_preview"] is not None
         ][:3]
         sample_id_preview = [record["actual_id"] for record in ordered_records[:10]]
         selected_actual_ids = [record["actual_id"] for record in ordered_records]
@@ -548,9 +538,7 @@ def collect_layer_representations(model, loader, layer_indices: list[int], model
             for layer_index in layer_indices:
                 payload = raw_outputs.get(layer_index)
                 if payload is None:
-                    raise RuntimeError(
-                        f"Layer {layer_index} did not emit hook output for batch {batch_index}."
-                    )
+                    raise RuntimeError(f"Layer {layer_index} did not emit hook output for batch {batch_index}.")
 
                 pooled = pool_vision_features(payload["tensor"], batch_size).float().cpu()
                 representations[layer_index].append(pooled)
@@ -764,11 +752,7 @@ def save_heatmap(
     wrapped_question_preview = textwrap.fill(f"Preview: {question_preview}", width=80)
     sample_id_preview = sample_metadata.get("sample_id_preview") or []
     sample_id_text = ", ".join(sample_id_preview[:10])
-    wrapped_sample_id_preview = (
-        textwrap.fill(f"Question IDs: {sample_id_text}", width=80)
-        if sample_id_text
-        else None
-    )
+    wrapped_sample_id_preview = textwrap.fill(f"Question IDs: {sample_id_text}", width=80) if sample_id_text else None
 
     fig_width = max(9.0, 5.5 + len(labels_b) * 0.4)
     fig_height = max(8.0, 4.8 + len(labels_a) * 0.35)
@@ -852,14 +836,8 @@ def main(argv=None):
     print(f"Dataset      : {sample_metadata['dataset']} (split={args.split})")
     print(f"Layer source : {args.layer_source}")
     print(f"Token scope  : {args.token_scope}")
-    print(
-        f"Samples      : {sample_metadata['num_samples']}  |  "
-        f"offset={sample_metadata['sample_offset']}"
-    )
-    print(
-        f"Row span     : {sample_metadata['first_row_index']} -> "
-        f"{sample_metadata['last_row_index']}"
-    )
+    print(f"Samples      : {sample_metadata['num_samples']}  |  offset={sample_metadata['sample_offset']}")
+    print(f"Row span     : {sample_metadata['first_row_index']} -> {sample_metadata['last_row_index']}")
     print(f"DType        : {dtype}")
     print(f"Output dir   : {output_dir}")
     print()

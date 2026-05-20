@@ -1,7 +1,8 @@
-from PIL import Image
 import torch
 import torchvision.transforms as T
+from PIL import Image
 from torchvision.transforms.functional import InterpolationMode
+
 """
 Copy from
 - https://huggingface.co/OpenGVLab/InternVL2-1B

@@ -1,21 +1,25 @@
 \chapter{Evaluation Methodology}
 \label{chap:evaluation-methodology}
 
+This chapter establishes the experimental setting that makes the results in
+Chapter~\ref{chap:experiment-results} interpretable. It describes the student
+and teacher models, the three VQA benchmarks and their evaluation metrics,
+the baselines that \methodname{} is compared against and the ablation
+variants used to isolate each component's contribution. Readers who want to
+reproduce or extend the experiments will find the complete hyperparameter
+values in Appendix~\ref{app:experiment-parameters}.
+
 \section{Experimental Setup}
-All experiments follow a shared evaluation protocol. The student models are
-\textbf{SmolVLM-500M} and \textbf{SmolVLM-256M} \cite{marafioti2025smolvlm},
-assessed with \textbf{VLM-Eval-Kit} \cite{duan2024vlmevalkit}, which provides a
-shared generation-based inference, post-processing and metric-computation
-pipeline for all three benchmarks. For each
-benchmark sample, the toolkit loads the image-question pair, applies the
-dataset-specific prompt construction logic and calls the model's generation
-interface to produce a free-form text answer.
+The student models are \textbf{SmolVLM-500M} and \textbf{SmolVLM-256M}
+\cite{marafioti2025smolvlm}, evaluated with \textbf{VLM-Eval-Kit}
+\cite{duan2024vlmevalkit}, which provides a unified inference and evaluation pipeline across all three
+benchmarks. For each sample, the toolkit loads the image-question pair, applies
+dataset-specific prompts and runs the model to produce a text answer.
 
 Before training, all benchmark samples are converted into a unified
 \textbf{LLaVA-style multimodal instruction format}
 \cite{liu2023visualinstructiontuning} as shown in listing~\ref{lst:llava-format},
-so TextVQA, DocVQA and ChartQA can share the same data loader, prompt template
-and answer supervision interface.
+so all three benchmarks share the same data loader and training pipeline.
 
 \Needspace{12\baselineskip}
 \begin{lstlisting}[basicstyle=\ttfamily\footnotesize,breaklines=true,frame=single,caption={Representative LLaVA-style sample used after dataset conversion.},label={lst:llava-format}]
@@ -29,39 +33,36 @@ and answer supervision interface.
 \end{lstlisting}
 
 We run all training jobs on a single high-memory \textbf{NVIDIA H200} GPU or
-on comparable single-GPU \textbf{Vast.ai} instances, subject to
-availability. Distillation training uses \textbf{DeepSpeed ZeRO Stage 2},
+a comparable single-GPU \textbf{Vast.ai} instance. Distillation training uses \textbf{DeepSpeed ZeRO Stage 2},
 \textbf{bf16} mixed precision, \textbf{TF32} matrix multiplication and
-gradient checkpointing to control memory use while keeping the student fully
-trainable and all teachers frozen
+gradient checkpointing to control memory, keeping the student trainable and
+all teachers frozen
 \cite{rajbhandari2020zero,chen2016sublinear}. Full optimization and routing
 parameter values are reported in Appendix~\ref{app:experiment-parameters},
-Table~\ref{tab:experiment-parameters}. All reported scores reflect a single
-completed run per configuration; cost constraints precluded repeated runs with
-multiple random seeds. The implications of this design are discussed as a
-limitation in the Conclusion. Teacher logit storage and remote caching
-are documented in Appendix~\ref{app:offline-teacher-logit-preparation} and
-Appendix~\ref{app:remote-logit-streaming} for reproducibility purposes.
+Table~\ref{tab:experiment-parameters}. Each configuration was run once because the per-run compute cost made multiple seeds impractical, with implications discussed in the Conclusion. Teacher logit storage and remote caching are in
+Appendix~\ref{app:offline-teacher-logit-preparation} and
+Appendix~\ref{app:remote-logit-streaming}.
 
 \section{Datasets}
-We evaluate three text-centric VQA benchmarks: \textbf{TextVQA}, \textbf{DocVQA} and \textbf{ChartQA}. These benchmarks require reading scene text, parsing document layouts and reasoning over charts, covering complementary visual domains with OCR-heavy, layout-based and numerical demands \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
+We evaluate three text-centric VQA benchmarks: \textbf{TextVQA}, \textbf{DocVQA} and \textbf{ChartQA}. Together they span OCR-heavy, layout-based and numerical visual reasoning \cite{singh2019vqamodelsread,mathew2021docvqadatasetvqadocument,masry2022chartqabenchmarkquestionanswering}.
 
-\textbf{TextVQA} requires answering questions on natural images containing
-scene text, so the model must read and reason over text embedded in real-world
-scenes \cite{singh2019vqamodelsread}.
+\textbf{TextVQA} tests question answering on natural images containing scene
+text \cite{singh2019vqamodelsread}.
 \textit{Sample question}: ``What word is written on the stop sign?''
 
-\textbf{DocVQA} targets question answering on scanned document images, where
-layout, paragraphs, tables and forms are central to correct answers
+\textbf{DocVQA} tests question answering on scanned document images, where
+layout, paragraphs, tables and forms determine the answer
 \cite{mathew2021docvqadatasetvqadocument}.
 \textit{Sample question}: ``What is the invoice number shown in this document?''
 
-\textbf{ChartQA} assesses question answering over charts, combining chart reading
-with numerical and logical reasoning
-\cite{masry2022chartqabenchmarkquestionanswering}.
+\textbf{ChartQA} tests question answering over charts, requiring numerical
+and logical reasoning \cite{masry2022chartqabenchmarkquestionanswering}.
 \textit{Sample question}: ``Which year has the highest sales value in the chart?''
 
-No single benchmark captures all three challenges; evaluating on all three prevents a method from appearing competitive through specialization on one task type alone.
+No single benchmark captures all three and a method that excels at only one would still fail on the others. Figure~\ref{fig:dataset-samples} shows representative samples from each dataset. The TextVQA panel shows a stop sign and the answer requires reading text embedded
+in the scene. The DocVQA panel shows a receipt with fields, item rows and totals. The ChartQA panel shows a bar chart and
+answering requires comparing bar heights and reading values from the plot. Table~\ref{tab:dataset-sizes}
+lists the split sizes.
 
 \stepcounter{footnote}
 \begin{figure}
@@ -88,11 +89,7 @@ No single benchmark captures all three challenges; evaluating on all three preve
 \end{figure}
 \footnotetext[\value{footnote}]{Images adapted from Wikimedia Commons sources~\cite{wikimedia_stop_sign_image,wikimedia_receipt_swiss_image,wikimedia_bar_chart_image}.}
 
-Figure~\ref{fig:dataset-samples} shows representative samples from each dataset. The TextVQA panel shows a stop sign; the answer requires reading text embedded
-in the scene. The DocVQA panel shows a receipt with fields, item rows and
-totals arranged by document layout. The ChartQA panel shows a bar chart;
-answering requires comparing bar heights and reading values from the plot. Table~\ref{tab:dataset-sizes}
-lists the split sizes.
+
 \begin{table}[H]
 \centering
 \caption[Dataset split sizes.]{Dataset split sizes.}
@@ -112,10 +109,10 @@ ChartQA (H+M, combined) & 28,299 & 1,920 & 2,500 & 32,719 \\
 }
 \end{table}
 
-The official metrics are dataset-specific: TextVQA uses \textbf{VQA Accuracy},
+Each benchmark uses a distinct metric: TextVQA uses \textbf{VQA Accuracy},
 DocVQA uses \textbf{ANLS} and ChartQA uses \textbf{Relaxed Accuracy}. For TextVQA, the per-question
 score for a predicted answer \(\hat{a}\) is
-\(s_{\text{VQA}}=\min(\#\text{annotators that provided }\hat{a}/3,1)\), and
+\(s_{\text{VQA}}=\min(\#\text{annotators that provided }\hat{a}/3,1)\) and
 the final score is the mean over all questions \cite{singh2019vqamodelsread}.
 For DocVQA, the metric is \cite{mathew2021docvqadatasetvqadocument}:
 \[
@@ -141,56 +138,53 @@ s_{\mathrm{ChartQA}}=
 \label{sec:baselines}
 
 Table~\ref{tab:baseline-groups} organizes the compared methods into four
-groups: non-distillation references, same-family KD, single-teacher transfer with mismatched tokenizers and heterogeneous teacher methods.
+groups: non-distillation references, same-family KD, single-teacher transfer with mismatched tokenizers and heterogeneous teacher methods.The teacher setup column references SmolVLM2
+\cite{smolvlm2_modelcard,marafioti2025smolvlm}, Qwen2-VL
+\cite{qwen2vl2b_modelcard,wang2024qwen2vl}, Qwen2.5-VL
+\cite{qwen25vl3b_modelcard,bai2025qwen25vl}, InternVL3
+\cite{internvl3_blog,internvl3_1b_modelcard} and Gemma 3
+\cite{gemma3_technical_report}.
+
 
 \begin{table}[tp]
 \centering
 \caption[Baseline groups.]{Baseline groups.}
 \label{tab:baseline-groups}
-\small
-\setlength{\tabcolsep}{6pt}
+\footnotesize
+\setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.25}
-\begin{tabular}{@{}
-  >{\raggedright\arraybackslash}p{0.18\linewidth}
-  >{\raggedright\arraybackslash}p{0.24\linewidth}
-  >{\raggedright\arraybackslash}p{0.22\linewidth}
-  >{\raggedright\arraybackslash}p{0.27\linewidth}@{}}
+\begin{tabularx}{\linewidth}{@{}
+  >{\raggedright\arraybackslash}p{0.17\linewidth}
+  >{\raggedright\arraybackslash}X
+  >{\raggedright\arraybackslash}p{0.25\linewidth}
+  >{\raggedright\arraybackslash}X@{}}
 \toprule
 \textbf{Group} & \textbf{Methods} & \textbf{Teacher setup} & \textbf{Purpose} \\
 \midrule
-Non-distillation references
+Non-distillation
   & Original, full fine-tuning
   & No teacher
-  & Student-only reference points \\
-\addlinespace[6pt]
-Same-family baselines
+  & Student reference points \\[3pt]
+Same-family
   & Forward KL, Reverse KL, Jensen-Shannon
-  & SmolVLM2-2.2B-Instruct
-  & Standard single-teacher objectives within the SmolVLM family \\
-\addlinespace[6pt]
+  & \mbox{SmolVLM2-2.2B-Instruct}
+  & Single-teacher KL objectives within the SmolVLM family \\[3pt]
 Cross-family single-teacher
   & ULD
-  & Qwen2-VL-2B-Instruct
-  & Cross-family transfer with a single teacher \\
-\addlinespace[6pt]
+  & \mbox{Qwen2-VL-2B-Instruct}
+  & Cross-family transfer \\[3pt]
 Heterogeneous teacher baselines
   & Uniform averaging, SHM-CKA, REINFORCE, \textbf{\methodname{} (Ours)}
-  & Mixed teacher set from multiple VLM families
-  & Static averaging vs.\ hidden-state matching vs.\ adaptive teacher assignment \\
+  & Mixed set from multiple VLM families
+  & Compares static averaging, hidden-state matching and adaptive assignment \\
 \bottomrule
-\end{tabular}
+\end{tabularx}
 \end{table}
 
-The model sources for the teacher setup column are SmolVLM2
-\cite{smolvlm2_modelcard,marafioti2025smolvlm}, Qwen2-VL
-\cite{qwen2vl2b_modelcard,wang2024qwen2vl}, Qwen2.5-VL
-\cite{qwen25vl3b_modelcard,bai2025qwen25vl}, InternVL3
-\cite{internvl3_blog} and Gemma 3 \cite{gemma3_technical_report}.
-The non-distillation references consist of the original student and the
-full fine-tuning baseline. The same-family baselines use
-\textbf{SmolVLM2-2.2B-Instruct} as teacher for
-forward KL, reverse KL and Jensen-Shannon distillation, isolating standard
-teacher-student transfer when the tokenizer and vocabulary are aligned
+
+The same-family baselines use \textbf{SmolVLM2-2.2B-Instruct} as teacher for
+forward KL, reverse KL and Jensen-Shannon distillation, testing aligned-vocabulary
+transfer before any tokenizer mismatch is introduced
 \cite{hinton2015distillingknowledgeneuralnetwork,lin1991jensen,cui2024sinkhorn}.
 The different-family single-teacher setting uses ULD with
 \textbf{Qwen2-VL-2B-Instruct} outside the SmolVLM family, testing transfer across mismatched tokenizers with one
@@ -198,9 +192,7 @@ teacher \cite{boizard2024towardscrosstokenizerdistillation}. The heterogeneous
 teacher setting compares uniform averaging, SHM-CKA, REINFORCE and
 \methodname{} over a mixed teacher pool, separating static averaging,
 hidden-state matching and adaptive teacher assignment
-\cite{takezawa2021supervisedtreewasserstein,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}.
-
-All trainable competitor methods retain the supervised term
+\cite{takezawa2021supervisedtreewasserstein,zhang2023adaptivemultiteachermetalearning,yu2024selectdistill,dasgupta2025improving}. All trainable competitor methods retain the supervised term
 \(\mathcal{L}_{CE}\), so their differences come from the added transfer signal:
 the logits-only baselines change only the KD term, SHM-CKA adds hidden-state
 alignment and REINFORCE adds a policy-gradient term
@@ -209,12 +201,12 @@ In the descriptions below, \(\gamma\) denotes a generic KD mixing coefficient,
 while \(\alpha_{\mathrm{KD}}\) is reserved for the \methodname{} objective in
 Equation~\ref{eq:final-objective}.
 
-\textbf{Original.} Evaluates the released student checkpoint, measuring the
-model's score before fine-tuning or distillation.
+\textbf{Original.} Direct evaluation of the released student, with no additional
+optimization. This measures the native capability of the compact model before
+any task adaptation or distillation.
 
-\textbf{Full fine-tuning.} Uses supervised CE as the sole objective, which
-isolates task adaptation from any teacher-guided
-distillation signal.
+\textbf{Full fine-tuning.} Uses \(\mathcal{L}=\mathcal{L}_{CE}\) with no
+teacher, so it isolates the benefit of external supervision alone.
 
 \textbf{Forward KL.} Uses
 \(\mathcal{L}_{KD}=\mathrm{KL}(p_t\|p_s)\) for same-family soft-target
@@ -225,8 +217,8 @@ distillation when teacher and student vocabularies are aligned
 \cite{cui2024sinkhorn,wen2023fdistill} as a student-centered divergence
 baseline, which tests whether matching the teacher from the student's current
 distribution is suitable for VLM distillation. Because the reverse-KL gradient
-is weighted by \(p_s\), this objective tends to emphasize regions where the
-student already assigns probability.
+is weighted by \(p_s\), this objective tends to \textbf{emphasize regions where the
+student already assigns probability}.
 
 \textbf{Jensen-Shannon.} Uses the symmetric divergence
 \[
@@ -235,7 +227,7 @@ student already assigns probability.
 m=\frac{1}{2}(p_s+p_t).
 \]
 Jensen-Shannon tests whether a bounded symmetric objective is more stable than KL
-\cite{lin1991jensen,cui2024sinkhorn}.
+\cite{lin1991jensen}.
 
 \textbf{ULD.} Uses \(\mathcal{L}_{KD}=\|\pi(p_s)-\pi(p_t)\|_1\)
 \cite{boizard2024towardscrosstokenizerdistillation}, where \(\pi(\cdot)\)
@@ -249,16 +241,16 @@ averaged uniformly across teachers before combining with \(\mathcal{L}_{CE}\).
 Full implementation details are given in
 Appendix~\ref{app:baseline-implementation-details}.
 
-\textbf{Uniform multi-teacher.} Assigns fixed equal weights to all teachers
-in the heterogeneous pool,
+\textbf{Uniform multi-teacher.} Averages the heterogeneous teacher losses with
+fixed equal weights,
 \(\mathcal{L}_{KD}=\frac{1}{M}\sum_{i=1}^{M}\mathcal{L}_{KD}^{(i)}\)
-\cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning}.
+\cite{yuan2020reinforcedmultiteacherselection,zhang2023adaptivemultiteachermetalearning},
+isolating the effect of teacher diversity from any adaptive assignment.
 
 \textbf{REINFORCE.} Replaces deterministic routing with a stochastic policy
 that samples teachers and updates the selector with REINFORCE
-\cite{williams1992simple,yuan2020reinforcedmultiteacherselection}, providing
-an adaptive routing baseline that replaces gradient-agreement refinement with
-policy-gradient selection. The selector is trained with the policy-gradient term
+\cite{williams1992simple,yuan2020reinforcedmultiteacherselection}, using
+policy-gradient selection in place of gradient-agreement scoring. The selector objective is
 \begin{equation}
 \mathcal{L}_{\mathrm{pol}}
 =
@@ -273,21 +265,61 @@ where \(r\) is the reward, \(b\) is an EMA reward baseline and
 + \gamma \mathcal{L}_{KD}
 + \lambda_{\pi}\mathcal{L}_{\mathrm{pol}}.
 \end{equation}
-Additional baseline implementation details are reported in
+Additional baseline implementation details are in
 Appendix~\ref{app:baseline-implementation-details}.
+
+Table~\ref{tab:all-results} reports pre-distillation scores for both student
+models and each teacher across the three benchmarks, evaluated using
+\textbf{VLM-Eval-Kit} \cite{duan2024vlmevalkit}. These scores serve as
+reference points for computing teacher-student gaps in
+Chapter~\ref{chap:experiment-results}.
+
+\begin{table}[H]
+\centering
+\caption[Student and teacher model results.]{Student and teacher model results.}
+\label{tab:all-results}
+\begin{tabular}{lccc}
+\toprule
+\textbf{Model} & \textbf{TextVQA} & \textbf{DocVQA} & \textbf{ChartQA} \\
+\midrule
+\multicolumn{4}{l}{\textit{Student Models}} \\
+\midrule
+SmolVLM-500M & 56.75 & 59.52 & 62.80 \\
+SmolVLM-256M & 47.17 & 48.64 & 45.04 \\
+\midrule
+\multicolumn{4}{l}{\textit{Teacher Models}} \\
+\midrule
+Qwen2.5-VL-3B-Instruct & 79.30 & 93.90 & 94.24 \\
+InternVL3-1B & 74.10 & 81.90 & 75.30 \\
+Gemma-3-4B-it & 57.80 & 75.80 & 63.60 \\
+Qwen2-VL-2B-Instruct & 79.70 & 90.10 & 89.28 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Model sources are SmolVLM \cite{marafioti2025smolvlm}, Qwen2.5-VL
+\cite{qwen25vl3b_modelcard,bai2025qwen25vl}, InternVL3
+\cite{internvl3_blog}, Gemma~3 \cite{gemma3_technical_report} and Qwen2-VL
+\cite{qwen2vl2b_modelcard,wang2024qwen2vl}. The scores reveal meaningful
+specialization: Qwen2-VL leads on TextVQA (79.70) and is competitive on
+DocVQA (90.10), while Qwen2.5-VL achieves the highest scores on both DocVQA
+(93.90) and ChartQA (94.24). InternVL3-1B contributes competitive but not
+top scores across all three benchmarks. Gemma-3-4B-it is the weakest
+teacher, particularly on TextVQA (57.80), where it barely exceeds the
+original student baseline. \textbf{No single teacher dominates all three
+benchmarks}, motivating the per-sample routing approach described in
+Chapter~\ref{chap:proposed-method}.
 
 
 \section{Ablation Settings}
 \label{sec:ablation-settings}
 
 The ablation study in Section~\ref{sec:ablation} isolates the main components
-of \methodname{} on DocVQA while keeping the teacher set and training protocol
-consistent with the full GRACE configuration. The variants change one mechanism at a time so the result table separates the
-contributions of teacher diversity, sparse routing, gradient-agreement weighting
-and EMA score smoothing.
+of \methodname{} on DocVQA with all other settings fixed. Each variant changes
+one mechanism, separating the contributions of teacher diversity, sparse
+routing, gradient-agreement weighting and EMA score smoothing.
 
-\textbf{Cross-family ULD.} This variant uses one teacher outside the SmolVLM
-family and optimizes
+\textbf{Cross-family ULD.} Uses one teacher outside the SmolVLM family:
 \[
 \mathcal{L}
 =
@@ -300,8 +332,8 @@ family and optimizes
 \|\pi(p_s)-\pi(p_t)\|_1 .
 \]
 
-\textbf{Uniform averaging.} This variant adds the full heterogeneous teacher pool but assigns fixed
-equal weights:
+\textbf{Uniform averaging.} Adds the full heterogeneous teacher pool with fixed
+equal weights, isolating teacher diversity from adaptive weighting:
 \[
 \mathcal{L}
 =
@@ -309,10 +341,10 @@ equal weights:
 +
 \alpha_{\mathrm{KD}}\frac{1}{M}\sum_{i=1}^{M}\mathcal{L}_{TW}^{(i)}.
 \]
-This isolates teacher diversity from adaptive weighting.
 
-\textbf{Routing only.} This variant keeps sparse teacher selection but replaces
-the router weights with uniform weights within the routed set:
+\textbf{Routing only.} Keeps sparse teacher selection but replaces router
+weights with uniform weights within the routed set, testing top-\(k\) routing
+without gradient-agreement refinement:
 \[
 w_i^{(b)}
 =
@@ -320,10 +352,8 @@ u_i^{(b)}
 =
 \frac{\mathbf{1}[i\in\mathcal{R}_b]}{|\mathcal{R}_b|}.
 \]
-This setting tests top-\(k\) routing before adding gradient-agreement
-refinement.
 
-\textbf{Full GRACE.} This setting combines trie-Wasserstein KD, sparse routing and
+\textbf{Full GRACE.} Combines trie-Wasserstein KD, sparse routing and
 gradient-agreement weighting:
 \[
 w_i^{(b)}

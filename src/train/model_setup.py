@@ -70,9 +70,7 @@ def load_processor_bundle(
 
     model_type = resolve_model_type(model_id)
     if model_type not in SUPPORTED_AUTO_MODEL_TYPES:
-        raise ValueError(
-            "We only support SmolVLM, Qwen-VL, Gemma 3, Granite Vision, and InternVL."
-        )
+        raise ValueError("We only support SmolVLM, Qwen-VL, Gemma 3, Granite Vision, and InternVL.")
     processor_kwargs = {
         "trust_remote_code": True,
         "use_fast": False,
@@ -160,9 +158,7 @@ def load_vlm_bundle(
             "image_size": getattr(model.config, "force_image_size", None)
             or getattr(vision_config, "image_size", INTERNVL_IMAGE_SIZE),
             "normalize_type": (
-                "siglip"
-                if getattr(vision_config, "model_type", None) == "siglip_vision_model"
-                else "imagenet"
+                "siglip" if getattr(vision_config, "model_type", None) == "siglip_vision_model" else "imagenet"
             ),
             "max_num_tiles": INTERNVL_MAX_NUM_TILES,
             "num_image_token": getattr(model, "num_image_token", INTERNVL_NUM_IMAGE_TOKEN),
@@ -187,6 +183,7 @@ def load_vlm_bundle(
     if hasattr(model.config, "use_cache"):
         model.config.use_cache = False
     return model, processor, tokenizer, model_type
+
 
 __all__ = [
     "load_model",
