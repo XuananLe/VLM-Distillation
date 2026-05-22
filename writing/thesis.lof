@@ -1,29 +1,30 @@
 \addvspace {10\p@ }
+\contentsline {figure}{\numberline {1.1}{\ignorespaces Qualitative example on a challenging TextVQA sample.}}{3}{figure.caption.2}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {2.1}{\ignorespaces Representative architecture families of modern vision-language models.}}{6}{figure.caption.2}%
-\contentsline {figure}{\numberline {2.2}{\ignorespaces Geometric behavior of Wasserstein distance.}}{9}{figure.caption.4}%
-\contentsline {figure}{\numberline {2.3}{\ignorespaces Discrete optimal transport views.}}{10}{figure.caption.5}%
+\contentsline {figure}{\numberline {2.1}{\ignorespaces Representative architecture families of modern vision-language models.}}{6}{figure.caption.3}%
+\contentsline {figure}{\numberline {2.2}{\ignorespaces Geometric behavior of Wasserstein distance.}}{9}{figure.caption.5}%
+\contentsline {figure}{\numberline {2.3}{\ignorespaces Discrete optimal transport views.}}{10}{figure.caption.6}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {3.1}{\ignorespaces Overview of the GRACE architecture.}}{16}{figure.caption.6}%
-\contentsline {figure}{\numberline {3.2}{\ignorespaces Shared byte-trie tokenizer matching.\relax }}{19}{figure.caption.7}%
-\contentsline {figure}{\numberline {3.3}{\ignorespaces Sparse Byte-Trie Wasserstein support.\relax }}{21}{figure.caption.8}%
-\contentsline {figure}{\numberline {3.4}{\ignorespaces Teacher routing network.\relax }}{23}{figure.caption.9}%
-\contentsline {figure}{\numberline {3.5}{\ignorespaces Top-\(k\) routing dynamics.}}{24}{figure.caption.10}%
-\contentsline {figure}{\numberline {3.6}{\ignorespaces EMA smoothing.}}{26}{figure.caption.11}%
-\contentsline {figure}{\numberline {3.7}{\ignorespaces GRACE score refinement.}}{27}{figure.caption.12}%
-\contentsline {figure}{\numberline {3.8}{\ignorespaces Representative GRACE weighting cases.}}{28}{figure.caption.13}%
-\contentsline {figure}{\numberline {3.9}{\ignorespaces Sample-wise weight refinement.}}{29}{figure.caption.14}%
-\contentsline {figure}{\numberline {3.10}{\ignorespaces Sample-specific weighting.}}{29}{figure.caption.15}%
+\contentsline {figure}{\numberline {3.1}{\ignorespaces Overview of the GRACE architecture.}}{16}{figure.caption.7}%
+\contentsline {figure}{\numberline {3.2}{\ignorespaces Shared byte-trie tokenizer matching.\relax }}{19}{figure.caption.8}%
+\contentsline {figure}{\numberline {3.3}{\ignorespaces Sparse Byte-Trie Wasserstein support.\relax }}{21}{figure.caption.9}%
+\contentsline {figure}{\numberline {3.4}{\ignorespaces Teacher routing network.\relax }}{23}{figure.caption.10}%
+\contentsline {figure}{\numberline {3.5}{\ignorespaces Top-\(k\) routing dynamics.}}{24}{figure.caption.11}%
+\contentsline {figure}{\numberline {3.6}{\ignorespaces EMA smoothing.}}{26}{figure.caption.12}%
+\contentsline {figure}{\numberline {3.7}{\ignorespaces GRACE score refinement.}}{27}{figure.caption.13}%
+\contentsline {figure}{\numberline {3.8}{\ignorespaces Sample-wise weight refinement.}}{28}{figure.caption.14}%
+\contentsline {figure}{\numberline {3.9}{\ignorespaces Sample-specific weighting.}}{28}{figure.caption.15}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {4.1}{\ignorespaces Representative dataset examples.}}{33}{figure.caption.16}%
+\contentsline {figure}{\numberline {4.1}{\ignorespaces Representative dataset examples.}}{31}{figure.caption.16}%
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {5.1}{\ignorespaces Grouped benchmark comparison.}}{40}{figure.caption.21}%
-\contentsline {figure}{\numberline {5.2}{\ignorespaces Uniform and GRACE training curves.}}{41}{figure.caption.22}%
-\contentsline {figure}{\numberline {5.3}{\ignorespaces Routed-teacher load examples.}}{41}{figure.caption.23}%
-\contentsline {figure}{\numberline {5.4}{\ignorespaces Final-layer CKA heatmaps.}}{47}{figure.caption.28}%
-\contentsline {figure}{\numberline {5.5}{\ignorespaces Vision-layer CKA heatmaps.}}{47}{figure.caption.29}%
-\contentsline {figure}{\numberline {5.6}{\ignorespaces Representative TextVQA attention example.}}{49}{figure.caption.30}%
+\contentsline {figure}{\numberline {5.1}{\ignorespaces Grouped benchmark comparison.}}{38}{figure.caption.22}%
+\contentsline {figure}{\numberline {5.2}{\ignorespaces Uniform and GRACE training curves.}}{38}{figure.caption.23}%
+\contentsline {figure}{\numberline {5.3}{\ignorespaces Routed-teacher load examples.}}{39}{figure.caption.24}%
+\contentsline {figure}{\numberline {5.4}{\ignorespaces Output distribution dynamics on 100 DocVQA samples (SmolVLM-500M).}}{41}{figure.caption.27}%
+\contentsline {figure}{\numberline {5.5}{\ignorespaces Final-layer CKA heatmaps.}}{47}{figure.caption.30}%
+\contentsline {figure}{\numberline {5.6}{\ignorespaces Vision-layer CKA heatmaps.}}{47}{figure.caption.31}%
+\contentsline {figure}{\numberline {5.7}{\ignorespaces Representative TextVQA attention example.}}{48}{figure.caption.32}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {figure}{\numberline {B.1}{\ignorespaces R2 teacher-logit storage.}}{63}{figure.caption.35}%
-\contentsline {figure}{\numberline {B.2}{\ignorespaces Training with remote teacher logits.\relax }}{64}{figure.caption.36}%
+\contentsline {figure}{\numberline {B.1}{\ignorespaces R2 teacher-logit storage.}}{62}{figure.caption.37}%
+\contentsline {figure}{\numberline {B.2}{\ignorespaces Training with remote teacher logits.\relax }}{63}{figure.caption.38}%

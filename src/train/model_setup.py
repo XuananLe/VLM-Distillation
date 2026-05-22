@@ -27,9 +27,7 @@ SUPPORTED_AUTO_MODEL_TYPES = {
     *SMOLVLM_MODEL_TYPES,
     "qwen2_vl",
     "qwen2_5_vl",
-    "qwen3_vl",
     "gemma3",
-    "llava_next",
 }
 
 
@@ -70,7 +68,7 @@ def load_processor_bundle(
 
     model_type = resolve_model_type(model_id)
     if model_type not in SUPPORTED_AUTO_MODEL_TYPES:
-        raise ValueError("We only support SmolVLM, Qwen-VL, Gemma 3, Granite Vision, and InternVL.")
+        raise ValueError("We only support SmolVLM, Qwen-VL, Gemma 3, and InternVL.")
     processor_kwargs = {
         "trust_remote_code": True,
         "use_fast": False,
@@ -91,38 +89,6 @@ def load_processor_bundle(
     return processor, (tokenizer if tokenizer is not None else processor), model_type
 
 
-def load_model(
-    *,
-    model_id: str,
-    model_type: str | None,
-    cache_dir: str | None,
-    attn_implementation: str,
-    compute_dtype: torch.dtype,
-    trust_remote_code: bool = True,
-    model_kwargs: dict | None = None,
-):
-    if model_type not in SUPPORTED_AUTO_MODEL_TYPES:
-        raise ValueError(
-            "Unsupported model family for the generic model loader: "
-            f"model_id={model_id!r}, model_type={model_type!r}. "
-            "Supported generic families are SmolVLM, Qwen-VL, Gemma 3, and Granite Vision."
-        )
-
-    loader_kwargs = dict(model_kwargs or {})
-    if model_type == "gemma3":
-        loader_cls = Gemma3ForConditionalGeneration
-    else:
-        loader_cls = AutoModelForImageTextToText
-    return loader_cls.from_pretrained(
-        model_id,
-        cache_dir=cache_dir,
-        attn_implementation=attn_implementation,
-        dtype=compute_dtype,
-        trust_remote_code=trust_remote_code,
-        **loader_kwargs,
-    )
-
-
 def load_vlm_bundle(
     *,
     model_id: str,
@@ -132,8 +98,9 @@ def load_vlm_bundle(
     disable_flash_attn2: bool,
     padding_side: str = "right",
     model_kwargs: dict | None = None,
+    attn_implementation: str | None = None,
 ):
-    attn_implementation = "flash_attention_2" if not disable_flash_attn2 else "eager"
+    resolved_attn_implementation = attn_implementation or ("flash_attention_2" if not disable_flash_attn2 else "eager")
     if "internvl" in model_id.lower():
         model_type = "internvl"
         model = load_internvl_model(
@@ -141,7 +108,7 @@ def load_vlm_bundle(
             cache_dir=cache_dir,
             device=device,
             compute_dtype=compute_dtype,
-            use_flash_attn=not disable_flash_attn2,
+            use_flash_attn=resolved_attn_implementation == "flash_attention_2",
         )
         tokenizer = AutoTokenizer.from_pretrained(
             model_id,
@@ -171,13 +138,17 @@ def load_vlm_bundle(
         )
         loader_kwargs = {"device_map": {"": device}}
         loader_kwargs.update(model_kwargs or {})
-        model = load_model(
-            model_id=model_id,
-            model_type=model_type,
+        if model_type == "gemma3":
+            loader_cls = Gemma3ForConditionalGeneration
+        else:
+            loader_cls = AutoModelForImageTextToText
+        model = loader_cls.from_pretrained(
+            model_id,
             cache_dir=cache_dir,
-            attn_implementation=attn_implementation,
-            compute_dtype=compute_dtype,
-            model_kwargs=loader_kwargs,
+            attn_implementation=resolved_attn_implementation,
+            dtype=compute_dtype,
+            trust_remote_code=True,
+            **loader_kwargs,
         )
 
     if hasattr(model.config, "use_cache"):
@@ -186,7 +157,6 @@ def load_vlm_bundle(
 
 
 __all__ = [
-    "load_model",
     "load_processor_bundle",
     "load_vlm_bundle",
     "resolve_model_type",

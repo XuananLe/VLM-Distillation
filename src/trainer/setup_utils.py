@@ -3,35 +3,6 @@ from src.components.reinforced_teacher_selection import (
 )
 
 
-def normalize_teacher_models(teacher_model, teacher_count: int | None):
-    """Normalize teacher input into a frozen teacher-model list and resolved count.
-
-    Input: a teacher model, list/tuple of teacher models or None, plus optional
-    teacher_count. Output: (teacher_models, teacher_count). Exists so the trainer
-    can accept one or many live teachers through one code path.
-    """
-    if teacher_model is None:
-        teacher_models = []
-    else:
-        teacher_models = list(teacher_model) if isinstance(teacher_model, (list, tuple)) else [teacher_model]
-
-    if teacher_count is None:
-        teacher_count = len(teacher_models)
-    if teacher_count < 1:
-        raise ValueError("DistillationTrainer requires at least one teacher.")
-    if teacher_models and len(teacher_models) != teacher_count:
-        raise ValueError("teacher_count must match the number of teacher models when both are provided.")
-
-    # Live teachers are inference-only in the trainer: keep them in eval mode and
-    # freeze gradients so only the student path participates in optimization.
-    for model in teacher_models:
-        model.eval()
-        for param in model.parameters():
-            param.requires_grad = False
-
-    return teacher_models, int(teacher_count)
-
-
 def resolve_reinforced_teacher_selector(
     *,
     model,
@@ -62,13 +33,6 @@ def log_distillation_trainer_setup(
     num_teachers: int,
     teacher_weighting_strategy: str,
     loss_function: str,
-    layer_distillation_enabled: bool,
-    layer_distill_source: str,
-    layer_distill_weight: float,
-    layer_match_json_path: str | None,
-    layer_match_topk: int,
-    student_layer_indices: list[int],
-    teacher_layer_soft_matches: list[list[dict]],
     student_temperature: float,
     teacher_temperature: float,
     skip_student_eos: bool,
@@ -99,7 +63,9 @@ def log_distillation_trainer_setup(
     """
     print("Distillation Trainer initialized:")
     print(f"  - Teachers: {num_teachers}")
-    if num_teachers > 1 and teacher_weighting_strategy == "routing":
+    if alpha == 0.0:
+        print("  - Teacher weighting: disabled because alpha is 0")
+    elif num_teachers > 1 and teacher_weighting_strategy == "routing":
         print("  - Teacher weighting: learned deep gate + GRACE routing")
     elif num_teachers > 1 and teacher_weighting_strategy == "reinforced_selection":
         print("  - Teacher weighting: reinforced teacher selection")
@@ -118,32 +84,6 @@ def log_distillation_trainer_setup(
     print(f"  - Alpha: {alpha}")
     print(f"  - KD weight: {alpha}")
     print("  - CE weight: 1.0")
-    if layer_distillation_enabled:
-        print("  - Layer distillation: enabled")
-        print(f"  - Layer distill source: {layer_distill_source}")
-        print(f"  - Layer distill weight: {layer_distill_weight}")
-        print(f"  - Layer match JSON: {layer_match_json_path}")
-        print(f"  - Layer match top-k: {layer_match_topk}")
-        print(f"  - Student layer indices: {student_layer_indices}")
-        for teacher_index, soft_matches in enumerate(teacher_layer_soft_matches):
-            if layer_match_json_path:
-                print(f"  - Teacher {teacher_index} soft matches:")
-                for match in soft_matches:
-                    teacher_terms = ", ".join(
-                        f"{layer_idx}:{weight:.4f}"
-                        for layer_idx, weight in zip(
-                            match["teacher_layer_indices"],
-                            match["teacher_layer_weights"],
-                        )
-                    )
-                    print(f"    - student {match['student_layer_index']} -> {teacher_terms}")
-            else:
-                layer_pairs = [
-                    (match["student_layer_index"], match["teacher_layer_indices"][0]) for match in soft_matches
-                ]
-                print(f"  - Teacher {teacher_index} layer pairs: {layer_pairs}")
-    else:
-        print("  - Layer distillation: disabled")
     if teacher_gate is not None:
         print(f"  - Teacher gate top-k: {teacher_gate_top_k}")
         print(f"  - Teacher gate entropy alpha: {teacher_gate_entropy_alpha}")
@@ -159,14 +99,10 @@ def log_distillation_trainer_setup(
         print(f"  - Reinforced selection reward type: {reinforced_selection_reward_type}")
         print(f"  - Reinforced selection reward EMA decay: {reinforced_selection_reward_ema_decay}")
         print(f"  - Reinforced selection policy alpha: {reinforced_selection_policy_alpha}")
-    if alpha == 0.0 and layer_distillation_enabled:
-        print("  - Loss weighting: CE + layer distillation")
-    else:
-        print("  - Loss weighting: CE + alpha * KD")
+    print("  - Loss weighting: CE + alpha * KD")
 
 
 __all__ = [
     "log_distillation_trainer_setup",
-    "normalize_teacher_models",
     "resolve_reinforced_teacher_selector",
 ]

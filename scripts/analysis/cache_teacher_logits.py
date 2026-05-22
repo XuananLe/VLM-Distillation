@@ -17,10 +17,41 @@ from src.train.model_setup import (
     load_processor_bundle,
     load_vlm_bundle,
 )
-from src.trainer.distillation_utils import (
-    build_live_teacher_batches,
-)
-from src.trainer.setup_utils import normalize_teacher_models
+
+REQUIRED_TEACHER_INPUTS = ("input_ids", "attention_mask", "pixel_values")
+OPTIONAL_TEACHER_INPUTS = ("pixel_attention_mask", "image_grid_thw", "image_flags", "image_sizes")
+
+
+def normalize_teacher_models(teacher_models):
+    """Freeze live teachers used only for offline logit-cache generation."""
+    for model in teacher_models:
+        model.eval()
+        for param in model.parameters():
+            param.requires_grad = False
+    return teacher_models
+
+
+def build_live_teacher_batches(inputs, num_teachers: int):
+    """Collect live-teacher input batches for one cache-generation step."""
+    prefixes = []
+    if "teacher_input_ids" in inputs:
+        prefixes.append("teacher")
+    prefixes.extend(f"teacher_{index}" for index in range(num_teachers) if f"teacher_{index}_input_ids" in inputs)
+
+    if not prefixes:
+        raise ValueError("No live teacher inputs were found in the batch.")
+
+    batches = []
+    for prefix in prefixes:
+        teacher_inputs = {}
+        for suffix in REQUIRED_TEACHER_INPUTS:
+            teacher_inputs[suffix] = inputs[f"{prefix}_{suffix}"]
+        for suffix in OPTIONAL_TEACHER_INPUTS:
+            key = f"{prefix}_{suffix}"
+            if key in inputs:
+                teacher_inputs[suffix] = inputs[key]
+        batches.append((teacher_inputs, inputs[f"{prefix}_labels"]))
+    return batches
 
 
 def parse_args() -> argparse.Namespace:
@@ -130,8 +161,7 @@ def load_teacher_bundles(teacher_ids: list[str], device: str):
         )
         teacher_models.append(teacher_model)
         teacher_processors.append(teacher_processor)
-    teacher_models, _ = normalize_teacher_models(teacher_models, len(teacher_models))
-    return teacher_models, teacher_processors
+    return normalize_teacher_models(teacher_models), teacher_processors
 
 
 def prepare_storage_dtype(name: str) -> torch.dtype:

@@ -170,6 +170,11 @@ scripts_tmp/
 logs/*.log
 artifacts/dexar_lfm25_vqa30/
 artifacts/dexar_model_suite_30/
+artifacts/dexar_llava_bak_pali_florence_vqa_50/
+artifacts/output_distribution_docvqa_50_smol_qwen_lfm/
+artifacts/output_distribution_docvqa_100_official_smol_qwen_lfm/
+artifacts/output_distribution_docvqa_100_official_lfm_parallel/
+artifacts/output_distribution_docvqa_100_official_smol256/
 
 testing.ipynb
 writing/

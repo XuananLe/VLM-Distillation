@@ -18,14 +18,50 @@ EOS_TOKEN = "<end_of_utterance>"
 IDEFICS3_PROCESSOR = getattr(transformers, "Idefics3Processor", None)
 SMOLVLM_PROCESSOR = getattr(transformers, "SmolVLMProcessor", None)
 GEMMA3_PROCESSOR = getattr(transformers, "Gemma3Processor", None)
-LLAVA_NEXT_PROCESSOR = getattr(transformers, "LlavaNextProcessor", None)
 QWEN2_VL_PROCESSOR = getattr(transformers, "Qwen2VLProcessor", None)
 QWEN2_5_VL_PROCESSOR = getattr(transformers, "Qwen2_5_VLProcessor", None)
-QWEN3_VL_PROCESSOR = getattr(transformers, "Qwen3VLProcessor", None)
 
 
 def is_internvl_teacher_model_id(model_id: str | None) -> bool:
     return isinstance(model_id, str) and "internvl" in model_id.lower()
+
+
+def _ignore_mask(length: int) -> torch.Tensor:
+    return torch.full((length,), IGNORE_INDEX, dtype=torch.long)
+
+
+def _build_image_text_content(user_text: str, turn_images: list) -> list:
+    clean_text = user_text.replace(LLAVA_IMAGE_TOKEN, "").strip()
+    content = [{"type": "image", "image": image} for image in turn_images]
+    if clean_text:
+        content.append({"type": "text", "text": clean_text})
+    return content
+
+
+def _encode_turn_with_template(
+    processor: transformers.ProcessorMixin,
+    user_content: list,
+    response_value: str,
+) -> tuple:
+    """Shared per-turn encoding for apply_chat_template-based processors."""
+    prompt_messages = [{"role": "user", "content": user_content}]
+    full_messages = prompt_messages + [
+        {"role": "assistant", "content": [{"type": "text", "text": response_value}]}
+    ]
+    prompt_enc = processor.apply_chat_template(
+        prompt_messages, tokenize=True, return_dict=True, return_tensors="pt", add_generation_prompt=True
+    )
+    full_enc = processor.apply_chat_template(
+        full_messages, tokenize=True, return_dict=True, return_tensors="pt", add_generation_prompt=False
+    )
+    prompt_ids = prompt_enc["input_ids"]
+    full_ids = full_enc["input_ids"]
+    if prompt_ids.size(1) > full_ids.size(1):
+        raise ValueError("Prompt encoding is longer than full conversation encoding.")
+    response_ids = full_ids[:, prompt_ids.size(1):]
+    input_ids = full_ids.squeeze(0).to(torch.long)
+    labels = torch.cat([_ignore_mask(prompt_ids.size(1)), response_ids.squeeze(0).to(torch.long)], dim=0)
+    return input_ids, labels, prompt_enc, full_enc
 
 
 def build_smolvlm_user_content(user_text: str, turn_images) -> list[dict]:
@@ -146,7 +182,6 @@ def qwen_encode_conversation(
     images,
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
-    """Encode one conversation with the Qwen-VL chat template and image-grid fields."""
     all_input_ids = []
     all_labels = []
 
@@ -188,13 +223,7 @@ def qwen_encode_conversation(
         )["input_ids"]
 
         input_ids = torch.cat([prompt_ids, response_ids], dim=1).squeeze(0)
-        labels = torch.cat(
-            [
-                torch.tensor([IGNORE_INDEX] * len(prompt_ids[0])),
-                response_ids.squeeze(0),
-            ],
-            dim=0,
-        )
+        labels = torch.cat([_ignore_mask(prompt_ids.size(1)), response_ids.squeeze(0).to(torch.long)], dim=0)
         all_input_ids.append(input_ids)
         all_labels.append(labels)
 
@@ -218,166 +247,35 @@ def gemma3_encode_conversation(
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
     """Encode one conversation with Gemma 3 by masking prompt tokens out of the full chat encoding."""
-    all_input_ids = []
-    all_labels = []
-
+    all_input_ids, all_labels = [], []
     pixel_values = None
     image_idx = 0
 
     for j in range(0, len(sources), 2):
         user_input = sources[j]
         gpt_response = sources[j + 1]
-
         user_text = user_input["value"]
         if LLAVA_IMAGE_TOKEN not in user_text or images is None:
             raise ValueError("Gemma 3 training samples must include image tokens and loaded images.")
         n_images = user_text.count(LLAVA_IMAGE_TOKEN)
-        clean_text = user_text.replace(LLAVA_IMAGE_TOKEN, "").strip()
-
         turn_images = images[image_idx : image_idx + n_images]
         image_idx += n_images
-        user_content = [{"type": "image", "image": image} for image in turn_images]
-
-        if clean_text:
-            user_content.append({"type": "text", "text": clean_text})
-
-        prompt_messages = [{"role": "user", "content": user_content}]
-        full_messages = [
-            {"role": "user", "content": user_content},
-            {"role": "assistant", "content": [{"type": "text", "text": gpt_response["value"]}]},
-        ]
-
-        prompt_enc = processor.apply_chat_template(
-            prompt_messages,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
-            add_generation_prompt=True,
+        user_content = _build_image_text_content(user_text, turn_images)
+        input_ids, labels, prompt_enc, full_enc = _encode_turn_with_template(
+            processor, user_content, gpt_response["value"]
         )
-        full_enc = processor.apply_chat_template(
-            full_messages,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
-            add_generation_prompt=False,
-        )
-
-        prompt_ids = prompt_enc["input_ids"]
-        full_ids = full_enc["input_ids"]
-        if prompt_ids.size(1) > full_ids.size(1):
-            raise ValueError("Gemma 3 prompt encoding is longer than full conversation encoding.")
-
-        response_ids = full_ids[:, prompt_ids.size(1) :]
-        input_ids = full_ids.squeeze(0)
-        labels = torch.cat(
-            [
-                torch.full((prompt_ids.size(1),), IGNORE_INDEX, dtype=torch.long),
-                response_ids.squeeze(0).to(torch.long),
-            ],
-            dim=0,
-        )
-
-        all_input_ids.append(input_ids.to(torch.long))
+        all_input_ids.append(input_ids)
         all_labels.append(labels)
-
         pixel_values = full_enc.get("pixel_values", prompt_enc.get("pixel_values"))
 
-    input_ids = torch.cat(all_input_ids, dim=0).to(torch.long)
-    labels = torch.cat(all_labels, dim=0).to(torch.long)
-    attention_mask = torch.ones_like(input_ids)
-
+    input_ids = torch.cat(all_input_ids, dim=0)
+    labels = torch.cat(all_labels, dim=0)
     return dict(
         input_ids=input_ids,
         labels=labels,
-        attention_mask=attention_mask,
+        attention_mask=torch.ones_like(input_ids),
         pixel_values=pixel_values,
         pixel_attention_mask=None,
-    )
-
-
-def llava_next_encode_conversation(
-    sources,
-    images,
-    processor: transformers.ProcessorMixin,
-) -> Dict[str, torch.Tensor]:
-    """Encode one conversation with the LLaVA-NeXT processor and retain image-size metadata."""
-    all_input_ids = []
-    all_labels = []
-    pixel_values = None
-    image_sizes = None
-    image_idx = 0
-
-    for j in range(0, len(sources), 2):
-        user_input = sources[j]
-        gpt_response = sources[j + 1]
-
-        user_text = user_input["value"]
-        if LLAVA_IMAGE_TOKEN not in user_text or images is None:
-            raise ValueError("LLaVA-NeXT training samples must include image tokens and loaded images.")
-        n_images = user_text.count(LLAVA_IMAGE_TOKEN)
-        clean_text = user_text.replace(LLAVA_IMAGE_TOKEN, "").strip()
-
-        turn_images = images[image_idx : image_idx + n_images]
-        image_idx += n_images
-        user_content = [{"type": "image", "image": image} for image in turn_images]
-
-        if clean_text:
-            user_content.append({"type": "text", "text": clean_text})
-
-        prompt_messages = [{"role": "user", "content": user_content}]
-        full_messages = [
-            {"role": "user", "content": user_content},
-            {"role": "assistant", "content": [{"type": "text", "text": gpt_response["value"]}]},
-        ]
-
-        prompt_enc = processor.apply_chat_template(
-            prompt_messages,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
-            add_generation_prompt=True,
-        )
-        full_enc = processor.apply_chat_template(
-            full_messages,
-            tokenize=True,
-            return_dict=True,
-            return_tensors="pt",
-            add_generation_prompt=False,
-        )
-
-        prompt_ids = prompt_enc["input_ids"]
-        full_ids = full_enc["input_ids"]
-        if prompt_ids.size(1) > full_ids.size(1):
-            raise ValueError("LLaVA-NeXT prompt encoding is longer than full conversation encoding.")
-
-        response_ids = full_ids[:, prompt_ids.size(1) :]
-        input_ids = full_ids.squeeze(0)
-        labels = torch.cat(
-            [
-                torch.full((prompt_ids.size(1),), IGNORE_INDEX, dtype=torch.long),
-                response_ids.squeeze(0).to(torch.long),
-            ],
-            dim=0,
-        )
-
-        all_input_ids.append(input_ids.to(torch.long))
-        all_labels.append(labels)
-        if pixel_values is None:
-            pixel_values = full_enc.get("pixel_values", prompt_enc.get("pixel_values"))
-        if image_sizes is None:
-            image_sizes = full_enc.get("image_sizes", prompt_enc.get("image_sizes"))
-
-    input_ids = torch.cat(all_input_ids, dim=0).to(torch.long)
-    labels = torch.cat(all_labels, dim=0).to(torch.long)
-    attention_mask = torch.ones_like(input_ids)
-
-    return dict(
-        input_ids=input_ids,
-        labels=labels,
-        attention_mask=attention_mask,
-        pixel_values=pixel_values,
-        pixel_attention_mask=None,
-        image_sizes=image_sizes,
     )
 
 
@@ -438,13 +336,7 @@ def internvl3_encode_conversation(
         )["input_ids"]
 
         input_ids = torch.cat([prompt_input_ids, response_input_ids], dim=1).squeeze(0)
-        labels = torch.cat(
-            [
-                torch.tensor([IGNORE_INDEX] * len(prompt_input_ids[0])),
-                response_input_ids.squeeze(0),
-            ],
-            dim=0,
-        )
+        labels = torch.cat([_ignore_mask(prompt_input_ids.size(1)), response_input_ids.squeeze(0).to(torch.long)], dim=0)
         all_input_ids.append(input_ids)
         all_labels.append(labels)
 
@@ -464,10 +356,8 @@ PROCESSOR_ENCODERS = {
         (IDEFICS3_PROCESSOR, smolvlm_encode_conversation),
         (SMOLVLM_PROCESSOR, smolvlm_encode_conversation),
         (GEMMA3_PROCESSOR, gemma3_encode_conversation),
-        (LLAVA_NEXT_PROCESSOR, llava_next_encode_conversation),
         (QWEN2_VL_PROCESSOR, qwen_encode_conversation),
         (QWEN2_5_VL_PROCESSOR, qwen_encode_conversation),
-        (QWEN3_VL_PROCESSOR, qwen_encode_conversation),
     )
     if processor_type is not None
 }
@@ -475,7 +365,6 @@ PROCESSOR_ENCODERS = {
 __all__ = [
     "PROCESSOR_ENCODERS",
     "gemma3_encode_conversation",
-    "llava_next_encode_conversation",
     "internvl3_encode_conversation",
     "is_internvl_teacher_model_id",
     "qwen_encode_conversation",

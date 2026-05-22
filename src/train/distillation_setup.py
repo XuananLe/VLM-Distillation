@@ -29,36 +29,6 @@ class DistillationArguments:
         },
     )
 
-    layer_distill_source: str = field(
-        default="none",
-        metadata={"help": "Optional hidden-state distillation source. Supported: none, vision, model."},
-    )
-
-    layer_distill_weight: float = field(
-        default=0.0,
-        metadata={"help": "Extra weight applied to the auxiliary soft layer-matching CKA loss."},
-    )
-
-    layer_match_json_path: str | None = field(
-        default=None,
-        metadata={"help": "Optional CKA matrix.json path used to derive top-k soft teacher matches."},
-    )
-
-    layer_match_topk: int = field(
-        default=1,
-        metadata={"help": "Number of teacher layers to soft-match per student layer from the CKA matrix."},
-    )
-
-    student_layer_indices: list[int] = field(
-        default_factory=list,
-        metadata={"help": "Student layer indices. Pass as repeated integer values after --student_layer_indices."},
-    )
-
-    teacher_layer_indices: list[int] = field(
-        default_factory=list,
-        metadata={"help": "Teacher layer indices. Pass as repeated integer values after --teacher_layer_indices."},
-    )
-
     trie_wasserstein_rho: float = field(
         default=0.7,
         metadata={"help": "Edge-decay factor rho used by trie_wasserstein_loss."},
@@ -176,7 +146,6 @@ class DistillationArguments:
                 self.teacher_weighting_strategy,
                 {"routing", "uniform_mean", "reinforced_selection"},
             ),
-            ("--layer_distill_source", self.layer_distill_source, {"none", "vision", "model"}),
             ("--reinforced_selection_reward_type", self.reinforced_selection_reward_type, {"reward1", "reward2"}),
         )
         for arg_name, value, allowed in allowed_values:
@@ -194,7 +163,6 @@ class DistillationArguments:
             raise ValueError("--trie_wasserstein_rho must be in (0, 1).")
         for arg_name, value in (
             ("--trie_wasserstein_topk", self.trie_wasserstein_topk),
-            ("--layer_match_topk", self.layer_match_topk),
             ("--teacher_gate_top_k", self.teacher_gate_top_k),
         ):
             if value < 1:
@@ -209,7 +177,6 @@ class DistillationArguments:
                 raise ValueError(f"{arg_name} must be > 0.")
 
         for arg_name, value in (
-            ("--layer_distill_weight", self.layer_distill_weight),
             ("--alpha", self.alpha),
             ("--teacher_gate_entropy_alpha", self.teacher_gate_entropy_alpha),
             ("--teacher_gate_router_z_loss_alpha", self.teacher_gate_router_z_loss_alpha),
@@ -227,34 +194,12 @@ class DistillationArguments:
             raise ValueError("--grace_ema_decay must be in [0, 1).")
         if not 0.0 <= self.reinforced_selection_reward_ema_decay < 1.0:
             raise ValueError("--reinforced_selection_reward_ema_decay must be in [0, 1).")
-
-        layer_args_configured = bool(
-            self.layer_match_json_path or self.student_layer_indices or self.teacher_layer_indices
-        )
-        if self.layer_distill_source == "none":
-            if self.layer_distill_weight > 0.0 or layer_args_configured:
-                raise ValueError("Layer distillation arguments require --layer_distill_source vision or model.")
-        else:
-            if self.layer_distill_weight <= 0.0:
-                raise ValueError("--layer_distill_weight must be > 0 when layer distillation is enabled.")
-            if self.layer_match_json_path:
-                if self.student_layer_indices or self.teacher_layer_indices:
-                    raise ValueError("Use either --layer_match_json_path or manual layer indices, not both.")
-            else:
-                if not self.student_layer_indices:
-                    raise ValueError("--student_layer_indices must be provided when layer distillation is enabled.")
-                if not self.teacher_layer_indices:
-                    raise ValueError("--teacher_layer_indices must be provided when layer distillation is enabled.")
-                if len(self.student_layer_indices) != len(self.teacher_layer_indices):
-                    raise ValueError("--student_layer_indices and --teacher_layer_indices must have the same length.")
         return self
 
 
 def log_distillation_setup(
     *,
     teacher_ids,
-    student_layer_indices,
-    teacher_layer_indices,
     data_args,
     training_args,
     distillation_args,
@@ -268,29 +213,23 @@ def log_distillation_setup(
     print(f"Teacher Model(s): {teacher_ids}")
     if distillation_args.teacher_logits_cache_dir:
         print(f"Teacher Logits Cache: {distillation_args.teacher_logits_cache_dir}")
-    print(
-        "Teacher Weighting: learned deep gate + GRACE routing"
-        if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing"
-        else (
-            "Teacher Weighting: reinforced teacher selection"
-            if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "reinforced_selection"
-            else "Teacher Weighting: single teacher"
-            if len(teacher_ids) == 1
-            else "Teacher Weighting: uniform mean"
-        )
-    )
-    if distillation_args.alpha == 0.0 and distillation_args.layer_distill_source != "none":
-        print("Objective: CE + layer distillation")
+    if distillation_args.alpha == 0.0:
+        print("Teacher Weighting: disabled because alpha is 0")
     else:
-        print("Objective: CE + alpha * KD")
+        print(
+            "Teacher Weighting: learned deep gate + GRACE routing"
+            if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing"
+            else (
+                "Teacher Weighting: reinforced teacher selection"
+                if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "reinforced_selection"
+                else "Teacher Weighting: single teacher"
+                if len(teacher_ids) == 1
+                else "Teacher Weighting: uniform mean"
+            )
+        )
+    print("Objective: CE + alpha * KD")
     print(f"KD Weight: {distillation_args.alpha}")
     print(f"KD Function: {distillation_args.distillation_loss}")
-    print(f"Layer Distill Source: {distillation_args.layer_distill_source}")
-    print(f"Layer Distill Weight: {distillation_args.layer_distill_weight}")
-    print(f"Layer Match JSON: {distillation_args.layer_match_json_path}")
-    print(f"Layer Match Top-k: {distillation_args.layer_match_topk}")
-    print(f"Student Layer Indices: {student_layer_indices}")
-    print(f"Teacher Layer Indices: {teacher_layer_indices}")
     if distillation_args.distillation_loss == "trie_wasserstein_loss":
         print(f"Trie Wasserstein Rho: {distillation_args.trie_wasserstein_rho}")
         print(f"Trie Wasserstein Top-k: {distillation_args.trie_wasserstein_topk}")

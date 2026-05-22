@@ -265,9 +265,9 @@ indent-style = "space"
 line-ending = "auto"
 
 [tool.ty.environment]
-python = "./venv"
+python = "./venv/bin/python"
 python-version = "3.12"
-root = ["."]
+root = [".", "./src"]
 
 [tool.ty.src]
 include = ["src", "scripts", "tests", "modal_app.py"]
@@ -275,19 +275,6 @@ exclude = ["src/eval"]
 
 [tool.ty.analysis]
 allowed-unresolved-imports = ["streaming"]
-replace-imports-with-any = [
-  "datasets.**",
-  "einops.**",
-  "matplotlib.**",
-  "modal.**",
-  "numpy.**",
-  "PIL.**",
-  "pydantic.**",
-  "safetensors.**",
-  "torch.**",
-  "tqdm.**",
-  "transformers.**",
-]
 
 [tool.ty.terminal]
 output-format = "concise"

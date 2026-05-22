@@ -57,59 +57,18 @@ def compute_per_sample_ce_losses(
 def resolve_teacher_target_batches(
     *,
     student_logits: torch.Tensor,
-    teacher_models: Sequence | None,
-    live_teacher_batches,
     cached_teacher_target_batches,
     prepare_input_fn: Callable,
 ) -> list[TeacherTargetBatch]:
-    if cached_teacher_target_batches is not None:
-        return [
-            TeacherTargetBatch(
-                logits=prepare_input_fn(cached_teacher_logits).to(dtype=student_logits.dtype),
-                labels=prepare_input_fn(cached_teacher_labels),
-            )
-            for cached_teacher_logits, cached_teacher_labels in cached_teacher_target_batches
-        ]
-
-    if not teacher_models or live_teacher_batches is None:
-        raise ValueError("Teacher KD requires cached logits or live teacher batches.")
-    if len(teacher_models) != len(live_teacher_batches):
-        raise ValueError(
-            "Teacher model count does not match live teacher batch count: "
-            f"{len(teacher_models)} != {len(live_teacher_batches)}."
+    if cached_teacher_target_batches is None:
+        raise ValueError("Teacher KD requires cached teacher logits.")
+    return [
+        TeacherTargetBatch(
+            logits=prepare_input_fn(cached_teacher_logits).to(dtype=student_logits.dtype),
+            labels=prepare_input_fn(cached_teacher_labels),
         )
-
-    target_batches = []
-    for teacher_index, (teacher_model, (teacher_inputs, teacher_labels)) in enumerate(
-        zip(teacher_models, live_teacher_batches, strict=True)
-    ):
-        prepared_teacher_labels = prepare_input_fn(teacher_labels)
-        if not prepared_teacher_labels.ne(-100).any():
-            raise ValueError(f"Teacher {teacher_index} labels contain no supervised answer tokens.")
-
-        prepared_teacher_inputs = prepare_input_fn(teacher_inputs)
-        model_param = next(teacher_model.parameters())
-        model_dtype = model_param.dtype if model_param.is_floating_point() else None
-        for key, value in prepared_teacher_inputs.items():
-            if torch.is_tensor(value):
-                target_dtype = model_dtype if model_dtype is not None and value.is_floating_point() else value.dtype
-                prepared_teacher_inputs[key] = value.to(device=model_param.device, dtype=target_dtype)
-
-        with torch.no_grad():
-            teacher_outputs = teacher_model(
-                **prepared_teacher_inputs,
-                return_dict=True,
-                output_hidden_states=False,
-            )
-        target_batches.append(
-            TeacherTargetBatch(
-                logits=teacher_outputs.logits.detach(),
-                labels=prepared_teacher_labels,
-            )
-        )
-        del teacher_outputs
-
-    return target_batches
+        for cached_teacher_logits, cached_teacher_labels in cached_teacher_target_batches
+    ]
 
 
 def compute_teacher_loss_matrix(

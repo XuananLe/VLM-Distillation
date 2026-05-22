@@ -4,21 +4,9 @@ import re
 
 from src.constants import TOKENIZER_VOCAB_SIZES
 
-VLM_NON_TEXT_MARKERS = (
-    "image",
-    "vision",
-    "patch",
-    "pixel",
-    "img",
-    "boi",
-    "eoi",
-    "vis",
-    "video",
-    "quad",
-    "box",
-    "ref",
-)
-
+# Sources:
+# https://huggingface.co/HuggingFaceTB/SmolVLM-500M-Instruct/blob/main/tokenizer_config.json
+# https://huggingface.co/HuggingFaceTB/SmolVLM2-2.2B-Instruct/blob/main/tokenizer_config.json
 SMOLVLM_NON_TEXT_TOKEN_STRINGS = (
     "<image>",
     "<fake_token_around_image>",
@@ -26,12 +14,18 @@ SMOLVLM_NON_TEXT_TOKEN_STRINGS = (
     *(f"<row_{row}_col_{col}>" for row in range(1, 7) for col in range(1, 7)),
 )
 
+# Sources:
+# https://huggingface.co/docs/transformers/v4.52.2/en/model_doc/gemma3
+# https://huggingface.co/google/gemma-3-4b-it/blob/main/tokenizer_config.json
 GEMMA_NON_TEXT_TOKEN_STRINGS = (
     "<start_of_image>",
     "<end_of_image>",
     "<image_soft_token>",
 )
 
+# Sources:
+# https://huggingface.co/Qwen/Qwen2.5-VL-3B-Instruct/blob/main/tokenizer_config.json
+# https://huggingface.co/Qwen/Qwen2-VL-2B-Instruct/blob/main/tokenizer_config.json
 QWEN_VL_NON_TEXT_TOKEN_STRINGS = (
     "<|vision_start|>",
     "<|vision_end|>",
@@ -46,6 +40,8 @@ QWEN_VL_NON_TEXT_TOKEN_STRINGS = (
     "<|object_ref_end|>",
 )
 
+# Source:
+# https://huggingface.co/OpenGVLab/InternVL2-1B/blob/main/tokenizer_config.json
 INTERNVL_NON_TEXT_TOKEN_STRINGS = (
     "<img>",
     "</img>",
@@ -59,15 +55,14 @@ INTERNVL_NON_TEXT_TOKEN_STRINGS = (
 )
 
 
-GRANITE_VISION_NON_TEXT_TOKEN_STRINGS = ("<image>",)
-
 SUPPORTED_MODEL_NON_TEXT_TOKEN_STRINGS = {
     "HuggingFaceTB/SmolVLM-256M-Instruct": SMOLVLM_NON_TEXT_TOKEN_STRINGS,
     "HuggingFaceTB/SmolVLM-500M-Instruct": SMOLVLM_NON_TEXT_TOKEN_STRINGS,
+    "HuggingFaceTB/SmolVLM-Instruct": SMOLVLM_NON_TEXT_TOKEN_STRINGS,
+    "HuggingFaceTB/SmolVLM2-2.2B-Instruct": SMOLVLM_NON_TEXT_TOKEN_STRINGS,
     "OpenGVLab/InternVL2-1B": INTERNVL_NON_TEXT_TOKEN_STRINGS,
     "Qwen/Qwen2.5-VL-3B-Instruct": QWEN_VL_NON_TEXT_TOKEN_STRINGS,
     "Qwen/Qwen2-VL-2B-Instruct": QWEN_VL_NON_TEXT_TOKEN_STRINGS,
-    "ibm-granite/granite-vision-3.1-2b-preview": GRANITE_VISION_NON_TEXT_TOKEN_STRINGS,
     "google/gemma-3-4b-it": GEMMA_NON_TEXT_TOKEN_STRINGS,
 }
 

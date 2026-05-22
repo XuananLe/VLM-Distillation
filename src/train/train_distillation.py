@@ -39,17 +39,12 @@ def train_distillation():
 
     compute_dtype = torch.float16 if training_args.fp16 else torch.bfloat16 if training_args.bf16 else torch.float32
     teacher_ids = list(distillation_args.teacher_model_ids)
-    student_layer_indices = list(distillation_args.student_layer_indices)
-    teacher_layer_indices = list(distillation_args.teacher_layer_indices)
-    layer_distillation_enabled = distillation_args.layer_distill_source in {"vision", "model"}
     gradient_checkpointing_kwargs = dict(training_args.gradient_checkpointing_kwargs or {})
     if "use_reentrant" not in gradient_checkpointing_kwargs:
         gradient_checkpointing_kwargs["use_reentrant"] = False
 
     log_distillation_setup(
         teacher_ids=teacher_ids,
-        student_layer_indices=student_layer_indices,
-        teacher_layer_indices=teacher_layer_indices,
         data_args=data_args,
         training_args=training_args,
         distillation_args=distillation_args,
@@ -69,31 +64,15 @@ def train_distillation():
         student_model.enable_input_require_grads()
         training_args.gradient_checkpointing_kwargs = gradient_checkpointing_kwargs
 
-    if layer_distillation_enabled:
-        if distillation_args.teacher_logits_cache_dir:
-            print("\nLayer distillation enabled; loading live teacher models in addition to cached teacher logits.")
-        else:
-            print("\nLayer distillation enabled; loading live teacher models.")
-        teacher_models = []
-        teacher_processors = []
-        for teacher_id in teacher_ids:
-            print(f"Loading live teacher for layer distillation: {teacher_id}")
-            teacher_model, teacher_processor, _, _ = load_vlm_bundle(
-                model_id=teacher_id,
-                cache_dir=training_args.cache_dir,
-                device=training_args.device,
-                compute_dtype=compute_dtype,
-                disable_flash_attn2=training_args.disable_flash_attn2,
-            )
-            teacher_models.append(teacher_model)
-            teacher_processors.append(teacher_processor)
-    else:
+    if distillation_args.teacher_logits_cache_dir:
         print("\nUsing cached teacher logits; skipping online teacher model loading.")
-        teacher_models, teacher_processors = [], []
+    else:
+        print("\nNo teacher-logit cache configured; running CE-only training because alpha is 0.")
+    teacher_processors = []
 
     student_loss_tokenizer = None
     teacher_loss_tokenizers = None
-    if distillation_args.distillation_loss == "trie_wasserstein_loss":
+    if distillation_args.alpha > 0.0 and distillation_args.distillation_loss == "trie_wasserstein_loss":
         print("Preparing trie-Wasserstein tokenizers...")
         student_loss_tokenizer = getattr(processor, "tokenizer", None) or processor
         teacher_loss_tokenizers = [
@@ -115,18 +94,11 @@ def train_distillation():
     print("\nInitializing distillation trainer...")
     trainer = DistillationTrainer(
         model=student_model,
-        teacher_model=teacher_models or None,
         teacher_count=len(teacher_ids),
         student_tokenizer=student_loss_tokenizer,
         teacher_tokenizers=teacher_loss_tokenizers,
         teacher_weighting_strategy=distillation_args.teacher_weighting_strategy,
         loss_function=distillation_args.distillation_loss,
-        layer_distill_source=distillation_args.layer_distill_source,
-        layer_distill_weight=distillation_args.layer_distill_weight,
-        layer_match_json_path=distillation_args.layer_match_json_path,
-        layer_match_topk=distillation_args.layer_match_topk,
-        student_layer_indices=student_layer_indices,
-        teacher_layer_indices=teacher_layer_indices,
         student_temperature=distillation_args.student_temperature,
         teacher_temperature=distillation_args.teacher_temperature,
         skip_student_eos=distillation_args.skip_student_eos,

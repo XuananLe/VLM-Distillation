@@ -32,8 +32,8 @@ so all three benchmarks share the same data loader and training pipeline.
 }
 \end{lstlisting}
 
-We run all training jobs on a single high-memory \textbf{NVIDIA H200} GPU or
-a comparable single-GPU \textbf{Vast.ai} instance. Distillation training uses \textbf{DeepSpeed ZeRO Stage 2},
+We run all training jobs on a single-GPU \textbf{Vast.ai} instance equipped
+with a high-memory \textbf{NVIDIA H200} GPU. Distillation training uses \textbf{DeepSpeed ZeRO Stage 2},
 \textbf{bf16} mixed precision, \textbf{TF32} matrix multiplication and
 gradient checkpointing to control memory, keeping the student trainable and
 all teachers frozen

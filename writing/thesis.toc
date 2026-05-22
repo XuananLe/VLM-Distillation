@@ -18,30 +18,30 @@
 \contentsline {section}{\numberline {3.1}Method Overview and Problem Formulation}{15}{section.3.1}%
 \contentsline {section}{\numberline {3.2}Byte-Trie Wasserstein Distillation}{17}{section.3.2}%
 \contentsline {subsection}{\numberline {3.2.1}Shared Byte Trie}{18}{subsection.3.2.1}%
-\contentsline {subsection}{\numberline {3.2.2}Sparse Support and Residual Tail Edge}{19}{subsection.3.2.2}%
+\contentsline {subsection}{\numberline {3.2.2}Sparse Support and Residual Tail Edge}{20}{subsection.3.2.2}%
 \contentsline {subsection}{\numberline {3.2.3}Byte-Trie Wasserstein Objective}{21}{subsection.3.2.3}%
-\contentsline {section}{\numberline {3.3}Teacher Routing Network}{22}{section.3.3}%
+\contentsline {section}{\numberline {3.3}Teacher Routing Network}{23}{section.3.3}%
 \contentsline {section}{\numberline {3.4}Gradient-Agreement Refinement}{25}{section.3.4}%
 \contentsline {subsection}{\numberline {3.4.1}Agreement Score Computation}{25}{subsection.3.4.1}%
 \contentsline {subsection}{\numberline {3.4.2}Warmup, EMA Smoothing and Active Set}{26}{subsection.3.4.2}%
 \contentsline {subsection}{\numberline {3.4.3}Fallback, Uniform and Blended Weighting}{27}{subsection.3.4.3}%
-\contentsline {section}{\numberline {3.5}Routed KD Aggregation and Final Objective}{29}{section.3.5}%
-\contentsline {chapter}{\numberline {4}Evaluation Methodology}{32}{chapter.4}%
-\contentsline {section}{\numberline {4.1}Experimental Setup}{32}{section.4.1}%
-\contentsline {section}{\numberline {4.2}Datasets}{33}{section.4.2}%
-\contentsline {section}{\numberline {4.3}Baselines}{34}{section.4.3}%
-\contentsline {section}{\numberline {4.4}Ablation Settings}{37}{section.4.4}%
-\contentsline {chapter}{\numberline {5}Experiment Results}{38}{chapter.5}%
-\contentsline {section}{\numberline {5.1}Main Comparison Results}{38}{section.5.1}%
-\contentsline {section}{\numberline {5.2}Ablation Study}{43}{section.5.2}%
+\contentsline {section}{\numberline {3.5}Routed KD Aggregation and Final Objective}{28}{section.3.5}%
+\contentsline {chapter}{\numberline {4}Evaluation Methodology}{30}{chapter.4}%
+\contentsline {section}{\numberline {4.1}Experimental Setup}{30}{section.4.1}%
+\contentsline {section}{\numberline {4.2}Datasets}{31}{section.4.2}%
+\contentsline {section}{\numberline {4.3}Baselines}{32}{section.4.3}%
+\contentsline {section}{\numberline {4.4}Ablation Settings}{35}{section.4.4}%
+\contentsline {chapter}{\numberline {5}Experiment Results}{36}{chapter.5}%
+\contentsline {section}{\numberline {5.1}Main Comparison Results}{36}{section.5.1}%
+\contentsline {section}{\numberline {5.2}Ablation Study}{42}{section.5.2}%
 \contentsline {section}{\numberline {5.3}Efficiency Analysis}{44}{section.5.3}%
 \contentsline {section}{\numberline {5.4}Discussion}{45}{section.5.4}%
-\contentsline {chapter}{Conclusion and Future Work}{50}{section*.32}%
-\contentsline {chapter}{References}{51}{section*.33}%
+\contentsline {chapter}{Conclusion and Future Work}{49}{section*.34}%
+\contentsline {chapter}{References}{50}{section*.35}%
 \renewcommand {\cftchappresnum }{Appendix }
 \setlength {\cftchapnumwidth }{6.5em}
-\contentsline {chapter}{\numberline {A}Proof of the Closed-Form Trie-Wasserstein}{57}{appendix.A}%
-\contentsline {chapter}{\numberline {B}Implementation Details}{60}{appendix.B}%
-\contentsline {section}{\numberline {B.1}Baseline Implementation}{61}{section.B.1}%
-\contentsline {section}{\numberline {B.2}Offline Teacher-Logit Preparation}{62}{section.B.2}%
-\contentsline {section}{\numberline {B.3}Remote Logit Streaming During Training}{63}{section.B.3}%
+\contentsline {chapter}{\numberline {A}Proof of the Closed-Form Trie-Wasserstein}{56}{appendix.A}%
+\contentsline {chapter}{\numberline {B}Implementation Details}{59}{appendix.B}%
+\contentsline {section}{\numberline {B.1}Baseline Implementation}{60}{section.B.1}%
+\contentsline {section}{\numberline {B.2}Offline Teacher-Logit Preparation}{61}{section.B.2}%
+\contentsline {section}{\numberline {B.3}Remote Logit Streaming During Training}{62}{section.B.3}%

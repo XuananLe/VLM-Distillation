@@ -1,19 +1,19 @@
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {2.1}{\ignorespaces Summary of response-level and feature-level KD objectives.\relax }}{8}{table.caption.3}%
+\contentsline {table}{\numberline {2.1}{\ignorespaces Summary of response-level and feature-level KD objectives.\relax }}{8}{table.caption.4}%
 \addvspace {10\p@ }
 \contentsline {table}{\numberline {3.1}{\ignorespaces Notation table.\relax }}{16}{table.3.1}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {4.1}{\ignorespaces Dataset split sizes.}}{34}{table.caption.17}%
-\contentsline {table}{\numberline {4.2}{\ignorespaces Baseline groups.}}{35}{table.caption.18}%
-\contentsline {table}{\numberline {4.3}{\ignorespaces Student and teacher model results.}}{36}{table.caption.19}%
+\contentsline {table}{\numberline {4.1}{\ignorespaces Dataset split sizes.}}{32}{table.caption.17}%
+\contentsline {table}{\numberline {4.2}{\ignorespaces Baseline groups.}}{33}{table.caption.18}%
+\contentsline {table}{\numberline {4.3}{\ignorespaces Student and teacher model results.}}{34}{table.caption.19}%
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {5.1}{\ignorespaces Main benchmark comparison.}}{39}{table.caption.20}%
-\contentsline {table}{\numberline {5.2}{\ignorespaces Relative gains of GRACE{}.}}{42}{table.caption.24}%
-\contentsline {table}{\numberline {5.3}{\ignorespaces Gap-to-teacher analysis for SmolVLM-500M.}}{42}{table.caption.25}%
-\contentsline {table}{\numberline {5.4}{\ignorespaces DocVQA component ablation.}}{43}{table.caption.26}%
-\contentsline {table}{\numberline {5.5}{\ignorespaces ULD vs.\ Byte-Trie Wasserstein under equal ranked masses.}}{46}{table.caption.27}%
+\contentsline {table}{\numberline {5.1}{\ignorespaces Main benchmark comparison.}}{37}{table.caption.20}%
+\contentsline {table}{\numberline {5.2}{\ignorespaces Relative gains of GRACE{}.}}{40}{table.caption.25}%
+\contentsline {table}{\numberline {5.3}{\ignorespaces Gap-to-teacher analysis for SmolVLM-500M.}}{40}{table.caption.26}%
+\contentsline {table}{\numberline {5.4}{\ignorespaces DocVQA component ablation.}}{43}{table.caption.28}%
+\contentsline {table}{\numberline {5.5}{\ignorespaces ULD vs.\ Byte-Trie Wasserstein under equal ranked masses.}}{46}{table.caption.29}%
 \addvspace {10\p@ }
 \addvspace {10\p@ }
-\contentsline {table}{\numberline {B.1}{\ignorespaces Experiment parameters.}}{60}{table.B.1}%
-\contentsline {table}{\numberline {B.2}{\ignorespaces Logit-streaming settings.}}{64}{table.B.2}%
+\contentsline {table}{\numberline {B.1}{\ignorespaces Experiment parameters.}}{59}{table.B.1}%
+\contentsline {table}{\numberline {B.2}{\ignorespaces Logit-streaming settings.}}{63}{table.B.2}%

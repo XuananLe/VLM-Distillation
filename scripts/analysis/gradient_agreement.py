@@ -32,8 +32,7 @@ from src.dataset.vqa_loading import (
 )
 from src.params import DataArguments
 from src.train.model_setup import (
-    load_model,
-    load_processor_bundle,
+    load_vlm_bundle,
 )
 
 
@@ -209,27 +208,18 @@ def load_vlm_runtime(
     attn_implementation: str,
     cache_dir: str | None,
 ):
-    processor, _, model_type = load_processor_bundle(
+    model, processor, _, _ = load_vlm_bundle(
         model_id,
         cache_dir=cache_dir,
-        padding_side="right",
-    )
-    if processor is None:
-        raise ValueError(f"Could not load an AutoProcessor for multimodal model {model_id!r}.")
-    model = load_model(
-        model_id=model_id,
-        model_type=model_type,
-        cache_dir=cache_dir,
-        attn_implementation=attn_implementation,
         compute_dtype=dtype,
-        trust_remote_code=True,
+        device=device,
+        disable_flash_attn2=attn_implementation != "flash_attention_2",
+        padding_side="right",
+        attn_implementation=attn_implementation,
         model_kwargs={
-            "device_map": {"": device},
             "low_cpu_mem_usage": True,
         },
     )
-    if hasattr(model.config, "use_cache"):
-        model.config.use_cache = False
     model.eval()
     return model, processor
 

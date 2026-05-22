@@ -13,7 +13,6 @@ def prepare_distillation_sequences(
     skip_teacher_eos: bool,
     ce_grad: torch.Tensor | None = None,
 ) -> tuple[torch.Tensor, torch.Tensor, torch.Tensor | None]:
-    """Align one student/teacher token sequence pair onto their shared supervised prefix."""
     # Distillation only compares answer positions. Prompt/user tokens stay masked
     # out through the standard `labels == -100` convention.
     student_logits_masked = student_logits[student_labels != -100]

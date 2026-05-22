@@ -167,8 +167,20 @@ class DexarBackend:
         for parameter in self.lm_head.parameters():
             parameter.requires_grad = True
         self.model.eval()
-        for config in (self.model.config, getattr(self.text_backbone, "config", None)):
+        configs = (
+            getattr(self.model, "config", None),
+            getattr(getattr(self.model, "config", None), "text_config", None),
+            getattr(getattr(self.model, "language_model", None), "config", None),
+            getattr(self.text_backbone, "config", None),
+        )
+        seen_config_ids: set[int] = set()
+        for config in configs:
             if config is not None:
+                if id(config) in seen_config_ids:
+                    continue
+                seen_config_ids.add(id(config))
+                if getattr(config, "_attn_implementation", None) != "eager":
+                    config._attn_implementation = "eager"
                 config.output_attentions = True
                 config.output_hidden_states = True
 
@@ -241,6 +253,24 @@ class DexarBackend:
         prompt_input_ids = model_inputs["input_ids"]
         prompt_image_mask = prompt_input_ids[0] == self.image_token_id
         num_image_tokens = int(prompt_image_mask.sum().item())
+        if self.family == "florence2" and num_image_tokens == 0:
+            image_seq_length = getattr(self.processor, "image_seq_length", None)
+            if image_seq_length is None and hasattr(self.processor, "image_processor"):
+                image_seq_length = getattr(self.processor.image_processor, "image_seq_length", None)
+            if image_seq_length is None:
+                raise ValueError(
+                    "Florence-2 processor output did not include image tokens and "
+                    "no image_seq_length was available to synthesize the image mask."
+                )
+            synthetic_image_ids = torch.full(
+                (1, int(image_seq_length)),
+                int(self.image_token_id),
+                device=prompt_input_ids.device,
+                dtype=prompt_input_ids.dtype,
+            )
+            prompt_input_ids = torch.cat([synthetic_image_ids, prompt_input_ids], dim=1)
+            prompt_image_mask = prompt_input_ids[0] == self.image_token_id
+            num_image_tokens = int(prompt_image_mask.sum().item())
         if num_image_tokens == 0:
             raise ValueError(
                 "No image tokens were found in the encoded prompt. "
@@ -424,18 +454,21 @@ def build_backend(
     spatial_merge_size: int | None = None,
     text_backbone=None,
     norm=None,
+    lm_head=None,
     custom_generate_answer=None,
 ) -> DexarBackend:
     if text_backbone is None:
         text_backbone = resolve_text_backbone(model)
     if norm is None:
         norm = resolve_norm(text_backbone)
+    if lm_head is None:
+        lm_head = resolve_lm_head(model, text_backbone)
     return DexarBackend(
         family=family,
         model=model,
         processor=processor,
         text_backbone=text_backbone,
-        lm_head=resolve_lm_head(model, text_backbone),
+        lm_head=lm_head,
         norm=norm,
         layers=resolve_layers(text_backbone),
         image_token_id=image_token_id,
@@ -523,6 +556,16 @@ def load_paligemma_backend(model_name: str, device: str) -> DexarBackend:
 def load_florence2_backend(model_name: str, device: str) -> DexarBackend:
     from transformers import AutoProcessor, Florence2ForConditionalGeneration
 
+    if model_name.lower().startswith("microsoft/florence-2"):
+        try:
+            return load_microsoft_florence2_remote_backend(model_name, device)
+        except Exception as exc:
+            print(
+                "[dexar] Microsoft Florence-2 remote-code load failed; "
+                f"falling back to native Transformers Florence-2 path: {type(exc).__name__}: {exc}",
+                flush=True,
+            )
+
     load_kwargs = {
         "device_map": resolve_device_map(device),
         "torch_dtype": resolve_torch_dtype(device),
@@ -561,6 +604,56 @@ def load_florence2_backend(model_name: str, device: str) -> DexarBackend:
         image_token_id=image_token_id,
         default_prompt="<DETAILED_CAPTION>",
         recommended_image_size=768,
+        custom_generate_answer=generate_florence2_answer,
+    )
+
+
+def load_microsoft_florence2_remote_backend(model_name: str, device: str) -> DexarBackend:
+    from transformers import AutoModelForCausalLM, AutoProcessor
+
+    common_kwargs = {
+        "device_map": resolve_device_map(device),
+        "torch_dtype": resolve_torch_dtype(device),
+        "trust_remote_code": True,
+    }
+    try:
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            attn_implementation="eager",
+            **common_kwargs,
+        )
+    except TypeError as exc:
+        if "attn_implementation" not in str(exc):
+            raise
+        model = AutoModelForCausalLM.from_pretrained(
+            model_name,
+            _attn_implementation="eager",
+            **common_kwargs,
+        )
+    processor = AutoProcessor.from_pretrained(model_name, trust_remote_code=True)
+
+    language_model = model.language_model
+    text_model = language_model.model
+    image_size = 768
+    processor_size = getattr(getattr(processor, "image_processor", None), "size", None)
+    if isinstance(processor_size, dict):
+        image_size = int(
+            processor_size.get("height")
+            or processor_size.get("shortest_edge")
+            or processor_size.get("longest_edge")
+            or image_size
+        )
+
+    return build_backend(
+        family="florence2",
+        model=model,
+        processor=processor,
+        text_backbone=text_model.decoder,
+        lm_head=language_model.lm_head,
+        norm=identity_norm(),
+        image_token_id=-1,
+        default_prompt="<DETAILED_CAPTION>",
+        recommended_image_size=image_size,
         custom_generate_answer=generate_florence2_answer,
     )
 
@@ -860,22 +953,70 @@ def generate_florence2_answer(
     device: torch.device,
 ) -> str:
     encoded_prompt = backend.encode_prompt(prompt=prompt, image=image, device=device)
-    generation_inputs = {
+    encoder_input_ids = encoded_prompt.model_inputs["input_ids"]
+    encoder_attention_mask = encoded_prompt.model_inputs.get("attention_mask")
+    if encoder_attention_mask is None:
+        encoder_attention_mask = torch.ones_like(encoder_input_ids, device=device)
+    model_static_inputs = {
         key: value
         for key, value in encoded_prompt.model_inputs.items()
-        if key in {"input_ids", "attention_mask", "pixel_values"}
+        if key not in {"input_ids", "attention_mask"}
     }
+    if "pixel_values" in model_static_inputs:
+        model_static_inputs["pixel_values"] = model_static_inputs["pixel_values"].to(
+            dtype=next(backend.model.parameters()).dtype
+        )
     tokenizer = backend.processor.tokenizer
 
+    text_config = getattr(backend.model.config, "text_config", backend.model.config)
+    decoder_start_token_id = getattr(text_config, "decoder_start_token_id", None)
+    if decoder_start_token_id is None:
+        decoder_start_token_id = getattr(backend.model.config, "decoder_start_token_id", None)
+    if decoder_start_token_id is None:
+        decoder_start_token_id = tokenizer.bos_token_id
+    if decoder_start_token_id is None:
+        raise ValueError("Could not resolve decoder_start_token_id for Florence-2 generation.")
+
+    decoder_input_ids = torch.full(
+        (1, 1),
+        int(decoder_start_token_id),
+        device=device,
+        dtype=encoder_input_ids.dtype,
+    )
+    decoder_attention_mask = torch.ones_like(decoder_input_ids, device=device)
+    generated_token_ids = []
+
     with torch.inference_mode():
-        generated_ids = backend.model.generate(
-            **generation_inputs,
-            max_new_tokens=max_new_tokens,
-            do_sample=False,
-            num_beams=3,
-            pad_token_id=tokenizer.pad_token_id,
-            eos_token_id=tokenizer.eos_token_id,
-        )
+        for _ in range(max_new_tokens):
+            outputs = backend.model(
+                input_ids=encoder_input_ids,
+                attention_mask=encoder_attention_mask,
+                decoder_input_ids=decoder_input_ids,
+                decoder_attention_mask=decoder_attention_mask,
+                output_attentions=False,
+                output_hidden_states=False,
+                return_dict=True,
+                use_cache=False,
+                **model_static_inputs,
+            )
+            next_token_id = outputs.logits[:, -1, :].argmax(dim=-1, keepdim=True)
+            generated_token_ids.append(next_token_id)
+            decoder_input_ids = torch.cat([decoder_input_ids, next_token_id], dim=-1)
+            decoder_attention_mask = torch.cat(
+                [
+                    decoder_attention_mask,
+                    torch.ones((1, 1), device=device, dtype=decoder_attention_mask.dtype),
+                ],
+                dim=1,
+            )
+            if tokenizer.eos_token_id is not None and int(next_token_id.item()) == int(tokenizer.eos_token_id):
+                break
+
+    generated_ids = (
+        torch.cat(generated_token_ids, dim=-1)
+        if generated_token_ids
+        else torch.empty((1, 0), device=device, dtype=encoder_input_ids.dtype)
+    )
 
     generated_text = backend.processor.batch_decode(
         generated_ids,

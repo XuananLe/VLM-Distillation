@@ -1,2 +1,0 @@
-<|im_start|>User:<image>Give a short and terse answer to the following question. Do not paraphrase or reformat the text you see in the image. Do not include any full stops. Just give the answer without additional explanation. Question: what is the date mentioned in this letter?<end_of_utterance>
-Assistant:

@@ -1,15 +1,7 @@
 import torch
 
 
-def summarize_teacher_vector(prefix: str, values: torch.Tensor) -> dict[str, float]:
-    """Average a `[batch, teacher]` tensor over the batch and emit per-teacher scalar metrics."""
-    return {
-        f"{prefix}_{teacher_index}": value.item() for teacher_index, value in enumerate(values.detach().mean(dim=0))
-    }
-
-
 def mean_categorical_entropy(weights: torch.Tensor) -> torch.Tensor:
-    """Return the mean categorical entropy of a batch of teacher-weight vectors."""
     safe_weights = weights.clamp(min=torch.finfo(weights.dtype).eps)
     return (-(safe_weights * safe_weights.log()).sum(dim=-1)).mean()
 
@@ -26,8 +18,8 @@ def apply_teacher_gate_topk(
     teacher_router_logits: torch.Tensor,
     teacher_router_weights: torch.Tensor,
     teacher_gate_top_k: int,
-) -> tuple[torch.Tensor, torch.Tensor]:
-    batch_size, num_teachers = teacher_router_weights.shape
+) -> torch.Tensor:
+    num_teachers = teacher_router_weights.shape[1]
     top_k = min(teacher_gate_top_k, num_teachers)
     topk_indices = teacher_router_logits.topk(top_k, dim=-1).indices
     topk_mask = (
@@ -48,5 +40,4 @@ def apply_teacher_gate_topk(
     routed_weights = routed_weights / routed_weights.sum(dim=-1, keepdim=True).clamp(
         min=torch.finfo(routed_weights.dtype).eps
     )
-    assignment_rate = topk_mask.float().sum(dim=0) / max(batch_size, 1)
-    return routed_weights, assignment_rate
+    return routed_weights

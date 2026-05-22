@@ -94,7 +94,30 @@ pool drawn from three model families, \methodname{} closes more
 than half the original teacher-student gap on two of three benchmarks. This
 result suggests that capable VLMs can be built on a single GPU and that
 the primary obstacle to doing so is not model size but the quality and
-consistency of the distillation signal. This thesis investigates three
+consistency of the distillation signal.
+
+Figure~\ref{fig:good-example} shows what this looks like in practice.
+The image is a low-quality, angled photo of a phone screen and the
+question is simply: what month is shown? The text is barely readable,
+the screen is tilted and the whole thing looks like a casual snapshot
+and not a clean document scan. The original student model, without any
+distillation, does not even attempt the question, it just describes
+the phone in vague terms and misses the point entirely. The teacher
+reads \textit{May} straight off the screen. After \methodname{}, the
+small student does the same. That shift, from ignoring the question to
+reading the answer correctly, is what the distillation signal is
+actually buying.
+
+\begin{figure}[!htbp]
+\centering
+\makebox[\textwidth][c]{%
+  \includegraphics[width=1.25\textwidth]{figures/good-example.pdf}%
+}
+\caption[Qualitative example on a challenging TextVQA sample.]{GRACE qualitative example on a challenging TextVQA sample.}
+\label{fig:good-example}
+\end{figure}
+
+This thesis investigates three
 questions to characterise where these gains come from:
 
 \begin{itemize}
@@ -102,9 +125,15 @@ questions to characterise where these gains come from:
 fine-tuning, same-family logit-based KD, cross-tokenizer single-teacher
 distillation and heterogeneous multi-teacher baselines on the target VQA
 benchmarks?
+
+\newpage{}
+
 \item \textbf{RQ2: Component Analysis.} How much do the cross-tokenizer
 distillation loss, the routing mechanism and the gradient-conflict resolution
-step contribute to the final performance?
+step each contribute to the final performance? Specifically, does adding
+teacher diversity alone account for the gains over single-teacher baselines,
+or does the adaptive routing and gradient filtering provide independent
+and measurable improvements on top of diversity?
 \item \textbf{RQ3: Efficiency.} What runtime overhead does \methodname{}
 introduce during training?
 \end{itemize}

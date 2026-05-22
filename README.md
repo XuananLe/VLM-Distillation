@@ -12,7 +12,6 @@ The implemented training stack is centered on cache-backed distillation: teacher
 - teacher weighting via `uniform_mean`, `routing` or `reinforced_selection`
 - `GRACE` routing refinement on top of the router
 - logits-space KD losses including `uld_loss`, `trie_wasserstein_loss`, KL/JS variants, and `cka_loss`
-- optional hidden-state / layer distillation in addition to cached-logit KD
 - full SFT launchers
 - a separate evaluation stack under `src/eval/`
 
@@ -171,9 +170,8 @@ The implemented distillation path is:
 
 One practical consequence of the current design:
 
-- distillation validates that a cache source is present
-- if layer distillation is disabled, teacher model weights are not loaded during training
-- if layer distillation is enabled, live teacher models are loaded in addition to cached teacher logits
+- distillation validates that a cache source is present when `alpha > 0`
+- teacher model weights are not loaded during training; the runtime consumes cached teacher logits
 
 ## Repository Layout
 
@@ -196,7 +194,7 @@ One practical consequence of the current design:
 
 ## Notes and Caveats
 
-- The distillation runtime is cache-first. Provide `--teacher_logits_cache_dir`.
+- The distillation runtime is cache-first. Provide `--teacher_logits_cache_dir` when `alpha > 0`.
 - `GRACE` is part of the `routing` path. It refines routed teacher weights; it is not a separate weighting strategy.
 - `src/eval` is a separate stack and is not part of the core training loop.
 - Test coverage is currently narrow and mainly exercises the custom DeepSpeed fallback in [`tests/trainer/test_sft_trainer_deepspeed.py`](tests/trainer/test_sft_trainer_deepspeed.py).

@@ -1,8 +1,12 @@
 \chapter{Experiment Results}
 \label{chap:experiment-results}
 
-This chapter answers RQ1, RQ2 and RQ3 through main comparison results,
-ablation study and efficiency analysis, then discusses baseline behavior.
+This chapter evaluates \methodname{} across three benchmarks and two student
+sizes. The main comparison (Section~\ref{sec:main-comparison-results}) answers
+RQ1, the component ablation (Section~\ref{sec:ablation}) answers RQ2 and the
+efficiency analysis (Section~\ref{sec:efficiency-analysis}) answers RQ3.
+Section~\ref{sec:discussion} then examines baseline behaviour and supports
+the quantitative findings with qualitative evidence.
 
 \section{Main Comparison Results}
 \label{sec:main-comparison-results}
@@ -11,9 +15,7 @@ Student and teacher reference scores are in Table~\ref{tab:all-results}
 (Chapter~\ref{chap:evaluation-methodology}). Using the highest teacher score
 per benchmark as the ceiling, the teacher-student gap is 22.95 points on
 TextVQA, 34.38 on DocVQA and 31.44 on ChartQA for SmolVLM-500M and
-correspondingly larger for SmolVLM-256M.
-
-Table~\ref{tab:main-comparison} collects non-distillation references,
+correspondingly larger for SmolVLM-256M. Table~\ref{tab:main-comparison} collects non-distillation references,
 same-family KD with \textbf{SmolVLM2-2.2B-Instruct}
 \cite{smolvlm2_modelcard,marafioti2025smolvlm} (forward KL, reverse KL, JSD),
 cross-family ULD with a single teacher and multi-teacher methods (Uniform,
@@ -22,14 +24,14 @@ the Qwen, InternVL and Gemma families
 \cite{qwen2vl2b_modelcard,wang2024qwen2vl,qwen25vl3b_modelcard,bai2025qwen25vl,internvl3_blog,gemma3_technical_report}.
 Each cell reports the best run from our completed experiments.
 
-\begin{table}[H]
+\begin{table}
 \centering
 \caption[Main benchmark comparison.]{Main comparison across TextVQA, DocVQA and ChartQA.}
 \label{tab:main-comparison}
 \scriptsize
 \setlength{\tabcolsep}{4pt}
 \renewcommand{\arraystretch}{1.1}
-\resizebox{\textwidth}{!}{%
+\begin{threeparttable}
 \begin{tabular}{@{}llllrrr@{}}
 \toprule
 \textbf{Category} & \textbf{Method} & \textbf{Teacher} & \textbf{Student} & \textbf{TextVQA} & \textbf{DocVQA} & \textbf{ChartQA} \\
@@ -87,30 +89,32 @@ Each cell reports the best run from our completed experiments.
 & \multirow{2}{*}{\textbf{\methodname{} (Ours)}} &
   & SmolVLM-500M & \textbf{69.38} & \textbf{73.11} & \textbf{80.20} \\
 & & & SmolVLM-256M & \textbf{60.73} & \textbf{60.48} & \textbf{72.32} \\
-\addlinespace[2pt]
-\multicolumn{7}{@{}l@{}}{\scriptsize \(\dagger\) Teacher pool: Qwen2-VL-2B-Instruct, Qwen2.5-VL-3B-Instruct, InternVL3-1B and Gemma-3-4B-it. Model sources are cited above.} \\
 \bottomrule
 \end{tabular}
-}
+\begin{tablenotes}[flushleft]
+\scriptsize
+\item[\(\dagger\)] Teacher pool: Qwen2-VL-2B-Instruct, Qwen2.5-VL-3B-Instruct, InternVL3-1B and Gemma-3-4B-it. Model sources are cited above.
+\end{tablenotes}
+\end{threeparttable}
 \end{table}
 
 \methodname{} leads on all three benchmarks for both student sizes. Fine-tuning barely improves over the original student scores and same-family
 logit-based KD depends strongly on the divergence:
-forward KL improves slightly, while reverse KL and Jensen-Shannon often reduce
-performance.
+forward KL improves slightly, while \textbf{reverse KL and Jensen-Shannon often reduce
+performance}.
 Cross-family ULD outperforms same-family KD and uniform multi-teacher
 averaging improves further, showing the gain from teacher diversity. Compared with the strongest non-\methodname{} baseline,
 \methodname{} improves by +5.50, +3.52 and +3.32 points for SmolVLM-500M and
 by +4.42, +1.95 and +3.58 points for SmolVLM-256M on TextVQA, DocVQA and
 ChartQA respectively. REINFORCE is the closest structural competitor, since it also routes
-adaptively, yet GRACE leads by 5.50 points on TextVQA for SmolVLM-500M.
+adaptively, yet \textbf{GRACE leads by 5.50 points on TextVQA} for SmolVLM-500M.
 The difference lies in the selection signal: cosine similarity between the KD
 and CE gradients is recomputed every mini-batch and directly measures
 optimization compatibility, while the REINFORCE reward is updated per
 evaluation checkpoint and captures gradient alignment only indirectly. Section~\ref{sec:discussion}
 examines both behaviors further.
 
-\begin{figure}[H]
+\begin{figure}
     \centering
     \includegraphics[width=\linewidth]{figures/c5_results_bars.png}
     \caption[Grouped benchmark comparison.]{Grouped benchmark comparison.}
@@ -190,11 +194,11 @@ within the first 100 steps and holds it throughout training, while the
 remaining two tracked teachers fall below 0.10 and stay there. With
 \methodname{} enabled, the three teacher loads remain in a 0.15 to 0.65 range
 throughout training, with natural variation across steps but no single
-teacher monopolising the pool. Table~\ref{tab:grace-relative-gains} quantifies these gains.
-Relative gain is computed as
+teacher monopolising the pool. Table~\ref{tab:grace-relative-gains} quantifies
+these gains, where relative gain is computed as
 \((\text{\methodname} - \text{baseline}) / \text{baseline}\).
 
-\begin{table}[H]
+\begin{table}
 \centering
 \caption[Relative gains of \methodname{}.]{Relative gains of \methodname{}.}
 \label{tab:grace-relative-gains}
@@ -235,7 +239,7 @@ g_{\mathrm{grace}} = y_T - y_{\mathrm{grace}}.
 \]
 The fraction of the gap closed is \(1 - g_{\mathrm{grace}} / g_{\mathrm{orig}}\).
 
-\begin{table}[H]
+\begin{table}
 \centering
 \caption[Gap-to-teacher analysis for SmolVLM-500M.]{Gap-to-teacher analysis for SmolVLM-500M.}
 \label{tab:grace-teacher-gap}
@@ -263,6 +267,105 @@ On TextVQA, \methodname{} reaches 69.38 and exceeds Gemma-3-4B-it at 57.80 by
 +11.58 points (+20.03\%). On ChartQA, it exceeds InternVL3-1B at 75.30 by
 +4.90 points (+6.51\%) and Gemma-3-4B-it at 63.60 by +16.60 points (+26.10\%).
 
+\textbf{Output distribution dynamics.}
+Figure~\ref{fig:distribution-dynamics} shows how each model's next-token
+probability distribution behaves across 100 DocVQA samples on SmolVLM-500M.
+For each sample and each generation step, softmax probabilities are computed
+over the full vocabulary and four metrics are recorded then averaged across
+all samples that reached that step. The top panel of each subfigure plots
+the greedy token probability (probability assigned to the chosen token),
+top-5 cumulative mass and top-20 cumulative mass. The bottom panel plots
+raw token entropy and entropy normalised by the log-vocabulary size.
+
+\begin{figure}
+    \centering
+    \begin{subfigure}[b]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/aggregate_distribution_dynamics_original.png}
+        \caption{Original SmolVLM-500M}
+        \label{fig:dist-original}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/aggregate_distribution_dynamics_finetune.png}
+        \caption{Fine-tuned (SFT)}
+        \label{fig:dist-finetune}
+    \end{subfigure}
+
+    \vspace{0.5em}
+
+    \begin{subfigure}[b]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/aggregate_distribution_dynamics_uld.png}
+        \caption{ULD}
+        \label{fig:dist-uld}
+    \end{subfigure}
+    \hfill
+    \begin{subfigure}[b]{0.48\linewidth}
+        \centering
+        \includegraphics[width=\linewidth]{figures/aggregate_distribution_dynamics_grace.png}
+        \caption{\methodname{}}
+        \label{fig:dist-grace}
+    \end{subfigure}
+    \caption[Output distribution dynamics on 100 DocVQA samples (SmolVLM-500M).]{Output distribution dynamics on 100 DocVQA samples (SmolVLM-500M).}
+    \label{fig:distribution-dynamics}
+\end{figure}
+
+Step 0 is the hardest decision point for all four models: entropy is high
+and greedy probability is at its lowest, because the model must commit to
+an answer format before any context has been generated. The step-0 values
+are already informative: original and ULD start at 2.0 and 1.8, fine-tuning
+at 1.6 and \methodname{} at 1.35. For the first three, step 0 is the entropy
+peak across the whole sequence. Fine-tuning is the exception, where the
+worst uncertainty arrives much later.
+
+Beyond step 0, the models diverge sharply. The original SmolVLM-500M
+(Figure~\ref{fig:dist-original}) oscillates throughout, with entropy
+between 0.6 and 1.35 and greedy probability between 0.65 and 0.88 with
+no clear trend, reflecting poor calibration for DocVQA. The apparent
+improvement at steps 17+ is a statistical effect: fewer samples are still
+generating at those steps and the remaining ones are producing predictable
+terminal sequences.
+
+Fine-tuning (Figure~\ref{fig:dist-finetune}) is stable in the middle
+(greedy 0.65 to 0.80 for steps 1 to 15) but collapses from step 16 onward,
+with entropy peaking at 3.4 and greedy falling to 0.28 at step 20. Top-20
+mass stays near 1.0 throughout, so the model is not completely confused:
+it knows the next token is among the top candidates but cannot choose
+confidently between them. One-hot supervision provides no gradient signal
+about near-correct alternatives, leaving the model without a basis for
+deciding at answer boundaries. \textbf{This failure mode is invisible in accuracy
+numbers alone.}
+
+ULD (Figure~\ref{fig:dist-uld}) eliminates the instability. Greedy
+probability stabilises at 0.82 to 0.93 and entropy declines steadily from
+1.8 to 0.2 to 0.3, the expected pattern as generated context progressively
+narrows the next-token distribution. ULD also generates longer answers than
+the other models (step 31 vs.\ step 22). Since entropy stays low throughout,
+this reflects more complete answer generation rather than uncertainty.
+
+\methodname{} (Figure~\ref{fig:dist-grace}) produces the sharpest
+distributions of all four models. After step 1, greedy probability locks
+at 0.92 to 0.97 and entropy stays at 0.1 to 0.3 for almost all steps. The
+gap between greedy and top-5 mass is negligible (both near 0.95 to 0.98),
+meaning \textbf{virtually all probability concentrates on a single token} at each
+step. This is distinctly sharper than ULD, where the top-5 exceeds greedy
+by roughly 0.08. The sharpness reflects the tokenizer-aware loss, where
+byte-path proximity provides finer-grained semantic guidance than rank
+matching, as well as the multi-teacher pool. The comparison between Uniform
+and \methodname{} in Table~\ref{tab:main-comparison} isolates routing and
+gradient-agreement filtering. The comparison with ULD isolates the loss
+design.
+
+Together, the four panels show that soft supervision qualitatively reshapes
+generation confidence beyond what accuracy scores capture. Fine-tuning
+restores content prediction but introduces late-sequence boundary uncertainty
+that one-hot labels cannot resolve. ULD restores calibration and produces
+longer, more complete answers. \methodname{} goes further, producing the
+sharpest per-step distributions of all four models, consistent with the
+quantitative gains in Table~\ref{tab:main-comparison}.
+
 \section{Ablation Study}
 \label{sec:ablation}
 
@@ -275,7 +378,7 @@ gradient-agreement refinement add on top of routing. Two further variants
 then isolate the contribution of EMA smoothing and score-based blending
 within the agreement step.
 
-\begin{table}[H]
+\begin{table}
 \centering
 \caption[DocVQA component ablation.]{DocVQA component ablation.}
 \label{tab:docvqa-planned-ablation}
@@ -314,9 +417,14 @@ results. SmolVLM-256M improves by +1.75 points, but SmolVLM-500M
 baseline. This is the most informative result in the ablation: a router that
 selects teachers by relevance alone, without checking whether their KD
 gradients align with the supervised CE objective, \textbf{can actively hurt training}.
-The larger student is apparently more sensitive to this misalignment, since
-its capacity allows it to follow a bad routing signal further before
-self-correcting.
+The asymmetry between student sizes is itself informative. A smaller student
+has limited capacity to absorb conflicting gradient signals, so routing errors
+produce smaller absolute deviations before the CE loss pulls the parameters
+back toward the correct region. A larger student can move further in the
+wrong direction before self-correcting, which means a misaligned routing
+decision compounds across steps rather than being smoothed out by parameter
+noise. This explains why gradient-agreement refinement is especially
+critical for the 500M student.
 
 \textbf{Gradient-agreement refinement.}
 Adding gradient-agreement refinement recovers and surpasses both previous
@@ -328,7 +436,7 @@ that the 500M student was most harmed by unfiltered routing.
 \textbf{EMA smoothing and score blending.}
 Removing EMA smoothing (\(\beta_{\mathrm{EMA}}=0\)) lowers DocVQA from 73.11
 to 71.25 for SmolVLM-500M and from 60.48 to 57.45 for SmolVLM-256M, showing
-that per-batch agreement scores are too noisy to use directly without
+that \textbf{per-batch agreement scores are too noisy to use directly} without
 temporal smoothing. Setting \(\lambda_{\mathrm{blend}}=1.0\), which removes
 the agreement-score softmax from the high-confidence case while keeping the
 threshold and fallback, also decreases both scores, confirming that
@@ -349,24 +457,29 @@ improvements.
 
 \section{Efficiency Analysis}
 \label{sec:efficiency-analysis}
-The main online costs come from trie-Wasserstein support construction,
-teacher routing and gradient-agreement scoring. Trie-Wasserstein matching builds sparse token supports and accumulates
-trie-edge masses at answer positions. The router is an MLP over pooled student states and its cost scales with the
-hidden size and number of teachers. Gradient-agreement scoring adds per-teacher gradient comparisons, limited to
-the top-\(k\) routed teachers.
+The main online costs come from trie-Wasserstein matching, teacher routing and
+gradient-agreement scoring. Trie-Wasserstein matching builds sparse token
+supports and accumulates edge masses at answer positions. Teacher routing cost
+scales with the hidden size and number of teachers. Gradient-agreement scoring
+adds per-teacher gradient comparisons limited to the top-\(k\) routed teachers.
 
 Teacher inference is \textbf{offline}: logits are cached once before training, so each
-update only loads them from disk. The main scaling factors are the number of
-teachers, the retained trie support size \(K_{\mathrm{TW}}\) and the number
-of routed teachers \(k_{\mathrm{route}}\). An average training run on the
-reported configurations costs approximately \textbf{14.41 USD}, excluding
-one-time offline teacher logit caching and remote storage. Running the four
-teachers forward on the full training set to generate the cached logits is a
-one-time cost paid before training begins. The 14.41 USD figure covers only the
-student training itself, including all routing and agreement-scoring overhead. This is low enough to be run on a
-single rented GPU in a few hours, placing heterogeneous multi-teacher
-distillation within reach of researchers without dedicated compute
-infrastructure.
+update only loads them from disk rather than running four teacher forward
+passes. This is the dominant cost saving: without caching, each training
+step would require forwarding all four teachers on the same batch, which
+would multiply the per-step memory and compute by the number of teachers.
+With caching, that cost is paid once before training begins and amortised
+across all steps. The main online scaling factors are the number of teachers,
+the retained trie support size \(K_{\mathrm{TW}}\) and the number of routed
+teachers \(k_{\mathrm{route}}\). Top-\(k\) routing bounds the active teacher
+set to \(k_{\mathrm{route}}\) per step and prevents the online cost from
+growing linearly with pool size. An average training run on the reported
+configurations costs approximately \textbf{14.41 USD}, excluding one-time
+offline teacher logit caching and remote storage. The 14.41 USD figure covers
+only the student training itself, including all routing and
+agreement-scoring overhead, which is low enough to be completed on a single
+rented GPU in a few hours and places heterogeneous multi-teacher distillation
+within reach of researchers without dedicated compute infrastructure.
 
 \begin{rqanswerbox}{Answer to RQ3}
 \methodname{} adds overhead from trie-Wasserstein matching, routing and
@@ -385,9 +498,10 @@ Heterogeneous distillation requires more than adding teachers to the loss:
 the gains come from combining cross-tokenizer output matching, sample-dependent
 routing and gradient reweighting after routing
 \cite{hinton2015distillingknowledgeneuralnetwork,boizard2024towardscrosstokenizerdistillation,peyre2019computationaloptimaltransport,fedus2022switchtransformersscalingtrillion}.
-Figure~\ref{fig:training-curve-comparison} shows fewer oscillations for
-\methodname{} than Uniform on DocVQA, as expected when fewer teachers receive
-weight per step.
+This is already visible in the training dynamics: Figure~\ref{fig:training-curve-comparison}
+shows fewer loss oscillations for \methodname{} than Uniform on DocVQA,
+consistent with fewer teachers receiving weight per step and conflicting
+gradients being filtered out before they affect the update.
 
 \textbf{Behavior of same-family logit-based KD.}
 Same-family logit-based KD is sensitive to the divergence choice. Forward KL
@@ -396,9 +510,10 @@ in this setting. Reverse KL weights its gradient by the current student distribu
 tokens the teacher scores highly but the student neglects receive weaker
 correction. The effect is worst on OCR-heavy and numerically sensitive tasks, where the
 correct answer token is often low-probability under the student's current
-distribution. Reverse KL is therefore poorly suited to this setting, where the student must
-recover teacher probability mass on tokens it currently neglects. The claim is specific to short answer tokens and Reverse KL can behave
-differently in other distillation settings \cite{wu2025rethinking}.
+distribution. \textbf{Reverse KL is therefore poorly suited to this setting}, where the student must
+recover teacher probability mass on tokens it currently neglects, though the
+claim is specific to short answer tokens and Reverse KL can behave differently
+in other distillation regimes \cite{wu2025rethinking}.
 
 \textbf{Cross-family ULD.}
 This method consistently outperforms all same-family KD variants despite using only one
@@ -414,20 +529,10 @@ proximity, giving lower transport cost to tokens with similar decoded content.
 This is why \methodname{} improves over ULD even with the same Qwen2-VL teacher
 in the pool.
 
-ULD measures the L1 gap between two rank-sorted probability vectors: it detects
-whether teacher and student distribute probability mass similarly across rank
-positions, but rank-\(k\) in one vocabulary need not decode to a similar string
-as rank-\(k\) in the other. Two token pairs with the same rank gap receive
-identical ULD loss regardless of whether their decoded strings are semantically
-related or completely unrelated. Unlike ULD, the Byte-Trie Wasserstein loss
-routes probability mass through the shared trie, so tokens with a longer shared
-byte prefix incur lower transport cost. For OCR and document tasks where teacher
-and student split answer strings at different subword boundaries, ULD cannot
-credit partial byte-level agreement, whereas Byte-Trie Wasserstein does.
 Table~\ref{tab:uld-vs-tw} illustrates this across four token pairs spanning
 the full range from exact match to no shared prefix.
 
-\begin{table}[H]
+\begin{table}
 \centering
 \caption[ULD vs.\ Byte-Trie Wasserstein under equal ranked masses.]{ULD vs.\ Byte-Trie Wasserstein under equal ranked masses.}
 \label{tab:uld-vs-tw}
@@ -460,11 +565,16 @@ distill from the same teacher.
 
 \textbf{Representation matching and SHM-CKA.}
 SHM-CKA tests whether hidden-state alignment alone is sufficient for
-cross-family distillation. It is competitive on ChartQA for SmolVLM-500M but
-trails \methodname{} overall
+cross-family distillation by training the student to match Qwen2-VL layer
+representations via CKA similarity, bypassing the vocabulary problem
+entirely. It is competitive on ChartQA for SmolVLM-500M, suggesting that
+representational alignment provides a useful signal for visual-reasoning
+tasks where the answer distributions are more structured. However, it trails
+\methodname{} overall, indicating that matching internal representations does
+not reliably translate into matching output distributions on answer tokens
 \cite{kornblith2019similarityrepresentations,klabunde2023similarity}.
 
-\begin{figure}[H]
+\begin{figure}
     \centering
     \begin{subfigure}[t]{0.48\linewidth}
         \centering
@@ -481,7 +591,7 @@ trails \methodname{} overall
     \label{fig:exp-cka-multi-dataset}
 \end{figure}
 
-\begin{figure}[H]
+\begin{figure}
     \centering
     \begin{subfigure}[t]{0.48\linewidth}
         \centering
@@ -498,21 +608,11 @@ trails \methodname{} overall
     \label{fig:exp-cka-vision-multi-dataset}
 \end{figure}
 
-Figure~\ref{fig:exp-cka-multi-dataset} shows full-model layer CKA between
-Qwen2-VL-2B and SmolVLM-500M across the last ten language layers of each
-model. On TextVQA, values range from 0.52 to 0.74, with the highest
-alignment at lower Qwen layers paired with later SmolVLM layers. On DocVQA,
-the entire matrix is compressed into a narrow 0.85 to 0.96 band with almost no
-variation across layer pairs, indicating that the two models are
-representationally similar at the language level for document inputs
-regardless of which layers are compared.
-Figure~\ref{fig:exp-cka-vision-multi-dataset} shows the corresponding
-vision-layer CKA across all 32 Qwen vision layers and 13 SmolVLM vision
-layers. Both datasets show a clear block structure: CKA is near zero for
-early Qwen vision layers 0 to 10 paired with any SmolVLM layer and rises
-to 0.7 to 1.0 in the upper-right block where later Qwen vision layers
-15 to 31 align with later SmolVLM vision layers 8 to 12.
-Nevertheless, SHM-CKA trails output-level distillation in
+Figures~\ref{fig:exp-cka-multi-dataset} and~\ref{fig:exp-cka-vision-multi-dataset}
+show that Qwen2-VL-2B and SmolVLM-500M are representationally similar at
+both the language and vision layer levels, with CKA values reaching 0.85 to 0.96
+on DocVQA language layers and 0.7 to 1.0 in the later vision layers.
+Despite this alignment, SHM-CKA trails output-level distillation in
 Table~\ref{tab:main-comparison}. \textbf{High CKA does not imply strong answer
 prediction}: representation alignment and output calibration are largely
 orthogonal in heterogeneous VLM distillation.
@@ -525,10 +625,20 @@ gradient-agreement refinement outperforms routing alone, where routing acts as
 candidate selection and gradient agreement provides corrective reweighting
 \cite{yu2020gradient}.
 
-\Needspace{0.62\textheight}
+\Needspace{8\baselineskip}
 \textbf{Visual grounding.}
+This asks whether a VLM attends to the image region that contains
+the evidence for its answer, rather than relying on a nearby logo, decorative
+text or irrelevant object. We use \textbf{DEX-AR} attribution maps as a
+qualitative diagnostic \cite{bousselham2026dexar}. DEX-AR is designed for
+autoregressive VLMs: it combines attention maps with gradient sensitivity and
+weights each generated token by how visually grounded its prediction is,
+suppressing function words and subword continuations that attend mainly to
+linguistic context. The result is a single heatmap over image regions that
+reflects where the model looked when producing the answer. In our experiments
+the heatmap is used only as a diagnostic, not as a training signal.
 
-\begin{figure}[H]
+\begin{figure}
     \centering
     \begin{subfigure}[b]{0.31\linewidth}
         \centering
@@ -555,15 +665,10 @@ candidate selection and gradient agreement provides corrective reweighting
     \label{fig:textvqa-sample3-qualitative}
 \end{figure}
 
-\textbf{DEX-AR} attribution maps \cite{bousselham2026dexar} aggregate
-token-level visual attributions into a sequence-level heatmap for autoregressive
-VLMs, letting us check whether distillation shifts the student's attended
-regions. Figure~\ref{fig:textvqa-sample3-qualitative} shows a representative
-TextVQA example \cite{singh2019vqamodelsread} where the question asks
+Figure~\ref{fig:textvqa-sample3-qualitative} shows a representative TextVQA
+example \cite{singh2019vqamodelsread} where the question asks
 \emph{``who is this copyrighted by?''} and
 the relevant evidence is the copyright text on the lower-left border. The
 original SmolVLM-500M concentrates on the \emph{Virgin} logo, while
 \methodname{} redirects attention to the copyright text, correctly finding the
-evidence region. Output-distribution supervision drives this shift: pushing the
-student toward teacher probability mass on correct answer tokens steers
-attention toward the image regions that support those tokens.
+evidence region.

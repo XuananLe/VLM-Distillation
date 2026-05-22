@@ -148,15 +148,25 @@ comparable across different vocabularies: index \(j\) in one model may decode
 to an unrelated string in another. The Byte-Trie Wasserstein loss removes this
 assumption by building a shared UTF-8 byte trie over all tokenizer vocabularies
 and measuring transport cost through \textbf{byte-path proximity}.
+UTF-8 is chosen as the shared encoding because every tokenizer decode function
+produces UTF-8 text, making bytes the only representation that is
+universally available across all model families without any vocabulary
+alignment. Byte-level granularity also gives partial credit naturally:
+tokens whose decoded strings share a prefix automatically share trie edges,
+so the geometry reflects lexical similarity without extra design.
 
 For sample \(b\) and teacher \(T_i\), GRACE restricts KD to matched answer
 positions \(\Omega_{b,i}^{KD}\), after masking ignored labels and truncating
-student and teacher answer spans to a common length. Restricting to answer
-positions aligns the distillation span with the supervised CE objective,
-which also acts only on answer tokens. Applying KD across all sequence
-positions would push the student's distribution on image and question tokens
-that it is not trained to predict, introducing gradient noise outside the
-supervised span. At each position
+student and teacher answer spans to a common length. EOS token positions are also excluded from \(\Omega_{b,i}^{KD}\):
+different tokenizers and model families represent end-of-sequence with
+different special tokens that rarely correspond across vocabularies, so
+including EOS positions would add noisy loss against a mismatched target
+rather than meaningful content supervision.
+Restricting to answer positions aligns the distillation span with the
+supervised CE objective, which also acts only on answer tokens. Applying KD
+across all sequence positions would push the student's distribution on image
+and question tokens that it is not trained to predict, introducing gradient
+noise outside the supervised span. At each position
 \(j \in \Omega_{b,i}^{KD}\), the student and teacher logits define softened
 distributions
 \[
@@ -310,8 +320,8 @@ GRACE therefore keeps only the top-\(K_{\mathrm{TW}}\) lexical student and
 teacher tokens after masking ignored entries. The retained tokens reuse their
 canonical trie paths, while unretained lexical probability mass is collapsed
 into a \textbf{residual tail edge} \(e_{\mathrm{tail}}\). Non-text visual or control
-tokens are not forced into the byte trie. Their probability mass is handled
-outside the tree comparison so the transport geometry remains lexical.
+tokens are \textbf{not forced into the byte trie}. Their probability mass is handled
+outside the tree comparison so the transport geometry remains purely lexical.
 
 Let \(K_{\mathrm{TW}}\) denote the sparse trie support size. Let
 \(\mathcal{V}_{s,\mathrm{text}}^\star\) and
@@ -430,6 +440,9 @@ edges, EOS edges, optional boundary edges and the residual tail edge from the
 student and teacher supports. The \textbf{non-text penalty} with
 \(\lambda_{\mathrm{nt}}\ge 0\) discourages probability mass on visual or
 control tokens without assigning those tokens a lexical byte path.
+Without it, the student could reduce the trie loss by routing probability
+into visual or control token indices, which never appear in correct answers,
+rather than improving its text predictions.
 
 The per-sample, per-teacher KD loss is the mean over supervised answer
 tokens:
@@ -560,18 +573,9 @@ Top-\(k\) routing also limits the active teacher set to
 \(k_{\mathrm{route}}\) candidates and separates candidate selection from final
 weighting: the router proposes teachers by input relevance and
 Section~\ref{sec:gradient-agreement} adjusts their weights by gradient
-compatibility.
-
-The effect of top-\(k\) routing across eight samples and four teachers is
-visible in Figure~\ref{fig:grace-routing-dynamics}. In the leftmost heatmap,
-\(T_1\) consistently receives the highest soft gate weight, followed by
-\(T_2\), while \(T_3\) and \(T_4\) remain low throughout. The top-\(k\)
-mask (second panel) retains only \(T_1\) and \(T_2\) for all samples,
-zeroing the rest. After renormalization, the routed weights
-\(\hat{\mathbf{p}}^{(b)}\) (third panel) are split between \(T_1\) and
-\(T_2\), with \(T_1\) holding the majority. The bar chart on the right
-confirms that \(T_1\) and \(T_2\) capture all routing assignments in this
-mini-batch, while \(T_3\) and \(T_4\) receive none.
+compatibility. Figure~\ref{fig:grace-routing-dynamics} shows the effect of top-\(k\)
+routing across eight samples and four teachers: two teachers capture all
+routing weight while the remaining two are zeroed throughout the mini-batch.
 
 \begin{figure}
     \centering
@@ -596,8 +600,13 @@ The \(z\)-loss penalizes large router logit magnitudes:
 \frac{1}{B}\sum_{b=1}^{B}
 \left(\log \sum_{i=1}^{N} e^{r_i^{(b)}}\right)^2.
 \end{equation}
-These auxiliary losses stabilize teacher selection, while CE and routed KD remain
-the main training signals.
+The two losses guard against different failure modes: the entropy term
+prevents the router from locking onto one teacher early and never exploring
+others, while the \(z\)-loss prevents logit magnitudes from growing so
+large that the softmax becomes near-one-hot before top-\(k\) selection,
+which would kill gradients for non-selected teachers and destabilise
+training. Both are needed because one without the other leaves one of
+these failure modes open. CE and routed KD remain the main training signals.
 
 \section{Gradient-Agreement Refinement}
 \label{sec:gradient-agreement}
@@ -699,16 +708,9 @@ rather than reacting to individual batch fluctuations.
 In short, \(s_i\) captures the current-batch gradient direction and drives the
 threshold test, while \(\hat{s}_i\) accumulates a smoothed estimate across steps
 and drives the final weighting. Figure~\ref{fig:grace-ema-smoothing} illustrates
-both effects. The left panel shows that the per-batch score (orange) oscillates
-widely across training steps, while the EMA (blue) tracks a smooth, slowly-moving
-trend. The centre panel compares the current \(s_i\) and smoothed \(\hat{s}_i\)
-across four teachers for one step: \(T_4\) has a near-zero or negative current
-score that would suppress it if used directly, but its smoothed score remains
-slightly positive, reflecting recent history. The right panel shows the
-consequence for weighting: using raw batch scores concentrates almost all gradient
-weight on a single teacher, while using smoothed scores distributes weight more
-evenly across the active set, preventing a single noisy batch from dominating
-teacher selection.
+the effect: raw per-batch scores oscillate widely, while the EMA tracks a
+smooth trend and prevents a single noisy batch from concentrating all weight
+on one teacher.
 
 \begin{figure}[!htbp]
     \centering
@@ -775,7 +777,7 @@ The geometric form is deliberate: because the two terms are multiplied
 rather than added, a teacher with near-zero weight under either signal is
 suppressed in the final weight regardless of how high the other signal is.
 An arithmetic blend would allow a highly gradient-aligned teacher to be
-included despite low routing relevance, or vice versa.
+included despite low routing relevance or vice versa.
 The geometric blend requires both signals to agree, with
 \(\lambda_{\mathrm{blend}}\) controlling how much each signal contributes
 to that joint decision.
@@ -787,47 +789,11 @@ to that joint decision.
     \label{fig:grace-score-refinement}
 \end{figure}
 
-The three panels of Figure~\ref{fig:grace-score-refinement} step through the
-refinement pipeline in order. On the left, the gradient-direction diagram
-shows \(\mathbf{g}_1\) (green) pointing in nearly the same direction as
-\(\mathbf{g}_{CE}\) (red), \(\mathbf{g}_f\) (orange) diverging at a
-moderate angle and \(\mathbf{g}_3\) (blue) pointing in the opposite
-direction, indicating conflict with the supervised update. The centre panel
-shows the consequence for weights. The teacher with the highest smoothed
-score receives a disproportionately large softmax weight, while the teacher
-whose score falls below the threshold is excluded from the active set
-entirely. On the right, the two non-fallback outcomes are contrasted: when
-the score spread exceeds \(\epsilon_{\mathrm{fb}}\), the geometric blend
-shifts the final weight toward the gradient-preferred teacher. When the
-spread is below the threshold, all active teachers receive equal final
-weights.
-
-Each of the three panels in Figure~\ref{fig:grace-weighting-cases}
-corresponds to one of the weighting rules. When gradient agreement strongly
-prefers one teacher (left panel, large \(\Delta\)), the final blended weight
-for that teacher is pulled well above its routed weight. When the router and
-gradient agreement favor different teachers (centre panel, moderate
-\(\Delta\)), the blend preserves meaningful contributions from both. When
-the score spread is negligible (right panel, \(\Delta<\epsilon\)), GRACE
-treats the active teachers as indistinguishable and assigns them equal
-weight.
-
-\begin{figure}[!htbp]
-    \centering
-    \includegraphics[width=\linewidth]{figures/grace_alignment_cases.png}
-    \caption[Representative GRACE weighting cases.]{Representative GRACE weighting cases.}
-    \label{fig:grace-weighting-cases}
-\end{figure}
-
-Following a single sample through all four stages
-(Figure~\ref{fig:grace-sample-weight-path}): the dense gate softmax
-\(\mathbf{p}\) assigns nonzero probability to all four teachers. Top-\(k\)
-selection then retains only \(T_1\) and \(T_2\) and renormalizes their
-weights. The agreement softmax \(\omega\) (third panel) amplifies \(T_1\)
-further based on its higher agreement score, leaving \(T_2\) with a smaller
-share. The geometric blend in the final panel produces a weight that
-lies between the router preference and the agreement preference, with
-neither signal dominating entirely.
+Figure~\ref{fig:grace-score-refinement} illustrates the three-case pipeline:
+a conflicting teacher is excluded, a clearly preferred teacher receives
+amplified weight and nearly-tied teachers receive equal weight.
+Figure~\ref{fig:grace-sample-weight-path} traces a single sample through all
+four stages end-to-end.
 
 \begin{figure}[!htbp]
     \centering
@@ -841,15 +807,9 @@ neither signal dominating entirely.
 \section{Routed KD Aggregation and Final Objective}
 \label{sec:routed-kd-final-objective}
 
-The three components described in the preceding sections, Byte-Trie
-Wasserstein matching, sparse routing and gradient-agreement refinement,
-each produce a per-teacher, per-sample quantity: a loss value
-$\mathcal{L}_{KD}^{(b,i)}$ and a final weight $w_i^{(b)}$. Gradient-agreement
-refinement restricts these weights to the routed set $\mathcal{R}_b$, so each
-sample draws on at most $k_{\mathrm{route}}$ teachers. This section combines
-both quantities into a single training objective whose key property is that
-$w_i^{(b)}$ is \textbf{sample-specific}, allowing different examples in the same
-mini-batch to draw on different teachers.
+Each sample draws on at most $k_{\mathrm{route}}$ teachers, with final
+weights $w_i^{(b)}$ that are \textbf{sample-specific}, so different examples
+in the same mini-batch can emphasize different teachers.
 
 At the sample level, only teachers in the routed set $\mathcal{R}_b$ contribute
 to the KD loss:
@@ -911,6 +871,7 @@ the three constraints from the opening of this chapter: $\mathcal{L}_{KD}$
 handles \textbf{tokenizer mismatch} through the byte-trie loss, the routing weights
 inside it handle \textbf{per-sample teacher relevance} and the gradient-agreement
 scores that set those weights handle \textbf{optimization conflict}.
+The full procedure is collected in Algorithm~\ref{alg:grace-training-step}.
 
 \begin{algorithm}[H]
 \caption{One GRACE training step}

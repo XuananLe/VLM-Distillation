@@ -7,7 +7,6 @@ from src.components.grace import apply_grace_routing
 from src.components.reinforced_teacher_selection import compute_reinforced_selection_state
 from src.trainer.distillation_utils import (
     build_cached_teacher_target_batches,
-    build_live_teacher_batches,
 )
 from src.trainer.routing_utils import (
     apply_teacher_gate_topk,
@@ -19,27 +18,19 @@ from src.trainer.teacher_loss_utils import compute_teacher_loss_matrix
 
 @dataclass(slots=True)
 class TeacherBatchSources:
-    live_teacher_batches: list | None
     cached_teacher_target_batches: list | None
 
 
-def prepare_teacher_batch_sources(*, inputs, num_teachers: int, teacher_models):
+def prepare_teacher_batch_sources(*, inputs, num_teachers: int):
     cached_teacher_target_batches = build_cached_teacher_target_batches(inputs, num_teachers)
     if cached_teacher_target_batches is not None and len(cached_teacher_target_batches) != num_teachers:
         raise ValueError(
             "Cached teacher-logit batch count does not match the configured teacher count. "
             f"cached={len(cached_teacher_target_batches)}, configured={num_teachers}"
         )
-    live_teacher_batches = None
-    if teacher_models:
-        live_teacher_batches = build_live_teacher_batches(
-            inputs,
-            num_teachers,
-        )
-    elif cached_teacher_target_batches is None:
-        raise ValueError("No teacher inputs were found in the batch. Provide teacher models or cached teacher logits.")
+    if cached_teacher_target_batches is None:
+        raise ValueError("No cached teacher logits were found in the batch.")
     return TeacherBatchSources(
-        live_teacher_batches=live_teacher_batches,
         cached_teacher_target_batches=cached_teacher_target_batches,
     )
 
@@ -55,30 +46,18 @@ def build_student_forward_state(*, trainer, model, student_inputs):
 
       "student_logits": tensor shape [2, 6, 49280],
 
-      "student_layer_representations": {
-          3: tensor shape [2, 960],
-          7: tensor shape [2, 960],
-      },
-
       "teacher_router_logits": tensor shape [2, 4],
 
       "teacher_router_weights": tensor shape [2, 4],
     }
     """
-    with trainer.layer_distiller.capture_student(model) as student_layer_outputs:
-        # https://huggingface.co/docs/transformers/model_doc/smolvlm
-        # https://github.com/huggingface/transformers/blob/v5.1.0/src/transformers/models/smolvlm/modeling_smolvlm.py#L572
-        student_outputs = model(
-            **student_inputs,
-            return_dict=True,
-            **trainer.layer_distiller.student_forward_kwargs(),
-        )
-    student_logits = student_outputs.logits
-    student_layer_representations = trainer.layer_distiller.student_representations(
-        student_inputs=student_inputs,
-        student_outputs=student_outputs,
-        captured_outputs=student_layer_outputs,
+    # https://huggingface.co/docs/transformers/model_doc/smolvlm
+    # https://github.com/huggingface/transformers/blob/v5.1.0/src/transformers/models/smolvlm/modeling_smolvlm.py#L572
+    student_outputs = model(
+        **student_inputs,
+        return_dict=True,
     )
+    student_logits = student_outputs.logits
 
     teacher_router_logits = (
         trainer.teacher_gate.compute_router_logits(
@@ -92,25 +71,8 @@ def build_student_forward_state(*, trainer, model, student_inputs):
     return {
         "student_outputs": student_outputs,
         "student_logits": student_logits,
-        "student_layer_representations": student_layer_representations,
         "teacher_router_logits": teacher_router_logits,
         "teacher_router_weights": teacher_router_weights,
-    }
-
-
-def build_layer_distillation_state(
-    *,
-    trainer,
-    live_teacher_batches,
-    student_layer_representations,
-):
-    layer_distillation_loss = trainer.layer_distiller.compute_loss(
-        teacher_models=trainer.teacher_models,
-        live_teacher_batches=live_teacher_batches,
-        student_layer_representations=student_layer_representations,
-    )
-    return {
-        "layer_distillation_loss": layer_distillation_loss,
     }
 
 
@@ -118,17 +80,13 @@ def resolve_teacher_gate_state(*, trainer, teacher_router_logits, teacher_router
     teacher_gate_state = {
         "teacher_gate_entropy_loss": None,
         "teacher_gate_z_loss": None,
-        "teacher_gate_assignment_rate": None,
         "routed_teacher_weights": teacher_router_weights,
     }
 
     if teacher_router_weights is not None:
         teacher_gate_state["teacher_gate_z_loss"] = compute_teacher_gate_z_loss(teacher_router_logits)
         teacher_gate_state["teacher_gate_entropy_loss"] = compute_teacher_gate_entropy_loss(teacher_router_weights)
-        (
-            teacher_gate_state["routed_teacher_weights"],
-            teacher_gate_state["teacher_gate_assignment_rate"],
-        ) = apply_teacher_gate_topk(
+        teacher_gate_state["routed_teacher_weights"] = apply_teacher_gate_topk(
             teacher_router_logits,
             teacher_router_weights,
             trainer.teacher_gate_top_k,
@@ -285,15 +243,12 @@ def compute_total_loss(
     trainer,
     ce_loss,
     distillation_loss,
-    layer_distillation_loss,
     teacher_gate_entropy_loss,
     teacher_gate_z_loss,
     teacher_selection_policy_loss=None,
 ):
     base_kd_loss = trainer.alpha * distillation_loss
     loss = ce_loss + base_kd_loss
-    if layer_distillation_loss is not None:
-        loss = loss + layer_distillation_loss * trainer.layer_distill_weight
     if teacher_gate_entropy_loss is not None:
         loss = loss + teacher_gate_entropy_loss * trainer.teacher_gate_entropy_alpha
     if teacher_gate_z_loss is not None:
@@ -304,7 +259,6 @@ def compute_total_loss(
 
 
 __all__ = [
-    "build_layer_distillation_state",
     "build_student_forward_state",
     "build_teacher_loss_state",
     "compute_total_loss",

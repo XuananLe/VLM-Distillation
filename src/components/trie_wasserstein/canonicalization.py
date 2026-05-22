@@ -76,13 +76,13 @@ def decode_piece_text(tokenizer, piece_text: str) -> str:
     if decoder is not None:
         try:
             return str(decoder.decode([piece_text]))
-        except Exception:
+        except (ValueError, TypeError, AttributeError, UnicodeDecodeError):
             pass
 
     if hasattr(tokenizer, "convert_tokens_to_string"):
         try:
             return str(tokenizer.convert_tokens_to_string([piece_text]))
-        except Exception:
+        except (ValueError, TypeError, AttributeError, UnicodeDecodeError):
             pass
 
     return piece_text
