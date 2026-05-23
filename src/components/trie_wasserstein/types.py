@@ -15,13 +15,6 @@ class TrieNode:
 
 
 @dataclass(slots=True)
-class TrieBuildResult:
-    token_paths: list[list[int]]
-    ignored_mask: torch.Tensor
-    non_text_mask: torch.Tensor
-
-
-@dataclass(slots=True)
 class TrieRuntimeState:
     edge_weights: torch.Tensor
     student_token_paths: list[list[int]]
@@ -31,9 +24,3 @@ class TrieRuntimeState:
     teacher_ignored_mask: torch.Tensor
     teacher_non_text_mask: torch.Tensor
     tail_edge_id: int
-
-
-@dataclass(frozen=True, slots=True)
-class CanonicalTokenPiece:
-    content_bytes: bytes
-    boundary_kind: BoundaryKind
