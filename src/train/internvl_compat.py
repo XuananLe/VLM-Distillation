@@ -1,8 +1,8 @@
 from contextlib import contextmanager
 
 import torch
-from transformers import AutoModel
 import transformers.modeling_utils as modeling_utils
+from transformers import AutoModel
 from transformers.modeling_utils import PreTrainedModel
 
 # https://huggingface.co/OpenGVLab/InternVL3-1B/tree/main

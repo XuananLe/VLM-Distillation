@@ -38,11 +38,24 @@ class TeacherLogitsCache:
             ]
             return
 
-        entries_by_teacher = resolve_nested_entries(
-            cache_root=cache_root,
-            teacher_model_ids=teacher_model_ids,
-            expected_num_samples=expected_num_samples,
-        )
+        requested_teacher_ids = set(teacher_model_ids)
+        entries_by_teacher: dict[str, tuple[Path, str, str]] = {}
+        for metadata_path in cache_root.glob("*/metadata.json"):
+            child_root = metadata_path.parent
+            metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
+            if metadata.get("num_samples") is not None and int(metadata["num_samples"]) != expected_num_samples:
+                continue
+
+            for teacher_model_id in metadata.get("teacher_model_ids") or []:
+                if teacher_model_id not in requested_teacher_ids:
+                    continue
+                if teacher_model_id in entries_by_teacher:
+                    raise ValueError(f"Multiple teacher-logits cache roots provide the same teacher: {teacher_model_id}")
+                entries_by_teacher[teacher_model_id] = (
+                    child_root,
+                    teacher_model_id,
+                    str(metadata.get("file_name_template") or DEFAULT_FILE_NAME_TEMPLATE),
+                )
         missing_teacher_ids = [
             teacher_model_id for teacher_model_id in teacher_model_ids if teacher_model_id not in entries_by_teacher
         ]
@@ -72,33 +85,6 @@ class TeacherLogitsCache:
         if sample_path.suffix == ".pt":
             return torch.load(sample_path, map_location="cpu")
         raise ValueError(f"Unsupported teacher-logits cache file extension: {sample_path}")
-
-
-def resolve_nested_entries(
-    *,
-    cache_root: Path,
-    teacher_model_ids: list[str],
-    expected_num_samples: int,
-) -> dict[str, tuple[Path, str, str]]:
-    requested_teacher_ids = set(teacher_model_ids)
-    entries_by_teacher: dict[str, tuple[Path, str, str]] = {}
-    for metadata_path in cache_root.glob("*/metadata.json"):
-        child_root = metadata_path.parent
-        metadata = json.loads(metadata_path.read_text(encoding="utf-8"))
-        if metadata.get("num_samples") is not None and int(metadata["num_samples"]) != expected_num_samples:
-            continue
-
-        for teacher_model_id in metadata.get("teacher_model_ids") or []:
-            if teacher_model_id not in requested_teacher_ids:
-                continue
-            if teacher_model_id in entries_by_teacher:
-                raise ValueError(f"Multiple teacher-logits cache roots provide the same teacher: {teacher_model_id}")
-            entries_by_teacher[teacher_model_id] = (
-                child_root,
-                teacher_model_id,
-                str(metadata.get("file_name_template") or DEFAULT_FILE_NAME_TEMPLATE),
-            )
-    return entries_by_teacher
 
 
 __all__ = ["TeacherLogitsCache"]
