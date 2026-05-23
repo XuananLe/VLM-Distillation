@@ -269,17 +269,6 @@ class DistillationTrainer(Trainer):
                 loss=loss,
                 distillation_loss=teacher_weighting_state["distillation_loss"],
                 ce_loss=ce_loss,
-                routed_teacher_weights=teacher_gate_state["routed_teacher_weights"],
-                teacher_mix_weights=teacher_weighting_state["teacher_mix_weights"],
-                teacher_router_weights=student_forward_state["teacher_router_weights"],
-                teacher_gate_entropy_loss=teacher_gate_state["teacher_gate_entropy_loss"],
-                teacher_gate_z_loss=teacher_gate_state["teacher_gate_z_loss"],
-                teacher_grace_active_mask=teacher_weighting_state["teacher_grace_active_mask"],
-                teacher_grace_score_ema=self.teacher_grace_score_ema,
-                teacher_grace_weights=teacher_weighting_state["teacher_grace_weights"],
-                teacher_grace_fallback_rate=teacher_weighting_state["teacher_grace_fallback_rate"],
-                reinforced_selection_metrics=teacher_weighting_state["reinforced_selection_metrics"],
-                grace_routing_active=self.should_apply_grace_routing(),
             )
             self.log(metrics)
 

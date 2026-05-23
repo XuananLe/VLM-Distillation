@@ -265,7 +265,7 @@ indent-style = "space"
 line-ending = "auto"
 
 [tool.ty.environment]
-python = "./venv/bin/python"
+python = "./.venv/bin/python"
 python-version = "3.12"
 root = [".", "./src"]
 
