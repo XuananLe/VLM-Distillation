@@ -10,16 +10,13 @@ from transformers import (
     HfArgumentParser,
 )
 
-from src.dataset.sft_data import make_supervised_data_module
+from src.dataset.supervised_data import make_supervised_data_module
 from src.params import DataArguments, TrainingArguments
 from src.train.distillation_setup import (
     DistillationArguments,
     log_distillation_setup,
 )
-from src.train.model_setup import (
-    load_processor_bundle,
-    load_vlm_bundle,
-)
+from src.train.model_setup import load_vlm_bundle
 from src.trainer.distillation_trainer import DistillationTrainer
 
 
@@ -76,10 +73,11 @@ def train_distillation():
         print("Preparing trie-Wasserstein tokenizers...")
         student_loss_tokenizer = getattr(processor, "tokenizer", None) or processor
         teacher_loss_tokenizers = [
-            load_processor_bundle(
-                teacher_id,
+            load_vlm_bundle(
+                model_id=teacher_id,
                 cache_dir=training_args.cache_dir,
-            )[1]
+                load_model=False,
+            )[2]
             for teacher_id in teacher_ids
         ]
 

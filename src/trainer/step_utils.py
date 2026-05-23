@@ -78,7 +78,6 @@ def build_student_forward_state(
       "student_outputs": CausalLMOutputWithPast(
           loss=tensor(0.72),
           logits=tensor shape [2, 6, 49280],
-          hidden_states=...
       ),
 
       "student_logits": tensor shape [2, 6, 49280],

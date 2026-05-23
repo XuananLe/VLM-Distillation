@@ -385,10 +385,10 @@ def main() -> None:
         layer_index=args.layer_index,
     )
     dataset, loaded_from = load_dataset_split(dataset_name, args.split, log_fallback=True)
-    schema = infer_schema(dataset, require_answer_field=True)
+    schema = infer_schema(dataset_name, dataset, require_answer_field=True)
 
     print(f"Loaded dataset from {loaded_from} with {len(dataset)} rows.")
-    print(f"Resolved schema: {schema}")
+    print(f"Fixed schema: {schema}")
 
     successes: list[dict[str, Any]] = []
     failures: list[dict[str, Any]] = []

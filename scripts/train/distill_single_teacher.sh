@@ -38,7 +38,6 @@ deepspeed src/train/train_distillation.py \
     --lr_scheduler_type cosine \
     --tf32 True \
     --gradient_checkpointing True \
-    --lazy_preprocess True \
     --logging_steps 10 \
     --save_strategy steps \
     --save_steps 100 \

@@ -22,7 +22,7 @@ from torch.utils.data import DataLoader, Dataset
 from src.components.loss import uld_loss
 from src.dataset.conversation_encoders import encode_teacher_data, encode_with_processor
 from src.dataset.data_collator import DataCollatorForSupervisedDataset
-from src.dataset.sft_data import SupervisedDataset
+from src.dataset.supervised_data import SupervisedDataset
 from src.dataset.vqa_loading import (
     canonical_dataset_name,
     extract_image_as_pil,

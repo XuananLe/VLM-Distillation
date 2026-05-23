@@ -68,7 +68,7 @@ def default_output_paths(dataset_name: str, split: str, output_root: Path) -> tu
 
 
 def print_schema_info(dataset: Any, resolved_schema: dict[str, str | None]) -> None:
-    """Print the raw dataset schema and the inferred fields used by conversion."""
+    """Print the raw dataset schema and the fixed fields used by conversion."""
     print("Pulled schema from dataset.features:")
     for name, feature in dataset.features.items():
         print(f"  - {name}: {feature}")

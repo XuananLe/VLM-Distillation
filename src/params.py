@@ -6,13 +6,6 @@ from transformers import TrainingArguments as HFTrainingArguments
 
 
 @dataclass
-class ModelArguments:
-    """Minimal model-selection arguments for the SFT entrypoint."""
-
-    model_id: Optional[str] = field(default=None)
-
-
-@dataclass
 class TrainingArguments(HFTrainingArguments):
     """Project-specific extension of Hugging Face TrainingArguments."""
 
@@ -25,16 +18,6 @@ class TrainingArguments(HFTrainingArguments):
     adam_epsilon: float = field(default=1e-7)
 
     disable_flash_attn2: bool = field(default=False)
-    freeze_vision_tower: bool = field(default=False)
-    freeze_llm: bool = field(default=False)
-    freeze_connector: bool = field(default=False)
-    vision_lr: Optional[float] = field(default=None)
-    connector_lr: Optional[float] = field(default=None)
-
-    max_seq_length: int = field(
-        default=16384,
-        metadata={"help": "Maximum sequence length. Sequences will be right padded (and possibly truncated)."},
-    )
 
     def __post_init__(self):
         """Restore compatibility with TRL-mutated TrainingArguments field validation."""
@@ -57,10 +40,8 @@ class TrainingArguments(HFTrainingArguments):
 
 @dataclass
 class DataArguments:
-    """Dataset paths and image-loading options shared by SFT and distillation."""
+    """Dataset paths and image-loading options for distillation training."""
 
     data_path: str = field(default=None, metadata={"help": "Path to the training data."})
     eval_data_path: Optional[str] = field(default=None, metadata={"help": "Optional path to the validation data."})
-    lazy_preprocess: bool = False
     image_folder: Optional[str] = field(default=None)
-    strict_image_validation: bool = False

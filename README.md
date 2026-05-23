@@ -1,9 +1,6 @@
-# VLM Distillation and Fine-Tuning
+# VLM Distillation
 
-This repository trains [SmolVLM](https://huggingface.co/HuggingFaceTB/SmolVLM-Instruct) students in two main modes:
-
-- standard supervised fine-tuning
-- teacher-student distillation from one or more VLM teachers
+This repository trains [SmolVLM](https://huggingface.co/HuggingFaceTB/SmolVLM-Instruct) students with teacher-student distillation from one or more VLM teachers.
 
 The implemented training stack is centered on cache-backed distillation: teacher logits are precomputed once, then reused during student training. On top of that base workflow, the repo currently supports:
 
@@ -12,7 +9,6 @@ The implemented training stack is centered on cache-backed distillation: teacher
 - teacher weighting via `uniform_mean` or `routing`
 - `GRACE` routing refinement on top of the router
 - logits-space KD losses including `uld_loss`, `trie_wasserstein_loss`, KL/JS variants, and `cka_loss`
-- full SFT launchers
 - a separate evaluation stack under `src/eval/`
 
 
@@ -134,30 +130,19 @@ TEACHER_LOGITS_CACHE_DIR=/path/to/cache \
 bash scripts/train/distill_multi_teachers.sh
 ```
 
-### 5. Run standard SFT
-
-The SFT launchers do not use teacher logits.
-
-```bash
-bash scripts/train/sft_full.sh
-```
-
-See the checked-in training scripts for the current SFT variants.
-
 ## Training Modes
 
 | Mode | Entrypoint | Notes |
 | --- | --- | --- |
 | Multi-teacher distillation | [`scripts/train/distill_multi_teachers.sh`](scripts/train/distill_multi_teachers.sh) | Most up-to-date checked-in distillation launcher |
 | Single-teacher distillation | [`src/train/train_distillation.py`](src/train/train_distillation.py) | Current distillation runtime is still cache-backed even for one teacher |
-| Full SFT | [`scripts/train/sft_full.sh`](scripts/train/sft_full.sh) | Standard fine-tuning |
 
 ## Distillation At A Glance
 
 The implemented distillation path is:
 
 1. [`src/train/train_distillation.py`](src/train/train_distillation.py)
-2. [`src/dataset/sft_data.py`](src/dataset/sft_data.py)
+2. [`src/dataset/supervised_data.py`](src/dataset/supervised_data.py)
 3. [`src/dataset/data_collator.py`](src/dataset/data_collator.py)
 4. [`src/trainer/distillation_trainer.py`](src/trainer/distillation_trainer.py)
 5. [`src/trainer/step_utils.py`](src/trainer/step_utils.py)
@@ -171,13 +156,14 @@ One practical consequence of the current design:
 
 - distillation validates that a cache source is present when `alpha > 0`
 - teacher model weights are not loaded during training; the runtime consumes cached teacher logits
+- processor/tokenizer-only paths use `load_vlm_bundle(load_model=False)` so cache and dataset helpers can reuse the same VLM setup logic without allocating model weights
 
 ## Repository Layout
 
 - [`src/train`](src/train)
   - argument parsing, model loading, training entrypoints, trainer callback setup
 - [`src/trainer`](src/trainer)
-  - custom SFT trainer, distillation trainer, per-step loss orchestration, routing helpers
+  - distillation trainer, per-step loss orchestration, routing helpers
 - [`src/dataset`](src/dataset)
   - dataset loading, conversation transforms, processor-specific encoding, cache readers, collator
 - [`src/components`](src/components)
@@ -185,7 +171,7 @@ One practical consequence of the current design:
 - [`src/eval`](src/eval)
   - separate evaluation stack
 - [`scripts/train`](scripts/train)
-  - shell launchers for distillation and SFT
+  - shell launchers for distillation
 - [`scripts/analysis`](scripts/analysis)
   - teacher-logit caching, optional cache repacking, and offline analysis helpers
 - [`demo/DEX-AR`](demo/DEX-AR)
@@ -196,7 +182,7 @@ One practical consequence of the current design:
 - The distillation runtime is cache-first. Provide `--teacher_logits_cache_dir` when `alpha > 0`.
 - `GRACE` is part of the `routing` path. It refines routed teacher weights; it is not a separate weighting strategy.
 - `src/eval` is a separate stack and is not part of the core training loop.
-- Test coverage is currently narrow and mainly exercises the custom DeepSpeed fallback in [`tests/trainer/test_sft_trainer_deepspeed.py`](tests/trainer/test_sft_trainer_deepspeed.py).
+- Test coverage is currently narrow and focused on KD loss helpers.
 
 ## License
 

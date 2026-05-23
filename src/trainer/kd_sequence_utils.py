@@ -44,7 +44,6 @@ def compute_single_teacher_loss(
     teacher_temperature: float,
     teacher_index: int | None = None,
 ) -> torch.Tensor:
-    """Compute per-sample KD losses for one teacher batch after supervised-token alignment."""
     sample_losses = []
     for sample_index in range(student_logits.size(0)):
         # Sequence alignment is done per sample because each example can have a

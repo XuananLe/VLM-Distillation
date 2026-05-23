@@ -17,15 +17,16 @@ from .conversation_encoders import (
 from .data_collator import DataCollatorForSupervisedDataset
 from .teacher_logits_cache import TeacherLogitsCache
 
-# This return a sample
+# One encoded sample contains processor-owned multimodal tensors plus optional
+# cached teacher logits used by offline distillation.
 # {
-#       "input_ids":tensor([...]                                                    ),
-#       "labels": tensor([...]),
-#       "attention_mask": tensor([...]),
-#       "pixel_values": tensor(...),
-#       "pixel_attention_mask": tensor(...),
-#       "teacher_0_cached_logits": tensor(...),
-#       "teacher_0_cached_labels": tensor(...),
+#     "input_ids": tensor(...),
+#     "labels": tensor(...),
+#     "attention_mask": tensor(...),
+#     "pixel_values": tensor(...),
+#     "pixel_attention_mask": tensor(...),  # when returned by the processor
+#     "teacher_0_cached_logits": tensor(...),
+#     "teacher_0_cached_labels": tensor(...),
 # }
 
 
@@ -137,7 +138,7 @@ def make_supervised_data_module(
     teacher_logits_cache_dir: Optional[str] = None,
 ):
     normalized_teacher_processors = list(teacher_processors or [])
-    sft_dataset = SupervisedDataset(
+    supervised_dataset = SupervisedDataset(
         data_path=data_args.data_path,
         processor=processor,
         data_args=data_args,
@@ -176,4 +177,4 @@ def make_supervised_data_module(
         teacher_pad_token_ids=teacher_pad_ids,
     )
 
-    return dict(train_dataset=sft_dataset, eval_dataset=eval_dataset, data_collator=data_collator)
+    return dict(train_dataset=supervised_dataset, eval_dataset=eval_dataset, data_collator=data_collator)

@@ -25,18 +25,6 @@ def compute_per_sample_ce_losses(
     student_labels: torch.Tensor,
     ignore_index: int = IGNORE_INDEX,
 ) -> torch.Tensor:
-    if student_logits.ndim != 3:
-        raise ValueError(f"student_logits must have shape [batch, seq, vocab], got {tuple(student_logits.shape)}")
-    if student_labels.ndim != 2:
-        raise ValueError(f"student_labels must have shape [batch, seq], got {tuple(student_labels.shape)}")
-    if student_logits.shape[:2] != student_labels.shape:
-        raise ValueError(
-            "student logits and labels must share batch/sequence shape, got "
-            f"{tuple(student_logits.shape[:2])} and {tuple(student_labels.shape)}."
-        )
-    if student_logits.size(1) < 2:
-        raise ValueError("Cannot compute per-sample CE with sequence length below 2.")
-
     shifted_logits = student_logits[:, :-1, :].float().contiguous()
     shifted_labels = student_labels[:, 1:].contiguous()
     token_losses = F.cross_entropy(

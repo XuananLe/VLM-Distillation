@@ -11,12 +11,9 @@ import torch
 from safetensors.torch import save_file
 from torch.utils.data import Dataset
 
-from src.dataset.sft_data import make_supervised_data_module
+from src.dataset.supervised_data import make_supervised_data_module
 from src.params import DataArguments
-from src.train.model_setup import (
-    load_processor_bundle,
-    load_vlm_bundle,
-)
+from src.train.model_setup import load_vlm_bundle
 
 REQUIRED_TEACHER_INPUTS = ("input_ids", "attention_mask", "pixel_values")
 OPTIONAL_TEACHER_INPUTS = ("pixel_attention_mask", "image_grid_thw", "image_flags", "image_sizes")
@@ -119,20 +116,20 @@ def build_cache_dataset_state(
     teacher_ids: list[str],
     teacher_processors,
 ):
-    student_processor, _, _ = load_processor_bundle(
-        args.student_model_id,
+    _, student_processor, _, _ = load_vlm_bundle(
+        model_id=args.student_model_id,
         padding_side="right",
+        load_model=False,
     )
     if student_processor is None:
         raise ValueError(
-            "Teacher-logit caching requires an AutoProcessor for the student dataset path, "
+            "Teacher-logit caching requires a processor/tokenizer bundle for the student dataset path, "
             f"but processor loading failed for {args.student_model_id!r}."
         )
 
     data_args = DataArguments(
         data_path=args.data_path,
         image_folder=args.image_folder,
-        lazy_preprocess=True,
     )
     data_module = make_supervised_data_module(
         processor=student_processor,
