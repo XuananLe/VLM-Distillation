@@ -25,7 +25,6 @@ from dexar.backends import DexarBackend
 from run_docvqa_subset import build_vqa_prompt, pick_first_answer
 
 from src.dataset.vqa_loading import (
-    canonical_dataset_name,
     extract_image_as_pil,
     load_dataset_split,
     pick_first_text,
@@ -37,7 +36,7 @@ def parse_args() -> argparse.Namespace:
         description="Visualize autoregressive next-token output distributions for a VQA sample."
     )
     parser.add_argument("--model-name", default="HuggingFaceTB/SmolVLM-500M-Instruct")
-    parser.add_argument("--dataset", default="docvqa")
+    parser.add_argument("--dataset", default="docvqa", help="Dataset name: textvqa, docvqa, or chartqa.")
     parser.add_argument("--split", default="train")
     parser.add_argument("--row-index", type=int, default=0)
     parser.add_argument("--device", default="auto")
@@ -310,7 +309,7 @@ def collect_distribution(
 
 def main() -> None:
     args = parse_args()
-    dataset_name = canonical_dataset_name(args.dataset)
+    dataset_name = args.dataset
     device = resolve_device(args.device)
     args.output_root.mkdir(parents=True, exist_ok=True)
 

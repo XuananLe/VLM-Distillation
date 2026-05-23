@@ -3,32 +3,15 @@ import torch
 
 def apply_grace_routing(
     *,
-    routed_teacher_weights: torch.Tensor | None,
-    teacher_grace_scores: torch.Tensor | None,
-    teacher_grace_active_mask: torch.Tensor | None,
+    routed_teacher_weights: torch.Tensor,
+    teacher_grace_scores: torch.Tensor,
+    teacher_grace_active_mask: torch.Tensor,
     prev_grace_score_ema: torch.Tensor | None,
     grace_ema_decay: float,
     grace_softmax_beta: float,
     grace_router_blend_lambda: float,
     grace_epsilon: float,
-) -> tuple[
-    torch.Tensor | None,
-    torch.Tensor | None,
-    torch.Tensor | None,
-    torch.Tensor | None,
-    torch.Tensor | None,
-    torch.Tensor | None,
-]:
-    if routed_teacher_weights is None or teacher_grace_scores is None or teacher_grace_active_mask is None:
-        return (
-            routed_teacher_weights,
-            teacher_grace_scores,
-            teacher_grace_active_mask,
-            None,
-            None,
-            prev_grace_score_ema,
-        )
-
+) -> tuple[torch.Tensor, torch.Tensor]:
     routed_teacher_mask = routed_teacher_weights > 0
     if prev_grace_score_ema is None or prev_grace_score_ema.numel() != teacher_grace_scores.size(-1):
         smoothed_grace_scores = teacher_grace_scores
@@ -105,24 +88,7 @@ def apply_grace_routing(
         grace_mix_weights,
         normalized_router_weights,
     )
-    grace_fallback_rate = (
-        ((~has_grace_active_teacher.squeeze(-1)) | use_uniform_grace_weights)
-        .to(dtype=routed_teacher_weights.dtype)
-        .mean()
-    )
-    grace_agreement_weights = torch.where(
-        has_grace_active_teacher,
-        grace_agreement_weights,
-        torch.zeros_like(grace_agreement_weights),
-    )
-    return (
-        teacher_mix_weights,
-        teacher_grace_scores,
-        teacher_grace_active_mask,
-        grace_agreement_weights,
-        grace_fallback_rate,
-        next_grace_score_ema,
-    )
+    return teacher_mix_weights, next_grace_score_ema
 
 
 __all__ = [

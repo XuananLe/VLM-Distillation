@@ -10,7 +10,6 @@ from typing import Any
 from tqdm.auto import tqdm
 
 from src.dataset.vqa_loading import (
-    canonical_dataset_name,
     extract_image_as_pil,
     load_dataset_split,
     pick_first_text,
@@ -26,7 +25,7 @@ def parse_args() -> argparse.Namespace:
         "--dataset",
         type=str,
         default="textvqa",
-        help="Dataset alias/name: textvqa, docvqa, chartqa (or known HF ids).",
+        help="Dataset name: textvqa, docvqa, or chartqa.",
     )
     parser.add_argument(
         "--split",
@@ -158,10 +157,9 @@ def convert_dataset_to_llava(
 
 
 def main() -> None:
-    """Run the dataset-conversion CLI end to end."""
     args = parse_args()
 
-    dataset_name = canonical_dataset_name(args.dataset)
+    dataset_name = args.dataset
     default_output_dir = args.output_root / dataset_name
     output_json = args.output_json or default_output_dir / f"{args.split}_llava.json"
     image_dir = args.image_dir or default_output_dir / "images"
