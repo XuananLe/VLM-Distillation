@@ -1,8 +1,9 @@
 from contextlib import contextmanager
 
 import torch
+import transformers.modeling_utils as modeling_utils
 from transformers import AutoModel
-from transformers.modeling_utils import PreTrainedModel, init, local_torch_dtype
+from transformers.modeling_utils import PreTrainedModel
 
 # https://huggingface.co/OpenGVLab/InternVL3-1B/tree/main
 
@@ -15,11 +16,19 @@ def internvl_transformers5_load_context():
     #   tensors, then later lacks Transformers 5's all_tied_weights_keys field.
     # This scoped patch disables meta init only while loading InternVL.
     original_get_init_context = PreTrainedModel.get_init_context
-    original_mark_tied_weights_as_initialized = PreTrainedModel.mark_tied_weights_as_initialized
+    original_mark_tied_weights_as_initialized = getattr(PreTrainedModel, "mark_tied_weights_as_initialized", None)
 
     @classmethod
-    def cpu_init_context(cls, dtype, is_quantized, _is_ds_init_called):
-        return [local_torch_dtype(dtype, cls.__name__), init.no_tie_weights()]
+    def cpu_init_context(cls, *args, **kwargs):
+        dtype = kwargs.get("dtype", args[0] if args and not isinstance(args[0], bool) else None)
+        if dtype is not None and hasattr(modeling_utils, "local_torch_dtype") and hasattr(modeling_utils, "init"):
+            return [
+                modeling_utils.local_torch_dtype(dtype, cls.__name__),
+                modeling_utils.init.no_tie_weights(),
+            ]
+        if hasattr(modeling_utils, "no_init_weights"):
+            return [modeling_utils.no_init_weights()]
+        return []
 
     def mark_tied_weights_as_initialized(self):
         if not hasattr(self, "all_tied_weights_keys"):
@@ -27,12 +36,14 @@ def internvl_transformers5_load_context():
         return original_mark_tied_weights_as_initialized(self)
 
     PreTrainedModel.get_init_context = cpu_init_context
-    PreTrainedModel.mark_tied_weights_as_initialized = mark_tied_weights_as_initialized
+    if original_mark_tied_weights_as_initialized is not None:
+        PreTrainedModel.mark_tied_weights_as_initialized = mark_tied_weights_as_initialized
     try:
         yield
     finally:
         PreTrainedModel.get_init_context = original_get_init_context
-        PreTrainedModel.mark_tied_weights_as_initialized = original_mark_tied_weights_as_initialized
+        if original_mark_tied_weights_as_initialized is not None:
+            PreTrainedModel.mark_tied_weights_as_initialized = original_mark_tied_weights_as_initialized
 
 
 def load_internvl_model(
