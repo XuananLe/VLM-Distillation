@@ -31,7 +31,6 @@ QWEN_VL_NON_TEXT_TOKEN_STRINGS = (
     "<|vision_end|>",
     "<|vision_pad|>",
     "<|image_pad|>",
-    "<|video_pad|>",
     "<|box_start|>",
     "<|box_end|>",
     "<|quad_start|>",
@@ -76,7 +75,7 @@ VLM_CONTROL_SPECIAL_TOKEN_STRINGS = ("<end_of_utterance>",)
 
 def token_string_looks_non_text(token: str) -> bool:
     normalized_token = token.lower()
-    if any(marker in normalized_token for marker in ("image", "vision", "patch", "pixel", "img", "video")):
+    if any(marker in normalized_token for marker in ("image", "vision", "patch", "pixel", "img")):
         return True
     return any(
         re.search(rf"(^|[^a-z0-9]){re.escape(marker)}([^a-z0-9]|$)", normalized_token)
@@ -146,7 +145,6 @@ def collect_non_text_token_ids(tokenizer) -> set[int]:
         "vision_end_token",
         "vision_pad_token",
         "image_pad_token",
-        "video_pad_token",
     ):
         attr_value = getattr(tokenizer, attr_name, None)
         if isinstance(attr_value, str):
@@ -168,8 +166,6 @@ def collect_non_text_token_ids(tokenizer) -> set[int]:
         "vision_end_token_id",
         "vision_pad_token_id",
         "image_pad_token_id",
-        "video_token_id",
-        "video_pad_token_id",
     ):
         token_id = getattr(tokenizer, attr_name, None)
         if token_id is not None:
