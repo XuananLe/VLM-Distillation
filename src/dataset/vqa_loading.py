@@ -4,72 +4,50 @@ from typing import Any
 from datasets import load_dataset
 from PIL import Image
 
-DATASET_SOURCES = {
+DATASETS = {
     "textvqa": {
+        "aliases": ("textvqa", "facebook/textvqa", "lmms-lab/textvqa"),
         "hub": "lmms-lab/textvqa",
-        "config": None,
-        "fallback_hub": "facebook/textvqa",
-        "fallback_config": "textvqa",
+        "schema": {
+            "image_field": "image",
+            "question_field": "question",
+            "answer_field": "answers",
+            "id_field": "question_id",
+            "image_name_field": "image_id",
+        },
     },
     "docvqa": {
+        "aliases": ("docvqa", "documentvqa", "huggingfacem4/documentvqa", "lmms-lab/docvqa"),
         "hub": "HuggingFaceM4/DocumentVQA",
-        "config": None,
-        "fallback_hub": "lmms-lab/DocVQA",
-        "fallback_config": None,
+        "schema": {
+            "image_field": "image",
+            "question_field": "question",
+            "answer_field": "answers",
+            "id_field": "questionId",
+            "image_name_field": "docId",
+        },
     },
     "chartqa": {
+        "aliases": ("chartqa", "chart qa", "huggingfacem4/chartqa", "lmms-lab/chartqa"),
         "hub": "HuggingFaceM4/ChartQA",
-        "config": None,
-        "fallback_hub": "lmms-lab/ChartQA",
-        "fallback_config": None,
+        "schema": {
+            "image_field": "image",
+            "question_field": "query",
+            "answer_field": "label",
+            "id_field": None,
+            "image_name_field": None,
+        },
     },
 }
 
-DATASET_ALIASES = {
-    "textvqa": "textvqa",
-    "facebook/textvqa": "textvqa",
-    "lmms-lab/textvqa": "textvqa",
-    "docvqa": "docvqa",
-    "documentvqa": "docvqa",
-    "huggingfacem4/documentvqa": "docvqa",
-    "lmms-lab/docvqa": "docvqa",
-    "chartqa": "chartqa",
-    "chart qa": "chartqa",
-    "huggingfacem4/chartqa": "chartqa",
-    "lmms-lab/chartqa": "chartqa",
-}
-
-DATASET_SCHEMAS = {
-    "textvqa": {
-        "image_field": "image",
-        "question_field": "question",
-        "answer_field": "answers",
-        "id_field": "question_id",
-        "image_name_field": "image_id",
-    },
-    "docvqa": {
-        "image_field": "image",
-        "question_field": "question",
-        "answer_field": "answers",
-        "id_field": "questionId",
-        "image_name_field": "docId",
-    },
-    "chartqa": {
-        "image_field": "image",
-        "question_field": "query",
-        "answer_field": "label",
-        "id_field": None,
-        "image_name_field": None,
-    },
-}
+DATASET_ALIASES = {alias: name for name, config in DATASETS.items() for alias in config["aliases"]}
 
 
 def canonical_dataset_name(dataset_name: str) -> str:
-    """Normalize one user dataset name or alias to the repo's canonical dataset key."""
     key = dataset_name.strip().lower()
     canonical = DATASET_ALIASES.get(key)
     if canonical is None:
-        supported = ", ".join(sorted(DATASET_SOURCES))
+        supported = ", ".join(sorted(DATASETS))
         raise ValueError(f"Unsupported dataset '{dataset_name}'. Supported: {supported}")
     return canonical
 
@@ -77,32 +55,11 @@ def canonical_dataset_name(dataset_name: str) -> str:
 def load_dataset_split(
     dataset_name: str,
     split: str,
-    *,
-    log_fallback: bool = False,
 ):
-    """Load one VQA dataset split and fall back when the primary hub entry requires a script."""
-    source = DATASET_SOURCES[dataset_name]
-    try:
-        if source["config"] is None:
-            return load_dataset(source["hub"], split=split), source["hub"]
-        return load_dataset(source["hub"], source["config"], split=split), source["hub"]
-    except RuntimeError as exc:
-        fallback_hub = source["fallback_hub"]
-        if fallback_hub and "Dataset scripts are no longer supported" in str(exc):
-            if log_fallback:
-                print(f"Dataset '{source['hub']}' uses a dataset script. Falling back to '{fallback_hub}'.")
-            if source["fallback_config"] is None:
-                return load_dataset(fallback_hub, split=split), fallback_hub
-            return load_dataset(fallback_hub, source["fallback_config"], split=split), fallback_hub
-        raise
-
-
-def infer_schema(dataset_name: str, dataset: Any, *, require_answer_field: bool) -> dict[str, str | None]:
-    """Return the fixed schema for one supported VQA dataset and validate it against the loaded split."""
     dataset_name = canonical_dataset_name(dataset_name)
-    schema = DATASET_SCHEMAS[dataset_name].copy()
-    if require_answer_field and schema["answer_field"] is None:
-        raise ValueError(f"Dataset '{dataset_name}' does not define an answer field.")
+    source = DATASETS[dataset_name]
+    schema = source["schema"].copy()
+    dataset = load_dataset(source["hub"], split=split)
 
     all_fields = set(dataset.features)
     missing_fields = sorted(field for field in schema.values() if field is not None and field not in all_fields)
@@ -111,7 +68,7 @@ def infer_schema(dataset_name: str, dataset: Any, *, require_answer_field: bool)
             f"Dataset '{dataset_name}' schema changed. Missing fields: {missing_fields}. "
             f"Available fields: {sorted(all_fields)}"
         )
-    return schema
+    return dataset, source["hub"], schema
 
 
 def pick_first_text(value: Any) -> str | None:
@@ -134,12 +91,8 @@ def extract_image_as_pil(image_value: Any) -> Any:
 
 
 __all__ = [
-    "DATASET_ALIASES",
-    "DATASET_SCHEMAS",
-    "DATASET_SOURCES",
     "canonical_dataset_name",
     "extract_image_as_pil",
-    "infer_schema",
     "load_dataset_split",
     "pick_first_text",
 ]
