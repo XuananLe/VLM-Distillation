@@ -106,12 +106,6 @@ class SupervisedDataset(Dataset):
                 if not os.path.exists(resolved_path):
                     resolved_path = os.path.join(image_folder, image_file)
                 images.append(Image.open(resolved_path).convert("RGB"))
-        elif "video" in sources:
-            raise ValueError(
-                "Video samples are no longer supported in the training dataset path. "
-                "Convert them to images before training."
-            )
-
         sources = copy.deepcopy(llava_to_openai(sources["conversations"]))
 
         encoded_sample = encode_with_processor(
