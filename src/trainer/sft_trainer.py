@@ -2,7 +2,6 @@ from transformers import Trainer
 
 
 class SmolVLMSFTTrainer(Trainer):
-    """Trainer for vanilla SmolVLM SFT with optional component-specific learning rates."""
 
     def create_optimizer(self):
         if self.optimizer is not None:

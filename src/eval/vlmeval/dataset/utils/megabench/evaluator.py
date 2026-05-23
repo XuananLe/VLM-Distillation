@@ -121,7 +121,6 @@ class MEGABenchEvaluator:
             # Extract the fields from the first correct_answer (assuming uniform)
             first_correct = task["query_response"][0]["correct_answer"]
             all_fields = list(first_correct.keys())
-            # Usually, we only treat “##something” fields as metadata, so skip them:
             answer_fields = [f for f in all_fields if not f.startswith("##")]
 
             # For each query in the task

@@ -28,7 +28,6 @@ def extend_vocab_state_with_unmapped_tokens(
 
     extra_tokens = target_vocab_size - current_vocab_size
 
-    # Runtime vocab growth usually comes from model-added IDs outside the
     # tokenizer byte vocabulary; keep their mass visible instead of hiding it.
     extended_paths = token_paths + [[] for _ in range(extra_tokens)]
     extended_ignored_mask = torch.cat(

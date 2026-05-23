@@ -33,18 +33,6 @@ def prepare_distillation_sequences(
     )
 
 
-def get_supervised_positions(
-    labels: torch.Tensor,
-    *,
-    skip_last: bool = False,
-) -> torch.Tensor:
-    """Return the supervised token positions, optionally dropping the last one as EOS."""
-    positions = labels.ne(-100).nonzero(as_tuple=False).squeeze(-1)
-    if skip_last and positions.numel() > 0:
-        positions = positions[:-1]
-    return positions
-
-
 def compute_single_teacher_loss(
     *,
     student_logits: torch.Tensor,
@@ -83,6 +71,5 @@ def compute_single_teacher_loss(
 
 __all__ = [
     "compute_single_teacher_loss",
-    "get_supervised_positions",
     "prepare_distillation_sequences",
 ]

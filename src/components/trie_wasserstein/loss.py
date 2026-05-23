@@ -121,7 +121,6 @@ class TrieWassersteinLoss(nn.Module):
         side: str,
         target_vocab_size: int,
     ) -> None:
-        """Extend one trie side with unmapped model-head tokens."""
         extend_vocab_state_with_unmapped_tokens(
             module=self,
             side=side,
@@ -157,8 +156,8 @@ class TrieWassersteinLoss(nn.Module):
 
     def forward(
         self,
-        student_logits: torch.Tensor,
-        teacher_logits: torch.Tensor,
+        student_logits: torch.Tensor, # [N, V_student]
+        teacher_logits: torch.Tensor, # [N, V_teacher]
         student_temperature: float = 1.0,
         teacher_temperature: float = 1.0,
     ) -> torch.Tensor:
@@ -212,7 +211,7 @@ class TrieWassersteinLoss(nn.Module):
             topk=self.topk,
             sign=1.0,
         )
-        teacher_edge_masses, teacher_non_text_masses = build_signed_edge_contributions(
+        teacher_edge_masses, _ = build_signed_edge_contributions(
             scaled_logits=teacher_scaled_logits,
             token_paths=self.teacher_token_paths,
             ignored_mask=self.teacher_ignored_mask,
@@ -221,7 +220,6 @@ class TrieWassersteinLoss(nn.Module):
             topk=self.topk,
             sign=-1.0,
         )
-        del teacher_non_text_masses
         trie_loss = reduce_signed_edge_contributions_to_tree_loss(
             student_edge_masses=student_edge_masses,
             teacher_edge_masses=teacher_edge_masses,
