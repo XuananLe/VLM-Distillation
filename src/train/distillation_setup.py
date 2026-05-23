@@ -205,7 +205,6 @@ def log_distillation_setup(
     distillation_args,
     gradient_checkpointing_kwargs,
 ) -> None:
-    """Print the resolved distillation configuration once at startup for reproducibility."""
     print("=" * 80)
     print("Logits Distillation Training")
     print("=" * 80)

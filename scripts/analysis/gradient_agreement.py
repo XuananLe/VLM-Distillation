@@ -24,7 +24,6 @@ from src.dataset.conversation_encoders import encode_teacher_data, encode_with_p
 from src.dataset.data_collator import DataCollatorForSupervisedDataset
 from src.dataset.sft_data import SupervisedDataset
 from src.dataset.vqa_loading import (
-    canonical_dataset_name,
     extract_image_as_pil,
     load_dataset_split,
     pick_first_text,
@@ -39,7 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Compute CE vs KD gradient agreement on a VQA subset.")
     parser.add_argument("--student-model-id", required=True, help="Student model id/path.")
     parser.add_argument("--teacher-model-id", required=True, help="Teacher model id/path.")
-    parser.add_argument("--dataset", default="docvqa", help="Dataset alias/name.")
+    parser.add_argument("--dataset", default="docvqa", help="Dataset name: textvqa, docvqa, or chartqa.")
     parser.add_argument("--split", default="train", help="Dataset split.")
     parser.add_argument("--subset-size", type=int, default=1000, help="Number of valid samples to evaluate.")
     parser.add_argument("--offset", type=int, default=0, help="Starting raw row offset before filtering.")
@@ -407,7 +406,7 @@ def main() -> None:
     os.makedirs(Path(args.output_json).parent, exist_ok=True)
     args.device = normalize_device(args.device)
 
-    dataset_name = canonical_dataset_name(args.dataset)
+    dataset_name = args.dataset
     dtype = resolve_dtype(args.dtype)
     if args.loss_function != "uld_loss":
         raise ValueError(f"This script is hard-wired to `uld_loss`. Received --loss-function={args.loss_function!r}.")

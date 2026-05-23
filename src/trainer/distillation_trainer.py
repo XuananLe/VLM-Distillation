@@ -174,8 +174,6 @@ class DistillationTrainer(Trainer):
         routed_teacher_weights = teacher_router_weights
         teacher_mix_weights = None
         teacher_grace_active_mask = None
-        teacher_grace_weights = None
-        teacher_grace_fallback_rate = None
         if teacher_router_weights is not None:
             teacher_gate_z_loss = torch.logsumexp(teacher_router_logits.float(), dim=-1).square().mean().to(
                 dtype=teacher_router_logits.dtype
@@ -263,10 +261,6 @@ class DistillationTrainer(Trainer):
             else:
                 (
                     teacher_mix_weights,
-                    _teacher_grace_scores,
-                    _teacher_grace_active_mask,
-                    teacher_grace_weights,
-                    teacher_grace_fallback_rate,
                     self.teacher_grace_score_ema,
                 ) = apply_grace_routing(
                     routed_teacher_weights=routed_teacher_weights,
@@ -346,19 +340,6 @@ class DistillationTrainer(Trainer):
                                 for teacher_index, score in enumerate(self.teacher_grace_score_ema.detach())
                             }
                         )
-                if teacher_grace_weights is not None:
-                    normalized_grace_weights = teacher_grace_weights / teacher_grace_weights.sum(
-                        dim=-1,
-                        keepdim=True,
-                    ).clamp(min=torch.finfo(teacher_grace_weights.dtype).eps)
-                    safe_grace_weights = normalized_grace_weights.clamp(
-                        min=torch.finfo(normalized_grace_weights.dtype).eps
-                    )
-                    metrics["teacher_grace_entropy"] = (
-                        -(safe_grace_weights * safe_grace_weights.log()).sum(dim=-1).mean().item()
-                    )
-                    metrics["teacher_grace_fallback_rate"] = teacher_grace_fallback_rate.item()
-                    metrics["teacher_grace_uniform_rate"] = teacher_grace_fallback_rate.item()
             self.log(metrics)
 
         return loss
