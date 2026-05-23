@@ -9,12 +9,10 @@ from src.tokenizer_utils import (
     resolve_vocab_size,
 )
 
-from .canonicalization import resolve_underscore_boundary_marker
 from .contributions import (
     build_signed_edge_contributions,
     reduce_signed_edge_contributions_to_tree_loss,
 )
-from .runtime_state import extend_vocab_state_with_unmapped_tokens
 from .trie_build import build_trie_state_from_tokenizers
 
 
@@ -52,13 +50,11 @@ class TrieWassersteinLoss(nn.Module):
         self.topk = int(topk)
         self.boundary_weight = float(boundary_weight)
         self.non_text_token_weight = float(non_text_token_weight)
-        self.student_underscore_is_boundary_marker = resolve_underscore_boundary_marker(
-            self.student_tokenizer,
-            student_underscore_is_boundary_marker,
+        self.student_underscore_is_boundary_marker = (
+            False if student_underscore_is_boundary_marker is None else bool(student_underscore_is_boundary_marker)
         )
-        self.teacher_underscore_is_boundary_marker = resolve_underscore_boundary_marker(
-            self.teacher_tokenizer,
-            teacher_underscore_is_boundary_marker,
+        self.teacher_underscore_is_boundary_marker = (
+            False if teacher_underscore_is_boundary_marker is None else bool(teacher_underscore_is_boundary_marker)
         )
 
         ignored_student = (
@@ -115,18 +111,6 @@ class TrieWassersteinLoss(nn.Module):
             persistent=True,
         )
 
-    def extend_vocab_state_with_unmapped_tokens(
-        self,
-        *,
-        side: str,
-        target_vocab_size: int,
-    ) -> None:
-        extend_vocab_state_with_unmapped_tokens(
-            module=self,
-            side=side,
-            target_vocab_size=target_vocab_size,
-        )
-
     def prepare_runtime_state(
         self,
         *,
@@ -143,16 +127,42 @@ class TrieWassersteinLoss(nn.Module):
             )
 
         if student_vocab_size > self.student_vocab_size:
-            self.extend_vocab_state_with_unmapped_tokens(
-                side="student",
-                target_vocab_size=student_vocab_size,
+            extra_tokens = student_vocab_size - self.student_vocab_size
+            self.student_token_paths = self.student_token_paths + [[] for _ in range(extra_tokens)]
+            self.student_ignored_mask = torch.cat(
+                [
+                    self.student_ignored_mask,
+                    torch.zeros(extra_tokens, dtype=torch.bool, device=self.student_ignored_mask.device),
+                ],
+                dim=0,
             )
+            self.student_non_text_mask = torch.cat(
+                [
+                    self.student_non_text_mask,
+                    torch.ones(extra_tokens, dtype=torch.bool, device=self.student_non_text_mask.device),
+                ],
+                dim=0,
+            )
+            self.student_vocab_size = student_vocab_size
 
         if teacher_vocab_size > self.teacher_vocab_size:
-            self.extend_vocab_state_with_unmapped_tokens(
-                side="teacher",
-                target_vocab_size=teacher_vocab_size,
+            extra_tokens = teacher_vocab_size - self.teacher_vocab_size
+            self.teacher_token_paths = self.teacher_token_paths + [[] for _ in range(extra_tokens)]
+            self.teacher_ignored_mask = torch.cat(
+                [
+                    self.teacher_ignored_mask,
+                    torch.zeros(extra_tokens, dtype=torch.bool, device=self.teacher_ignored_mask.device),
+                ],
+                dim=0,
             )
+            self.teacher_non_text_mask = torch.cat(
+                [
+                    self.teacher_non_text_mask,
+                    torch.ones(extra_tokens, dtype=torch.bool, device=self.teacher_non_text_mask.device),
+                ],
+                dim=0,
+            )
+            self.teacher_vocab_size = teacher_vocab_size
 
     def forward(
         self,
