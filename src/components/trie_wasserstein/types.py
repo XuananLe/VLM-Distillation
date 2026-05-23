@@ -11,7 +11,7 @@ BoundaryKind = Literal["none", "space", "continuation", "end_word"]
 @dataclass(slots=True)
 class TrieNode:
     children: dict[int, "TrieNode"] = field(default_factory=dict)
-    edge_id: int | None = None
+    edge_id: int = -1
 
 
 @dataclass(slots=True)

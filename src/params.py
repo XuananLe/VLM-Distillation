@@ -7,8 +7,6 @@ from transformers import TrainingArguments as HFTrainingArguments
 
 @dataclass
 class TrainingArguments(HFTrainingArguments):
-    """Project-specific extension of Hugging Face TrainingArguments."""
-
     cache_dir: Optional[str] = field(default=None)
     optim: str = field(default="adamw_torch")
     seed: int = field(default=42)

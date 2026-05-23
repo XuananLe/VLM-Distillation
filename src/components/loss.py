@@ -29,10 +29,10 @@ def build_distillation_loss(
         ]
         prepared_vocab_shapes: dict[int, tuple[int, int]] = {}
 
-        def select_loss_module(teacher_index: int | None) -> TrieWassersteinLoss:
+        def require_teacher_index(teacher_index: int | None) -> int:
             if teacher_index is None:
                 raise ValueError("Trie Wasserstein loss requires a teacher index.")
-            return loss_modules[teacher_index]
+            return int(teacher_index)
 
         def prepare_teacher_batch(
             *,
@@ -41,11 +41,10 @@ def build_distillation_loss(
             teacher_labels: torch.Tensor | None = None,
             teacher_index: int | None = None,
         ) -> None:
-            loss_module = select_loss_module(teacher_index)
-            teacher_key = int(teacher_index)
+            teacher_key = require_teacher_index(teacher_index)
             student_vocab_size = student_logits.size(-1)
             teacher_vocab_size = teacher_logits.size(-1)
-            loss_module.prepare_runtime_state(
+            loss_modules[teacher_key].prepare_runtime_state(
                 student_vocab_size=student_vocab_size,
                 teacher_vocab_size=teacher_vocab_size,
             )
@@ -59,11 +58,11 @@ def build_distillation_loss(
             teacher_temperature: float = 1.0,
             teacher_index: int | None = None,
         ) -> torch.Tensor:
-            loss_module = select_loss_module(teacher_index)
-            teacher_key = int(teacher_index)
+            teacher_key = require_teacher_index(teacher_index)
             student_vocab_size = student_logits.size(-1)
             teacher_vocab_size = teacher_logits.size(-1)
             vocab_shape = (student_vocab_size, teacher_vocab_size)
+            loss_module = loss_modules[teacher_key]
             if prepared_vocab_shapes.get(teacher_key) != vocab_shape:
                 loss_module.prepare_runtime_state(
                     student_vocab_size=student_vocab_size,

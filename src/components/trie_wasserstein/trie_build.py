@@ -5,16 +5,16 @@ import torch
 from src.constants import EOS_SENTINEL
 
 from .canonicalization import canonicalize_token_piece
-from .types import BoundaryKind, TrieNode, TrieRuntimeState
+from .types import TrieNode, TrieRuntimeState
 
-BOUNDARY_EDGE_SYMBOLS: dict[BoundaryKind, int] = {
-    "none": 0,
+BOUNDARY_EDGE_WEIGHT = 0.05
+BOUNDARY_EDGE_SYMBOLS = {
     "space": -10_000_001,
     "continuation": -10_000_002,
     "end_word": -10_000_003,
 }
 
-if EOS_SENTINEL in {symbol for kind, symbol in BOUNDARY_EDGE_SYMBOLS.items() if kind != "none"}:
+if EOS_SENTINEL in set(BOUNDARY_EDGE_SYMBOLS.values()):
     raise ValueError(f"EOS_SENTINEL={EOS_SENTINEL!r} collides with boundary edge sentinels")
 
 
@@ -27,8 +27,6 @@ def build_tokenizer_paths(
     root: TrieNode,
     edge_weights: list[float],
     rho: float,
-    boundary_weight: float,
-    underscore_is_boundary_marker: bool,
 ) -> tuple[list[list[int]], torch.Tensor, torch.Tensor]:
     ignored_token_ids_set = set(ignored_token_ids)
     non_text_token_ids_set = set(non_text_token_ids)
@@ -47,11 +45,7 @@ def build_tokenizer_paths(
             token_paths.append([])
             continue
 
-        content_bytes, boundary_kind = canonicalize_token_piece(
-            tokenizer,
-            token_id,
-            underscore_is_boundary_marker=underscore_is_boundary_marker,
-        )
+        content_bytes, boundary_kind = canonicalize_token_piece(tokenizer, token_id)
 
         # Boundary markers are attached after the terminal edge so tokenizer
         # whitespace conventions do not fork the shared content path at ROOT.
@@ -60,12 +54,9 @@ def build_tokenizer_paths(
         for depth, byte_value in enumerate([*content_bytes, EOS_SENTINEL], start=1):
             child = node.children.get(byte_value)
             if child is None:
-                child = TrieNode()
-                child.edge_id = len(edge_weights)
+                child = TrieNode(edge_id=len(edge_weights))
                 edge_weights.append(float(rho) ** (depth - 1))
                 node.children[byte_value] = child
-            if child.edge_id is None:
-                raise RuntimeError("Trie child edge_id was not initialized")
             path.append(child.edge_id)
             node = child
 
@@ -73,12 +64,9 @@ def build_tokenizer_paths(
             boundary_key = BOUNDARY_EDGE_SYMBOLS[boundary_kind]
             boundary_child = node.children.get(boundary_key)
             if boundary_child is None:
-                boundary_child = TrieNode()
-                boundary_child.edge_id = len(edge_weights)
-                edge_weights.append(float(boundary_weight))
+                boundary_child = TrieNode(edge_id=len(edge_weights))
+                edge_weights.append(BOUNDARY_EDGE_WEIGHT)
                 node.children[boundary_key] = boundary_child
-            if boundary_child.edge_id is None:
-                raise RuntimeError("Boundary child edge_id was not initialized")
             path.append(boundary_child.edge_id)
 
         token_paths.append(path)
@@ -97,13 +85,7 @@ def build_trie_state_from_tokenizers(
     teacher_tokenizer,
     student_non_text_token_ids: tuple[int, ...] = (),
     teacher_non_text_token_ids: tuple[int, ...] = (),
-    boundary_weight: float = 0.05,
-    student_underscore_is_boundary_marker: bool = False,
-    teacher_underscore_is_boundary_marker: bool = False,
 ) -> TrieRuntimeState:
-    if boundary_weight < 0.0:
-        raise ValueError(f"boundary_weight must be >= 0, got {boundary_weight}")
-
     root = TrieNode()
     edge_weights: list[float] = []
 
@@ -117,8 +99,6 @@ def build_trie_state_from_tokenizers(
         root=root,
         edge_weights=edge_weights,
         rho=rho,
-        boundary_weight=boundary_weight,
-        underscore_is_boundary_marker=student_underscore_is_boundary_marker,
     )
     teacher_token_paths, teacher_ignored_mask, teacher_non_text_mask = build_tokenizer_paths(
         tokenizer=teacher_tokenizer,
@@ -128,8 +108,6 @@ def build_trie_state_from_tokenizers(
         root=root,
         edge_weights=edge_weights,
         rho=rho,
-        boundary_weight=boundary_weight,
-        underscore_is_boundary_marker=teacher_underscore_is_boundary_marker,
     )
 
     tail_edge_id = len(edge_weights)
