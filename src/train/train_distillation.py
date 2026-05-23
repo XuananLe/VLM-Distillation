@@ -101,8 +101,6 @@ def train_distillation():
         loss_function=distillation_args.distillation_loss,
         student_temperature=distillation_args.student_temperature,
         teacher_temperature=distillation_args.teacher_temperature,
-        skip_student_eos=distillation_args.skip_student_eos,
-        skip_teacher_eos=distillation_args.skip_teacher_eos,
         alpha=distillation_args.alpha,
         teacher_gate_top_k=distillation_args.teacher_gate_top_k,
         teacher_gate_entropy_alpha=distillation_args.teacher_gate_entropy_alpha,

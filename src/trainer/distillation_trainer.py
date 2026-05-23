@@ -29,8 +29,6 @@ class DistillationTrainer(Trainer):
         loss_function: str = "uld_loss",
         student_temperature: float = 2.0,
         teacher_temperature: float = 2.0,
-        skip_student_eos: bool = False,
-        skip_teacher_eos: bool = False,
         alpha: float = 1.0,
         teacher_gate_top_k: int = 1,
         teacher_gate_entropy_alpha: float = 1e-3,
@@ -100,8 +98,6 @@ class DistillationTrainer(Trainer):
 
         self.student_temperature = float(student_temperature)
         self.teacher_temperature = float(teacher_temperature)
-        self.skip_student_eos = skip_student_eos
-        self.skip_teacher_eos = skip_teacher_eos
         self.teacher_gate_top_k = teacher_gate_top_k
         self.teacher_gate_entropy_alpha = teacher_gate_entropy_alpha
         self.teacher_gate_router_z_loss_alpha = teacher_gate_router_z_loss_alpha
@@ -126,8 +122,6 @@ class DistillationTrainer(Trainer):
             loss_function=loss_function,
             student_temperature=self.student_temperature,
             teacher_temperature=self.teacher_temperature,
-            skip_student_eos=self.skip_student_eos,
-            skip_teacher_eos=self.skip_teacher_eos,
             alpha=alpha,
             teacher_gate=self.teacher_gate,
             teacher_gate_top_k=teacher_gate_top_k,

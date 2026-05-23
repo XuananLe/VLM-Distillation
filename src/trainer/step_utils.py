@@ -4,7 +4,9 @@ import torch
 from einops import einsum
 
 from src.components.grace import apply_grace_routing
-from src.components.reinforced_teacher_selection import compute_reinforced_selection_state
+from src.components.reinforced_teacher_selection import (
+    compute_reinforced_selection_state,
+)
 from src.trainer.distillation_utils import (
     build_cached_teacher_target_batches,
 )
@@ -120,8 +122,6 @@ def build_teacher_loss_state(
         distillation_loss_fn=trainer.distillation_loss_fn,
         student_temperature=trainer.student_temperature,
         teacher_temperature=trainer.teacher_temperature,
-        skip_student_eos=trainer.skip_student_eos,
-        skip_teacher_eos=trainer.skip_teacher_eos,
     )
     return {
         "teacher_loss_matrix": teacher_loss_matrix,
@@ -161,7 +161,6 @@ def resolve_teacher_weighting_state(
             student_labels=student_labels,
             student_ce_loss=student_ce_loss,
             teacher_temperature=trainer.teacher_temperature,
-            skip_teacher_eos=trainer.skip_teacher_eos,
             warmup_active=trainer.reinforced_selection_warmup_active(),
             reward_type=trainer.reinforced_selection_reward_type,
             prev_reward_baseline=trainer.reinforced_selection_reward_baseline,

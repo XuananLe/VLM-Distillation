@@ -35,8 +35,6 @@ def log_distillation_trainer_setup(
     loss_function: str,
     student_temperature: float,
     teacher_temperature: float,
-    skip_student_eos: bool,
-    skip_teacher_eos: bool,
     alpha: float,
     teacher_gate,
     teacher_gate_top_k: int,
@@ -79,8 +77,7 @@ def log_distillation_trainer_setup(
         print(f"  - Trie Wasserstein top-k: {trie_wasserstein_topk}")
     print(f"  - Student temperature: {student_temperature}")
     print(f"  - Teacher temperature: {teacher_temperature}")
-    print(f"  - Skip student EOS: {skip_student_eos}")
-    print(f"  - Skip teacher EOS: {skip_teacher_eos}")
+    print("  - Drop final supervised token for KD: True")
     print(f"  - Alpha: {alpha}")
     print(f"  - KD weight: {alpha}")
     print("  - CE weight: 1.0")

@@ -45,14 +45,6 @@ class DistillationArguments:
 
     teacher_temperature: float = field(default=2.0, metadata={"help": "Teacher softmax temperature for KD."})
 
-    skip_student_eos: bool = field(
-        default=False, metadata={"help": "Optionally drop the last supervised student token from KD."}
-    )
-
-    skip_teacher_eos: bool = field(
-        default=False, metadata={"help": "Optionally drop the last supervised teacher token from KD."}
-    )
-
     alpha: float = field(
         default=1.0,
         metadata={"help": "KD scaling factor in `ce_loss + alpha * kd_loss`."},
@@ -237,8 +229,7 @@ def log_distillation_setup(
     print("CE Weight: 1.0")
     print(f"Student Temperature: {distillation_args.student_temperature}")
     print(f"Teacher Temperature: {distillation_args.teacher_temperature}")
-    print(f"Skip Student EOS: {distillation_args.skip_student_eos}")
-    print(f"Skip Teacher EOS: {distillation_args.skip_teacher_eos}")
+    print("Drop Final Supervised Token For KD: True")
     if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing":
         print(f"Teacher Gate Top-k: {distillation_args.teacher_gate_top_k}")
         print(f"Teacher Gate Entropy Alpha: {distillation_args.teacher_gate_entropy_alpha}")

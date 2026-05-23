@@ -84,8 +84,6 @@ def compute_teacher_loss_matrix(
     distillation_loss_fn: Callable,
     student_temperature: float,
     teacher_temperature: float,
-    skip_student_eos: bool,
-    skip_teacher_eos: bool,
 ) -> tuple[
     torch.Tensor,
     torch.Tensor | None,
@@ -163,8 +161,6 @@ def compute_teacher_loss_matrix(
             distillation_loss_fn=distillation_loss_fn,
             student_temperature=student_temperature,
             teacher_temperature=teacher_temperature,
-            skip_student_eos=skip_student_eos,
-            skip_teacher_eos=skip_teacher_eos,
             teacher_index=teacher_index,
         )
         teacher_losses.append(teacher_loss)

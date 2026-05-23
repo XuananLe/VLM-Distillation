@@ -16,13 +16,12 @@ def compute_reinforced_teacher_descriptor_stats(
     teacher_logits: torch.Tensor,
     teacher_labels: torch.Tensor,
     teacher_temperature: float,
-    skip_teacher_eos: bool,
 ) -> torch.Tensor:
     # Build simple per-sample teacher descriptors from supervised answer positions only.
     stats = []
     for sample_index, (sample_logits, sample_labels) in enumerate(zip(teacher_logits, teacher_labels)):
         positions = sample_labels.ne(-100).nonzero(as_tuple=False).squeeze(-1)
-        if skip_teacher_eos and positions.numel() > 0:
+        if positions.numel() > 0:
             positions = positions[:-1]
         if positions.numel() == 0:
             raise ValueError(
@@ -53,7 +52,6 @@ def build_reinforced_selection_teacher_features(
     selection_teacher_labels: list[torch.Tensor],
     teacher_loss_matrix: torch.Tensor,
     teacher_temperature: float,
-    skip_teacher_eos: bool,
 ) -> torch.Tensor:
     if not selection_teacher_logits or not selection_teacher_labels:
         raise ValueError("Reinforced teacher selection requires teacher logits and labels.")
@@ -71,7 +69,6 @@ def build_reinforced_selection_teacher_features(
             teacher_logits=teacher_logits,
             teacher_labels=teacher_labels,
             teacher_temperature=teacher_temperature,
-            skip_teacher_eos=skip_teacher_eos,
         ).to(device=teacher_loss_matrix.device, dtype=teacher_loss_matrix.dtype)
         teacher_features.append(
             torch.cat(
@@ -145,7 +142,6 @@ def compute_reinforced_selection_state(
     student_labels: torch.Tensor,
     student_ce_loss: torch.Tensor,
     teacher_temperature: float,
-    skip_teacher_eos: bool,
     warmup_active: bool,
     reward_type: str,
     prev_reward_baseline: torch.Tensor | None,
@@ -157,7 +153,6 @@ def compute_reinforced_selection_state(
         selection_teacher_labels=selection_teacher_labels,
         teacher_loss_matrix=teacher_loss_matrix,
         teacher_temperature=teacher_temperature,
-        skip_teacher_eos=skip_teacher_eos,
     )
     policy_logits = selector.compute_policy_logits(
         teacher_features=teacher_features,
