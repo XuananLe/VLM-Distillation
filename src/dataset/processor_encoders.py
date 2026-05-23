@@ -30,6 +30,10 @@ def _ignore_mask(length: int) -> torch.Tensor:
     return torch.full((length,), IGNORE_INDEX, dtype=torch.long)
 
 
+def _ones_like_ids(input_ids: torch.Tensor) -> torch.Tensor:
+    return torch.ones_like(input_ids, dtype=torch.long)
+
+
 def _build_image_text_content(user_text: str, turn_images: list) -> list:
     clean_text = user_text.replace(LLAVA_IMAGE_TOKEN, "").strip()
     content = [{"type": "image", "image": image} for image in turn_images]
@@ -60,8 +64,9 @@ def _encode_turn_with_template(
         raise ValueError("Prompt encoding is longer than full conversation encoding.")
     response_ids = full_ids[:, prompt_ids.size(1):]
     input_ids = full_ids.squeeze(0).to(torch.long)
+    attention_mask = full_enc.get("attention_mask", _ones_like_ids(full_ids)).squeeze(0).to(torch.long)
     labels = torch.cat([_ignore_mask(prompt_ids.size(1)), response_ids.squeeze(0).to(torch.long)], dim=0)
-    return input_ids, labels, prompt_enc, full_enc
+    return input_ids, attention_mask, labels, prompt_enc, full_enc
 
 
 def build_smolvlm_user_content(user_text: str, turn_images) -> list[dict]:
@@ -89,6 +94,7 @@ def smolvlm_encode_conversation(
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
     all_input_ids = []
+    all_attention_masks = []
     all_labels = []
     pixel_values = None
     pixel_attention_mask = None
@@ -142,9 +148,14 @@ def smolvlm_encode_conversation(
 
         prompt_delta = prompt_ids[:, previous_full_length:]
         response_ids = full_ids[:, prompt_ids.size(1) :]
+        prompt_attention_mask = prompt_enc.get("attention_mask", _ones_like_ids(prompt_ids))
+        full_attention_mask = full_enc.get("attention_mask", _ones_like_ids(full_ids))
+        prompt_delta_attention_mask = prompt_attention_mask[:, previous_full_length:]
+        response_attention_mask = full_attention_mask[:, prompt_ids.size(1) :]
 
         if prompt_delta.numel() > 0:
             all_input_ids.append(prompt_delta.squeeze(0).to(torch.long))
+            all_attention_masks.append(prompt_delta_attention_mask.squeeze(0).to(torch.long))
             all_labels.append(
                 torch.full(
                     (prompt_delta.size(1),),
@@ -154,6 +165,7 @@ def smolvlm_encode_conversation(
             )
         if response_ids.numel() > 0:
             all_input_ids.append(response_ids.squeeze(0).to(torch.long))
+            all_attention_masks.append(response_attention_mask.squeeze(0).to(torch.long))
             all_labels.append(response_ids.squeeze(0).to(torch.long))
 
         previous_full_length = full_ids.size(1)
@@ -165,8 +177,8 @@ def smolvlm_encode_conversation(
         )
 
     input_ids = torch.cat(all_input_ids, dim=0).to(torch.long)
+    attention_mask = torch.cat(all_attention_masks, dim=0).to(torch.long)
     labels = torch.cat(all_labels, dim=0).to(torch.long)
-    attention_mask = torch.ones_like(input_ids)
 
     return dict(
         input_ids=input_ids,
@@ -183,6 +195,7 @@ def qwen_encode_conversation(
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
     all_input_ids = []
+    all_attention_masks = []
     all_labels = []
 
     pixel_values = None
@@ -211,25 +224,30 @@ def qwen_encode_conversation(
         )
         enc = processor(text=[prompt_text], images=turn_images, return_tensors="pt")
         prompt_ids = enc["input_ids"]
+        prompt_attention_mask = enc.get("attention_mask", _ones_like_ids(prompt_ids))
         pixel_values = enc.get("pixel_values", None)
         image_grid_thw = enc.get("image_grid_thw", None)
 
         suffix = "" if is_last_turn else "\n"
         response_text = gpt_response["value"] + "<|im_end|>" + suffix
-        response_ids = processor.tokenizer(
+        response_enc = processor.tokenizer(
             response_text,
             add_special_tokens=False,
             return_tensors="pt",
-        )["input_ids"]
+        )
+        response_ids = response_enc["input_ids"]
+        response_attention_mask = response_enc.get("attention_mask", _ones_like_ids(response_ids))
 
         input_ids = torch.cat([prompt_ids, response_ids], dim=1).squeeze(0)
+        attention_mask = torch.cat([prompt_attention_mask, response_attention_mask], dim=1).squeeze(0)
         labels = torch.cat([_ignore_mask(prompt_ids.size(1)), response_ids.squeeze(0).to(torch.long)], dim=0)
         all_input_ids.append(input_ids)
+        all_attention_masks.append(attention_mask)
         all_labels.append(labels)
 
     input_ids = torch.cat(all_input_ids, dim=0).to(torch.long)
+    attention_mask = torch.cat(all_attention_masks, dim=0).to(torch.long)
     labels = torch.cat(all_labels, dim=0).to(torch.long)
-    attention_mask = torch.ones_like(input_ids)
 
     return dict(
         input_ids=input_ids,
@@ -247,7 +265,7 @@ def gemma3_encode_conversation(
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
     """Encode one conversation with Gemma 3 by masking prompt tokens out of the full chat encoding."""
-    all_input_ids, all_labels = [], []
+    all_input_ids, all_attention_masks, all_labels = [], [], []
     pixel_values = None
     image_idx = 0
 
@@ -261,19 +279,21 @@ def gemma3_encode_conversation(
         turn_images = images[image_idx : image_idx + n_images]
         image_idx += n_images
         user_content = _build_image_text_content(user_text, turn_images)
-        input_ids, labels, prompt_enc, full_enc = _encode_turn_with_template(
+        input_ids, attention_mask, labels, prompt_enc, full_enc = _encode_turn_with_template(
             processor, user_content, gpt_response["value"]
         )
         all_input_ids.append(input_ids)
+        all_attention_masks.append(attention_mask)
         all_labels.append(labels)
         pixel_values = full_enc.get("pixel_values", prompt_enc.get("pixel_values"))
 
     input_ids = torch.cat(all_input_ids, dim=0)
+    attention_mask = torch.cat(all_attention_masks, dim=0)
     labels = torch.cat(all_labels, dim=0)
     return dict(
         input_ids=input_ids,
         labels=labels,
-        attention_mask=torch.ones_like(input_ids),
+        attention_mask=attention_mask,
         pixel_values=pixel_values,
         pixel_attention_mask=None,
     )

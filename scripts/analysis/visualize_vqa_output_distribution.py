@@ -226,7 +226,7 @@ def collect_distribution(
     input_ids = encoded_prompt.model_inputs["input_ids"]
     attention_mask = encoded_prompt.model_inputs.get("attention_mask")
     if attention_mask is None:
-        attention_mask = torch.ones_like(input_ids, device=input_ids.device)
+        raise ValueError("Encoded multimodal prompt is missing `attention_mask` from the processor/backend.")
     model_extra_inputs = {
         key: value
         for key, value in encoded_prompt.model_inputs.items()
@@ -316,7 +316,7 @@ def main() -> None:
 
     backend = DexarBackend.from_pretrained(args.model_name, device)
     dataset, loaded_from = load_dataset_split(dataset_name, args.split, log_fallback=True)
-    schema = infer_schema(dataset, require_answer_field=True)
+    schema = infer_schema(dataset_name, dataset, require_answer_field=True)
     sample = dataset[args.row_index]
     question = pick_first_text(sample.get(schema["question_field"])) if schema["question_field"] else None
     ground_truth = pick_first_answer(sample.get(schema["answer_field"])) if schema["answer_field"] else None

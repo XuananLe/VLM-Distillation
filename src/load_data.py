@@ -111,7 +111,7 @@ def convert_dataset_to_llava(
     dataset, loaded_from = load_dataset_split(dataset_name, split, log_fallback=True)
     print(f"Loaded dataset: {loaded_from} (split={split})")
 
-    schema = infer_schema(dataset, require_answer_field=True)
+    schema = infer_schema(dataset_name, dataset, require_answer_field=True)
     print_schema_info(dataset, schema)
 
     image_dir.mkdir(parents=True, exist_ok=True)

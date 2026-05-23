@@ -143,7 +143,6 @@ def collect_non_text_token_strings(tokenizer) -> set[str]:
 
 
 def collect_control_token_strings(tokenizer) -> set[str]:
-    del tokenizer
     return set(VLM_CONTROL_SPECIAL_TOKEN_STRINGS)
 
 

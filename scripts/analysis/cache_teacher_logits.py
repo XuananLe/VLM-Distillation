@@ -295,9 +295,9 @@ def main() -> None:
                 },
             )
 
-            del teacher_outputs
-            del teacher_logits
-            del supervised_labels
+            teacher_outputs = None
+            teacher_logits = None
+            supervised_labels = None
 
         total_samples += 1
         print(

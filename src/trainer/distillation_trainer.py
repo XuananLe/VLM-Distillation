@@ -50,8 +50,8 @@ class DistillationTrainer(Trainer):
         self.loss_function = loss_function
         self.alpha = alpha
         if self.alpha == 0.0:
-            def prepare_teacher_batch(**kwargs) -> None:
-                del kwargs
+            def prepare_teacher_batch(**_kwargs) -> None:
+                return None
 
             def compute_distillation_loss(**kwargs):
                 return kwargs["student_logits"].new_zeros(())
@@ -152,7 +152,7 @@ class DistillationTrainer(Trainer):
         return self.state.global_step >= warmup_steps
 
     @override
-    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+    def compute_loss(self, model, inputs, **_kwargs):
         student_inputs = {k: v for k, v in inputs.items() if not k.startswith("teacher")}
 
         student_forward_state = build_student_forward_state(
@@ -225,4 +225,4 @@ class DistillationTrainer(Trainer):
             )
             self.log(metrics)
 
-        return (loss, student_forward_state["student_outputs"]) if return_outputs else loss
+        return loss

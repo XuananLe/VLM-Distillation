@@ -53,11 +53,16 @@ class DataCollatorForSupervisedDataset:
             padding_side="right",
             padding_value=IGNORE_INDEX,
         )
+        teacher_attention_mask = pad_sequence(
+            [e[f"{prefix}_attention_mask"] for e in examples],
+            padding_side="right",
+            padding_value=0,
+        )
         batch_dict.update(
             {
                 f"{prefix}_input_ids": teacher_input_ids,
                 f"{prefix}_labels": teacher_labels,
-                f"{prefix}_attention_mask": teacher_input_ids != teacher_pad,
+                f"{prefix}_attention_mask": teacher_attention_mask,
             }
         )
 
@@ -114,15 +119,15 @@ class DataCollatorForSupervisedDataset:
 
     def __call__(self, examples):
         batch_input_ids = [e["input_ids"] for e in examples]
+        batch_attention_masks = [e["attention_mask"] for e in examples]
         batch_label_ids = [e["labels"] for e in examples]
         batch_pixel_values = [e.get("pixel_values") for e in examples]
         batch_pixel_attention_mask = [e.get("pixel_attention_mask") for e in examples]
 
         input_ids = pad_sequence(batch_input_ids, padding_side="right", padding_value=self.pad_token_id)
-        attention_mask = input_ids != self.pad_token_id
+        attention_mask = pad_sequence(batch_attention_masks, padding_side="right", padding_value=0)
         labels = pad_sequence(batch_label_ids, padding_side="right", padding_value=IGNORE_INDEX)
         pixel_values = pad_frames(batch_pixel_values, pad_value=0.0)
-        pixel_attention_mask = pad_frames(batch_pixel_attention_mask, pad_value=0)
 
         batch_dict = dict(
             input_ids=input_ids,
@@ -130,7 +135,9 @@ class DataCollatorForSupervisedDataset:
             attention_mask=attention_mask,
         )
         if pixel_values is not None:
-            batch_dict.update(pixel_values=pixel_values, pixel_attention_mask=pixel_attention_mask)
+            batch_dict["pixel_values"] = pixel_values
+            if batch_pixel_attention_mask[0] is not None:
+                batch_dict["pixel_attention_mask"] = pad_frames(batch_pixel_attention_mask, pad_value=0)
 
         for prefix in self.teacher_prefixes(examples[0], "input_ids"):
             self.collate_teacher_batch(examples, batch_dict, prefix)

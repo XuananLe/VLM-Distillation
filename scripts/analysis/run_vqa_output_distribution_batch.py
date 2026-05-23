@@ -649,7 +649,7 @@ def process_model(
             backend.model.to("cpu")
         except Exception:
             pass
-        del backend
+        backend = None
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -711,7 +711,7 @@ def main() -> None:
     args.output_root.mkdir(parents=True, exist_ok=True)
 
     dataset, loaded_from = load_dataset_split(dataset_name, args.split, log_fallback=True)
-    schema = infer_schema(dataset, require_answer_field=True)
+    schema = infer_schema(dataset_name, dataset, require_answer_field=True)
     model_summaries: list[dict[str, Any]] = []
     for model_name in args.models:
         model_summaries.append(

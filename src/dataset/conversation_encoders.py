@@ -1,4 +1,4 @@
-from typing import Dict, Optional
+from typing import Dict
 
 import torch
 import transformers
@@ -23,19 +23,6 @@ def encode_with_processor(
     return encoder(sources, images, processor)
 
 
-def finalize_teacher_data(
-    teacher_data: Dict[str, torch.Tensor],
-    teacher_model_id: Optional[str],
-) -> Dict[str, torch.Tensor]:
-    if teacher_data["attention_mask"] is None:
-        teacher_data["attention_mask"] = torch.ones_like(teacher_data["input_ids"])
-
-    if teacher_data["pixel_values"] is not None:
-        return teacher_data
-
-    raise ValueError(f"Teacher encoder did not produce image tensors. teacher_model_id={teacher_model_id!r}")
-
-
 def encode_teacher_data(
     sources,
     images,
@@ -49,10 +36,11 @@ def encode_teacher_data(
     else:
         teacher_data = encode_with_processor(sources, images, teacher_processor, role="teacher")
 
-    return finalize_teacher_data(
-        teacher_data,
-        teacher_model_id,
-    )
+    if teacher_data["attention_mask"] is None:
+        teacher_data["attention_mask"] = torch.ones_like(teacher_data["input_ids"])
+    if teacher_data["pixel_values"] is None:
+        raise ValueError(f"Teacher encoder did not produce image tensors. teacher_model_id={teacher_model_id!r}")
+    return teacher_data
 
 
 __all__ = [

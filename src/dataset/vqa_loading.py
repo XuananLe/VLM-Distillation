@@ -1,7 +1,4 @@
-from __future__ import annotations
-
 import io
-import re
 from typing import Any
 
 from datasets import load_dataset
@@ -42,10 +39,29 @@ DATASET_ALIASES = {
     "lmms-lab/chartqa": "chartqa",
 }
 
-QUESTION_NAME_PRIORITY = ("question", "query", "prompt")
-ANSWER_NAME_PRIORITY = ("answers", "answer", "label", "target")
-ID_NAME_PRIORITY = ("question_id", "questionid", "id", "docid", "image_id")
-IMAGE_NAME_PRIORITY = ("image_id", "docid")
+DATASET_SCHEMAS = {
+    "textvqa": {
+        "image_field": "image",
+        "question_field": "question",
+        "answer_field": "answers",
+        "id_field": "question_id",
+        "image_name_field": "image_id",
+    },
+    "docvqa": {
+        "image_field": "image",
+        "question_field": "question",
+        "answer_field": "answers",
+        "id_field": "questionId",
+        "image_name_field": "docId",
+    },
+    "chartqa": {
+        "image_field": "image",
+        "question_field": "query",
+        "answer_field": "label",
+        "id_field": None,
+        "image_name_field": None,
+    },
+}
 
 
 def canonical_dataset_name(dataset_name: str) -> str:
@@ -84,90 +100,21 @@ def load_dataset_split(
         raise
 
 
-def normalize_name(name: str) -> str:
-    """Normalize a schema field name for fuzzy field matching."""
-    return re.sub(r"[^a-z0-9]+", "", name.lower())
+def infer_schema(dataset_name: str, dataset: Any, *, require_answer_field: bool) -> dict[str, str | None]:
+    """Return the fixed schema for one supported VQA dataset and validate it against the loaded split."""
+    dataset_name = canonical_dataset_name(dataset_name)
+    schema = DATASET_SCHEMAS[dataset_name].copy()
+    if require_answer_field and schema["answer_field"] is None:
+        raise ValueError(f"Dataset '{dataset_name}' does not define an answer field.")
 
-
-def is_string_feature(feature: Any) -> bool:
-    """Return whether a datasets feature behaves like a scalar string field."""
-    return getattr(feature, "dtype", None) == "string"
-
-
-def is_sequence_of_strings_feature(feature: Any) -> bool:
-    """Return whether a datasets feature is a list-like container of strings."""
-    if feature.__class__.__name__ not in {"Sequence", "List", "LargeList"}:
-        return False
-    inner_feature = getattr(feature, "feature", None)
-    if inner_feature is None:
-        return False
-    return is_string_feature(inner_feature)
-
-
-def is_image_feature(feature: Any) -> bool:
-    """Return whether a datasets feature is an image field."""
-    return feature.__class__.__name__ == "Image" or getattr(feature, "dtype", None) == "image"
-
-
-def pick_exact_name(fields: list[str], priority: tuple[str, ...]) -> str | None:
-    """Pick the first exact field-name match from a priority list after normalization."""
-    normalized_fields = {normalize_name(field): field for field in fields}
-    for target in priority:
-        matched = normalized_fields.get(normalize_name(target))
-        if matched is not None:
-            return matched
-    return None
-
-
-def pick_contains_name(fields: list[str], tokens: tuple[str, ...]) -> str | None:
-    """Pick the first field whose normalized name contains one of the target tokens."""
-    normalized_tokens = tuple(normalize_name(token) for token in tokens)
-    for field in fields:
-        normalized_field = normalize_name(field)
-        if any(token in normalized_field for token in normalized_tokens):
-            return field
-    return None
-
-
-def infer_schema(dataset: Any, *, require_answer_field: bool) -> dict[str, str | None]:
-    """Infer image, question, answer, and id fields from a VQA-style dataset schema."""
-    features = dataset.features
-    all_fields = list(features.keys())
-    image_fields = [name for name, feature in features.items() if is_image_feature(feature)]
-    string_fields = [name for name, feature in features.items() if is_string_feature(feature)]
-    string_sequence_fields = [name for name, feature in features.items() if is_sequence_of_strings_feature(feature)]
-
-    image_field = image_fields[0] if image_fields else ("image" if "image" in all_fields else None)
-    if image_field is None:
-        raise ValueError(f"Unable to infer image field from schema: {all_fields}")
-
-    question_field = pick_exact_name(string_fields, QUESTION_NAME_PRIORITY) or pick_contains_name(
-        string_fields, QUESTION_NAME_PRIORITY
-    )
-    if question_field is None:
-        raise ValueError(f"Unable to infer question field from schema: {all_fields}")
-
-    answer_field = (
-        pick_exact_name(string_sequence_fields, ANSWER_NAME_PRIORITY)
-        or pick_exact_name(string_fields, ANSWER_NAME_PRIORITY)
-        or pick_contains_name(string_sequence_fields, ANSWER_NAME_PRIORITY)
-        or pick_contains_name(string_fields, ANSWER_NAME_PRIORITY)
-    )
-    if require_answer_field and answer_field is None:
-        raise ValueError(f"Unable to infer answer field from schema: {all_fields}")
-
-    id_field = pick_exact_name(all_fields, ID_NAME_PRIORITY) or pick_contains_name(all_fields, ("id",))
-    image_name_field = (
-        pick_exact_name(all_fields, IMAGE_NAME_PRIORITY) or pick_contains_name(all_fields, ("imageid",)) or id_field
-    )
-
-    return {
-        "image_field": image_field,
-        "question_field": question_field,
-        "answer_field": answer_field,
-        "id_field": id_field,
-        "image_name_field": image_name_field,
-    }
+    all_fields = set(dataset.features)
+    missing_fields = sorted(field for field in schema.values() if field is not None and field not in all_fields)
+    if missing_fields:
+        raise ValueError(
+            f"Dataset '{dataset_name}' schema changed. Missing fields: {missing_fields}. "
+            f"Available fields: {sorted(all_fields)}"
+        )
+    return schema
 
 
 def pick_first_text(value: Any) -> str | None:
@@ -190,18 +137,13 @@ def extract_image_as_pil(image_value: Any) -> Any:
 
 
 __all__ = [
-    "ANSWER_NAME_PRIORITY",
     "DATASET_ALIASES",
+    "DATASET_SCHEMAS",
     "DATASET_SOURCES",
-    "ID_NAME_PRIORITY",
-    "IMAGE_NAME_PRIORITY",
-    "QUESTION_NAME_PRIORITY",
     "canonical_dataset_name",
     "extract_image_as_pil",
     "infer_schema",
     "load_dataset_split",
     "load_hf_dataset",
-    "pick_contains_name",
-    "pick_exact_name",
     "pick_first_text",
 ]

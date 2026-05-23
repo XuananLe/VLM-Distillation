@@ -83,14 +83,8 @@ def build_distillation_loss(
         raise ValueError(f"Unknown distillation loss: {loss_function!r}")
     loss_fn = DISTILLATION_LOSSES[loss_function]
 
-    def prepare_teacher_batch(
-        *,
-        student_logits: torch.Tensor,
-        teacher_logits: torch.Tensor,
-        teacher_labels: torch.Tensor | None = None,
-        teacher_index: int | None = None,
-    ) -> None:
-        del student_logits, teacher_logits, teacher_labels, teacher_index
+    def prepare_teacher_batch(**_kwargs) -> None:
+        return None
 
     def compute_loss(
         *,
@@ -100,7 +94,6 @@ def build_distillation_loss(
         teacher_temperature: float = 1.0,
         teacher_index: int | None = None,
     ) -> torch.Tensor:
-        del teacher_index
         return loss_fn(
             student_logits=student_logits,
             teacher_logits=teacher_logits,

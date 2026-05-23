@@ -1,4 +1,6 @@
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any, TypedDict
 
 import torch
 from einops import einsum
@@ -12,15 +14,46 @@ from src.trainer.routing_utils import (
     compute_teacher_gate_entropy_loss,
     compute_teacher_gate_z_loss,
 )
-from src.trainer.teacher_loss_utils import compute_teacher_loss_matrix
+from src.trainer.teacher_loss_utils import (
+    TeacherTargetBatch,
+    compute_teacher_loss_matrix,
+)
 
 
 @dataclass(slots=True)
 class TeacherBatchSources:
-    cached_teacher_target_batches: list | None
+    cached_teacher_target_batches: list[tuple[torch.Tensor, torch.Tensor]]
 
 
-def prepare_teacher_batch_sources(*, inputs, num_teachers: int):
+class StudentForwardState(TypedDict):
+    student_outputs: Any
+    student_logits: torch.Tensor
+    teacher_router_logits: torch.Tensor | None
+    teacher_router_weights: torch.Tensor | None
+
+
+class TeacherGateState(TypedDict):
+    teacher_gate_entropy_loss: torch.Tensor | None
+    teacher_gate_z_loss: torch.Tensor | None
+    routed_teacher_weights: torch.Tensor | None
+
+
+class TeacherLossState(TypedDict):
+    teacher_loss_matrix: torch.Tensor
+    teacher_grace_scores: torch.Tensor | None
+    teacher_grace_active_mask: torch.Tensor | None
+
+
+class TeacherWeightingState(TypedDict):
+    teacher_mix_weights: torch.Tensor | None
+    teacher_grace_scores: torch.Tensor | None
+    teacher_grace_active_mask: torch.Tensor | None
+    teacher_grace_weights: torch.Tensor | None
+    teacher_grace_fallback_rate: torch.Tensor | None
+    distillation_loss: torch.Tensor
+
+
+def prepare_teacher_batch_sources(*, inputs: Mapping[str, torch.Tensor], num_teachers: int) -> TeacherBatchSources:
     cached_teacher_target_batches = build_cached_teacher_target_batches(inputs, num_teachers)
     if cached_teacher_target_batches is not None and len(cached_teacher_target_batches) != num_teachers:
         raise ValueError(
@@ -34,7 +67,12 @@ def prepare_teacher_batch_sources(*, inputs, num_teachers: int):
     )
 
 
-def build_student_forward_state(*, trainer, model, student_inputs):
+def build_student_forward_state(
+    *,
+    trainer: Any,
+    model: torch.nn.Module,
+    student_inputs: Mapping[str, torch.Tensor],
+) -> StudentForwardState:
     """
     {
       "student_outputs": CausalLMOutputWithPast(
@@ -75,8 +113,13 @@ def build_student_forward_state(*, trainer, model, student_inputs):
     }
 
 
-def resolve_teacher_gate_state(*, trainer, teacher_router_logits, teacher_router_weights):
-    teacher_gate_state = {
+def resolve_teacher_gate_state(
+    *,
+    trainer: Any,
+    teacher_router_logits: torch.Tensor | None,
+    teacher_router_weights: torch.Tensor | None,
+) -> TeacherGateState:
+    teacher_gate_state: TeacherGateState = {
         "teacher_gate_entropy_loss": None,
         "teacher_gate_z_loss": None,
         "routed_teacher_weights": teacher_router_weights,
@@ -95,12 +138,12 @@ def resolve_teacher_gate_state(*, trainer, teacher_router_logits, teacher_router
 
 def build_teacher_loss_state(
     *,
-    trainer,
-    model,
-    student_logits,
-    student_labels,
-    teacher_target_batches,
-):
+    trainer: Any,
+    model: torch.nn.Module,
+    student_logits: torch.Tensor,
+    student_labels: torch.Tensor,
+    teacher_target_batches: Sequence[TeacherTargetBatch],
+) -> TeacherLossState:
     (
         teacher_loss_matrix,
         teacher_grace_scores,
@@ -126,15 +169,15 @@ def build_teacher_loss_state(
 
 def resolve_teacher_weighting_state(
     *,
-    trainer,
-    routed_teacher_weights,
-    teacher_grace_scores,
-    teacher_grace_active_mask,
-    teacher_loss_matrix,
-):
-    teacher_grace_weights = None
-    teacher_grace_fallback_rate = None
-    teacher_mix_weights = None
+    trainer: Any,
+    routed_teacher_weights: torch.Tensor | None,
+    teacher_grace_scores: torch.Tensor | None,
+    teacher_grace_active_mask: torch.Tensor | None,
+    teacher_loss_matrix: torch.Tensor,
+) -> TeacherWeightingState:
+    teacher_grace_weights: torch.Tensor | None = None
+    teacher_grace_fallback_rate: torch.Tensor | None = None
+    teacher_mix_weights: torch.Tensor | None = None
 
     if not trainer.should_apply_grace_routing():
         if routed_teacher_weights is not None:
@@ -148,7 +191,6 @@ def resolve_teacher_weighting_state(
                 teacher_mix_weights.sum(dim=-1, keepdim=True).clamp(min=torch.finfo(teacher_mix_weights.dtype).eps)
             )
     else:
-        # Full GRACE blends router availability with gradient agreement scores.
         (
             teacher_mix_weights,
             teacher_grace_scores,
@@ -192,12 +234,12 @@ def resolve_teacher_weighting_state(
 
 def compute_total_loss(
     *,
-    trainer,
-    ce_loss,
-    distillation_loss,
-    teacher_gate_entropy_loss,
-    teacher_gate_z_loss,
-):
+    trainer: Any,
+    ce_loss: torch.Tensor,
+    distillation_loss: torch.Tensor,
+    teacher_gate_entropy_loss: torch.Tensor | None,
+    teacher_gate_z_loss: torch.Tensor | None,
+) -> torch.Tensor:
     base_kd_loss = trainer.alpha * distillation_loss
     loss = ce_loss + base_kd_loss
     if teacher_gate_entropy_loss is not None:

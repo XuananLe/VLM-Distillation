@@ -88,7 +88,6 @@ def compute_teacher_loss_matrix(
     torch.Tensor | None,
     torch.Tensor | None,
 ]:
-    """Compute per-teacher KD losses and optional parameter-space GRACE signals."""
     if not teacher_target_batches:
         raise ValueError("Teacher KD requires at least one teacher target batch.")
 
