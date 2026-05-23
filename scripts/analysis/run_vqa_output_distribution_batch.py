@@ -33,7 +33,6 @@ from visualize_vqa_output_distribution import (
 )
 
 from src.dataset.vqa_loading import (
-    canonical_dataset_name,
     extract_image_as_pil,
     load_dataset_split,
     pick_first_text,
@@ -55,7 +54,7 @@ def parse_args() -> argparse.Namespace:
             "LiquidAI/LFM2.5-VL-450M",
         ],
     )
-    parser.add_argument("--dataset", default="docvqa")
+    parser.add_argument("--dataset", default="docvqa", help="Dataset name: textvqa, docvqa, or chartqa.")
     parser.add_argument("--split", default="train")
     parser.add_argument("--subset-size", type=int, default=50)
     parser.add_argument("--offset", type=int, default=0)
@@ -705,7 +704,7 @@ def save_suite_comparison(output_root: Path, model_summaries: list[dict[str, Any
 
 def main() -> None:
     args = parse_args()
-    dataset_name = canonical_dataset_name(args.dataset)
+    dataset_name = args.dataset
     device = resolve_device(args.device)
     args.output_root.mkdir(parents=True, exist_ok=True)
 

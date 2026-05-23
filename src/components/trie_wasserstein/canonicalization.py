@@ -8,22 +8,15 @@ from .types import BoundaryKind
 def canonicalize_token_piece(
     tokenizer,
     token_id: int,
-    *,
-    underscore_is_boundary_marker: bool = False,
-    hash_is_continuation_marker: bool | None = None,
-    normalize_unicode: bool = True,
 ) -> tuple[bytes, BoundaryKind]:
-    if hash_is_continuation_marker is None:
-        tokenizer_type = type(tokenizer)
-        class_name = f"{tokenizer_type.__module__}.{tokenizer_type.__qualname__}".lower()
-        backend = getattr(tokenizer, "backend_tokenizer", None)
-        backend_model = getattr(backend, "model", None)
-        backend_model_name = (
-            ""
-            if backend_model is None
-            else f"{type(backend_model).__module__}.{type(backend_model).__qualname__}".lower()
-        )
-        hash_is_continuation_marker = "wordpiece" in class_name or "wordpiece" in backend_model_name
+    tokenizer_type = type(tokenizer)
+    class_name = f"{tokenizer_type.__module__}.{tokenizer_type.__qualname__}".lower()
+    backend = getattr(tokenizer, "backend_tokenizer", None)
+    backend_model = getattr(backend, "model", None)
+    backend_model_name = (
+        "" if backend_model is None else f"{type(backend_model).__module__}.{type(backend_model).__qualname__}".lower()
+    )
+    hash_is_continuation_marker = "wordpiece" in class_name or "wordpiece" in backend_model_name
 
     if hasattr(tokenizer, "convert_ids_to_tokens"):
         token = tokenizer.convert_ids_to_tokens(int(token_id))
@@ -46,8 +39,6 @@ def canonicalize_token_piece(
     if len(raw_token) > 1 and raw_token.startswith("Ġ"):
         boundary_kind, raw_content = "space", raw_token[1:]
     elif len(raw_token) > 1 and raw_token.startswith("▁"):
-        boundary_kind, raw_content = "space", raw_token[1:]
-    elif underscore_is_boundary_marker and len(raw_token) > 1 and raw_token.startswith("_"):
         boundary_kind, raw_content = "space", raw_token[1:]
     elif hash_is_continuation_marker and len(raw_token) > 2 and raw_token.startswith("##"):
         boundary_kind, raw_content = "continuation", raw_token[2:]
@@ -90,10 +81,7 @@ def canonicalize_token_piece(
     if decoded == "":
         decoded = raw_content if raw_content else raw_token
 
-    if normalize_unicode:
-        decoded = unicodedata.normalize("NFC", decoded)
-
-    return decoded.encode("utf-8"), boundary_kind
+    return unicodedata.normalize("NFC", decoded).encode("utf-8"), boundary_kind
 
 
 __all__ = [
