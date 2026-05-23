@@ -1,15 +1,10 @@
-import sys
 from pathlib import Path
-
-ROOT_DIR = Path(__file__).resolve().parents[2]
-if str(ROOT_DIR) not in sys.path:
-    sys.path.insert(0, str(ROOT_DIR))
 
 import torch
 from transformers import (
     HfArgumentParser,
 )
-from src.trainer.distillation_trainer import DistillationTrainer
+
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, TrainingArguments
 from src.train.distillation_setup import (
@@ -20,6 +15,8 @@ from src.train.model_setup import (
     load_processor_bundle,
     load_vlm_bundle,
 )
+from src.trainer.distillation_trainer import DistillationTrainer
+
 
 def train_distillation():
     """

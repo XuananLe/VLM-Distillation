@@ -1,46 +1,25 @@
+import math
 from typing import override
 
-from transformers import PreTrainedModel, Trainer
+import torch
+from einops import einsum
+from transformers import Trainer
 
+from src.components.grace import apply_grace_routing
 from src.components.teacher_gate import Gate
-from src.trainer.metrics_utils import build_distillation_train_metrics
-from src.trainer.setup_utils import (
-    log_distillation_trainer_setup,
-    normalize_teacher_models,
-    resolve_reinforced_teacher_selector,
-)
-from src.trainer.layer_distillers import create_layer_distiller
-from src.trainer.step_utils import (
-    build_layer_distillation_state,
-    build_student_forward_state,
-    build_teacher_loss_state,
-    compute_total_loss,
-    prepare_teacher_batch_sources,
-    resolve_teacher_gate_state,
-    resolve_teacher_weighting_state,
-)
-from src.trainer.teacher_loss_utils import resolve_teacher_target_batches
+from src.trainer.teacher_loss_utils import compute_teacher_loss_matrix
 
 
 class DistillationTrainer(Trainer):
     def __init__(
         self,
-        teacher_model: PreTrainedModel = None,
         teacher_count: int | None = None,
         student_tokenizer=None,
         teacher_tokenizers=None,
         teacher_weighting_strategy: str = "routing",
         loss_function: str = "uld_loss",
-        layer_distill_source: str = "none",
-        layer_distill_weight: float = 0.0,
-        layer_match_json_path: str | None = None,
-        layer_match_topk: int = 1,
-        student_layer_indices: list[int] | None = None,
-        teacher_layer_indices: list[int] | None = None,
         student_temperature: float = 2.0,
         teacher_temperature: float = 2.0,
-        skip_student_eos: bool = False,
-        skip_teacher_eos: bool = False,
         alpha: float = 1.0,
         teacher_gate_top_k: int = 1,
         teacher_gate_entropy_alpha: float = 1e-3,
@@ -51,54 +30,42 @@ class DistillationTrainer(Trainer):
         grace_softmax_beta: float = 20.0,
         grace_router_blend_lambda: float = 0.5,
         grace_ema_decay: float = 0.9,
-        reinforced_selection_warmup_ratio: float = 0.1,
-        reinforced_selection_reward_type: str = "reward2",
-        reinforced_selection_reward_ema_decay: float = 0.9,
-        reinforced_selection_policy_alpha: float = 1.0,
         trie_wasserstein_rho: float = 0.7,
         trie_wasserstein_topk: int = 64,
         *args,
-        **kwargs
+        **kwargs,
     ):
         super().__init__(*args, **kwargs)
 
         from src.components import loss as distillation_loss_module
 
         self.loss_function = loss_function
-        (
-            self.distillation_prepare_batch_fn,
-            self.distillation_loss_fn,
-        ) = distillation_loss_module.build_distillation_loss(
-            loss_function=loss_function,
-            student_tokenizer=student_tokenizer,
-            teacher_tokenizers=teacher_tokenizers,
-            trie_wasserstein_rho=trie_wasserstein_rho,
-            trie_wasserstein_topk=trie_wasserstein_topk,
-        )
-        self.teacher_weighting_strategy = teacher_weighting_strategy
+        self.alpha = alpha
+        if self.alpha == 0.0:
+            def prepare_teacher_batch(**_kwargs) -> None:
+                return None
 
-        self.teacher_models, self.num_teachers = normalize_teacher_models(
-            teacher_model,
-            teacher_count,
-        )
-        self.layer_distiller = create_layer_distiller(
-            model=self.model,
-            teacher_models=self.teacher_models,
-            layer_distill_source=layer_distill_source,
-            layer_distill_weight=layer_distill_weight,
-            layer_match_json_path=layer_match_json_path,
-            layer_match_topk=layer_match_topk,
-            student_layer_indices=list(student_layer_indices or []),
-            teacher_layer_indices=list(teacher_layer_indices or []),
-        )
-        self.layer_distillation_enabled = self.layer_distiller.enabled
-        self.layer_distill_source = self.layer_distiller.source or "none"
-        self.layer_distill_weight = self.layer_distiller.weight
-        self.layer_match_json_path = layer_match_json_path
-        self.layer_match_topk = layer_match_topk
-        self.student_layer_indices = list(self.layer_distiller.student_layer_indices)
-        self.teacher_layer_indices = list(teacher_layer_indices or [])
-        self.teacher_layer_soft_matches = list(self.layer_distiller.teacher_layer_soft_matches)
+            def compute_distillation_loss(**kwargs):
+                return kwargs["student_logits"].new_zeros(())
+
+            self.distillation_prepare_batch_fn = prepare_teacher_batch
+            self.distillation_loss_fn = compute_distillation_loss
+        else:
+            (
+                self.distillation_prepare_batch_fn,
+                self.distillation_loss_fn,
+            ) = distillation_loss_module.build_distillation_loss(
+                loss_function=loss_function,
+                student_tokenizer=student_tokenizer,
+                teacher_tokenizers=teacher_tokenizers,
+                trie_wasserstein_rho=trie_wasserstein_rho,
+                trie_wasserstein_topk=trie_wasserstein_topk,
+            )
+        self.teacher_weighting_strategy = "uniform_mean" if self.alpha == 0.0 else teacher_weighting_strategy
+
+        self.num_teachers = int(teacher_count or 0)
+        if self.num_teachers < 1:
+            raise ValueError("DistillationTrainer requires at least one teacher.")
         self.teacher_gate = None
         if self.teacher_weighting_strategy == "routing":
             if self.num_teachers <= 1:
@@ -110,17 +77,9 @@ class DistillationTrainer(Trainer):
                 self.num_teachers,
             )
             self.model.teacher_gate = self.teacher_gate
-        self.reinforced_teacher_selector = resolve_reinforced_teacher_selector(
-            model=self.model,
-            num_teachers=self.num_teachers,
-            teacher_weighting_strategy=self.teacher_weighting_strategy,
-        )
 
         self.student_temperature = float(student_temperature)
         self.teacher_temperature = float(teacher_temperature)
-        self.skip_student_eos = skip_student_eos
-        self.skip_teacher_eos = skip_teacher_eos
-        self.alpha = alpha
         self.teacher_gate_top_k = teacher_gate_top_k
         self.teacher_gate_entropy_alpha = teacher_gate_entropy_alpha
         self.teacher_gate_router_z_loss_alpha = teacher_gate_router_z_loss_alpha
@@ -130,48 +89,41 @@ class DistillationTrainer(Trainer):
         self.grace_softmax_beta = grace_softmax_beta
         self.grace_router_blend_lambda = grace_router_blend_lambda
         self.grace_ema_decay = grace_ema_decay
-        self.reinforced_selection_warmup_ratio = reinforced_selection_warmup_ratio
-        self.reinforced_selection_reward_type = reinforced_selection_reward_type
-        self.reinforced_selection_reward_ema_decay = reinforced_selection_reward_ema_decay
-        self.reinforced_selection_policy_alpha = reinforced_selection_policy_alpha
         self.trie_wasserstein_rho = trie_wasserstein_rho
         self.trie_wasserstein_topk = trie_wasserstein_topk
         self.teacher_grace_score_ema = None
-        self.reinforced_selection_reward_baseline = None
 
-        log_distillation_trainer_setup(
-            num_teachers=self.num_teachers,
-            teacher_weighting_strategy=self.teacher_weighting_strategy,
-            loss_function=loss_function,
-            layer_distillation_enabled=self.layer_distillation_enabled,
-            layer_distill_source=self.layer_distill_source,
-            layer_distill_weight=self.layer_distill_weight,
-            layer_match_json_path=self.layer_match_json_path,
-            layer_match_topk=self.layer_match_topk,
-            student_layer_indices=self.student_layer_indices,
-            teacher_layer_soft_matches=self.teacher_layer_soft_matches,
-            student_temperature=self.student_temperature,
-            teacher_temperature=self.teacher_temperature,
-            skip_student_eos=self.skip_student_eos,
-            skip_teacher_eos=self.skip_teacher_eos,
-            alpha=alpha,
-            teacher_gate=self.teacher_gate,
-            teacher_gate_top_k=teacher_gate_top_k,
-            teacher_gate_entropy_alpha=teacher_gate_entropy_alpha,
-            teacher_gate_router_z_loss_alpha=teacher_gate_router_z_loss_alpha,
-            grace_threshold=grace_threshold,
-            grace_warmup_ratio=grace_warmup_ratio,
-            grace_epsilon=grace_epsilon,
-            grace_softmax_beta=grace_softmax_beta,
-            grace_router_blend_lambda=grace_router_blend_lambda,
-            grace_ema_decay=grace_ema_decay,
-            reinforced_selection_warmup_ratio=reinforced_selection_warmup_ratio,
-            reinforced_selection_reward_type=reinforced_selection_reward_type,
-            reinforced_selection_reward_ema_decay=reinforced_selection_reward_ema_decay,
-            reinforced_selection_policy_alpha=reinforced_selection_policy_alpha,
-            trie_wasserstein_rho=trie_wasserstein_rho,
-            trie_wasserstein_topk=trie_wasserstein_topk,
-        )
+        print("Distillation Trainer initialized:")
+        print(f"  - Teachers: {self.num_teachers}")
+        if alpha == 0.0:
+            print("  - Teacher weighting: disabled because alpha is 0")
+        elif self.num_teachers > 1 and self.teacher_weighting_strategy == "routing":
+            print("  - Teacher weighting: learned deep gate + GRACE routing")
+        elif self.num_teachers == 1:
+            print("  - Teacher weighting: single teacher")
+        else:
+            print("  - Teacher weighting: uniform mean")
+        print(f"  - Loss function: {loss_function}")
+        if loss_function == "trie_wasserstein_loss":
+            print(f"  - Trie Wasserstein rho: {trie_wasserstein_rho}")
+            print(f"  - Trie Wasserstein top-k: {trie_wasserstein_topk}")
+        print(f"  - Student temperature: {self.student_temperature}")
+        print(f"  - Teacher temperature: {self.teacher_temperature}")
+        print("  - Drop final supervised token for KD: True")
+        print(f"  - Alpha: {alpha}")
+        print(f"  - KD weight: {alpha}")
+        print("  - CE weight: 1.0")
+        if self.teacher_gate is not None:
+            print(f"  - Teacher gate top-k: {teacher_gate_top_k}")
+            print(f"  - Teacher gate entropy alpha: {teacher_gate_entropy_alpha}")
+            print(f"  - Teacher gate router z-loss alpha: {teacher_gate_router_z_loss_alpha}")
+            print(f"  - GRACE threshold: {grace_threshold}")
+            print(f"  - GRACE warmup ratio: {grace_warmup_ratio}")
+            print(f"  - GRACE epsilon: {grace_epsilon}")
+            print(f"  - GRACE softmax beta: {grace_softmax_beta}")
+            print(f"  - GRACE router blend lambda: {grace_router_blend_lambda}")
+            print(f"  - GRACE EMA decay: {grace_ema_decay}")
+        print("  - Loss weighting: CE + alpha * KD")
 
     @override
     def _prepare_inputs(self, inputs):
@@ -180,12 +132,8 @@ class DistillationTrainer(Trainer):
         if not isinstance(inputs, dict):
             return super()._prepare_inputs(inputs)
 
-        teacher_inputs = {
-            key: value for key, value in inputs.items() if key.startswith("teacher")
-        }
-        student_inputs = {
-            key: value for key, value in inputs.items() if not key.startswith("teacher")
-        }
+        teacher_inputs = {key: value for key, value in inputs.items() if key.startswith("teacher")}
+        student_inputs = {key: value for key, value in inputs.items() if not key.startswith("teacher")}
 
         prepared_inputs = super()._prepare_inputs(student_inputs)
         prepared_inputs.update(teacher_inputs)
@@ -201,106 +149,160 @@ class DistillationTrainer(Trainer):
         total_steps = max(self.state.max_steps, getattr(self.args, "max_steps", 0))
         if total_steps <= 0:
             return True
-        import math
         warmup_steps = math.ceil(total_steps * self.grace_warmup_ratio)
         return self.state.global_step >= warmup_steps
 
-    def reinforced_selection_warmup_active(self) -> bool:
-        if self.reinforced_teacher_selector is None or not self.model.training:
-            return False
-        if self.reinforced_selection_warmup_ratio <= 0.0:
-            return False
-        total_steps = max(self.state.max_steps, getattr(self.args, "max_steps", 0))
-        if total_steps <= 0:
-            return False
-        import math
-        warmup_steps = math.ceil(total_steps * self.reinforced_selection_warmup_ratio)
-        return self.state.global_step < warmup_steps
-
     @override
-    def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
+    def compute_loss(self, model, inputs, **_kwargs):
         student_inputs = {k: v for k, v in inputs.items() if not k.startswith("teacher")}
-        teacher_batch_sources = prepare_teacher_batch_sources(
-            inputs=inputs,
-            num_teachers=self.num_teachers,
-            teacher_models=self.teacher_models,
-        )
 
-        student_forward_state = build_student_forward_state(
-            trainer=self,
-            model=model,
-            student_inputs=student_inputs,
+        student_outputs = model(
+            **student_inputs,
+            return_dict=True,
         )
-        teacher_gate_state = resolve_teacher_gate_state(
-            trainer=self,
-            teacher_router_logits=student_forward_state["teacher_router_logits"],
-            teacher_router_weights=student_forward_state["teacher_router_weights"],
+        student_logits = student_outputs.logits
+        teacher_router_logits = (
+            self.teacher_gate.compute_router_logits(
+                student_labels=student_inputs["labels"],
+            )
+            if self.teacher_gate is not None
+            else None
         )
-        ce_loss = student_forward_state["student_outputs"].loss
-        teacher_target_batches = resolve_teacher_target_batches(
-            student_logits=student_forward_state["student_logits"],
-            teacher_models=self.teacher_models,
-            live_teacher_batches=teacher_batch_sources.live_teacher_batches,
-            cached_teacher_target_batches=teacher_batch_sources.cached_teacher_target_batches,
-            prepare_input_fn=self._prepare_input,
-        )
-        teacher_loss_state = build_teacher_loss_state(
-            trainer=self,
-            model=model,
-            student_logits=student_forward_state["student_logits"],
-            student_labels=student_inputs["labels"],
-            ce_loss=ce_loss,
-            teacher_target_batches=teacher_target_batches,
-        )
-        teacher_weighting_state = resolve_teacher_weighting_state(
-            trainer=self,
-            routed_teacher_weights=teacher_gate_state["routed_teacher_weights"],
-            teacher_grace_scores=teacher_loss_state["teacher_grace_scores"],
-            teacher_grace_active_mask=teacher_loss_state["teacher_grace_active_mask"],
-            teacher_loss_matrix=teacher_loss_state["teacher_loss_matrix"],
-            selection_teacher_logits=teacher_loss_state["selection_teacher_logits"],
-            selection_teacher_labels=teacher_loss_state["selection_teacher_labels"],
-            student_labels=student_inputs["labels"],
-            student_ce_loss=ce_loss,
-        )
-        layer_distillation_state = build_layer_distillation_state(
-            trainer=self,
-            live_teacher_batches=teacher_batch_sources.live_teacher_batches,
-            student_layer_representations=student_forward_state["student_layer_representations"],
-        )
-        loss = compute_total_loss(
-            trainer=self,
-            ce_loss=ce_loss,
-            distillation_loss=teacher_weighting_state["distillation_loss"],
-            layer_distillation_loss=layer_distillation_state["layer_distillation_loss"],
-            teacher_gate_entropy_loss=teacher_gate_state["teacher_gate_entropy_loss"],
-            teacher_gate_z_loss=teacher_gate_state["teacher_gate_z_loss"],
-            teacher_selection_policy_loss=teacher_weighting_state["teacher_selection_policy_loss"],
-        )
+        teacher_router_weights = torch.softmax(teacher_router_logits, dim=-1) if teacher_router_logits is not None else None
+        teacher_gate_entropy_loss = None
+        teacher_gate_z_loss = None
+        routed_teacher_weights = teacher_router_weights
+        if teacher_router_weights is not None:
+            teacher_gate_z_loss = torch.logsumexp(teacher_router_logits.float(), dim=-1).square().mean().to(
+                dtype=teacher_router_logits.dtype
+            )
+            safe_router_weights = teacher_router_weights.clamp(min=torch.finfo(teacher_router_weights.dtype).eps)
+            teacher_gate_entropy_loss = (
+                (safe_router_weights * safe_router_weights.log()).sum(dim=-1).mean().to(dtype=teacher_router_weights.dtype)
+            )
+
+            num_teachers = teacher_router_weights.shape[1]
+            top_k = min(self.teacher_gate_top_k, num_teachers)
+            topk_indices = teacher_router_logits.topk(top_k, dim=-1).indices
+            topk_mask = (
+                torch.nn.functional.one_hot(
+                    topk_indices,
+                    num_classes=num_teachers,
+                )
+                .sum(dim=1)
+                .to(dtype=torch.bool)
+            )
+            routed_teacher_weights = torch.where(
+                topk_mask,
+                teacher_router_weights,
+                torch.zeros_like(teacher_router_weights),
+            )
+            routed_teacher_weights = routed_teacher_weights / routed_teacher_weights.sum(dim=-1, keepdim=True).clamp(
+                min=torch.finfo(routed_teacher_weights.dtype).eps
+            )
+
+        ce_loss = student_outputs.loss
+        if self.alpha == 0.0:
+            distillation_loss = ce_loss.new_zeros(())
+        else:
+            teacher_prefixes = []
+            if "teacher_cached_logits" in inputs:
+                teacher_prefixes.append("teacher")
+            teacher_prefixes.extend(
+                f"teacher_{teacher_index}"
+                for teacher_index in range(self.num_teachers)
+                if f"teacher_{teacher_index}_cached_logits" in inputs
+            )
+            if not teacher_prefixes:
+                raise ValueError("No cached teacher logits were found in the batch.")
+            if len(teacher_prefixes) != self.num_teachers:
+                raise ValueError(
+                    "Cached teacher-logit batch count does not match the configured teacher count. "
+                    f"cached={len(teacher_prefixes)}, configured={self.num_teachers}"
+                )
+
+            teacher_target_batches = [
+                (
+                    self._prepare_input(inputs[f"{prefix}_cached_logits"]).to(dtype=student_logits.dtype),
+                    self._prepare_input(inputs[f"{prefix}_cached_labels"]),
+                )
+                for prefix in teacher_prefixes
+            ]
+            (
+                teacher_loss_matrix,
+                teacher_grace_scores,
+                teacher_grace_active_mask,
+            ) = compute_teacher_loss_matrix(
+                student_logits=student_logits,
+                student_labels=student_inputs["labels"],
+                model=model,
+                teacher_target_batches=teacher_target_batches,
+                collect_grace_tensors=self.should_apply_grace_routing(),
+                grace_threshold=self.grace_threshold,
+                distillation_prepare_batch_fn=self.distillation_prepare_batch_fn,
+                distillation_loss_fn=self.distillation_loss_fn,
+                student_temperature=self.student_temperature,
+                teacher_temperature=self.teacher_temperature,
+            )
+
+            teacher_mix_weights = None
+            if not self.should_apply_grace_routing():
+                if routed_teacher_weights is not None:
+                    routed_teacher_mask = routed_teacher_weights.gt(0)
+                    missing_rows = ~routed_teacher_mask.any(dim=-1)
+                    if missing_rows.any():
+                        bad_indices = missing_rows.nonzero(as_tuple=True)[0].tolist()
+                        raise ValueError(f"Router produced no available teacher assignments for samples {bad_indices}.")
+                    teacher_mix_weights = routed_teacher_weights.to(dtype=teacher_loss_matrix.dtype)
+                    teacher_mix_weights = teacher_mix_weights / teacher_mix_weights.sum(dim=-1, keepdim=True).clamp(
+                        min=torch.finfo(teacher_mix_weights.dtype).eps
+                    )
+            else:
+                (
+                    teacher_mix_weights,
+                    _teacher_grace_scores,
+                    _teacher_grace_active_mask,
+                    _teacher_grace_weights,
+                    _teacher_grace_fallback_rate,
+                    self.teacher_grace_score_ema,
+                ) = apply_grace_routing(
+                    routed_teacher_weights=routed_teacher_weights,
+                    teacher_grace_scores=teacher_grace_scores,
+                    teacher_grace_active_mask=teacher_grace_active_mask,
+                    prev_grace_score_ema=self.teacher_grace_score_ema,
+                    grace_ema_decay=self.grace_ema_decay,
+                    grace_softmax_beta=self.grace_softmax_beta,
+                    grace_router_blend_lambda=self.grace_router_blend_lambda,
+                    grace_epsilon=self.grace_epsilon,
+                )
+
+            distillation_loss = teacher_loss_matrix.mean()
+            if teacher_mix_weights is not None:
+                distillation_loss = einsum(
+                    teacher_loss_matrix,
+                    teacher_mix_weights,
+                    "batch teacher, batch teacher -> batch",
+                ).mean()
+            elif routed_teacher_weights is not None:
+                distillation_loss = einsum(
+                    teacher_loss_matrix,
+                    routed_teacher_weights,
+                    "batch teacher, batch teacher -> batch",
+                ).mean()
+
+        loss = ce_loss + self.alpha * distillation_loss
+        if teacher_gate_entropy_loss is not None:
+            loss = loss + teacher_gate_entropy_loss * self.teacher_gate_entropy_alpha
+        if teacher_gate_z_loss is not None:
+            loss = loss + teacher_gate_z_loss * self.teacher_gate_router_z_loss_alpha
 
         if self.state.global_step % self.args.logging_steps == 0:
-            metrics = build_distillation_train_metrics(
-                loss=loss,
-                distillation_loss=teacher_weighting_state["distillation_loss"],
-                ce_loss=ce_loss,
-                layer_distillation_loss=layer_distillation_state["layer_distillation_loss"],
-                layer_distill_source=self.layer_distill_source if self.layer_distillation_enabled else None,
-                teacher_loss_matrix=teacher_loss_state["teacher_loss_matrix"],
-                routed_teacher_weights=teacher_gate_state["routed_teacher_weights"],
-                teacher_mix_weights=teacher_weighting_state["teacher_mix_weights"],
-                teacher_router_weights=student_forward_state["teacher_router_weights"],
-                teacher_router_logits=student_forward_state["teacher_router_logits"],
-                teacher_gate_entropy_loss=teacher_gate_state["teacher_gate_entropy_loss"],
-                teacher_gate_z_loss=teacher_gate_state["teacher_gate_z_loss"],
-                teacher_gate_assignment_rate=teacher_gate_state["teacher_gate_assignment_rate"],
-                teacher_grace_scores=teacher_weighting_state["teacher_grace_scores"],
-                teacher_grace_active_mask=teacher_weighting_state["teacher_grace_active_mask"],
-                teacher_grace_score_ema=self.teacher_grace_score_ema,
-                teacher_grace_weights=teacher_weighting_state["teacher_grace_weights"],
-                teacher_grace_fallback_rate=teacher_weighting_state["teacher_grace_fallback_rate"],
-                reinforced_selection_metrics=teacher_weighting_state["reinforced_selection_metrics"],
-                grace_routing_active=self.should_apply_grace_routing(),
+            self.log(
+                {
+                    "loss": loss.item(),
+                    "ce_loss": ce_loss.item(),
+                    "kd_loss": distillation_loss.item(),
+                }
             )
-            self.log(metrics)
 
-        return (loss, student_forward_state["student_outputs"]) if return_outputs else loss
+        return loss
