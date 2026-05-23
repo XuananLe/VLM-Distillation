@@ -1,5 +1,6 @@
 import argparse
 import json
+import os
 import sys
 from pathlib import Path
 
@@ -8,15 +9,160 @@ if str(ROOT_DIR) not in sys.path:
     sys.path.insert(0, str(ROOT_DIR))
 
 import torch
+from PIL import Image
 from safetensors.torch import save_file
+from teacher_processor_encoders import encode_teacher_data
 from torch.utils.data import Dataset
 
+from src.constants import IGNORE_INDEX
+from src.dataset.data_utils import pad_frames, pad_sequence
 from src.dataset.supervised_data import make_supervised_data_module
 from src.params import DataArguments
 from src.train.model_setup import load_vlm_bundle
 
 REQUIRED_TEACHER_INPUTS = ("input_ids", "attention_mask", "pixel_values")
 OPTIONAL_TEACHER_INPUTS = ("pixel_attention_mask", "image_grid_thw", "image_flags", "image_sizes")
+
+
+def get_processor_pad_token_id(processor) -> int:
+    if isinstance(processor, dict):
+        return int(processor["tokenizer"].pad_token_id)
+    if hasattr(processor, "tokenizer") and processor.tokenizer.pad_token_id is not None:
+        return int(processor.tokenizer.pad_token_id)
+    if getattr(processor, "pad_token_id", None) is not None:
+        return int(processor.pad_token_id)
+    raise ValueError(f"Could not resolve pad_token_id for processor type {type(processor).__name__}.")
+
+
+def load_record_images(record: dict, image_folder: str) -> list[Image.Image] | None:
+    if "image" not in record:
+        return None
+    image_files = record["image"]
+    if isinstance(image_files, str):
+        image_files = [image_files]
+
+    images = []
+    for image_file in image_files:
+        resolved_path = image_file
+        if not os.path.exists(resolved_path):
+            resolved_path = os.path.join(image_folder, image_file)
+        images.append(Image.open(resolved_path).convert("RGB"))
+    return images
+
+
+def add_teacher_inputs(
+    *,
+    sample: dict[str, torch.Tensor],
+    sources,
+    images,
+    teacher_processors,
+) -> None:
+    teacher_count = len(teacher_processors)
+    for teacher_index, teacher_processor in enumerate(teacher_processors):
+        teacher_data = encode_teacher_data(sources, images, teacher_processor)
+        prefix = "teacher" if teacher_count == 1 else f"teacher_{teacher_index}"
+
+        sample[f"{prefix}_input_ids"] = teacher_data["input_ids"]
+        sample[f"{prefix}_labels"] = teacher_data["labels"]
+        sample[f"{prefix}_attention_mask"] = teacher_data["attention_mask"]
+        sample[f"{prefix}_pixel_values"] = teacher_data["pixel_values"]
+        sample[f"{prefix}_pixel_attention_mask"] = teacher_data["pixel_attention_mask"]
+        if teacher_data.get("image_sizes") is not None:
+            sample[f"{prefix}_image_sizes"] = teacher_data["image_sizes"]
+        if teacher_data.get("image_grid_thw") is not None:
+            sample[f"{prefix}_image_grid_thw"] = teacher_data["image_grid_thw"]
+        if teacher_data.get("image_flags") is not None:
+            sample[f"{prefix}_image_flags"] = teacher_data["image_flags"]
+
+
+class TeacherInputDataset(Dataset):
+    def __init__(self, base_dataset: Dataset, teacher_processors, image_folder: str, limit: int | None = None):
+        self.base_dataset = base_dataset
+        self.teacher_processors = list(teacher_processors)
+        self.image_folder = image_folder
+        self.limit = len(base_dataset) if limit is None else min(limit, len(base_dataset))
+
+    def __len__(self) -> int:
+        return self.limit
+
+    def __getitem__(self, index: int):
+        item = self.base_dataset[index]
+        record = self.base_dataset.training_records[index]
+        add_teacher_inputs(
+            sample=item,
+            sources=record["conversations"],
+            images=load_record_images(record, self.image_folder),
+            teacher_processors=self.teacher_processors,
+        )
+        item["dataset_index"] = index
+        return item
+
+
+class CacheTeacherDataCollator:
+    def __init__(self, student_collator, teacher_processors):
+        self.student_collator = student_collator
+        self.teacher_pad_token_ids = [get_processor_pad_token_id(processor) for processor in teacher_processors]
+
+    def collate_teacher_batch(self, examples, batch_dict, prefix: str) -> None:
+        teacher_pad = (
+            self.teacher_pad_token_ids[0]
+            if prefix == "teacher"
+            else self.teacher_pad_token_ids[int(prefix.split("_")[1])]
+        )
+        teacher_input_ids = pad_sequence(
+            [example[f"{prefix}_input_ids"] for example in examples],
+            padding_side="right",
+            padding_value=teacher_pad,
+        )
+        teacher_labels = pad_sequence(
+            [example[f"{prefix}_labels"] for example in examples],
+            padding_side="right",
+            padding_value=IGNORE_INDEX,
+        )
+        teacher_attention_mask = pad_sequence(
+            [example[f"{prefix}_attention_mask"] for example in examples],
+            padding_side="right",
+            padding_value=0,
+        )
+        batch_dict.update(
+            {
+                f"{prefix}_input_ids": teacher_input_ids,
+                f"{prefix}_labels": teacher_labels,
+                f"{prefix}_attention_mask": teacher_attention_mask,
+            }
+        )
+
+        pixel_key = f"{prefix}_pixel_values"
+        teacher_pixel_values = [example[pixel_key] for example in examples]
+        if teacher_pixel_values[0].dim() == 5:
+            batch_dict[pixel_key] = pad_frames(teacher_pixel_values, pad_value=0.0)
+        else:
+            batch_dict[pixel_key] = torch.cat(teacher_pixel_values, dim=0)
+
+        pixel_attention_key = f"{prefix}_pixel_attention_mask"
+        teacher_pixel_attention_masks = [example.get(pixel_attention_key) for example in examples]
+        if teacher_pixel_attention_masks[0] is not None:
+            batch_dict[pixel_attention_key] = pad_frames(teacher_pixel_attention_masks, pad_value=0)
+
+        for suffix in ("image_grid_thw", "image_sizes", "image_flags"):
+            key = f"{prefix}_{suffix}"
+            if key in examples[0]:
+                batch_dict[key] = torch.cat([example[key] for example in examples], dim=0)
+
+    def __call__(self, examples):
+        batch = self.student_collator(examples)
+        if "teacher_input_ids" in examples[0]:
+            teacher_prefixes = ["teacher"]
+        else:
+            teacher_prefixes = []
+            for key in examples[0]:
+                if key.startswith("teacher_") and key.endswith("_input_ids"):
+                    teacher_prefixes.append(key.removesuffix("_input_ids"))
+            teacher_prefixes.sort(key=lambda prefix: int(prefix.split("_")[1]))
+
+        for prefix in teacher_prefixes:
+            self.collate_teacher_batch(examples, batch, prefix)
+        return batch
 
 
 def normalize_teacher_models(teacher_models):
@@ -96,20 +242,6 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-class IndexedDataset(Dataset):
-    def __init__(self, base_dataset: Dataset, limit: int | None = None):
-        self.base_dataset = base_dataset
-        self.limit = len(base_dataset) if limit is None else min(limit, len(base_dataset))
-
-    def __len__(self) -> int:
-        return self.limit
-
-    def __getitem__(self, index: int):
-        item = self.base_dataset[index]
-        item["dataset_index"] = index
-        return item
-
-
 def build_cache_dataset_state(
     args: argparse.Namespace,
     *,
@@ -134,10 +266,14 @@ def build_cache_dataset_state(
     data_module = make_supervised_data_module(
         processor=student_processor,
         data_args=data_args,
-        teacher_processors=teacher_processors,
     )
-    indexed_dataset = IndexedDataset(data_module["train_dataset"], limit=args.limit)
-    return teacher_ids, indexed_dataset, data_module["data_collator"]
+    dataset = TeacherInputDataset(
+        data_module["train_dataset"],
+        teacher_processors=teacher_processors,
+        image_folder=args.image_folder,
+        limit=args.limit,
+    )
+    return teacher_ids, dataset, CacheTeacherDataCollator(data_module["data_collator"], teacher_processors)
 
 
 def load_teacher_bundles(teacher_ids: list[str], device: str):

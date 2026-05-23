@@ -49,6 +49,7 @@ def train_distillation():
     )
 
     print("Loading student model...")
+    print(f"Training device: {training_args.device}; n_gpu={training_args.n_gpu}")
     student_model, processor, _, _ = load_vlm_bundle(
         model_id=distillation_args.student_model_id,
         cache_dir=training_args.cache_dir,
@@ -65,7 +66,6 @@ def train_distillation():
         print("\nUsing cached teacher logits; skipping online teacher model loading.")
     else:
         print("\nNo teacher-logit cache configured; running CE-only training because alpha is 0.")
-    teacher_processors = []
 
     student_loss_tokenizer = None
     teacher_loss_tokenizers = None
@@ -85,7 +85,6 @@ def train_distillation():
     data_module = make_supervised_data_module(
         processor=processor,
         data_args=data_args,
-        teacher_processors=teacher_processors,
         teacher_model_ids=teacher_ids,
         teacher_logits_cache_dir=distillation_args.teacher_logits_cache_dir,
     )

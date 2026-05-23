@@ -1,4 +1,6 @@
+import json
 import os
+import shlex
 import subprocess
 from pathlib import Path
 
@@ -11,6 +13,7 @@ MODEL_DIR = Path("/models")
 DATASET_DIR = Path("/data")
 OUTPUT_DIR = Path("/output")
 CACHE_DIR = Path("/cache")
+SMOKE_DATA_DIR = Path("/tmp/vlm-distillation-smoke")
 MODAL_TRANSFORMERS_VERSION = os.environ.get("MODAL_TRANSFORMERS_VERSION", "5.1.0")
 MODAL_FLASH_ATTN_VERSION = os.environ.get("MODAL_FLASH_ATTN_VERSION", "2.8.3")
 MODAL_IMAGE_BUILD_GPU = os.environ.get("MODAL_IMAGE_BUILD_GPU", "L4")
@@ -181,6 +184,10 @@ app = modal.App(
 app_mounts, committable_volumes = build_modal_mounts()
 
 
+def shell_join(args: list[str]) -> str:
+    return " ".join(shlex.quote(str(arg)) for arg in args)
+
+
 def replace_path_with_symlink(path: Path, target: Path) -> None:
     if path.is_symlink() and path.resolve() == target:
         return
@@ -193,11 +200,12 @@ def replace_path_with_symlink(path: Path, target: Path) -> None:
 
 
 def prepare_modal_filesystem() -> None:
-    replace_path_with_symlink(ROOT_DIR / "data", CACHE_DIR / "data")
+    replace_path_with_symlink(ROOT_DIR / "data", DATASET_DIR)
     replace_path_with_symlink(ROOT_DIR / "output", OUTPUT_DIR)
     workspace_root = Path("/workspace")
     workspace_root.mkdir(parents=True, exist_ok=True)
     replace_path_with_symlink(workspace_root / "VLM-Distillation", ROOT_DIR)
+    replace_path_with_symlink(workspace_root / "data", DATASET_DIR)
     replace_path_with_symlink(workspace_root / "cache", CACHE_DIR)
 
 
@@ -262,6 +270,104 @@ def exec_cmd_impl(cmd: str) -> None:
         raise subprocess.CalledProcessError(returncode, cmd)
 
 
+def write_smoke_dataset() -> Path:
+    from PIL import Image, ImageDraw
+
+    image_dir = SMOKE_DATA_DIR / "images"
+    image_dir.mkdir(parents=True, exist_ok=True)
+    image_path = image_dir / "smoke.png"
+
+    image = Image.new("RGB", (224, 224), color=(245, 245, 245))
+    draw = ImageDraw.Draw(image)
+    draw.rectangle((48, 48, 176, 176), fill=(220, 40, 40))
+    image.save(image_path)
+
+    samples = [
+        {
+            "id": "modal-smoke-0",
+            "image": image_path.name,
+            "conversations": [
+                {
+                    "from": "human",
+                    "value": "<image>\nWhat color is the square?",
+                },
+                {
+                    "from": "gpt",
+                    "value": "The square is red.",
+                },
+            ],
+        }
+    ]
+    data_path = SMOKE_DATA_DIR / "train_llava.json"
+    data_path.write_text(json.dumps(samples), encoding="utf-8")
+    return data_path
+
+
+def build_smoke_training_cmd(data_path: Path, max_steps: int) -> str:
+    output_dir = OUTPUT_DIR / "modal_smoke_smolvlm_256m"
+    train_args = [
+        "python",
+        "src/train/train_distillation.py",
+        "--student_model_id",
+        "HuggingFaceTB/SmolVLM-256M-Instruct",
+        "--teacher_model_ids",
+        "google/gemma-3-4b-it",
+        "OpenGVLab/InternVL2-1B",
+        "Qwen/Qwen2.5-VL-3B-Instruct",
+        "Qwen/Qwen2-VL-2B-Instruct",
+        "--data_path",
+        data_path.as_posix(),
+        "--image_folder",
+        (SMOKE_DATA_DIR / "images").as_posix(),
+        "--distillation_loss",
+        "trie_wasserstein_loss",
+        "--bf16",
+        "True",
+        "--output_dir",
+        output_dir.as_posix(),
+        "--student_temperature",
+        "1.0",
+        "--teacher_temperature",
+        "1.0",
+        "--alpha",
+        "0.0",
+        "--num_train_epochs",
+        "1",
+        "--max_steps",
+        str(max_steps),
+        "--per_device_train_batch_size",
+        "1",
+        "--learning_rate",
+        "1e-5",
+        "--warmup_ratio",
+        "0.0",
+        "--lr_scheduler_type",
+        "constant",
+        "--tf32",
+        "True",
+        "--gradient_checkpointing",
+        "False",
+        "--logging_steps",
+        "1",
+        "--save_strategy",
+        "no",
+        "--dataloader_num_workers",
+        "0",
+        "--remove_unused_columns",
+        "False",
+        "--report_to",
+        "none",
+        "--disable_tqdm",
+        "True",
+    ]
+    return " && ".join(
+        [
+            "nvidia-smi --query-gpu=name,memory.total --format=csv,noheader",
+            shell_join(train_args),
+        ]
+    )
+
+
 @app.function(
     gpu=MODAL_GPU,
     timeout=60 * 60 * 24,
@@ -271,8 +377,26 @@ def exec_cmd(cmd: str) -> None:
     exec_cmd_impl(cmd)
 
 
+@app.function(
+    gpu=MODAL_GPU,
+    timeout=60 * 60 * 24,
+    volumes=app_mounts,
+)
+def smoke_train(max_steps: int = 1) -> None:
+    if max_steps < 1:
+        raise ValueError("max_steps must be >= 1")
+    data_path = write_smoke_dataset()
+    exec_cmd_impl(build_smoke_training_cmd(data_path, max_steps=max_steps))
+
+
 @app.local_entrypoint()
-def run(cmd: str = r"""""") -> None:
-    call = exec_cmd.spawn(cmd)
+def run(cmd: str = r"""""", smoke: bool = True, max_steps: int = 1, wait: bool = True) -> None:
+    if cmd:
+        call = exec_cmd.spawn(cmd)
+    elif smoke:
+        call = smoke_train.spawn(max_steps=max_steps)
+    else:
+        raise ValueError("Pass --cmd or leave --smoke enabled to run the one-step training smoke job.")
     print(f"Triggered Modal function call: {getattr(call, 'object_id', call)}")
-    call.get()
+    if wait:
+        call.get()

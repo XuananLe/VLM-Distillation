@@ -74,13 +74,6 @@ def canonical_dataset_name(dataset_name: str) -> str:
     return canonical
 
 
-def load_hf_dataset(dataset_id: str, config: str | None, split: str):
-    """Load one Hugging Face dataset split with an optional config name."""
-    if config is None:
-        return load_dataset(dataset_id, split=split)
-    return load_dataset(dataset_id, config, split=split)
-
-
 def load_dataset_split(
     dataset_name: str,
     split: str,
@@ -90,13 +83,17 @@ def load_dataset_split(
     """Load one VQA dataset split and fall back when the primary hub entry requires a script."""
     source = DATASET_SOURCES[dataset_name]
     try:
-        return load_hf_dataset(source["hub"], source["config"], split), source["hub"]
+        if source["config"] is None:
+            return load_dataset(source["hub"], split=split), source["hub"]
+        return load_dataset(source["hub"], source["config"], split=split), source["hub"]
     except RuntimeError as exc:
         fallback_hub = source["fallback_hub"]
         if fallback_hub and "Dataset scripts are no longer supported" in str(exc):
             if log_fallback:
                 print(f"Dataset '{source['hub']}' uses a dataset script. Falling back to '{fallback_hub}'.")
-            return load_hf_dataset(fallback_hub, source["fallback_config"], split), fallback_hub
+            if source["fallback_config"] is None:
+                return load_dataset(fallback_hub, split=split), fallback_hub
+            return load_dataset(fallback_hub, source["fallback_config"], split=split), fallback_hub
         raise
 
 
@@ -144,6 +141,5 @@ __all__ = [
     "extract_image_as_pil",
     "infer_schema",
     "load_dataset_split",
-    "load_hf_dataset",
     "pick_first_text",
 ]
