@@ -26,7 +26,6 @@ from src.dataset.sft_data import SupervisedDataset
 from src.dataset.vqa_loading import (
     canonical_dataset_name,
     extract_image_as_pil,
-    infer_schema,
     load_dataset_split,
     pick_first_text,
 )
@@ -175,8 +174,7 @@ class DocVQAGradientAgreementDataset(Dataset):
 
 
 def select_docvqa_subset(dataset_name: str, split: str, subset_size: int, offset: int):
-    hf_dataset, loaded_from = load_dataset_split(dataset_name, split, log_fallback=True)
-    schema = infer_schema(hf_dataset, require_answer_field=True)
+    hf_dataset, loaded_from, schema = load_dataset_split(dataset_name, split)
     selected_samples: list[SelectedSample] = []
     for row_index in range(offset, len(hf_dataset)):
         sample = hf_dataset[row_index]
