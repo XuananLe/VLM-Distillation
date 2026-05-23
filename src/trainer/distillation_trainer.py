@@ -260,10 +260,6 @@ class DistillationTrainer(Trainer):
             else:
                 (
                     teacher_mix_weights,
-                    _teacher_grace_scores,
-                    _teacher_grace_active_mask,
-                    _teacher_grace_weights,
-                    _teacher_grace_fallback_rate,
                     self.teacher_grace_score_ema,
                 ) = apply_grace_routing(
                     routed_teacher_weights=routed_teacher_weights,
