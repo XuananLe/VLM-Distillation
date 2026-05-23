@@ -17,20 +17,20 @@ if str(ROOT_DIR) not in sys.path:
 
 import torch
 import torch.nn.functional as F
+from teacher_processor_encoders import encode_teacher_data
 from torch.utils.data import DataLoader, Dataset
 
 from src.components.loss import uld_loss
-from src.dataset.conversation_encoders import encode_teacher_data, encode_with_processor
+from src.constants import IGNORE_INDEX
 from src.dataset.data_collator import DataCollatorForSupervisedDataset
-from src.dataset.sft_data import SupervisedDataset
+from src.dataset.data_utils import pad_frames, pad_sequence
+from src.dataset.smolvlm_encoder import smolvlm_encode_conversation
 from src.dataset.vqa_loading import (
     canonical_dataset_name,
     extract_image_as_pil,
-    infer_schema,
     load_dataset_split,
     pick_first_text,
 )
-from src.params import DataArguments
 from src.train.model_setup import (
     load_vlm_bundle,
 )
@@ -105,6 +105,46 @@ def get_processor_pad_token_id(processor: Any) -> int:
     raise ValueError(f"Could not resolve pad_token_id for processor type {type(processor).__name__}.")
 
 
+class GradientAgreementCollator:
+    def __init__(self, *, student_pad_token_id: int, teacher_pad_token_id: int):
+        self.student_collator = DataCollatorForSupervisedDataset(pad_token_id=student_pad_token_id)
+        self.teacher_pad_token_id = teacher_pad_token_id
+
+    def __call__(self, examples):
+        batch = self.student_collator(examples)
+        batch["teacher_input_ids"] = pad_sequence(
+            [example["teacher_input_ids"] for example in examples],
+            padding_side="right",
+            padding_value=self.teacher_pad_token_id,
+        )
+        batch["teacher_labels"] = pad_sequence(
+            [example["teacher_labels"] for example in examples],
+            padding_side="right",
+            padding_value=IGNORE_INDEX,
+        )
+        batch["teacher_attention_mask"] = pad_sequence(
+            [example["teacher_attention_mask"] for example in examples],
+            padding_side="right",
+            padding_value=0,
+        )
+
+        teacher_pixel_values = [example["teacher_pixel_values"] for example in examples]
+        if teacher_pixel_values[0].dim() == 5:
+            batch["teacher_pixel_values"] = pad_frames(teacher_pixel_values, pad_value=0.0)
+        else:
+            batch["teacher_pixel_values"] = torch.cat(teacher_pixel_values, dim=0)
+
+        teacher_pixel_attention_masks = [example.get("teacher_pixel_attention_mask") for example in examples]
+        if teacher_pixel_attention_masks[0] is not None:
+            batch["teacher_pixel_attention_mask"] = pad_frames(teacher_pixel_attention_masks, pad_value=0)
+
+        for suffix in ("image_grid_thw", "image_sizes", "image_flags"):
+            key = f"teacher_{suffix}"
+            if key in examples[0]:
+                batch[key] = torch.cat([example[key] for example in examples], dim=0)
+        return batch
+
+
 def pick_first_answer(answer_value: Any) -> str | None:
     values = answer_value if isinstance(answer_value, (list, tuple)) else (answer_value,)
     for value in values:
@@ -127,12 +167,14 @@ class DocVQAGradientAgreementDataset(Dataset):
         hf_dataset,
         selected_samples: list[SelectedSample],
         schema: dict[str, str | None],
-        encoder_dataset: SupervisedDataset,
+        student_processor,
+        teacher_processor,
     ):
         self.hf_dataset = hf_dataset
         self.selected_samples = selected_samples
         self.schema = schema
-        self.encoder_dataset = encoder_dataset
+        self.student_processor = student_processor
+        self.teacher_processor = teacher_processor
 
     def __len__(self) -> int:
         return len(self.selected_samples)
@@ -146,36 +188,31 @@ class DocVQAGradientAgreementDataset(Dataset):
             {"from": "gpt", "value": selected.answer},
         ]
 
-        encoded_sample = encode_with_processor(
+        encoded_sample = smolvlm_encode_conversation(
             sources,
             [image],
-            self.encoder_dataset.processor,
-            role="student",
+            self.student_processor,
         )
         if encoded_sample["pixel_values"] is None:
             raise ValueError("Student encoder did not produce image tensors for an image-only sample.")
 
-        teacher_count = len(self.encoder_dataset.teacher_processors)
-        for teacher_index, teacher_processor in enumerate(self.encoder_dataset.teacher_processors):
-            teacher_data = encode_teacher_data(sources, [image], teacher_processor)
-            prefix = "teacher" if teacher_count == 1 else f"teacher_{teacher_index}"
-            encoded_sample[f"{prefix}_input_ids"] = teacher_data["input_ids"]
-            encoded_sample[f"{prefix}_labels"] = teacher_data["labels"]
-            encoded_sample[f"{prefix}_attention_mask"] = teacher_data["attention_mask"]
-            encoded_sample[f"{prefix}_pixel_values"] = teacher_data["pixel_values"]
-            encoded_sample[f"{prefix}_pixel_attention_mask"] = teacher_data["pixel_attention_mask"]
-            if teacher_data.get("image_sizes") is not None:
-                encoded_sample[f"{prefix}_image_sizes"] = teacher_data["image_sizes"]
-            if teacher_data.get("image_grid_thw") is not None:
-                encoded_sample[f"{prefix}_image_grid_thw"] = teacher_data["image_grid_thw"]
-            if teacher_data.get("image_flags") is not None:
-                encoded_sample[f"{prefix}_image_flags"] = teacher_data["image_flags"]
+        teacher_data = encode_teacher_data(sources, [image], self.teacher_processor)
+        encoded_sample["teacher_input_ids"] = teacher_data["input_ids"]
+        encoded_sample["teacher_labels"] = teacher_data["labels"]
+        encoded_sample["teacher_attention_mask"] = teacher_data["attention_mask"]
+        encoded_sample["teacher_pixel_values"] = teacher_data["pixel_values"]
+        encoded_sample["teacher_pixel_attention_mask"] = teacher_data["pixel_attention_mask"]
+        if teacher_data.get("image_sizes") is not None:
+            encoded_sample["teacher_image_sizes"] = teacher_data["image_sizes"]
+        if teacher_data.get("image_grid_thw") is not None:
+            encoded_sample["teacher_image_grid_thw"] = teacher_data["image_grid_thw"]
+        if teacher_data.get("image_flags") is not None:
+            encoded_sample["teacher_image_flags"] = teacher_data["image_flags"]
         return encoded_sample
 
 
 def select_docvqa_subset(dataset_name: str, split: str, subset_size: int, offset: int):
-    hf_dataset, loaded_from = load_dataset_split(dataset_name, split, log_fallback=True)
-    schema = infer_schema(hf_dataset, require_answer_field=True)
+    hf_dataset, loaded_from, schema = load_dataset_split(dataset_name, split)
     selected_samples: list[SelectedSample] = []
     for row_index in range(offset, len(hf_dataset)):
         sample = hf_dataset[row_index]
@@ -453,22 +490,16 @@ def main() -> None:
     for parameter in teacher_model.parameters():
         parameter.requires_grad_(False)
 
-    encoder_dataset = SupervisedDataset(
-        data_path=[],
-        processor=student_processor,
-        data_args=DataArguments(data_path=[]),
-        teacher_processors=[teacher_processor],
-    )
-    collator = DataCollatorForSupervisedDataset(
-        pad_token_id=get_processor_pad_token_id(student_processor),
+    collator = GradientAgreementCollator(
+        student_pad_token_id=get_processor_pad_token_id(student_processor),
         teacher_pad_token_id=get_processor_pad_token_id(teacher_processor),
-        teacher_pad_token_ids=[get_processor_pad_token_id(teacher_processor)],
     )
     analysis_dataset = DocVQAGradientAgreementDataset(
         hf_dataset=hf_dataset,
         selected_samples=selected_samples,
         schema=schema,
-        encoder_dataset=encoder_dataset,
+        student_processor=student_processor,
+        teacher_processor=teacher_processor,
     )
     dataloader = DataLoader(
         analysis_dataset,

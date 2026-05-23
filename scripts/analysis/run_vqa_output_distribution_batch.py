@@ -3,7 +3,6 @@ from __future__ import annotations
 import argparse
 import gc
 import json
-import math
 import re
 import sys
 from pathlib import Path
@@ -25,13 +24,6 @@ for path in (ROOT, ROOT / "src", DEXAR_ROOT, ROOT / "scripts" / "analysis"):
 
 from dexar.backends import DexarBackend
 from run_docvqa_subset import build_vqa_prompt
-from src.dataset.vqa_loading import (
-    canonical_dataset_name,
-    extract_image_as_pil,
-    infer_schema,
-    load_dataset_split,
-    pick_first_text,
-)
 from visualize_vqa_output_distribution import (
     collect_distribution,
     save_dynamics_plot,
@@ -39,6 +31,12 @@ from visualize_vqa_output_distribution import (
     save_step_plot,
 )
 
+from src.dataset.vqa_loading import (
+    canonical_dataset_name,
+    extract_image_as_pil,
+    load_dataset_split,
+    pick_first_text,
+)
 
 SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 
@@ -649,7 +647,7 @@ def process_model(
             backend.model.to("cpu")
         except Exception:
             pass
-        del backend
+        backend = None
         gc.collect()
         if torch.cuda.is_available():
             torch.cuda.empty_cache()
@@ -710,8 +708,7 @@ def main() -> None:
     device = resolve_device(args.device)
     args.output_root.mkdir(parents=True, exist_ok=True)
 
-    dataset, loaded_from = load_dataset_split(dataset_name, args.split, log_fallback=True)
-    schema = infer_schema(dataset, require_answer_field=True)
+    dataset, loaded_from, schema = load_dataset_split(dataset_name, args.split)
     model_summaries: list[dict[str, Any]] = []
     for model_name in args.models:
         model_summaries.append(
