@@ -6,7 +6,6 @@ from src.components.teacher_gate import Gate
 from src.trainer.metrics_utils import build_distillation_train_metrics
 from src.trainer.setup_utils import (
     log_distillation_trainer_setup,
-    resolve_reinforced_teacher_selector,
 )
 from src.trainer.step_utils import (
     build_student_forward_state,
@@ -39,10 +38,6 @@ class DistillationTrainer(Trainer):
         grace_softmax_beta: float = 20.0,
         grace_router_blend_lambda: float = 0.5,
         grace_ema_decay: float = 0.9,
-        reinforced_selection_warmup_ratio: float = 0.1,
-        reinforced_selection_reward_type: str = "reward2",
-        reinforced_selection_reward_ema_decay: float = 0.9,
-        reinforced_selection_policy_alpha: float = 1.0,
         trie_wasserstein_rho: float = 0.7,
         trie_wasserstein_topk: int = 64,
         *args,
@@ -90,11 +85,6 @@ class DistillationTrainer(Trainer):
                 self.num_teachers,
             )
             self.model.teacher_gate = self.teacher_gate
-        self.reinforced_teacher_selector = resolve_reinforced_teacher_selector(
-            model=self.model,
-            num_teachers=self.num_teachers,
-            teacher_weighting_strategy=self.teacher_weighting_strategy,
-        )
 
         self.student_temperature = float(student_temperature)
         self.teacher_temperature = float(teacher_temperature)
@@ -107,14 +97,9 @@ class DistillationTrainer(Trainer):
         self.grace_softmax_beta = grace_softmax_beta
         self.grace_router_blend_lambda = grace_router_blend_lambda
         self.grace_ema_decay = grace_ema_decay
-        self.reinforced_selection_warmup_ratio = reinforced_selection_warmup_ratio
-        self.reinforced_selection_reward_type = reinforced_selection_reward_type
-        self.reinforced_selection_reward_ema_decay = reinforced_selection_reward_ema_decay
-        self.reinforced_selection_policy_alpha = reinforced_selection_policy_alpha
         self.trie_wasserstein_rho = trie_wasserstein_rho
         self.trie_wasserstein_topk = trie_wasserstein_topk
         self.teacher_grace_score_ema = None
-        self.reinforced_selection_reward_baseline = None
 
         log_distillation_trainer_setup(
             num_teachers=self.num_teachers,
@@ -133,10 +118,6 @@ class DistillationTrainer(Trainer):
             grace_softmax_beta=grace_softmax_beta,
             grace_router_blend_lambda=grace_router_blend_lambda,
             grace_ema_decay=grace_ema_decay,
-            reinforced_selection_warmup_ratio=reinforced_selection_warmup_ratio,
-            reinforced_selection_reward_type=reinforced_selection_reward_type,
-            reinforced_selection_reward_ema_decay=reinforced_selection_reward_ema_decay,
-            reinforced_selection_policy_alpha=reinforced_selection_policy_alpha,
             trie_wasserstein_rho=trie_wasserstein_rho,
             trie_wasserstein_topk=trie_wasserstein_topk,
         )
@@ -170,19 +151,6 @@ class DistillationTrainer(Trainer):
         warmup_steps = math.ceil(total_steps * self.grace_warmup_ratio)
         return self.state.global_step >= warmup_steps
 
-    def reinforced_selection_warmup_active(self) -> bool:
-        if self.reinforced_teacher_selector is None or not self.model.training:
-            return False
-        if self.reinforced_selection_warmup_ratio <= 0.0:
-            return False
-        total_steps = max(self.state.max_steps, getattr(self.args, "max_steps", 0))
-        if total_steps <= 0:
-            return False
-        import math
-
-        warmup_steps = math.ceil(total_steps * self.reinforced_selection_warmup_ratio)
-        return self.state.global_step < warmup_steps
-
     @override
     def compute_loss(self, model, inputs, return_outputs=False, **kwargs):
         student_inputs = {k: v for k, v in inputs.items() if not k.startswith("teacher")}
@@ -208,8 +176,6 @@ class DistillationTrainer(Trainer):
                 ),
                 "teacher_grace_scores": None,
                 "teacher_grace_active_mask": None,
-                "selection_teacher_logits": None,
-                "selection_teacher_labels": None,
             }
             teacher_weighting_state = {
                 "teacher_mix_weights": None,
@@ -218,8 +184,6 @@ class DistillationTrainer(Trainer):
                 "teacher_grace_weights": None,
                 "teacher_grace_fallback_rate": None,
                 "distillation_loss": ce_loss.new_zeros(()),
-                "teacher_selection_policy_loss": None,
-                "reinforced_selection_metrics": None,
             }
         else:
             teacher_batch_sources = prepare_teacher_batch_sources(
@@ -244,10 +208,6 @@ class DistillationTrainer(Trainer):
                 teacher_grace_scores=teacher_loss_state["teacher_grace_scores"],
                 teacher_grace_active_mask=teacher_loss_state["teacher_grace_active_mask"],
                 teacher_loss_matrix=teacher_loss_state["teacher_loss_matrix"],
-                selection_teacher_logits=teacher_loss_state["selection_teacher_logits"],
-                selection_teacher_labels=teacher_loss_state["selection_teacher_labels"],
-                student_labels=student_inputs["labels"],
-                student_ce_loss=ce_loss,
             )
         loss = compute_total_loss(
             trainer=self,
@@ -255,7 +215,6 @@ class DistillationTrainer(Trainer):
             distillation_loss=teacher_weighting_state["distillation_loss"],
             teacher_gate_entropy_loss=teacher_gate_state["teacher_gate_entropy_loss"],
             teacher_gate_z_loss=teacher_gate_state["teacher_gate_z_loss"],
-            teacher_selection_policy_loss=teacher_weighting_state["teacher_selection_policy_loss"],
         )
 
         if self.state.global_step % self.args.logging_steps == 0:

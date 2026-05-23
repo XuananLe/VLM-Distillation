@@ -1,33 +1,3 @@
-from src.components.reinforced_teacher_selection import (
-    ReinforcedTeacherSelectionPolicy,
-)
-
-
-def resolve_reinforced_teacher_selector(
-    *,
-    model,
-    num_teachers: int,
-    teacher_weighting_strategy: str,
-):
-    """Build the REINFORCE selector only for reinforced-selection runs.
-
-    Input: student model, teacher count, and weighting strategy. Output:
-    ReinforcedTeacherSelectionPolicy or None. Exists to keep optional policy
-    setup out of the main trainer flow.
-    """
-    if num_teachers <= 1 or teacher_weighting_strategy != "reinforced_selection":
-        return None
-
-    # The reinforced selector follows the same pattern as the gate: register once
-    # on the student and let the training step query it when that strategy is active.
-    selector = ReinforcedTeacherSelectionPolicy(
-        model,
-        num_teachers,
-    )
-    model.reinforced_teacher_selector = selector
-    return selector
-
-
 def log_distillation_trainer_setup(
     *,
     num_teachers: int,
@@ -46,10 +16,6 @@ def log_distillation_trainer_setup(
     grace_softmax_beta: float,
     grace_router_blend_lambda: float,
     grace_ema_decay: float,
-    reinforced_selection_warmup_ratio: float,
-    reinforced_selection_reward_type: str,
-    reinforced_selection_reward_ema_decay: float,
-    reinforced_selection_policy_alpha: float,
     trie_wasserstein_rho: float,
     trie_wasserstein_topk: int,
 ) -> None:
@@ -65,8 +31,6 @@ def log_distillation_trainer_setup(
         print("  - Teacher weighting: disabled because alpha is 0")
     elif num_teachers > 1 and teacher_weighting_strategy == "routing":
         print("  - Teacher weighting: learned deep gate + GRACE routing")
-    elif num_teachers > 1 and teacher_weighting_strategy == "reinforced_selection":
-        print("  - Teacher weighting: reinforced teacher selection")
     elif num_teachers == 1:
         print("  - Teacher weighting: single teacher")
     else:
@@ -91,15 +55,9 @@ def log_distillation_trainer_setup(
         print(f"  - GRACE softmax beta: {grace_softmax_beta}")
         print(f"  - GRACE router blend lambda: {grace_router_blend_lambda}")
         print(f"  - GRACE EMA decay: {grace_ema_decay}")
-    elif num_teachers > 1 and teacher_weighting_strategy == "reinforced_selection":
-        print(f"  - Reinforced selection warmup ratio: {reinforced_selection_warmup_ratio}")
-        print(f"  - Reinforced selection reward type: {reinforced_selection_reward_type}")
-        print(f"  - Reinforced selection reward EMA decay: {reinforced_selection_reward_ema_decay}")
-        print(f"  - Reinforced selection policy alpha: {reinforced_selection_policy_alpha}")
     print("  - Loss weighting: CE + alpha * KD")
 
 
 __all__ = [
     "log_distillation_trainer_setup",
-    "resolve_reinforced_teacher_selector",
 ]

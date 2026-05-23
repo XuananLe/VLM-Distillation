@@ -9,7 +9,7 @@ The implemented training stack is centered on cache-backed distillation: teacher
 
 - single-teacher and multi-teacher KD
 - cached teacher-logit training from a local cache root
-- teacher weighting via `uniform_mean`, `routing` or `reinforced_selection`
+- teacher weighting via `uniform_mean` or `routing`
 - `GRACE` routing refinement on top of the router
 - logits-space KD losses including `uld_loss`, `trie_wasserstein_loss`, KL/JS variants, and `cka_loss`
 - full SFT launchers
@@ -165,7 +165,6 @@ The implemented distillation path is:
 7. teacher weighting and KD losses from:
    - [`src/components/teacher_gate.py`](src/components/teacher_gate.py)
    - [`src/components/grace.py`](src/components/grace.py)
-   - [`src/components/reinforced_teacher_selection.py`](src/components/reinforced_teacher_selection.py)
    - [`src/components/loss.py`](src/components/loss.py)
 
 One practical consequence of the current design:
@@ -182,7 +181,7 @@ One practical consequence of the current design:
 - [`src/dataset`](src/dataset)
   - dataset loading, conversation transforms, processor-specific encoding, cache readers, collator
 - [`src/components`](src/components)
-  - KD losses, router, GRACE, reinforced selection, trie-Wasserstein, CKA helpers
+  - KD losses, router, GRACE, trie-Wasserstein, CKA helpers
 - [`src/eval`](src/eval)
   - separate evaluation stack
 - [`scripts/train`](scripts/train)

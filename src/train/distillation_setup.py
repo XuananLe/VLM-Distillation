@@ -19,7 +19,7 @@ class DistillationArguments:
 
     teacher_weighting_strategy: str = field(
         default="routing",
-        metadata={"help": "Teacher weighting strategy: `routing`, `uniform_mean` or `reinforced_selection`."},
+        metadata={"help": "Teacher weighting strategy: `routing` or `uniform_mean`."},
     )
 
     distillation_loss: str = field(
@@ -103,28 +103,6 @@ class DistillationArguments:
         metadata={"help": "EMA decay applied to teacher agreement scores before GRACE computes gradient weights."},
     )
 
-    reinforced_selection_warmup_ratio: float = field(
-        default=0.1,
-        metadata={
-            "help": "Fraction of training steps to pretrain reinforced teacher selection with all teachers active."
-        },
-    )
-
-    reinforced_selection_reward_type: str = field(
-        default="reward2",
-        metadata={"help": "Reinforced teacher selection reward: `reward1` uses `-CE`, `reward2` uses `-CE-KD`."},
-    )
-
-    reinforced_selection_reward_ema_decay: float = field(
-        default=0.9,
-        metadata={"help": "EMA decay for the reinforced teacher-selection reward baseline."},
-    )
-
-    reinforced_selection_policy_alpha: float = field(
-        default=1.0,
-        metadata={"help": "Weight on the reinforced teacher-selection policy loss."},
-    )
-
     @model_validator(mode="after")
     def validate(self):
         if not self.teacher_model_ids:
@@ -136,9 +114,8 @@ class DistillationArguments:
             (
                 "--teacher_weighting_strategy",
                 self.teacher_weighting_strategy,
-                {"routing", "uniform_mean", "reinforced_selection"},
+                {"routing", "uniform_mean"},
             ),
-            ("--reinforced_selection_reward_type", self.reinforced_selection_reward_type, {"reward1", "reward2"}),
         )
         for arg_name, value, allowed in allowed_values:
             if value not in allowed:
@@ -174,8 +151,6 @@ class DistillationArguments:
             ("--teacher_gate_router_z_loss_alpha", self.teacher_gate_router_z_loss_alpha),
             ("--grace_warmup_ratio", self.grace_warmup_ratio),
             ("--grace_epsilon", self.grace_epsilon),
-            ("--reinforced_selection_warmup_ratio", self.reinforced_selection_warmup_ratio),
-            ("--reinforced_selection_policy_alpha", self.reinforced_selection_policy_alpha),
         ):
             if value < 0.0:
                 raise ValueError(f"{arg_name} must be >= 0.")
@@ -184,8 +159,6 @@ class DistillationArguments:
             raise ValueError("--grace_router_blend_lambda must be between 0 and 1.")
         if not 0.0 <= self.grace_ema_decay < 1.0:
             raise ValueError("--grace_ema_decay must be in [0, 1).")
-        if not 0.0 <= self.reinforced_selection_reward_ema_decay < 1.0:
-            raise ValueError("--reinforced_selection_reward_ema_decay must be in [0, 1).")
         return self
 
 
@@ -212,9 +185,7 @@ def log_distillation_setup(
             "Teacher Weighting: learned deep gate + GRACE routing"
             if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "routing"
             else (
-                "Teacher Weighting: reinforced teacher selection"
-                if len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "reinforced_selection"
-                else "Teacher Weighting: single teacher"
+                "Teacher Weighting: single teacher"
                 if len(teacher_ids) == 1
                 else "Teacher Weighting: uniform mean"
             )
@@ -240,11 +211,6 @@ def log_distillation_setup(
         print(f"GRACE Softmax Beta: {distillation_args.grace_softmax_beta}")
         print(f"GRACE Router Blend Lambda: {distillation_args.grace_router_blend_lambda}")
         print(f"GRACE EMA Decay: {distillation_args.grace_ema_decay}")
-    elif len(teacher_ids) > 1 and distillation_args.teacher_weighting_strategy == "reinforced_selection":
-        print(f"Reinforced Selection Warmup Ratio: {distillation_args.reinforced_selection_warmup_ratio}")
-        print(f"Reinforced Selection Reward Type: {distillation_args.reinforced_selection_reward_type}")
-        print(f"Reinforced Selection Reward EMA Decay: {distillation_args.reinforced_selection_reward_ema_decay}")
-        print(f"Reinforced Selection Policy Alpha: {distillation_args.reinforced_selection_policy_alpha}")
     if training_args.gradient_checkpointing:
         print(f"Gradient Checkpointing Kwargs: {gradient_checkpointing_kwargs}")
     print("=" * 80)

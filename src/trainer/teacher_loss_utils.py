@@ -78,7 +78,6 @@ def compute_teacher_loss_matrix(
     model,
     teacher_target_batches: Sequence[TeacherTargetBatch],
     collect_grace_tensors: bool,
-    collect_teacher_targets_for_selection: bool,
     grace_threshold: float,
     distillation_prepare_batch_fn: Callable,
     distillation_loss_fn: Callable,
@@ -88,8 +87,6 @@ def compute_teacher_loss_matrix(
     torch.Tensor,
     torch.Tensor | None,
     torch.Tensor | None,
-    list[torch.Tensor] | None,
-    list[torch.Tensor] | None,
 ]:
     """Compute per-teacher KD losses and optional parameter-space GRACE signals."""
     if not teacher_target_batches:
@@ -98,8 +95,6 @@ def compute_teacher_loss_matrix(
     teacher_losses = []
     grace_scores = []
     grace_active_masks = []
-    selection_teacher_logits = [] if collect_teacher_targets_for_selection else None
-    selection_teacher_labels = [] if collect_teacher_targets_for_selection else None
 
     grace_parameters = None
     ce_parameter_grads_by_sample = None
@@ -144,9 +139,6 @@ def compute_teacher_loss_matrix(
     for teacher_index, teacher_target_batch in enumerate(teacher_target_batches):
         teacher_logits = teacher_target_batch.logits
         teacher_labels = teacher_target_batch.labels
-        if collect_teacher_targets_for_selection:
-            selection_teacher_logits.append(teacher_logits)
-            selection_teacher_labels.append(teacher_labels)
         distillation_prepare_batch_fn(
             student_logits=student_logits,
             teacher_logits=teacher_logits,
@@ -172,15 +164,11 @@ def compute_teacher_loss_matrix(
             teacher_loss_matrix,
             None,
             None,
-            selection_teacher_logits,
-            selection_teacher_labels,
         )
     return (
         teacher_loss_matrix,
         torch.stack(grace_scores, dim=-1),
         torch.stack(grace_active_masks, dim=-1),
-        selection_teacher_logits,
-        selection_teacher_labels,
     )
 
 

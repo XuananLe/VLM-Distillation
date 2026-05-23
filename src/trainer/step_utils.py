@@ -4,9 +4,6 @@ import torch
 from einops import einsum
 
 from src.components.grace import apply_grace_routing
-from src.components.reinforced_teacher_selection import (
-    compute_reinforced_selection_state,
-)
 from src.trainer.distillation_utils import (
     build_cached_teacher_target_batches,
 )
@@ -108,15 +105,12 @@ def build_teacher_loss_state(
         teacher_loss_matrix,
         teacher_grace_scores,
         teacher_grace_active_mask,
-        selection_teacher_logits,
-        selection_teacher_labels,
     ) = compute_teacher_loss_matrix(
         student_logits=student_logits,
         student_labels=student_labels,
         model=model,
         teacher_target_batches=teacher_target_batches,
         collect_grace_tensors=trainer.should_apply_grace_routing(),
-        collect_teacher_targets_for_selection=trainer.teacher_weighting_strategy == "reinforced_selection",
         grace_threshold=trainer.grace_threshold,
         distillation_prepare_batch_fn=trainer.distillation_prepare_batch_fn,
         distillation_loss_fn=trainer.distillation_loss_fn,
@@ -127,8 +121,6 @@ def build_teacher_loss_state(
         "teacher_loss_matrix": teacher_loss_matrix,
         "teacher_grace_scores": teacher_grace_scores,
         "teacher_grace_active_mask": teacher_grace_active_mask,
-        "selection_teacher_logits": selection_teacher_logits,
-        "selection_teacher_labels": selection_teacher_labels,
     }
 
 
@@ -139,47 +131,10 @@ def resolve_teacher_weighting_state(
     teacher_grace_scores,
     teacher_grace_active_mask,
     teacher_loss_matrix,
-    selection_teacher_logits,
-    selection_teacher_labels,
-    student_labels,
-    student_ce_loss,
 ):
     teacher_grace_weights = None
     teacher_grace_fallback_rate = None
     teacher_mix_weights = None
-    reinforced_selection_metrics = None
-    teacher_selection_policy_loss = None
-
-    if trainer.teacher_weighting_strategy == "reinforced_selection":
-        # Reinforced selection bypasses gate/GRACE blending and turns the per-teacher
-        # KD losses into a Bernoulli policy problem over teacher subsets.
-        reinforced_state = compute_reinforced_selection_state(
-            selector=trainer.reinforced_teacher_selector,
-            teacher_loss_matrix=teacher_loss_matrix,
-            selection_teacher_logits=selection_teacher_logits or [],
-            selection_teacher_labels=selection_teacher_labels or [],
-            student_labels=student_labels,
-            student_ce_loss=student_ce_loss,
-            teacher_temperature=trainer.teacher_temperature,
-            warmup_active=trainer.reinforced_selection_warmup_active(),
-            reward_type=trainer.reinforced_selection_reward_type,
-            prev_reward_baseline=trainer.reinforced_selection_reward_baseline,
-            reward_ema_decay=trainer.reinforced_selection_reward_ema_decay,
-        )
-        trainer.reinforced_selection_reward_baseline = reinforced_state["next_reward_baseline"]
-        teacher_mix_weights = reinforced_state["selection_weights"]
-        teacher_selection_policy_loss = reinforced_state["policy_loss"]
-        reinforced_selection_metrics = reinforced_state["metrics"]
-        return {
-            "teacher_mix_weights": teacher_mix_weights,
-            "teacher_grace_scores": teacher_grace_scores,
-            "teacher_grace_active_mask": teacher_grace_active_mask,
-            "teacher_grace_weights": None,
-            "teacher_grace_fallback_rate": None,
-            "distillation_loss": reinforced_state["distillation_loss"],
-            "teacher_selection_policy_loss": teacher_selection_policy_loss,
-            "reinforced_selection_metrics": reinforced_selection_metrics,
-        }
 
     if not trainer.should_apply_grace_routing():
         if routed_teacher_weights is not None:
@@ -232,8 +187,6 @@ def resolve_teacher_weighting_state(
         "teacher_grace_weights": teacher_grace_weights,
         "teacher_grace_fallback_rate": teacher_grace_fallback_rate,
         "distillation_loss": distillation_loss,
-        "teacher_selection_policy_loss": teacher_selection_policy_loss,
-        "reinforced_selection_metrics": reinforced_selection_metrics,
     }
 
 
@@ -244,7 +197,6 @@ def compute_total_loss(
     distillation_loss,
     teacher_gate_entropy_loss,
     teacher_gate_z_loss,
-    teacher_selection_policy_loss=None,
 ):
     base_kd_loss = trainer.alpha * distillation_loss
     loss = ce_loss + base_kd_loss
@@ -252,8 +204,6 @@ def compute_total_loss(
         loss = loss + teacher_gate_entropy_loss * trainer.teacher_gate_entropy_alpha
     if teacher_gate_z_loss is not None:
         loss = loss + teacher_gate_z_loss * trainer.teacher_gate_router_z_loss_alpha
-    if teacher_selection_policy_loss is not None:
-        loss = loss + teacher_selection_policy_loss * trainer.reinforced_selection_policy_alpha
     return loss
 
 
