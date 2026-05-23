@@ -84,7 +84,20 @@ def token_string_looks_non_text(token: str) -> bool:
     )
 
 
-def collect_non_text_token_strings(tokenizer) -> set[str]:
+def token_strings_to_ids(tokenizer, tokens: set[str]) -> set[int]:
+    token_ids: set[int] = set()
+    unknown_token_id = getattr(tokenizer, "unk_token_id", None)
+    for token in tokens:
+        if not hasattr(tokenizer, "convert_tokens_to_ids"):
+            break
+        token_id = tokenizer.convert_tokens_to_ids(token)
+        if token_id is None or token_id == unknown_token_id:
+            continue
+        token_ids.add(int(token_id))
+    return token_ids
+
+
+def collect_non_text_token_ids(tokenizer) -> set[int]:
     tokens = set(VLM_NON_TEXT_TOKEN_STRINGS)
     model_id = getattr(tokenizer, "name_or_path", None)
     if isinstance(model_id, str):
@@ -139,29 +152,7 @@ def collect_non_text_token_strings(tokenizer) -> set[str]:
         if isinstance(attr_value, str):
             tokens.add(attr_value)
 
-    return tokens
-
-
-def collect_control_token_strings(tokenizer) -> set[str]:
-    del tokenizer
-    return set(VLM_CONTROL_SPECIAL_TOKEN_STRINGS)
-
-
-def token_strings_to_ids(tokenizer, tokens: set[str]) -> set[int]:
-    token_ids: set[int] = set()
-    unknown_token_id = getattr(tokenizer, "unk_token_id", None)
-    for token in tokens:
-        if not hasattr(tokenizer, "convert_tokens_to_ids"):
-            break
-        token_id = tokenizer.convert_tokens_to_ids(token)
-        if token_id is None or token_id == unknown_token_id:
-            continue
-        token_ids.add(int(token_id))
-    return token_ids
-
-
-def collect_non_text_token_ids(tokenizer) -> set[int]:
-    token_ids = token_strings_to_ids(tokenizer, collect_non_text_token_strings(tokenizer))
+    token_ids = token_strings_to_ids(tokenizer, tokens)
     for attr_name in (
         "image_token_id",
         "global_image_token_id",
@@ -197,31 +188,6 @@ def resolve_vocab_size(tokenizer) -> int:
         ) from exc
 
 
-def token_piece_to_bytes(tokenizer, token_id: int) -> bytes:
-    token_id = int(token_id)
-    if hasattr(tokenizer, "decode"):
-        try:
-            text = tokenizer.decode(
-                [token_id],
-                skip_special_tokens=False,
-                clean_up_tokenization_spaces=False,
-            )
-        except TypeError:
-            text = tokenizer.decode([token_id])
-    else:
-        token = tokenizer.convert_ids_to_tokens(token_id)
-        if hasattr(tokenizer, "convert_tokens_to_string"):
-            text = tokenizer.convert_tokens_to_string([token])
-        else:
-            text = token
-
-    if text is None:
-        text = ""
-    if not isinstance(text, str):
-        text = str(text)
-    return text.encode("utf-8")
-
-
 def default_ignored_token_ids(tokenizer) -> set[int]:
     ignored = set(getattr(tokenizer, "all_special_ids", []) or [])
     for attr_name in (
@@ -234,6 +200,6 @@ def default_ignored_token_ids(tokenizer) -> set[int]:
         if token_id is not None:
             ignored.add(int(token_id))
 
-    ignored.update(token_strings_to_ids(tokenizer, collect_control_token_strings(tokenizer)))
+    ignored.update(token_strings_to_ids(tokenizer, set(VLM_CONTROL_SPECIAL_TOKEN_STRINGS)))
     ignored.difference_update(collect_non_text_token_ids(tokenizer))
     return ignored
