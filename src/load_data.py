@@ -12,7 +12,6 @@ from tqdm.auto import tqdm
 from src.dataset.vqa_loading import (
     canonical_dataset_name,
     extract_image_as_pil,
-    infer_schema,
     load_dataset_split,
     pick_first_text,
 )
@@ -63,10 +62,9 @@ def convert_dataset_to_llava(
     image_dir: Path,
 ) -> dict[str, int]:
     """Convert one VQA dataset split into saved JPEG images plus LLaVA-style chat JSON."""
-    dataset, loaded_from = load_dataset_split(dataset_name, split, log_fallback=True)
+    dataset, loaded_from, schema = load_dataset_split(dataset_name, split)
     print(f"Loaded dataset: {loaded_from} (split={split})")
 
-    schema = infer_schema(dataset_name, dataset, require_answer_field=True)
     print("Pulled schema from dataset.features:")
     for name, feature in dataset.features.items():
         print(f"  - {name}: {feature}")
