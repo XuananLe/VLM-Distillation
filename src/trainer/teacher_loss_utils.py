@@ -109,8 +109,8 @@ def compute_teacher_loss_matrix(
                 )
                 per_sample_agreements.append(
                     parameter_gradient_cosine(
-                        ce_parameter_grads_by_sample[sample_index],
-                        kd_parameter_grads,
+                        ce_grads=ce_parameter_grads_by_sample[sample_index],
+                        kd_grads=kd_parameter_grads,
                         loss=sample_teacher_loss,
                     ).to(device=student_logits.device)
                 )
