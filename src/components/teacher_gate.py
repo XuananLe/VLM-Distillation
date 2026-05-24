@@ -7,7 +7,7 @@ from src.components.pooling import masked_mean_pool_sequence
 ROUTER_HIDDEN_SIZE = 64
 
 
-class _DeepRouter(nn.Module):
+class DeepRouter(nn.Module):
     def __init__(self, input_size: int, num_experts: int):
         super().__init__()
         self.normalizer = nn.LayerNorm(input_size)
@@ -35,7 +35,7 @@ class Gate(nn.Module):
         super().__init__()
         hidden_size = int(model.config.text_config.hidden_size)
         lm_head = model.lm_head
-        self.router = _DeepRouter(hidden_size, num_teachers).to(device=lm_head.weight.device, dtype=lm_head.weight.dtype)
+        self.router = DeepRouter(hidden_size, num_teachers).to(device=lm_head.weight.device, dtype=lm_head.weight.dtype)
         self.hidden_state: torch.Tensor | None = None
         self.hook_handle = lm_head.register_forward_pre_hook(self.capture_hidden_state)
 
@@ -60,5 +60,6 @@ class Gate(nn.Module):
 
 
 __all__ = [
+    "DeepRouter",
     "Gate",
 ]
