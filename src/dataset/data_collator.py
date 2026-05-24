@@ -1,4 +1,3 @@
-import re
 from typing import Dict, Optional
 
 import torch
@@ -12,28 +11,21 @@ class DataCollatorForSupervisedDataset:
     def __init__(
         self,
         pad_token_id: int,
-        teacher_pad_token_id: Optional[int] = None,
         teacher_pad_token_ids: Optional[list[Optional[int]]] = None,
     ):
         self.pad_token_id = pad_token_id
-        self.teacher_pad_token_id = teacher_pad_token_id
         self.teacher_pad_token_ids = teacher_pad_token_ids or []
 
     def teacher_prefixes(self, example: Dict[str, torch.Tensor], suffix: str) -> list[str]:
-        if f"teacher_{suffix}" in example:
-            return ["teacher"]
-
-        prefixes = []
-        for key in example:
-            match = re.fullmatch(rf"(teacher_\d+)_{re.escape(suffix)}", key)
-            if match:
-                prefixes.append(match.group(1))
+        marker = f"_{suffix}"
+        prefixes = [
+            key.removesuffix(marker)
+            for key in example
+            if key.startswith("teacher_") and key.endswith(marker)
+        ]
         return sorted(prefixes, key=lambda prefix: int(prefix.split("_")[1]))
 
     def teacher_pad_for_prefix(self, prefix: str) -> int:
-        if prefix == "teacher":
-            return self.teacher_pad_token_id or self.pad_token_id
-
         teacher_index = int(prefix.split("_")[1])
         if teacher_index < len(self.teacher_pad_token_ids):
             teacher_pad = self.teacher_pad_token_ids[teacher_index]
