@@ -26,7 +26,6 @@ class DistillationTrainer(Trainer):
         teacher_gate_router_z_loss_alpha: float = 1e-3,
         grace_threshold: float = 0.0,
         grace_warmup_ratio: float = 0.0,
-        grace_epsilon: float = 0.01,
         grace_softmax_beta: float = 20.0,
         grace_router_blend_lambda: float = 0.5,
         grace_ema_decay: float = 0.9,
@@ -84,7 +83,6 @@ class DistillationTrainer(Trainer):
         self.teacher_gate_router_z_loss_alpha = teacher_gate_router_z_loss_alpha
         self.grace_threshold = grace_threshold
         self.grace_warmup_ratio = grace_warmup_ratio
-        self.grace_epsilon = grace_epsilon
         self.grace_softmax_beta = grace_softmax_beta
         self.grace_router_blend_lambda = grace_router_blend_lambda
         self.grace_ema_decay = grace_ema_decay
@@ -116,7 +114,6 @@ class DistillationTrainer(Trainer):
             print(f"  - Teacher gate router z-loss alpha: {teacher_gate_router_z_loss_alpha}")
             print(f"  - GRACE threshold: {grace_threshold}")
             print(f"  - GRACE warmup ratio: {grace_warmup_ratio}")
-            print(f"  - GRACE epsilon: {grace_epsilon}")
             print(f"  - GRACE softmax beta: {grace_softmax_beta}")
             print(f"  - GRACE router blend lambda: {grace_router_blend_lambda}")
             print(f"  - GRACE EMA decay: {grace_ema_decay}")
@@ -245,7 +242,6 @@ class DistillationTrainer(Trainer):
                     grace_ema_decay=self.grace_ema_decay,
                     grace_softmax_beta=self.grace_softmax_beta,
                     grace_router_blend_lambda=self.grace_router_blend_lambda,
-                    grace_epsilon=self.grace_epsilon,
                 )
 
             distillation_loss = teacher_loss_matrix.mean()

@@ -27,7 +27,6 @@ TEACHER_GATE_ROUTER_Z_LOSS_ALPHA="${TEACHER_GATE_ROUTER_Z_LOSS_ALPHA:-1e-3}"
 
 GRACE_THRESHOLD="${GRACE_THRESHOLD:-0.15}"
 GRACE_WARMUP_RATIO="${GRACE_WARMUP_RATIO:-0.05}"
-GRACE_EPSILON="${GRACE_EPSILON:-0.01}"
 GRACE_SOFTMAX_BETA="${GRACE_SOFTMAX_BETA:-4.0}"
 GRACE_ROUTER_BLEND_LAMBDA="${GRACE_ROUTER_BLEND_LAMBDA:-0.5}"
 GRACE_EMA_DECAY="${GRACE_EMA_DECAY:-0.8}"
@@ -89,7 +88,6 @@ python src/train/train_distillation.py \
     --teacher_gate_router_z_loss_alpha "$TEACHER_GATE_ROUTER_Z_LOSS_ALPHA" \
     --grace_threshold "$GRACE_THRESHOLD" \
     --grace_warmup_ratio "$GRACE_WARMUP_RATIO" \
-    --grace_epsilon "$GRACE_EPSILON" \
     --grace_softmax_beta "$GRACE_SOFTMAX_BETA" \
     --grace_router_blend_lambda "$GRACE_ROUTER_BLEND_LAMBDA" \
     --grace_ema_decay "$GRACE_EMA_DECAY" \

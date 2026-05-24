@@ -5,6 +5,7 @@ from typing import Literal
 
 import torch
 
+# support for smolvlm only now
 BoundaryKind = Literal["none", "space"]
 
 

@@ -91,6 +91,12 @@ def train_distillation():
         teacher_model_ids=teacher_ids,
         teacher_logits_cache_dir=distillation_args.teacher_logits_cache_dir,
     )
+
+    # {
+    #     "train_dataset": supervised_dataset,
+    #     "data_collator": data_collator,
+    # }
+
     print("\nInitializing distillation trainer...")
     trainer = DistillationTrainer(
         model=student_model,
@@ -107,7 +113,6 @@ def train_distillation():
         teacher_gate_router_z_loss_alpha=distillation_args.teacher_gate_router_z_loss_alpha,
         grace_threshold=distillation_args.grace_threshold,
         grace_warmup_ratio=distillation_args.grace_warmup_ratio,
-        grace_epsilon=distillation_args.grace_epsilon,
         grace_softmax_beta=distillation_args.grace_softmax_beta,
         grace_router_blend_lambda=distillation_args.grace_router_blend_lambda,
         grace_ema_decay=distillation_args.grace_ema_decay,

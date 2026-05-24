@@ -77,13 +77,6 @@ class DistillationArguments:
         metadata={"help": "Fraction of training steps to wait before enabling GRACE routing refinement."},
     )
 
-    grace_epsilon: float = field(
-        default=0.01,
-        metadata={
-            "help": "If the spread between teacher agreement scores is below this epsilon, GRACE falls back to uniform-mean teacher weights."
-        },
-    )
-
     grace_softmax_beta: float = field(
         default=20.0,
         metadata={
@@ -150,7 +143,6 @@ class DistillationArguments:
             ("--teacher_gate_entropy_alpha", self.teacher_gate_entropy_alpha),
             ("--teacher_gate_router_z_loss_alpha", self.teacher_gate_router_z_loss_alpha),
             ("--grace_warmup_ratio", self.grace_warmup_ratio),
-            ("--grace_epsilon", self.grace_epsilon),
         ):
             if value < 0.0:
                 raise ValueError(f"{arg_name} must be >= 0.")
@@ -206,7 +198,6 @@ def log_distillation_setup(
         print(f"Teacher Gate Router Z-Loss Alpha: {distillation_args.teacher_gate_router_z_loss_alpha}")
         print(f"GRACE Threshold: {distillation_args.grace_threshold}")
         print(f"GRACE Warmup Ratio: {distillation_args.grace_warmup_ratio}")
-        print(f"GRACE Epsilon: {distillation_args.grace_epsilon}")
         print(f"GRACE Softmax Beta: {distillation_args.grace_softmax_beta}")
         print(f"GRACE Router Blend Lambda: {distillation_args.grace_router_blend_lambda}")
         print(f"GRACE EMA Decay: {distillation_args.grace_ema_decay}")
