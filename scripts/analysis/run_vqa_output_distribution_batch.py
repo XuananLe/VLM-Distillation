@@ -447,7 +447,7 @@ def summarize_model(records: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
-def _write_model_summary(
+def write_model_summary(
     model_root: Path,
     model_name: str,
     model_slug: str,
@@ -619,7 +619,7 @@ def process_model(
                 consecutive_failures = 0
                 row_index += 1
 
-                _write_model_summary(model_root, model_name, model_slug, dataset_name, records, failures)
+                write_model_summary(model_root, model_name, model_slug, dataset_name, records, failures)
 
             except Exception as exc:
                 failures.append(
@@ -653,7 +653,7 @@ def process_model(
             torch.cuda.ipc_collect()
 
     save_model_aggregate_plots(output_dir=model_root, model_label=model_name, records=records)
-    model_summary = _write_model_summary(model_root, model_name, model_slug, dataset_name, records, failures)
+    model_summary = write_model_summary(model_root, model_name, model_slug, dataset_name, records, failures)
     print(json.dumps(model_summary["summary"], indent=2), flush=True)
     return model_summary
 
