@@ -11,13 +11,8 @@ def smolvlm_encode_conversation(
     images,
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
-    if len(sources) != 2:
-        raise ValueError(f"SmolVLM encoder expects one user/assistant QA turn, got {len(sources)} messages.")
-
     user_input, gpt_response = sources
     user_text = user_input["value"]
-    if LLAVA_IMAGE_TOKEN not in user_text or images is None:
-        raise ValueError("SmolVLM training samples must include image tokens and loaded images.")
 
     text_pieces = user_text.split(LLAVA_IMAGE_TOKEN)
     expected_image_count = len(text_pieces) - 1
