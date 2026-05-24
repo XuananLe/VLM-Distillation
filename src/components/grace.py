@@ -3,15 +3,16 @@ import torch
 
 def apply_grace_routing(
     *,
-    routed_teacher_weights: torch.Tensor,
-    teacher_grace_scores: torch.Tensor,
-    teacher_grace_active_mask: torch.Tensor,
-    prev_grace_score_ema: torch.Tensor | None,
+    routed_teacher_weights: torch.Tensor,  # [batch, teacher]
+    teacher_grace_scores: torch.Tensor,  # [batch, teacher]
+    teacher_grace_active_mask: torch.Tensor,  # [batch, teacher]
+    prev_grace_score_ema: torch.Tensor | None,  # [teacher]
     grace_ema_decay: float,
-    grace_softmax_beta: float,
+    grace_softmax_beta: float, 
     grace_router_blend_lambda: float,
-) -> tuple[torch.Tensor, torch.Tensor]:
+) -> tuple[torch.Tensor, torch.Tensor]:  # ([batch, teacher], [teacher]), EMA by each teacher at that batch
     routed_teacher_mask = routed_teacher_weights > 0
+    
     has_prev_ema = prev_grace_score_ema is not None and prev_grace_score_ema.numel() == teacher_grace_scores.size(-1)
     if has_prev_ema:
         prev_grace_score_ema = prev_grace_score_ema.to(
@@ -32,15 +33,19 @@ def apply_grace_routing(
     else:
         next_grace_score_ema = batch_grace_mean
 
+
+    # both need to be active <=> 1 & 1 = 1
     grace_active_routed_mask = routed_teacher_mask & teacher_grace_active_mask
+    # any teacher active
     has_grace_active_teacher = grace_active_routed_mask.any(dim=-1, keepdim=True)
+
 
     # If no teacher passes the GRACE threshold, use the router as-is. Otherwise,
     # restrict GRACE weighting to teachers that are both routed and active.
     grace_teacher_mask = torch.where(
-        has_grace_active_teacher,
-        grace_active_routed_mask,
-        routed_teacher_mask,
+        has_grace_active_teacher,  # [batch, 1]
+        grace_active_routed_mask,  # [batch, teacher]
+        routed_teacher_mask,       # [batch, teacher]
     )
 
     masked_smoothed_scores = smoothed_grace_scores.masked_fill(~grace_teacher_mask, float("-inf"))
@@ -50,11 +55,14 @@ def apply_grace_routing(
     )
 
     router_weights_clamped = routed_teacher_weights.clamp(min=torch.finfo(routed_teacher_weights.dtype).eps)
+
     # w_blend = w_router^lambda * w_grad^(1-lambda).
     router_grace_blend_weights = router_weights_clamped.pow(grace_router_blend_lambda) * grace_agreement_weights.clamp(
         min=torch.finfo(grace_agreement_weights.dtype).eps
     ).pow(1.0 - grace_router_blend_lambda)
+
     router_grace_blend_weights = router_grace_blend_weights * grace_teacher_mask.to(dtype=routed_teacher_weights.dtype)
+
     router_grace_blend_weights = router_grace_blend_weights / router_grace_blend_weights.sum(
         dim=-1, keepdim=True
     ).clamp(min=torch.finfo(router_grace_blend_weights.dtype).eps)

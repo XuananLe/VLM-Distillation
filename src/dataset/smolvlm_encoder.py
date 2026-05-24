@@ -2,32 +2,25 @@ from typing import Dict
 
 import torch
 import transformers
+from PIL import Image
 
 from src.constants import IGNORE_INDEX, LLAVA_IMAGE_TOKEN
 
 
 def smolvlm_encode_conversation(
     sources,
-    images,
+    image: Image.Image,
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
     user_input, gpt_response = sources
-    user_text = user_input["value"]
-
-    text_pieces = user_text.split(LLAVA_IMAGE_TOKEN)
-    expected_image_count = len(text_pieces) - 1
-
-    user_content = []
-    for piece_index, text_piece in enumerate(text_pieces):
-        text = text_piece.strip()
-        if text:
-            user_content.append({"type": "text", "text": text})
-        if piece_index < expected_image_count:
-            user_content.append({"type": "image", "image": images[piece_index]})
+    user_text = user_input["value"].replace(LLAVA_IMAGE_TOKEN, "").strip()
 
     user_message = {
         "role": "user",
-        "content": user_content,
+        "content": [
+            {"type": "image", "image": image},
+            {"type": "text", "text": user_text},
+        ],
     }
     assistant_message = {
         "role": "assistant",
@@ -53,9 +46,7 @@ def smolvlm_encode_conversation(
 
     prompt_ids = prompt_enc["input_ids"]
     full_ids = full_enc["input_ids"]
-    if prompt_ids.size(1) > full_ids.size(1):
-        raise ValueError("SmolVLM prompt encoding is longer than full conversation encoding.")
-
+    # need this to build labels
     response_ids = full_ids[:, prompt_ids.size(1) :]
     full_attention_mask = full_enc.get("attention_mask", torch.ones_like(full_ids, dtype=torch.long))
     input_ids = full_ids.squeeze(0).to(torch.long)
@@ -70,7 +61,7 @@ def smolvlm_encode_conversation(
 
     return dict(
         input_ids=input_ids,
-        labels=labels,
+        labels=labels, # [-100, -100, ...]
         attention_mask=attention_mask,
         pixel_values=full_enc.get("pixel_values", prompt_enc.get("pixel_values")),
         pixel_attention_mask=full_enc.get("pixel_attention_mask", prompt_enc.get("pixel_attention_mask")),

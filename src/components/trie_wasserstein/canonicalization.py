@@ -10,7 +10,6 @@ def canonicalize_token_piece(
     token_id: int,
 ) -> tuple[bytes, BoundaryKind]:
     raw_token = str(tokenizer.convert_ids_to_tokens(int(token_id)))
-
     if len(raw_token) > 1 and raw_token[0] in {"Ġ", "▁"}:
         boundary_kind, raw_content = "space", raw_token[1:]
     else:
@@ -32,7 +31,6 @@ def canonicalize_token_piece(
 
     if decoded == "":
         decoded = raw_content if raw_content else raw_token
-
     return unicodedata.normalize("NFC", decoded).encode("utf-8"), boundary_kind
 
 

@@ -9,6 +9,25 @@ from src.components.grace import apply_grace_routing
 from src.components.teacher_gate import Gate
 from src.trainer.teacher_loss_utils import compute_teacher_loss_matrix
 
+# Trainer(...)
+#         ↓
+# trainer.train()
+#         ↓
+# build dataloader
+#         ↓
+# loop over epochs / batches
+#         ↓
+# prepare inputs
+#         ↓
+# forward pass
+#         ↓
+# compute loss
+#         ↓
+# backward pass
+#         ↓
+# optimizer step / scheduler step
+#         ↓
+# log / evaluate / save checkpoint
 
 class DistillationTrainer(Trainer):
     def __init__(
@@ -35,9 +54,7 @@ class DistillationTrainer(Trainer):
         **kwargs,
     ):
         super().__init__(*args, **kwargs)
-
         from src.components import loss as distillation_loss_module
-
         self.alpha = alpha
         if self.alpha == 0.0:
             def prepare_teacher_batch(**_kwargs) -> None:
@@ -60,7 +77,6 @@ class DistillationTrainer(Trainer):
                 trie_wasserstein_topk=trie_wasserstein_topk,
             )
         self.teacher_weighting_strategy = "uniform_mean" if self.alpha == 0.0 else teacher_weighting_strategy
-
         self.num_teachers = int(teacher_count or 0)
         if self.num_teachers < 1:
             raise ValueError("DistillationTrainer requires at least one teacher.")
@@ -125,7 +141,6 @@ class DistillationTrainer(Trainer):
 
         teacher_inputs = {key: value for key, value in inputs.items() if key.startswith("teacher")}
         student_inputs = {key: value for key, value in inputs.items() if not key.startswith("teacher")}
-
         prepared_inputs = super()._prepare_inputs(student_inputs)
         prepared_inputs.update(teacher_inputs)
         return prepared_inputs
@@ -272,5 +287,5 @@ class DistillationTrainer(Trainer):
                     "kd_loss": distillation_loss.item(),
                 }
             )
-
+            
         return loss

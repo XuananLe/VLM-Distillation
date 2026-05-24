@@ -14,9 +14,8 @@ BOUNDARY_EDGE_SYMBOLS = {
     "space": -10_000_001,
 }
 
-if EOS_SENTINEL in set(BOUNDARY_EDGE_SYMBOLS.values()):
-    raise ValueError(f"EOS_SENTINEL={EOS_SENTINEL!r} collides with boundary edge sentinels")
-
+# token_id = vocabulary item id
+# edge_id = shared trie structure id
 
 def build_tokenizer_paths(
     *,
@@ -43,13 +42,17 @@ def build_tokenizer_paths(
             token_paths.append([])
             continue
 
-        content_bytes, boundary_kind = canonicalize_token_piece(tokenizer, token_id)
+        content_bytes, boundary_kind = canonicalize_token_piece(
+            tokenizer, token_id
+        )
 
         # Boundary markers are attached after the terminal edge so tokenizer
         # whitespace conventions do not fork the shared content path at ROOT.
         node = root
         path: list[int] = []
-        for depth, byte_value in enumerate([*content_bytes, EOS_SENTINEL], start=1):
+        for depth, byte_value in enumerate(
+            [*content_bytes, EOS_SENTINEL], start=1
+        ):
             child = node.children.get(byte_value)
             if child is None:
                 child = TrieNode(edge_id=len(edge_weights))
@@ -89,23 +92,27 @@ def build_trie_state_from_tokenizers(
 
     # Student and teacher paths intentionally share one trie so matching byte
     # prefixes can cancel even when the two tokenizers use different vocabularies.
-    student_token_paths, student_ignored_mask, student_non_text_mask = build_tokenizer_paths(
-        tokenizer=student_tokenizer,
-        vocab_size=student_vocab_size,
-        ignored_token_ids=student_ignored_token_ids,
-        non_text_token_ids=student_non_text_token_ids,
-        root=root,
-        edge_weights=edge_weights,
-        rho=rho,
+    student_token_paths, student_ignored_mask, student_non_text_mask = (
+        build_tokenizer_paths(
+                tokenizer=student_tokenizer,
+            vocab_size=student_vocab_size,
+            ignored_token_ids=student_ignored_token_ids,
+            non_text_token_ids=student_non_text_token_ids,
+            root=root,
+            edge_weights=edge_weights,
+            rho=rho,
+        )
     )
-    teacher_token_paths, teacher_ignored_mask, teacher_non_text_mask = build_tokenizer_paths(
-        tokenizer=teacher_tokenizer,
-        vocab_size=teacher_vocab_size,
-        ignored_token_ids=teacher_ignored_token_ids,
-        non_text_token_ids=teacher_non_text_token_ids,
-        root=root,
-        edge_weights=edge_weights,
-        rho=rho,
+    teacher_token_paths, teacher_ignored_mask, teacher_non_text_mask = (
+        build_tokenizer_paths(
+            tokenizer=teacher_tokenizer,
+            vocab_size=teacher_vocab_size,
+            ignored_token_ids=teacher_ignored_token_ids,
+            non_text_token_ids=teacher_non_text_token_ids,
+            root=root,
+            edge_weights=edge_weights,
+            rho=rho,
+        )
     )
 
     tail_edge_id = len(edge_weights)

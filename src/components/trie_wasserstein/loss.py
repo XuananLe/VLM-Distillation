@@ -80,15 +80,6 @@ class TrieWassersteinLoss(nn.Module):
         student_vocab_size: int,
         teacher_vocab_size: int,
     ) -> None:
-        if student_vocab_size < self.student_vocab_size or teacher_vocab_size < self.teacher_vocab_size:
-            raise ValueError(
-                "Error: invalid trie vocab sizes. "
-                f"student_vocab={student_vocab_size}, "
-                f"teacher_vocab={teacher_vocab_size}, "
-                f"expected_student_vocab_at_least={self.student_vocab_size}, "
-                f"expected_teacher_vocab_at_least={self.teacher_vocab_size}"
-            )
-
         if student_vocab_size > self.student_vocab_size:
             extra_tokens = student_vocab_size - self.student_vocab_size
             self.student_token_paths = self.student_token_paths + [[] for _ in range(extra_tokens)]

@@ -62,23 +62,18 @@ class SupervisedDataset(Dataset):
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         sources = self.training_records[i]
-        image_files = sources["image"]
+        image_file = sources["image"]
         image_folder = self.data_args.image_folder
-        if isinstance(image_files, str):
-            image_files = [image_files]
-
-        images = []
-        for image_file in image_files:
-            resolved_path = image_file
-            if not os.path.exists(resolved_path):
-                resolved_path = os.path.join(image_folder, image_file)
-            images.append(Image.open(resolved_path).convert("RGB"))
+        resolved_path = image_file
+        if not os.path.exists(resolved_path):
+            resolved_path = os.path.join(image_folder, image_file)
+        image = Image.open(resolved_path).convert("RGB")
 
         sources = sources["conversations"]
 
         encoded_sample = smolvlm_encode_conversation(
             sources,
-            images,
+            image,
             self.processor,
         )
         if encoded_sample["pixel_values"] is None:

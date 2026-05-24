@@ -14,7 +14,6 @@ import numpy as np
 from matplotlib.collections import LineCollection
 from matplotlib.colors import LinearSegmentedColormap, Normalize
 
-
 LOSS_CLIP = 5e-6
 ADAM_EPS = 1e-8
 
@@ -254,7 +253,6 @@ def make_figure(
     theta2 = np.linspace(-4.0, 7.0, grid_size)
     x_grid, y_grid = np.meshgrid(theta1, theta2)
     loss1, loss2 = task_losses_xy(x_grid, y_grid)
-    total_loss = loss1 + loss2
 
     wide_theta1 = np.linspace(-6.0, 6.0, max(160, grid_size // 3))
     wide_theta2 = np.linspace(-6.0, 6.0, max(160, grid_size // 3))
