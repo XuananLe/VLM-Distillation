@@ -1,5 +1,5 @@
-from dataclasses import dataclass, field
 import os
+from dataclasses import dataclass, field
 from typing import Dict, Optional
 
 import torch
@@ -53,7 +53,6 @@ class SupervisedDataset(Dataset):
             self.teacher_logits_cache = TeacherLogitsCache(
                 cache_dir=teacher_logits_cache_dir,
                 teacher_model_ids=teacher_model_ids,
-                expected_num_samples=len(self.training_records),
             )
 
         self.teacher_count = self.teacher_logits_cache.teacher_count if self.teacher_logits_cache is not None else 0
@@ -63,20 +62,17 @@ class SupervisedDataset(Dataset):
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         sources = self.training_records[i]
-        images = None
+        image_files = sources["image"]
+        image_folder = self.data_args.image_folder
+        if isinstance(image_files, str):
+            image_files = [image_files]
 
-        if "image" in sources:
-            image_files = sources["image"]
-            image_folder = self.data_args.image_folder
-            if isinstance(image_files, str):
-                image_files = [image_files]
-
-            images = []
-            for image_file in image_files:
-                resolved_path = image_file
-                if not os.path.exists(resolved_path):
-                    resolved_path = os.path.join(image_folder, image_file)
-                images.append(Image.open(resolved_path).convert("RGB"))
+        images = []
+        for image_file in image_files:
+            resolved_path = image_file
+            if not os.path.exists(resolved_path):
+                resolved_path = os.path.join(image_folder, image_file)
+            images.append(Image.open(resolved_path).convert("RGB"))
 
         sources = sources["conversations"]
 
@@ -91,7 +87,7 @@ class SupervisedDataset(Dataset):
         if self.teacher_logits_cache is not None:
             for teacher_index in range(self.teacher_count):
                 cache_sample = self.teacher_logits_cache.load_sample(teacher_index, i)
-                prefix = "teacher" if self.teacher_count == 1 else f"teacher_{teacher_index}"
+                prefix = f"teacher_{teacher_index}"
                 encoded_sample[f"{prefix}_cached_logits"] = cache_sample["logits"]
                 encoded_sample[f"{prefix}_cached_labels"] = cache_sample["labels"]
 

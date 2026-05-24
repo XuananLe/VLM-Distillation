@@ -1,5 +1,3 @@
-import re
-
 from src.constants import IGNORE_INDEX
 
 from .data_utils import pad_frames, pad_sequence
@@ -34,15 +32,12 @@ class DataCollatorForSupervisedDataset:
             if batch_pixel_attention_mask[0] is not None:
                 batch_dict["pixel_attention_mask"] = pad_frames(batch_pixel_attention_mask, pad_value=0)
 
-        if "teacher_cached_logits" in examples[0]:
-            teacher_prefixes = ["teacher"]
-        else:
-            teacher_prefixes = []
-            for key in examples[0]:
-                match = re.fullmatch(r"teacher_(\d+)_cached_logits", key)
-                if match:
-                    teacher_prefixes.append(f"teacher_{match.group(1)}")
-            teacher_prefixes.sort(key=lambda prefix: int(prefix.split("_")[1]))
+        teacher_prefixes = [
+            key.removesuffix("_cached_logits")
+            for key in examples[0]
+            if key.startswith("teacher_") and key.endswith("_cached_logits")
+        ]
+        teacher_prefixes.sort(key=lambda prefix: int(prefix.split("_")[1]))
 
         for prefix in teacher_prefixes:
             batch_dict[f"{prefix}_cached_logits"] = pad_sequence(
