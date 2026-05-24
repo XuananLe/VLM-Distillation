@@ -62,7 +62,6 @@ class SupervisedDataset(Dataset):
             self.teacher_logits_cache = StreamingTeacherLogitsCache(
                 cache_dir=teacher_logits_cache_dir,
                 teacher_model_ids=teacher_model_ids,
-                expected_num_samples=len(self.training_records),
                 dataset_name=dataset_name,
                 remote_uri=teacher_logits_remote_uri,
             )
@@ -92,20 +91,18 @@ class SupervisedDataset(Dataset):
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
         sources = self.training_records[i]
-        images = None
+        image_files = sources["image"]
+        image_folder = self.data_args.image_folder
+        if isinstance(image_files, str):
+            image_files = [image_files]
 
-        if "image" in sources:
-            image_files = sources["image"]
-            image_folder = self.data_args.image_folder
-            if isinstance(image_files, str):
-                image_files = [image_files]
+        images = []
+        for image_file in image_files:
+            resolved_path = image_file
+            if not os.path.exists(resolved_path):
+                resolved_path = os.path.join(image_folder, image_file)
+            images.append(Image.open(resolved_path).convert("RGB"))
 
-            images = []
-            for image_file in image_files:
-                resolved_path = image_file
-                if not os.path.exists(resolved_path):
-                    resolved_path = os.path.join(image_folder, image_file)
-                images.append(Image.open(resolved_path).convert("RGB"))
         sources = copy.deepcopy(llava_to_openai(sources["conversations"]))
 
         encoded_sample = encode_with_processor(
@@ -122,7 +119,7 @@ class SupervisedDataset(Dataset):
             # but the batch layout stays the same by namespacing each teacher slot.
             for teacher_index in range(self.teacher_count):
                 cache_sample = self.teacher_logits_cache.load_sample(teacher_index, i)
-                prefix = "teacher" if self.teacher_count == 1 else f"teacher_{teacher_index}"
+                prefix = f"teacher_{teacher_index}"
                 encoded_sample[f"{prefix}_cached_logits"] = cache_sample["logits"]
                 encoded_sample[f"{prefix}_cached_labels"] = cache_sample["labels"]
             return encoded_sample
@@ -130,10 +127,9 @@ class SupervisedDataset(Dataset):
         if not self.teacher_processors:
             return encoded_sample
 
-        teacher_count = self.teacher_count
         for teacher_index, teacher_processor in enumerate(self.teacher_processors):
             teacher_data = encode_teacher_data(sources, images, teacher_processor)
-            prefix = "teacher" if teacher_count == 1 else f"teacher_{teacher_index}"
+            prefix = f"teacher_{teacher_index}"
 
             encoded_sample[f"{prefix}_input_ids"] = teacher_data["input_ids"]
             encoded_sample[f"{prefix}_labels"] = teacher_data["labels"]
@@ -178,14 +174,6 @@ def make_supervised_data_module(
             teacher_processors=normalized_teacher_processors,
             teacher_model_ids=teacher_model_ids,
         )
-    teacher_pad = None
-    if len(normalized_teacher_processors) == 1:
-        if isinstance(normalized_teacher_processors[0], dict):
-            teacher_pad = normalized_teacher_processors[0]["tokenizer"].pad_token_id
-        elif hasattr(normalized_teacher_processors[0], "tokenizer"):
-            teacher_pad = normalized_teacher_processors[0].tokenizer.pad_token_id
-        else:
-            teacher_pad = normalized_teacher_processors[0].pad_token_id
     teacher_pad_ids = []
     for teacher_processor in normalized_teacher_processors:
         if isinstance(teacher_processor, dict):
@@ -196,7 +184,6 @@ def make_supervised_data_module(
             teacher_pad_ids.append(teacher_processor.pad_token_id)
     data_collator = DataCollatorForSupervisedDataset(
         pad_token_id=processor.tokenizer.pad_token_id,
-        teacher_pad_token_id=teacher_pad,
         teacher_pad_token_ids=teacher_pad_ids,
     )
 

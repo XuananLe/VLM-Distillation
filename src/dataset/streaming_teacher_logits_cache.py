@@ -75,7 +75,6 @@ class StreamingTeacherLogitsCache:
         *,
         cache_dir: str | None,
         teacher_model_ids: list[str],
-        expected_num_samples: int,
         dataset_name: str | None,
         remote_uri: str | None = None,
         cache_limit: str | int | None = None,
@@ -94,10 +93,11 @@ class StreamingTeacherLogitsCache:
             self._local_cache = TeacherLogitsCache(
                 cache_dir=cache_dir,
                 teacher_model_ids=teacher_model_ids,
-                expected_num_samples=expected_num_samples,
             )
-            self.teacher_model_ids = self._local_cache.teacher_model_ids
-            self.teacher_slugs = self._local_cache.teacher_slugs
+            self.teacher_model_ids = list(teacher_model_ids)
+            self.teacher_slugs = [
+                teacher_model_id.split("/")[-1] for teacher_model_id in self.teacher_model_ids
+            ]
             return
 
         del cache_dir

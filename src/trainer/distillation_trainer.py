@@ -39,7 +39,6 @@ class DistillationTrainer(Trainer):
 
         from src.components import loss as distillation_loss_module
 
-        self.loss_function = loss_function
         self.alpha = alpha
         if self.alpha == 0.0:
             def prepare_teacher_batch(**_kwargs) -> None:
@@ -89,8 +88,6 @@ class DistillationTrainer(Trainer):
         self.grace_softmax_beta = grace_softmax_beta
         self.grace_router_blend_lambda = grace_router_blend_lambda
         self.grace_ema_decay = grace_ema_decay
-        self.trie_wasserstein_rho = trie_wasserstein_rho
-        self.trie_wasserstein_topk = trie_wasserstein_topk
         self.teacher_grace_score_ema = None
 
         print("Distillation Trainer initialized:")
@@ -125,9 +122,7 @@ class DistillationTrainer(Trainer):
             print(f"  - GRACE EMA decay: {grace_ema_decay}")
         print("  - Loss weighting: CE + alpha * KD")
 
-    def prepare_inputs_for_trainer(self, inputs):
-        # Hugging Face Trainer calls this private hook by name, so this override
-        # is installed below under the framework-required attribute.
+    def _prepare_inputs(self, inputs):
         if not isinstance(inputs, dict):
             return super()._prepare_inputs(inputs)
 
@@ -137,8 +132,6 @@ class DistillationTrainer(Trainer):
         prepared_inputs = super()._prepare_inputs(student_inputs)
         prepared_inputs.update(teacher_inputs)
         return prepared_inputs
-
-    _prepare_inputs = prepare_inputs_for_trainer
 
     def should_apply_grace_routing(self) -> bool:
         if self.teacher_gate is None or not self.model.training:
@@ -177,13 +170,15 @@ class DistillationTrainer(Trainer):
             teacher_gate_z_loss = torch.logsumexp(teacher_router_logits.float(), dim=-1).square().mean().to(
                 dtype=teacher_router_logits.dtype
             )
-            safe_router_weights = teacher_router_weights.clamp(min=torch.finfo(teacher_router_weights.dtype).eps)
             teacher_gate_entropy_loss = (
-                (safe_router_weights * safe_router_weights.log()).sum(dim=-1).mean().to(dtype=teacher_router_weights.dtype)
+                (teacher_router_weights * torch.log_softmax(teacher_router_logits, dim=-1))
+                .sum(dim=-1)
+                .mean()
+                .to(dtype=teacher_router_weights.dtype)
             )
 
             num_teachers = teacher_router_weights.shape[1]
-            top_k = min(self.teacher_gate_top_k, num_teachers)
+            top_k = max(1, min(self.teacher_gate_top_k, num_teachers))
             topk_indices = teacher_router_logits.topk(top_k, dim=-1).indices
             topk_mask = (
                 torch.nn.functional.one_hot(
@@ -206,22 +201,7 @@ class DistillationTrainer(Trainer):
         if self.alpha == 0.0:
             distillation_loss = ce_loss.new_zeros(())
         else:
-            teacher_prefixes = []
-            if "teacher_cached_logits" in inputs:
-                teacher_prefixes.append("teacher")
-            teacher_prefixes.extend(
-                f"teacher_{teacher_index}"
-                for teacher_index in range(self.num_teachers)
-                if f"teacher_{teacher_index}_cached_logits" in inputs
-            )
-            if not teacher_prefixes:
-                raise ValueError("No cached teacher logits were found in the batch.")
-            if len(teacher_prefixes) != self.num_teachers:
-                raise ValueError(
-                    "Cached teacher-logit batch count does not match the configured teacher count. "
-                    f"cached={len(teacher_prefixes)}, configured={self.num_teachers}"
-                )
-
+            teacher_prefixes = [f"teacher_{teacher_index}" for teacher_index in range(self.num_teachers)]
             teacher_target_batches = [
                 (
                     self._prepare_input(inputs[f"{prefix}_cached_logits"]).to(dtype=student_logits.dtype),
@@ -249,11 +229,6 @@ class DistillationTrainer(Trainer):
             teacher_mix_weights = None
             if not self.should_apply_grace_routing():
                 if routed_teacher_weights is not None:
-                    routed_teacher_mask = routed_teacher_weights.gt(0)
-                    missing_rows = ~routed_teacher_mask.any(dim=-1)
-                    if missing_rows.any():
-                        bad_indices = missing_rows.nonzero(as_tuple=True)[0].tolist()
-                        raise ValueError(f"Router produced no available teacher assignments for samples {bad_indices}.")
                     teacher_mix_weights = routed_teacher_weights.to(dtype=teacher_loss_matrix.dtype)
                     teacher_mix_weights = teacher_mix_weights / teacher_mix_weights.sum(dim=-1, keepdim=True).clamp(
                         min=torch.finfo(teacher_mix_weights.dtype).eps
