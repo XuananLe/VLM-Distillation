@@ -5,7 +5,7 @@ from typing import Literal
 
 import torch
 
-BoundaryKind = Literal["none", "space", "continuation", "end_word"]
+BoundaryKind = Literal["none", "space"]
 
 
 @dataclass(slots=True)

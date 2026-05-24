@@ -1,12 +1,4 @@
 #!/usr/bin/env python3
-"""Reproduce the PCGrad 2D multi-task optimization toy landscape.
-
-The loss functions come from Appendix D of "Gradient Surgery for Multi-Task
-Learning" (Yu et al., NeurIPS 2020). The Adam run shows the phenomenon from
-Figure 1: one task has a deep curved valley, the task gradients conflict, and
-vanilla Adam can spend many updates moving along the wrong valley.
-"""
-
 from __future__ import annotations
 
 import argparse

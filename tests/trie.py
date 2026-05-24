@@ -22,6 +22,9 @@ class TinyTokenizer:
     def __init__(self, pieces):
         self.pieces = pieces
 
+    def convert_ids_to_tokens(self, token_id):
+        return self.pieces[int(token_id)]
+
     def decode(self, ids, **_kwargs):
         return "".join(self.pieces[int(token_id)] for token_id in ids)
 

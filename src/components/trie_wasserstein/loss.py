@@ -30,54 +30,48 @@ class TrieWassersteinLoss(nn.Module):
         if int(topk) < 1:
             raise ValueError(f"topk must be >= 1, got {topk}")
 
-        self.student_tokenizer = getattr(student_tokenizer, "tokenizer", None) or student_tokenizer
-        self.teacher_tokenizer = getattr(teacher_tokenizer, "tokenizer", None) or teacher_tokenizer
-        self.student_vocab_size = resolve_vocab_size(self.student_tokenizer)
-        self.teacher_vocab_size = resolve_vocab_size(self.teacher_tokenizer)
-        self.rho = float(rho)
+        student_tokenizer = getattr(student_tokenizer, "tokenizer", None) or student_tokenizer
+        teacher_tokenizer = getattr(teacher_tokenizer, "tokenizer", None) or teacher_tokenizer
+        self.student_vocab_size = resolve_vocab_size(student_tokenizer)
+        self.teacher_vocab_size = resolve_vocab_size(teacher_tokenizer)
         self.topk = int(topk)
 
-        ignored_student = default_ignored_token_ids(self.student_tokenizer)
-        ignored_teacher = default_ignored_token_ids(self.teacher_tokenizer)
-        non_text_student = collect_non_text_token_ids(self.student_tokenizer) - ignored_student
-        non_text_teacher = collect_non_text_token_ids(self.teacher_tokenizer) - ignored_teacher
+        student_ignored_ids = default_ignored_token_ids(student_tokenizer)
+        teacher_ignored_ids = default_ignored_token_ids(teacher_tokenizer)
 
         trie_state = build_trie_state_from_tokenizers(
             student_vocab_size=self.student_vocab_size,
             teacher_vocab_size=self.teacher_vocab_size,
-            student_ignored_token_ids=tuple(sorted(ignored_student)),
-            teacher_ignored_token_ids=tuple(sorted(ignored_teacher)),
-            student_non_text_token_ids=tuple(sorted(non_text_student)),
-            teacher_non_text_token_ids=tuple(sorted(non_text_teacher)),
-            rho=self.rho,
-            student_tokenizer=self.student_tokenizer,
-            teacher_tokenizer=self.teacher_tokenizer,
+            student_ignored_token_ids=student_ignored_ids,
+            teacher_ignored_token_ids=teacher_ignored_ids,
+            student_non_text_token_ids=collect_non_text_token_ids(student_tokenizer) - student_ignored_ids,
+            teacher_non_text_token_ids=collect_non_text_token_ids(teacher_tokenizer) - teacher_ignored_ids,
+            rho=float(rho),
+            student_tokenizer=student_tokenizer,
+            teacher_tokenizer=teacher_tokenizer,
         )
 
         self.tail_edge_id = trie_state.tail_edge_id
 
-        self.register_buffer("edge_weights", trie_state.edge_weights, persistent=True)
-        self.student_token_paths = trie_state.student_token_paths
-        self.register_buffer(
+        for name in (
+            "edge_weights",
             "student_ignored_mask",
-            trie_state.student_ignored_mask,
-            persistent=True,
-        )
-        self.register_buffer(
             "student_non_text_mask",
-            trie_state.student_non_text_mask,
-            persistent=True,
-        )
-        self.teacher_token_paths = trie_state.teacher_token_paths
-        self.register_buffer(
             "teacher_ignored_mask",
-            trie_state.teacher_ignored_mask,
-            persistent=True,
-        )
-        self.register_buffer(
             "teacher_non_text_mask",
-            trie_state.teacher_non_text_mask,
-            persistent=True,
+        ):
+            self.register_buffer(name, getattr(trie_state, name), persistent=True)
+        self.student_token_paths = trie_state.student_token_paths
+        self.teacher_token_paths = trie_state.teacher_token_paths
+
+    @staticmethod
+    def extend_mask(mask: torch.Tensor, extra_tokens: int, value: bool) -> torch.Tensor:
+        return torch.cat(
+            [
+                mask,
+                torch.full((extra_tokens,), value, dtype=torch.bool, device=mask.device),
+            ],
+            dim=0,
         )
 
     def prepare_runtime_state(
@@ -98,39 +92,15 @@ class TrieWassersteinLoss(nn.Module):
         if student_vocab_size > self.student_vocab_size:
             extra_tokens = student_vocab_size - self.student_vocab_size
             self.student_token_paths = self.student_token_paths + [[] for _ in range(extra_tokens)]
-            self.student_ignored_mask = torch.cat(
-                [
-                    self.student_ignored_mask,
-                    torch.zeros(extra_tokens, dtype=torch.bool, device=self.student_ignored_mask.device),
-                ],
-                dim=0,
-            )
-            self.student_non_text_mask = torch.cat(
-                [
-                    self.student_non_text_mask,
-                    torch.ones(extra_tokens, dtype=torch.bool, device=self.student_non_text_mask.device),
-                ],
-                dim=0,
-            )
+            self.student_ignored_mask = self.extend_mask(self.student_ignored_mask, extra_tokens, False)
+            self.student_non_text_mask = self.extend_mask(self.student_non_text_mask, extra_tokens, True)
             self.student_vocab_size = student_vocab_size
 
         if teacher_vocab_size > self.teacher_vocab_size:
             extra_tokens = teacher_vocab_size - self.teacher_vocab_size
             self.teacher_token_paths = self.teacher_token_paths + [[] for _ in range(extra_tokens)]
-            self.teacher_ignored_mask = torch.cat(
-                [
-                    self.teacher_ignored_mask,
-                    torch.zeros(extra_tokens, dtype=torch.bool, device=self.teacher_ignored_mask.device),
-                ],
-                dim=0,
-            )
-            self.teacher_non_text_mask = torch.cat(
-                [
-                    self.teacher_non_text_mask,
-                    torch.ones(extra_tokens, dtype=torch.bool, device=self.teacher_non_text_mask.device),
-                ],
-                dim=0,
-            )
+            self.teacher_ignored_mask = self.extend_mask(self.teacher_ignored_mask, extra_tokens, False)
+            self.teacher_non_text_mask = self.extend_mask(self.teacher_non_text_mask, extra_tokens, True)
             self.teacher_vocab_size = teacher_vocab_size
 
     def forward(

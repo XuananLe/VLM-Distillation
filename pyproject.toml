@@ -267,7 +267,7 @@ line-ending = "auto"
 [tool.ty.environment]
 python = "./.venv/bin/python"
 python-version = "3.12"
-root = [".", "./src"]
+root = ["."]
 
 [tool.ty.src]
 include = ["src", "scripts", "tests", "modal_app.py"]

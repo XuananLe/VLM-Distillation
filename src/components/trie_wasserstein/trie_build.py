@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Collection
+
 import torch
 
 from src.constants import EOS_SENTINEL
@@ -10,8 +12,6 @@ from .types import TrieNode, TrieRuntimeState
 BOUNDARY_EDGE_WEIGHT = 0.05
 BOUNDARY_EDGE_SYMBOLS = {
     "space": -10_000_001,
-    "continuation": -10_000_002,
-    "end_word": -10_000_003,
 }
 
 if EOS_SENTINEL in set(BOUNDARY_EDGE_SYMBOLS.values()):
@@ -22,25 +22,23 @@ def build_tokenizer_paths(
     *,
     tokenizer,
     vocab_size: int,
-    ignored_token_ids: tuple[int, ...],
-    non_text_token_ids: tuple[int, ...],
+    ignored_token_ids: Collection[int],
+    non_text_token_ids: Collection[int],
     root: TrieNode,
     edge_weights: list[float],
     rho: float,
 ) -> tuple[list[list[int]], torch.Tensor, torch.Tensor]:
-    ignored_token_ids_set = set(ignored_token_ids)
-    non_text_token_ids_set = set(non_text_token_ids)
     token_paths: list[list[int]] = []
     ignored_mask = torch.zeros(vocab_size, dtype=torch.bool)
     non_text_mask = torch.zeros(vocab_size, dtype=torch.bool)
 
     for token_id in range(vocab_size):
-        if token_id in ignored_token_ids_set:
+        if token_id in ignored_token_ids:
             ignored_mask[token_id] = True
             token_paths.append([])
             continue
 
-        if token_id in non_text_token_ids_set:
+        if token_id in non_text_token_ids:
             non_text_mask[token_id] = True
             token_paths.append([])
             continue
@@ -78,13 +76,13 @@ def build_trie_state_from_tokenizers(
     *,
     student_vocab_size: int,
     teacher_vocab_size: int,
-    student_ignored_token_ids: tuple[int, ...],
-    teacher_ignored_token_ids: tuple[int, ...],
+    student_ignored_token_ids: Collection[int],
+    teacher_ignored_token_ids: Collection[int],
     rho: float,
     student_tokenizer,
     teacher_tokenizer,
-    student_non_text_token_ids: tuple[int, ...] = (),
-    teacher_non_text_token_ids: tuple[int, ...] = (),
+    student_non_text_token_ids: Collection[int] = (),
+    teacher_non_text_token_ids: Collection[int] = (),
 ) -> TrieRuntimeState:
     root = TrieNode()
     edge_weights: list[float] = []
