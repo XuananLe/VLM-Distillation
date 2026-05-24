@@ -4,20 +4,29 @@ import torch.nn.functional as F
 
 from src.components.pooling import masked_mean_pool_sequence
 
-ROUTER_HIDDEN_SIZE = 64
-
 
 class DeepRouter(nn.Module):
     def __init__(self, input_size: int, num_experts: int):
         super().__init__()
+        self.hidden_size = self.resolve_hidden_size(num_experts)
         self.normalizer = nn.LayerNorm(input_size)
-        self.up_proj = nn.Linear(input_size, ROUTER_HIDDEN_SIZE * 2)
-        self.down_proj = nn.Linear(ROUTER_HIDDEN_SIZE, num_experts)
+        self.up_proj = nn.Linear(input_size, self.hidden_size * 2)
+        self.down_proj = nn.Linear(self.hidden_size, num_experts)
 
         nn.init.xavier_uniform_(self.up_proj.weight)
         nn.init.zeros_(self.up_proj.bias)
         nn.init.xavier_uniform_(self.down_proj.weight)
         nn.init.zeros_(self.down_proj.bias)
+
+    @staticmethod
+    def resolve_hidden_size(num_experts: int) -> int:
+        if num_experts <= 4:
+            return 64
+        if num_experts <= 16:
+            return 128
+        if num_experts <= 32:
+            return 256
+        return 512
 
     def forward(self, inputs: torch.Tensor) -> torch.Tensor:
         hidden = self.normalizer(inputs)
