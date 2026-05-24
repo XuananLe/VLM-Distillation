@@ -54,7 +54,6 @@ def load_internvl_model(
     compute_dtype: torch.dtype,
     use_flash_attn: bool,
 ):
-    """Load InternVL remote-code models under Transformers 5 and move them to one device."""
     with internvl_transformers5_load_context():
         return AutoModel.from_pretrained(
             model_id,

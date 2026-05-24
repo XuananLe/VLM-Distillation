@@ -1,3 +1,4 @@
+from dataclasses import dataclass, field
 import os
 from typing import Dict, Optional
 
@@ -6,8 +7,6 @@ import transformers
 import ujson as json
 from PIL import Image
 from torch.utils.data import Dataset
-
-from src.params import DataArguments
 
 from .data_collator import DataCollatorForSupervisedDataset
 from .smolvlm_encoder import smolvlm_encode_conversation
@@ -24,6 +23,12 @@ from .teacher_logits_cache import TeacherLogitsCache
 #     "teacher_0_cached_logits": tensor(...),
 #     "teacher_0_cached_labels": tensor(...),
 # }
+
+
+@dataclass
+class DataArguments:
+    data_path: str = field(default=None, metadata={"help": "Path to the training data."})
+    image_folder: Optional[str] = field(default=None)
 
 
 class SupervisedDataset(Dataset):

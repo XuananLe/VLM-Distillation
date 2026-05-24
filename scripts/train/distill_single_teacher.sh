@@ -10,7 +10,6 @@ STUDENT_TEMPERATURE="${STUDENT_TEMPERATURE:-1.0}"
 TEACHER_TEMPERATURE="${TEACHER_TEMPERATURE:-1.0}"
 ALPHA=0.5
 DATASET_NAME="${DATASET_NAME:-textvqa}"
-EVAL_SPLIT="validation"
 STUDENT_NAME="${STUDENT_MODEL##*/}"
 TEACHER_NAME="${TEACHER_MODEL##*/}"
 OUTPUT_DIR="/output/${DISTILLATION_LOSS}_single_teacher_${TEACHER_NAME}_${STUDENT_NAME}_${DATASET_NAME}"
@@ -20,7 +19,6 @@ deepspeed src/train/train_distillation.py \
     --student_model_id "$STUDENT_MODEL" \
     --teacher_model_ids "$TEACHER_MODEL" \
     --data_path /data/${DATASET_NAME}/train_llava.json \
-    --eval_data_path /data/${DATASET_NAME}/${EVAL_SPLIT}_llava.json \
     --image_folder /data/${DATASET_NAME}/images \
     --distillation_loss "$DISTILLATION_LOSS" \
     --bf16 True \

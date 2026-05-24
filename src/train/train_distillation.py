@@ -10,8 +10,11 @@ from transformers import (
     HfArgumentParser,
 )
 
-from src.dataset.supervised_data import make_supervised_data_module
-from src.params import DataArguments, TrainingArguments
+from src.dataset.supervised_data import (
+    DataArguments,
+    make_supervised_data_module,
+)
+from src.params import TrainingArguments
 from src.train.distillation_setup import (
     DistillationArguments,
     log_distillation_setup,

@@ -21,11 +21,6 @@ def smolvlm_encode_conversation(
 
     text_pieces = user_text.split(LLAVA_IMAGE_TOKEN)
     expected_image_count = len(text_pieces) - 1
-    if expected_image_count == 0 or len(images) != expected_image_count:
-        raise ValueError(
-            "SmolVLM training samples must include one loaded image per image token. "
-            f"image_tokens={expected_image_count}, loaded_images={len(images)}"
-        )
 
     user_content = []
     for piece_index, text_piece in enumerate(text_pieces):

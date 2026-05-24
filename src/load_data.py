@@ -7,19 +7,64 @@ from collections import Counter
 from pathlib import Path
 from typing import Any
 
+from datasets import load_dataset
 from tqdm.auto import tqdm
-
-from src.dataset.vqa_loading import (
-    extract_image_as_pil,
-    load_dataset_split,
-    pick_first_text,
-)
 
 SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9_.-]+")
 
+DATASETS = {
+    "textvqa": {
+        "hub": "lmms-lab/textvqa",
+        "schema": {
+            "image_field": "image",
+            "question_field": "question",
+            "answer_field": "answers",
+            "id_field": "question_id",
+            "image_name_field": "image_id",
+        },
+    },
+    "docvqa": {
+        "hub": "HuggingFaceM4/DocumentVQA",
+        "schema": {
+            "image_field": "image",
+            "question_field": "question",
+            "answer_field": "answers",
+            "id_field": "questionId",
+            "image_name_field": "docId",
+        },
+    },
+    "chartqa": {
+        "hub": "HuggingFaceM4/ChartQA",
+        "schema": {
+            "image_field": "image",
+            "question_field": "query",
+            "answer_field": "label",
+            "id_field": None,
+            "image_name_field": None,
+        },
+    },
+}
+
+
+def load_dataset_split(dataset_name: str, split: str):
+    if dataset_name not in DATASETS:
+        supported = ", ".join(sorted(DATASETS))
+        raise ValueError(f"Unsupported dataset '{dataset_name}'. Supported: {supported}")
+    source = DATASETS[dataset_name]
+    dataset = load_dataset(source["hub"], split=split)
+    return dataset, source["hub"], source["schema"]
+
+
+def pick_first_text(value: Any) -> str | None:
+    if value is None or isinstance(value, dict):
+        return None
+    if isinstance(value, (list, tuple)):
+        return next((text for text in (pick_first_text(item) for item in value) if text), None)
+    text = str(value).strip()
+    return text or None
+
 
 def parse_args() -> argparse.Namespace:
-    """Parse CLI flags for converting a VQA dataset split into LLaVA-style JSON."""
     parser = argparse.ArgumentParser(description="Convert VQA datasets to LLaVA JSON")
     parser.add_argument(
         "--dataset",
@@ -60,7 +105,6 @@ def convert_dataset_to_llava(
     output_json: Path,
     image_dir: Path,
 ) -> dict[str, int]:
-    """Convert one VQA dataset split into saved JPEG images plus LLaVA-style chat JSON."""
     dataset, loaded_from, schema = load_dataset_split(dataset_name, split)
     print(f"Loaded dataset: {loaded_from} (split={split})")
 
@@ -98,9 +142,7 @@ def convert_dataset_to_llava(
             continue
 
         if schema["answer_field"]:
-            answer_value = sample.get(schema["answer_field"])
-            answer_values = answer_value if isinstance(answer_value, (list, tuple)) else (answer_value,)
-            answer = next((text for text in (pick_first_text(value) for value in answer_values) if text), None)
+            answer = pick_first_text(sample.get(schema["answer_field"]))
         else:
             answer = None
         if not answer:
@@ -116,7 +158,7 @@ def convert_dataset_to_llava(
         if image_filename is None:
             try:
                 image_filename = f"{image_id}.jpg"
-                extract_image_as_pil(sample.get(schema["image_field"])).save(
+                sample.get(schema["image_field"]).convert("RGB").save(
                     image_dir / image_filename,
                     format="JPEG",
                     quality=95,

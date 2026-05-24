@@ -10,12 +10,6 @@ from transformers import (
     Gemma3ForConditionalGeneration,
 )
 
-from src.dataset.internvl_utils import (
-    INTERNVL_IMAGE_SIZE,
-    INTERNVL_IMG_CONTEXT_TOKEN,
-    INTERNVL_MAX_NUM_TILES,
-    INTERNVL_NUM_IMAGE_TOKEN,
-)
 from src.train.internvl_compat import load_internvl_model
 
 importlib.import_module("pillow_avif")
@@ -29,6 +23,10 @@ SUPPORTED_AUTO_MODEL_TYPES = {
     "qwen2_5_vl",
     "gemma3",
 }
+INTERNVL_IMAGE_SIZE = 448
+INTERNVL_MAX_NUM_TILES = 12
+INTERNVL_NUM_IMAGE_TOKEN = 256
+INTERNVL_IMG_CONTEXT_TOKEN = "<IMG_CONTEXT>"
 
 
 def load_vlm_bundle(
@@ -43,11 +41,6 @@ def load_vlm_bundle(
     attn_implementation: str | None = None,
     load_model: bool = True,
 ):
-    """Load one supported VLM with its processor/tokenizer bundle.
-
-    Set ``load_model=False`` for dataset and cache code that only needs the
-    processor/tokenizer interface and should not allocate model weights.
-    """
     if attn_implementation is None:
         attn_implementation = "eager" if disable_flash_attn2 else "flash_attention_2"
 

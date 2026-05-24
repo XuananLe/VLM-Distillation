@@ -34,12 +34,3 @@ class TrainingArguments(HFTrainingArguments):
         finally:
             if original_valid_dict_fields is not None:
                 _ta._VALID_DICT_FIELDS = original_valid_dict_fields
-
-
-@dataclass
-class DataArguments:
-    """Dataset paths and image-loading options for distillation training."""
-
-    data_path: str = field(default=None, metadata={"help": "Path to the training data."})
-    eval_data_path: Optional[str] = field(default=None, metadata={"help": "Optional path to the validation data."})
-    image_folder: Optional[str] = field(default=None)
