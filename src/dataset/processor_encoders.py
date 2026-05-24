@@ -26,15 +26,15 @@ def is_internvl_teacher_model_id(model_id: str | None) -> bool:
     return isinstance(model_id, str) and "internvl" in model_id.lower()
 
 
-def _ignore_mask(length: int) -> torch.Tensor:
+def ignore_mask(length: int) -> torch.Tensor:
     return torch.full((length,), IGNORE_INDEX, dtype=torch.long)
 
 
-def _ones_like_ids(input_ids: torch.Tensor) -> torch.Tensor:
+def ones_like_ids(input_ids: torch.Tensor) -> torch.Tensor:
     return torch.ones_like(input_ids, dtype=torch.long)
 
 
-def _build_image_text_content(user_text: str, turn_images: list) -> list:
+def build_image_text_content(user_text: str, turn_images: list) -> list:
     clean_text = user_text.replace(LLAVA_IMAGE_TOKEN, "").strip()
     content = [{"type": "image", "image": image} for image in turn_images]
     if clean_text:
@@ -42,7 +42,7 @@ def _build_image_text_content(user_text: str, turn_images: list) -> list:
     return content
 
 
-def _encode_turn_with_template(
+def encode_turn_with_template(
     processor: transformers.ProcessorMixin,
     user_content: list,
     response_value: str,
@@ -64,8 +64,8 @@ def _encode_turn_with_template(
         raise ValueError("Prompt encoding is longer than full conversation encoding.")
     response_ids = full_ids[:, prompt_ids.size(1):]
     input_ids = full_ids.squeeze(0).to(torch.long)
-    attention_mask = full_enc.get("attention_mask", _ones_like_ids(full_ids)).squeeze(0).to(torch.long)
-    labels = torch.cat([_ignore_mask(prompt_ids.size(1)), response_ids.squeeze(0).to(torch.long)], dim=0)
+    attention_mask = full_enc.get("attention_mask", ones_like_ids(full_ids)).squeeze(0).to(torch.long)
+    labels = torch.cat([ignore_mask(prompt_ids.size(1)), response_ids.squeeze(0).to(torch.long)], dim=0)
     return input_ids, attention_mask, labels, prompt_enc, full_enc
 
 
@@ -148,8 +148,8 @@ def smolvlm_encode_conversation(
 
         prompt_delta = prompt_ids[:, previous_full_length:]
         response_ids = full_ids[:, prompt_ids.size(1) :]
-        prompt_attention_mask = prompt_enc.get("attention_mask", _ones_like_ids(prompt_ids))
-        full_attention_mask = full_enc.get("attention_mask", _ones_like_ids(full_ids))
+        prompt_attention_mask = prompt_enc.get("attention_mask", ones_like_ids(prompt_ids))
+        full_attention_mask = full_enc.get("attention_mask", ones_like_ids(full_ids))
         prompt_delta_attention_mask = prompt_attention_mask[:, previous_full_length:]
         response_attention_mask = full_attention_mask[:, prompt_ids.size(1) :]
 
@@ -224,7 +224,7 @@ def qwen_encode_conversation(
         )
         enc = processor(text=[prompt_text], images=turn_images, return_tensors="pt")
         prompt_ids = enc["input_ids"]
-        prompt_attention_mask = enc.get("attention_mask", _ones_like_ids(prompt_ids))
+        prompt_attention_mask = enc.get("attention_mask", ones_like_ids(prompt_ids))
         pixel_values = enc.get("pixel_values", None)
         image_grid_thw = enc.get("image_grid_thw", None)
 
@@ -236,11 +236,11 @@ def qwen_encode_conversation(
             return_tensors="pt",
         )
         response_ids = response_enc["input_ids"]
-        response_attention_mask = response_enc.get("attention_mask", _ones_like_ids(response_ids))
+        response_attention_mask = response_enc.get("attention_mask", ones_like_ids(response_ids))
 
         input_ids = torch.cat([prompt_ids, response_ids], dim=1).squeeze(0)
         attention_mask = torch.cat([prompt_attention_mask, response_attention_mask], dim=1).squeeze(0)
-        labels = torch.cat([_ignore_mask(prompt_ids.size(1)), response_ids.squeeze(0).to(torch.long)], dim=0)
+        labels = torch.cat([ignore_mask(prompt_ids.size(1)), response_ids.squeeze(0).to(torch.long)], dim=0)
         all_input_ids.append(input_ids)
         all_attention_masks.append(attention_mask)
         all_labels.append(labels)
@@ -278,8 +278,8 @@ def gemma3_encode_conversation(
         n_images = user_text.count(LLAVA_IMAGE_TOKEN)
         turn_images = images[image_idx : image_idx + n_images]
         image_idx += n_images
-        user_content = _build_image_text_content(user_text, turn_images)
-        input_ids, attention_mask, labels, prompt_enc, full_enc = _encode_turn_with_template(
+        user_content = build_image_text_content(user_text, turn_images)
+        input_ids, attention_mask, labels, prompt_enc, full_enc = encode_turn_with_template(
             processor, user_content, gpt_response["value"]
         )
         all_input_ids.append(input_ids)
@@ -356,7 +356,7 @@ def internvl3_encode_conversation(
         )["input_ids"]
 
         input_ids = torch.cat([prompt_input_ids, response_input_ids], dim=1).squeeze(0)
-        labels = torch.cat([_ignore_mask(prompt_input_ids.size(1)), response_input_ids.squeeze(0).to(torch.long)], dim=0)
+        labels = torch.cat([ignore_mask(prompt_input_ids.size(1)), response_input_ids.squeeze(0).to(torch.long)], dim=0)
         all_input_ids.append(input_ids)
         all_labels.append(labels)
 
