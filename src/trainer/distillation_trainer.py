@@ -125,10 +125,9 @@ class DistillationTrainer(Trainer):
             print(f"  - GRACE EMA decay: {grace_ema_decay}")
         print("  - Loss weighting: CE + alpha * KD")
 
-    @override
-    def _prepare_inputs(self, inputs):
+    def prepare_inputs_for_trainer(self, inputs):
         # Hugging Face Trainer calls this private hook by name, so this override
-        # must keep the framework method name even though project helpers avoid it.
+        # is installed below under the framework-required attribute.
         if not isinstance(inputs, dict):
             return super()._prepare_inputs(inputs)
 
@@ -138,6 +137,8 @@ class DistillationTrainer(Trainer):
         prepared_inputs = super()._prepare_inputs(student_inputs)
         prepared_inputs.update(teacher_inputs)
         return prepared_inputs
+
+    _prepare_inputs = prepare_inputs_for_trainer
 
     def should_apply_grace_routing(self) -> bool:
         if self.teacher_gate is None or not self.model.training:
