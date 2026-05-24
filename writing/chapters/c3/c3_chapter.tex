@@ -71,7 +71,7 @@ w_i^{(b)}\mathcal{L}_{KD}^{(b,i)}.
 \]
 The method introduces several hyperparameters
 (\(\rho_{\mathrm{trie}}\), \(\eta_{\mathrm{boundary}}\), \(K_{\mathrm{TW}}\),
-\(k_{\mathrm{route}}\), \(\beta_{\mathrm{EMA}}\), \(\lambda_{\mathrm{blend}}\)
+\(k_{\mathrm{route}}\), \(\phi\), \(\beta_{\mathrm{EMA}}\), \(\lambda_{\mathrm{blend}}\)
 and others). Hyperparameter values and sensitivity analysis are in
 Appendix~\ref{app:experiment-parameters} and Section~\ref{sec:ablation}.
 Notation is collected in Table~\ref{tab:notation}.
@@ -116,6 +116,7 @@ Symbol & Meaning \\
 \(\ell_{TW}\) & Token-level Byte-Trie Wasserstein loss. \\
 \addlinespace[4pt]
 \(k_{\mathrm{route}}\) & Number of routed teachers. \\
+\(\phi\) & Capacity factor controlling the maximum routed load per teacher. \\
 \(\mathbf{r}\), \(\mathbf{p}\) & Router logits and soft router weights. \\
 \(\mathcal{R}_b\) & Routed teacher set. \\
 \(\hat{\mathbf{p}}^{(b)}\) & Renormalized routed weights. \\
@@ -550,14 +551,23 @@ intermediate representation from the student hidden state and the other
 branch learns which dimensions of that representation are actually relevant
 for the routing decision, suppressing irrelevant features rather than
 propagating them.
-The router then keeps the top-\(k_{\mathrm{route}}\) teachers:
+The router first proposes the top-\(k_{\mathrm{route}}\) teachers:
 \[
-\mathcal{R}_b=\mathrm{TopK}(\mathbf{r}^{(b)},\min(k_{\mathrm{route}},N)).
+\mathcal{K}_b=\mathrm{TopK}(\mathbf{r}^{(b)},\min(k_{\mathrm{route}},N)).
 \]
-Hard selection is used rather than a soft threshold because keeping
-low-weight teachers still requires computing the full Byte-Trie Wasserstein
-loss for each one. Eliminating them entirely removes their noise from the
-distillation signal rather than merely downweighting it.
+Hard selection is used rather than a soft threshold because keeping low-weight
+teachers still requires computing the full Byte-Trie Wasserstein loss for each
+one. Eliminating them entirely removes their noise from the distillation signal
+rather than merely downweighting it.
+To make the routing capacity-aware, each teacher is allowed to accept at most
+\[
+C=\left\lceil \phi\,\frac{B k_{\mathrm{route}}}{N}\right\rceil
+\]
+assignments in a mini-batch. Candidate assignments are processed by router
+score and assignments beyond a teacher's capacity are dropped. If capacity
+filtering leaves a sample without any assigned teacher, GRACE falls back to
+that sample's highest-scoring candidate. The resulting routed set is
+\(\mathcal{R}_b\subseteq\mathcal{K}_b\).
 Weights outside \(\mathcal{R}_b\) are zeroed and the rest renormalized:
 \begin{equation}
 \hat{p}_i^{(b)}
@@ -887,8 +897,9 @@ loss \(\mathcal{L}_{CE}\)
     \State Compute router logits
     \(\mathbf{r}^{(b)}=G_\phi(\mathbf{h}^{(b)})\) and probabilities
     \(\mathbf{p}^{(b)}=\mathrm{softmax}(\mathbf{r}^{(b)})\)
-    \State Select routed set
-    \(\mathcal{R}_b=\mathrm{TopK}(\mathbf{r}^{(b)},\min(k_{\mathrm{route}},N))\)
+    \State Select candidate set
+    \(\mathcal{K}_b=\mathrm{TopK}(\mathbf{r}^{(b)},\min(k_{\mathrm{route}},N))\)
+    and apply capacity filtering with fallback to obtain \(\mathcal{R}_b\)
     \State Renormalize routed weights to obtain \(\hat{\mathbf{p}}^{(b)}\)
 \EndFor
 \For{each teacher \(T_i\) selected by at least one sample}
