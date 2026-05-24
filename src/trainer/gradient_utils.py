@@ -28,27 +28,27 @@ def compute_parameter_grads(
 # cosine = dot(CE_grad, KD_grad) / (||CE_grad|| * ||KD_grad||)
 # https://www.vegardstikbakke.com/python-keyword-only/
 def parameter_gradient_cosine(
-    reference_grads: tuple[torch.Tensor | None, ...],
-    candidate_grads: tuple[torch.Tensor | None, ...],
+    ce_grads: tuple[torch.Tensor | None, ...],
+    kd_grads: tuple[torch.Tensor | None, ...],
     *,
     loss: torch.Tensor,
     eps: float = 1e-8,
 ) -> torch.Tensor:
     dot = loss.new_zeros((), dtype=torch.float32)
-    reference_norm = loss.new_zeros((), dtype=torch.float32)
-    candidate_norm = loss.new_zeros((), dtype=torch.float32)
+    ce_norm = loss.new_zeros((), dtype=torch.float32)
+    kd_norm = loss.new_zeros((), dtype=torch.float32)
 
-    for reference_grad, candidate_grad in zip(reference_grads, candidate_grads):
-        if reference_grad is not None:
-            reference = reference_grad.float()
-            reference_norm = reference_norm + reference.square().sum().to(reference_norm.device)
-        if candidate_grad is not None:
-            candidate = candidate_grad.float()
-            candidate_norm = candidate_norm + candidate.square().sum().to(candidate_norm.device)
-        if reference_grad is not None and candidate_grad is not None:
-            dot = dot + (reference * candidate).sum().to(dot.device)
+    for ce_grad, kd_grad in zip(ce_grads, kd_grads):
+        if ce_grad is not None:
+            ce_grad = ce_grad.float()
+            ce_norm = ce_norm + ce_grad.square().sum().to(ce_norm.device)
+        if kd_grad is not None:
+            kd_grad = kd_grad.float()
+            kd_norm = kd_norm + kd_grad.square().sum().to(kd_norm.device)
+        if ce_grad is not None and kd_grad is not None:
+            dot = dot + (ce_grad * kd_grad).sum().to(dot.device)
 
-    denominator = reference_norm.sqrt() * candidate_norm.sqrt()
+    denominator = ce_norm.sqrt() * kd_norm.sqrt()
     return dot / denominator.clamp_min(eps)
 
 
