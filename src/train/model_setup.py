@@ -89,7 +89,7 @@ def load_processor_bundle(
     return processor, (tokenizer if tokenizer is not None else processor), model_type
 
 
-def load_vlm_bundle(
+def load_vlm_components(
     *,
     model_id: str,
     cache_dir: str | None,
@@ -158,6 +158,6 @@ def load_vlm_bundle(
 
 __all__ = [
     "load_processor_bundle",
-    "load_vlm_bundle",
+    "load_vlm_components",
     "resolve_model_type",
 ]
