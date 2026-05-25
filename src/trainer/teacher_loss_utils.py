@@ -24,9 +24,9 @@ def compute_teacher_loss_matrix(
     student_temperature: float,
     teacher_temperature: float,
 ) -> tuple[
-    torch.Tensor,
-    torch.Tensor | None,
-    torch.Tensor | None,
+    torch.Tensor, # teacher_loss_matrix
+    torch.Tensor | None, # teacher_grace_scores
+    torch.Tensor | None, # teacher_grace_active_mask
 ]:
     if not teacher_target_batches:
         raise ValueError("Teacher KD requires at least one teacher target batch.")
@@ -38,25 +38,31 @@ def compute_teacher_loss_matrix(
     grace_parameters = None
     ce_parameter_grads_by_sample = None
     if collect_grace_tensors:
+        # Compute one CE gradient direction per sample
         grace_parameters = trainable_parameters(model)
-        shifted_logits = student_logits[:, :-1, :].float().contiguous()
-        shifted_labels = student_labels[:, 1:].contiguous()
+        # student_logits # positions 0..3
+        # student_labels # labels    1..4
+
+        shifted_logits = student_logits[:, :-1, :].float()
+        shifted_labels = student_labels[:, 1:]
+
+        # shifted_logits  # [batch, seq, vocab]
+        # shifted_labels  # [batch, seq]
+
         token_losses = F.cross_entropy(
-            shifted_logits.view(-1, shifted_logits.size(-1)),
-            shifted_labels.view(-1),
+            shifted_logits.reshape(-1, shifted_logits.size(-1)),
+            shifted_labels.reshape(-1),
             ignore_index=IGNORE_INDEX,
-            reduction="none",
-        ).view(student_logits.size(0), -1)
-        supervised_mask = shifted_labels.ne(IGNORE_INDEX)
-        missing_supervision = ~supervised_mask.any(dim=1)
-        if missing_supervision.any():
-            bad_indices = missing_supervision.nonzero(as_tuple=True)[0].tolist()
-            raise ValueError(f"Cannot compute per-sample GRACE CE losses without supervised tokens: {bad_indices}.")
+            reduction="none", # return 1 loss per token
+        ).reshape(student_logits.size(0), -1) # reshape back to [batch, seq]
+
+        supervised_mask = shifted_labels.ne(IGNORE_INDEX) # masking prompts
+
         per_sample_ce_losses = token_losses.sum(dim=1) / supervised_mask.sum(dim=1).to(
             dtype=token_losses.dtype,
-        )
-        # GRACE is meant to decide teacher usefulness for each example; averaging
-        # CE here would collapse it back into one batch-level teacher score.
+        ) # [batch]
+
+        # ce by sample
         ce_parameter_grads_by_sample = [
             compute_parameter_grads(
                 loss=sample_ce_loss,
