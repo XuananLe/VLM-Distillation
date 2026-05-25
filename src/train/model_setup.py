@@ -125,7 +125,7 @@ def load_model(
     )
 
 
-def load_vlm_bundle(
+def load_vlm_components(
     *,
     model_id: str,
     cache_dir: str | None,
@@ -191,6 +191,6 @@ def load_vlm_bundle(
 __all__ = [
     "load_model",
     "load_processor_bundle",
-    "load_vlm_bundle",
+    "load_vlm_components",
     "resolve_model_type",
 ]

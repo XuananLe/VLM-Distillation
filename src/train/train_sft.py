@@ -5,7 +5,7 @@ from transformers import HfArgumentParser
 
 from src.dataset.sft_data import make_supervised_data_module
 from src.params import DataArguments, ModelArguments, TrainingArguments
-from src.train.model_setup import load_vlm_bundle
+from src.train.model_setup import load_vlm_components
 from src.trainer.sft_trainer import SmolVLMSFTTrainer
 
 
@@ -57,7 +57,7 @@ def train():
         else torch.bfloat16 if training_args.bf16
         else torch.float32
     )
-    model, processor, _, _ = load_vlm_bundle(
+    model, processor, _, _ = load_vlm_components(
         model_id=model_args.model_id,
         cache_dir=training_args.cache_dir,
         device=training_args.device,

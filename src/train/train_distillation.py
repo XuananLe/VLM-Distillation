@@ -13,7 +13,7 @@ from src.train.distillation_setup import (
 )
 from src.train.model_setup import (
     load_processor_bundle,
-    load_vlm_bundle,
+    load_vlm_components,
 )
 from src.trainer.distillation_trainer import DistillationTrainer
 
@@ -58,7 +58,7 @@ def train_distillation():
     )
 
     print("Loading student model...")
-    student_model, processor, _, _ = load_vlm_bundle(
+    student_model, processor, _, _ = load_vlm_components(
         model_id=distillation_args.student_model_id,
         cache_dir=training_args.cache_dir,
         device=training_args.device,
@@ -81,7 +81,7 @@ def train_distillation():
         teacher_processors = []
         for teacher_id in teacher_ids:
             print(f"Loading live teacher for layer distillation: {teacher_id}")
-            teacher_model, teacher_processor, _, _ = load_vlm_bundle(
+            teacher_model, teacher_processor, _, _ = load_vlm_components(
                 model_id=teacher_id,
                 cache_dir=training_args.cache_dir,
                 device=training_args.device,
