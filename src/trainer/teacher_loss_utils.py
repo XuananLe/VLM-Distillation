@@ -40,11 +40,11 @@ def compute_teacher_loss_matrix(
     selection_teacher_logits = [] if collect_teacher_targets_for_selection else None
     selection_teacher_labels = [] if collect_teacher_targets_for_selection else None
 
-    grace_parameters = None
+    trainable_params = None
     ce_parameter_grads_by_sample = None
     if collect_grace_tensors:
         # Compute one CE gradient direction per sample
-        grace_parameters = trainable_parameters(model)
+        trainable_params = trainable_parameters(model)
         # student_logits # positions 0..3
         # student_labels # labels    1..4
 
@@ -71,16 +71,24 @@ def compute_teacher_loss_matrix(
         ce_parameter_grads_by_sample = [
             compute_parameter_grads(
                 loss=sample_ce_loss,
-                parameters=grace_parameters,
+                parameters=trainable_params,
             )
             for sample_ce_loss in per_sample_ce_losses
         ]
+
+    # teacher_target_batches = [
+    #     (teacher_0_logits, teacher_0_labels),
+    #     (teacher_1_logits, teacher_1_labels),
+    #     ...
+    # ]
 
     for teacher_index, (teacher_logits, teacher_labels) in enumerate(teacher_target_batches):
         if collect_teacher_targets_for_selection:
             selection_teacher_logits.append(teacher_logits)
             selection_teacher_labels.append(teacher_labels)
 
+        # Trie loss reuses its prebuilt trie and
+        # updates runtime vocab state if needed.
         distillation_prepare_batch_fn(
             student_logits=student_logits,
             teacher_logits=teacher_logits,
@@ -88,15 +96,19 @@ def compute_teacher_loss_matrix(
             teacher_index=teacher_index,
         )
         sample_losses = []
-        for sample_index in range(student_logits.size(0)):
+        for sample_index in range(student_logits.size(0)): # loop over batch
+            # student_logits[sample_index].shape = [seq=5, vocab=10]
+            # boolean indexing
             student_logits_masked = student_logits[sample_index][student_labels[sample_index] != IGNORE_INDEX]
             teacher_logits_masked = teacher_logits[sample_index][teacher_labels[sample_index] != IGNORE_INDEX]
 
+            # remove eos
             if student_logits_masked.size(0) > 0:
                 student_logits_masked = student_logits_masked[:-1]
             if teacher_logits_masked.size(0) > 0:
                 teacher_logits_masked = teacher_logits_masked[:-1]
 
+            # align seq length
             min_len = min(student_logits_masked.size(0), teacher_logits_masked.size(0))
             if min_len == 0:
                 raise ValueError("Student and teacher labels have no aligned supervised answer tokens after masking.")
@@ -110,17 +122,21 @@ def compute_teacher_loss_matrix(
                     teacher_index=teacher_index,
                 )
             )
-        teacher_loss = torch.stack(sample_losses)
+
+        # teacher_losses = [
+        #     tensor([0.1, 0.2, 0.3]),  # teacher 0, shape [batch]
+        #     tensor([0.4, 0.5, 0.6]),  # teacher 1, shape [batch]
+        # ]
+
+        teacher_loss = torch.stack(sample_losses, dim=0) # [batch] for that teacher
         teacher_losses.append(teacher_loss)
 
-        if grace_parameters is not None and ce_parameter_grads_by_sample is not None:
+        if trainable_params is not None and ce_parameter_grads_by_sample is not None:
             per_sample_agreements = []
             for sample_index, sample_teacher_loss in enumerate(teacher_loss):
-                # Keep the KD direction sample-local so teacher agreement can differ
-                # across examples in the same mini-batch.
                 kd_parameter_grads = compute_parameter_grads(
                     loss=sample_teacher_loss,
-                    parameters=grace_parameters,
+                    parameters=trainable_params,
                 )
                 per_sample_agreements.append(
                     parameter_gradient_cosine(
