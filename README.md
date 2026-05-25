@@ -197,6 +197,7 @@ One practical consequence of the current design:
 - distillation validates that a cache source is present
 - if layer distillation is disabled, teacher model weights are not loaded during training
 - if layer distillation is enabled, live teacher models are loaded in addition to cached teacher logits
+- processor/tokenizer-only paths use `load_processor_bundle()` so cache and dataset helpers can reuse the same VLM setup logic without allocating model weights
 
 ## Repository Layout
 
