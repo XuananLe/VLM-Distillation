@@ -171,6 +171,7 @@ One practical consequence of the current design:
 
 - distillation validates that a cache source is present when `alpha > 0`
 - teacher model weights are not loaded during training; the runtime consumes cached teacher logits
+- processor/tokenizer-only paths use `load_processor_bundle()` so cache and dataset helpers can reuse the same VLM setup logic without allocating model weights
 
 ## Repository Layout
 
