@@ -7,12 +7,12 @@ from PIL import Image
 from src.constants import IGNORE_INDEX, LLAVA_IMAGE_TOKEN
 
 
-def smolvlm_encode_conversation(
+def encode_vlm_conversation(
     sources,
     image: Image.Image,
     processor: transformers.ProcessorMixin,
 ) -> Dict[str, torch.Tensor]:
-    user_input, gpt_response = sources
+    user_input, assistant_response = sources
     user_text = user_input["value"].replace(LLAVA_IMAGE_TOKEN, "").strip()
 
     user_message = {
@@ -24,7 +24,7 @@ def smolvlm_encode_conversation(
     }
     assistant_message = {
         "role": "assistant",
-        "content": [{"type": "text", "text": gpt_response["value"]}],
+        "content": [{"type": "text", "text": assistant_response["value"]}],
     }
     prompt_messages = [user_message]
     full_messages = [user_message, assistant_message]
@@ -69,5 +69,5 @@ def smolvlm_encode_conversation(
 
 
 __all__ = [
-    "smolvlm_encode_conversation",
+    "encode_vlm_conversation",
 ]
