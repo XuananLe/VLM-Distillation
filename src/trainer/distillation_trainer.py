@@ -5,12 +5,10 @@ import torch
 from einops import einsum
 from transformers import Trainer
 
-from src.components.grace import apply_grace_routing
 from src.components.reinforced_teacher_selection import (
     ReinforcedTeacherSelectionPolicy,
     compute_reinforced_selection_state,
 )
-from src.components.teacher_gate import Gate
 from src.trainer.teacher_loss_utils import compute_teacher_loss_matrix
 
 
@@ -20,20 +18,11 @@ class DistillationTrainer(Trainer):
         teacher_count: int | None = None,
         student_tokenizer=None,
         teacher_tokenizers=None,
-        teacher_weighting_strategy: str = "routing",
+        teacher_weighting_strategy: str = "reinforced_selection",
         loss_function: str = "uld_loss",
         student_temperature: float = 2.0,
         teacher_temperature: float = 2.0,
         alpha: float = 1.0,
-        teacher_gate_top_k: int = 1,
-        teacher_gate_entropy_alpha: float = 1e-3,
-        teacher_gate_router_z_loss_alpha: float = 1e-3,
-        grace_threshold: float = 0.0,
-        grace_warmup_ratio: float = 0.0,
-        grace_epsilon: float = 0.01,
-        grace_softmax_beta: float = 20.0,
-        grace_router_blend_lambda: float = 0.5,
-        grace_ema_decay: float = 0.9,
         reinforced_selection_warmup_ratio: float = 0.1,
         reinforced_selection_reward_type: str = "reward2",
         reinforced_selection_reward_ema_decay: float = 0.9,
@@ -73,17 +62,7 @@ class DistillationTrainer(Trainer):
         self.num_teachers = int(teacher_count or 0)
         if self.num_teachers < 1:
             raise ValueError("DistillationTrainer requires at least one teacher.")
-        self.teacher_gate = None
-        if self.teacher_weighting_strategy == "routing":
-            if self.num_teachers <= 1:
-                raise ValueError(
-                    "Teacher routing requires at least two teachers; use single-teacher distillation instead."
-                )
-            self.teacher_gate = Gate(
-                self.model,
-                self.num_teachers,
-            )
-            self.model.teacher_gate = self.teacher_gate
+
         self.reinforced_teacher_selector = None
         if self.teacher_weighting_strategy == "reinforced_selection":
             if self.num_teachers <= 1:
@@ -98,28 +77,16 @@ class DistillationTrainer(Trainer):
 
         self.student_temperature = float(student_temperature)
         self.teacher_temperature = float(teacher_temperature)
-        self.teacher_gate_top_k = teacher_gate_top_k
-        self.teacher_gate_entropy_alpha = teacher_gate_entropy_alpha
-        self.teacher_gate_router_z_loss_alpha = teacher_gate_router_z_loss_alpha
-        self.grace_threshold = grace_threshold
-        self.grace_warmup_ratio = grace_warmup_ratio
-        self.grace_epsilon = grace_epsilon
-        self.grace_softmax_beta = grace_softmax_beta
-        self.grace_router_blend_lambda = grace_router_blend_lambda
-        self.grace_ema_decay = grace_ema_decay
         self.reinforced_selection_warmup_ratio = reinforced_selection_warmup_ratio
         self.reinforced_selection_reward_type = reinforced_selection_reward_type
         self.reinforced_selection_reward_ema_decay = reinforced_selection_reward_ema_decay
         self.reinforced_selection_policy_alpha = reinforced_selection_policy_alpha
-        self.teacher_grace_score_ema = None
         self.reinforced_selection_reward_baseline = None
 
         print("Distillation Trainer initialized:")
         print(f"  - Teachers: {self.num_teachers}")
         if alpha == 0.0:
             print("  - Teacher weighting: disabled because alpha is 0")
-        elif self.num_teachers > 1 and self.teacher_weighting_strategy == "routing":
-            print("  - Teacher weighting: learned deep gate + GRACE routing")
         elif self.num_teachers > 1 and self.teacher_weighting_strategy == "reinforced_selection":
             print("  - Teacher weighting: reinforced teacher selection")
         elif self.num_teachers == 1:
@@ -136,17 +103,7 @@ class DistillationTrainer(Trainer):
         print(f"  - Alpha: {alpha}")
         print(f"  - KD weight: {alpha}")
         print("  - CE weight: 1.0")
-        if self.teacher_gate is not None:
-            print(f"  - Teacher gate top-k: {teacher_gate_top_k}")
-            print(f"  - Teacher gate entropy alpha: {teacher_gate_entropy_alpha}")
-            print(f"  - Teacher gate router z-loss alpha: {teacher_gate_router_z_loss_alpha}")
-            print(f"  - GRACE threshold: {grace_threshold}")
-            print(f"  - GRACE warmup ratio: {grace_warmup_ratio}")
-            print(f"  - GRACE epsilon: {grace_epsilon}")
-            print(f"  - GRACE softmax beta: {grace_softmax_beta}")
-            print(f"  - GRACE router blend lambda: {grace_router_blend_lambda}")
-            print(f"  - GRACE EMA decay: {grace_ema_decay}")
-        elif self.reinforced_teacher_selector is not None:
+        if self.reinforced_teacher_selector is not None:
             print(f"  - Reinforced selection warmup ratio: {reinforced_selection_warmup_ratio}")
             print(f"  - Reinforced selection reward type: {reinforced_selection_reward_type}")
             print(f"  - Reinforced selection reward EMA decay: {reinforced_selection_reward_ema_decay}")
@@ -163,19 +120,6 @@ class DistillationTrainer(Trainer):
         prepared_inputs = super()._prepare_inputs(student_inputs)
         prepared_inputs.update(teacher_inputs)
         return prepared_inputs
-
-    def should_apply_grace_routing(self) -> bool:
-        if self.teacher_gate is None or not self.model.training:
-            return False
-
-        if self.grace_warmup_ratio <= 0.0:
-            return True
-
-        total_steps = max(self.state.max_steps, getattr(self.args, "max_steps", 0))
-        if total_steps <= 0:
-            return True
-        warmup_steps = math.ceil(total_steps * self.grace_warmup_ratio)
-        return self.state.global_step >= warmup_steps
 
     def reinforced_selection_warmup_active(self) -> bool:
         if self.reinforced_teacher_selector is None or not self.model.training:
@@ -197,49 +141,8 @@ class DistillationTrainer(Trainer):
             return_dict=True,
         )
         student_logits = student_outputs.logits
-        teacher_router_logits = (
-            self.teacher_gate.compute_router_logits(
-                student_labels=student_inputs["labels"],
-            )
-            if self.teacher_gate is not None
-            else None
-        )
-        teacher_router_weights = torch.softmax(teacher_router_logits, dim=-1) if teacher_router_logits is not None else None
-        teacher_gate_entropy_loss = None
-        teacher_gate_z_loss = None
-        routed_teacher_weights = teacher_router_weights
-        if teacher_router_weights is not None:
-            teacher_gate_z_loss = torch.logsumexp(teacher_router_logits.float(), dim=-1).square().mean().to(
-                dtype=teacher_router_logits.dtype
-            )
-            teacher_gate_entropy_loss = (
-                (teacher_router_weights * torch.log_softmax(teacher_router_logits, dim=-1))
-                .sum(dim=-1)
-                .mean()
-                .to(dtype=teacher_router_weights.dtype)
-            )
-
-            num_teachers = teacher_router_weights.shape[1]
-            top_k = max(1, min(self.teacher_gate_top_k, num_teachers))
-            topk_indices = teacher_router_logits.topk(top_k, dim=-1).indices
-            topk_mask = (
-                torch.nn.functional.one_hot(
-                    topk_indices,
-                    num_classes=num_teachers,
-                )
-                .sum(dim=1)
-                .to(dtype=torch.bool)
-            )
-            routed_teacher_weights = torch.where(
-                topk_mask,
-                teacher_router_weights,
-                torch.zeros_like(teacher_router_weights),
-            )
-            routed_teacher_weights = routed_teacher_weights / routed_teacher_weights.sum(dim=-1, keepdim=True).clamp(
-                min=torch.finfo(routed_teacher_weights.dtype).eps
-            )
-
         ce_loss = student_outputs.loss
+
         teacher_selection_policy_loss = None
         if self.alpha == 0.0:
             distillation_loss = ce_loss.new_zeros(())
@@ -252,27 +155,17 @@ class DistillationTrainer(Trainer):
                 )
                 for prefix in teacher_prefixes
             ]
-            (
-                teacher_loss_matrix,
-                teacher_grace_scores,
-                teacher_grace_active_mask,
-                selection_teacher_logits,
-                selection_teacher_labels,
-            ) = compute_teacher_loss_matrix(
+            teacher_loss_matrix, selection_teacher_logits, selection_teacher_labels = compute_teacher_loss_matrix(
                 student_logits=student_logits,
                 student_labels=student_inputs["labels"],
-                model=model,
                 teacher_target_batches=teacher_target_batches,
-                collect_grace_tensors=self.should_apply_grace_routing(),
                 collect_teacher_targets_for_selection=self.teacher_weighting_strategy == "reinforced_selection",
-                grace_threshold=self.grace_threshold,
                 distillation_prepare_batch_fn=self.distillation_prepare_batch_fn,
                 distillation_loss_fn=self.distillation_loss_fn,
                 student_temperature=self.student_temperature,
                 teacher_temperature=self.teacher_temperature,
             )
 
-            teacher_mix_weights = None
             if self.teacher_weighting_strategy == "reinforced_selection":
                 reinforced_state = compute_reinforced_selection_state(
                     selector=self.reinforced_teacher_selector,
@@ -290,47 +183,10 @@ class DistillationTrainer(Trainer):
                 self.reinforced_selection_reward_baseline = reinforced_state["next_reward_baseline"]
                 distillation_loss = reinforced_state["distillation_loss"]
                 teacher_selection_policy_loss = reinforced_state["policy_loss"]
-            elif not self.should_apply_grace_routing():
-                if routed_teacher_weights is not None:
-                    teacher_mix_weights = routed_teacher_weights.to(dtype=teacher_loss_matrix.dtype)
-                    teacher_mix_weights = teacher_mix_weights / teacher_mix_weights.sum(dim=-1, keepdim=True).clamp(
-                        min=torch.finfo(teacher_mix_weights.dtype).eps
-                    )
             else:
-                (
-                    teacher_mix_weights,
-                    self.teacher_grace_score_ema,
-                ) = apply_grace_routing(
-                    routed_teacher_weights=routed_teacher_weights,
-                    teacher_grace_scores=teacher_grace_scores,
-                    teacher_grace_active_mask=teacher_grace_active_mask,
-                    prev_grace_score_ema=self.teacher_grace_score_ema,
-                    grace_ema_decay=self.grace_ema_decay,
-                    grace_softmax_beta=self.grace_softmax_beta,
-                    grace_router_blend_lambda=self.grace_router_blend_lambda,
-                    grace_epsilon=self.grace_epsilon,
-                )
-
-            if self.teacher_weighting_strategy != "reinforced_selection":
                 distillation_loss = teacher_loss_matrix.mean()
-                if teacher_mix_weights is not None:
-                    distillation_loss = einsum(
-                        teacher_loss_matrix,
-                        teacher_mix_weights,
-                        "batch teacher, batch teacher -> batch",
-                    ).mean()
-                elif routed_teacher_weights is not None:
-                    distillation_loss = einsum(
-                        teacher_loss_matrix,
-                        routed_teacher_weights,
-                        "batch teacher, batch teacher -> batch",
-                    ).mean()
 
         loss = ce_loss + self.alpha * distillation_loss
-        if teacher_gate_entropy_loss is not None:
-            loss = loss + teacher_gate_entropy_loss * self.teacher_gate_entropy_alpha
-        if teacher_gate_z_loss is not None:
-            loss = loss + teacher_gate_z_loss * self.teacher_gate_router_z_loss_alpha
         if teacher_selection_policy_loss is not None:
             loss = loss + teacher_selection_policy_loss * self.reinforced_selection_policy_alpha
 

@@ -6,7 +6,6 @@ import torch.nn.functional as F
 from einops import einsum, rearrange
 
 from src.components.pooling import masked_mean_pool_sequence
-from src.components.teacher_gate import Gate
 
 # https://arxiv.org/pdf/2012.06048
 
@@ -86,7 +85,8 @@ def build_reinforced_selection_teacher_features(
 class ReinforcedTeacherSelectionPolicy(nn.Module):
     def __init__(self, model: nn.Module, num_teachers: int, teacher_feature_dim: int = 3):
         super().__init__()
-        hidden_size, hook_module = Gate.resolve_gate_source(model)
+        hidden_size = int(model.config.text_config.hidden_size)
+        hook_module = model.lm_head
         self.num_teachers = num_teachers
         self.teacher_feature_dim = teacher_feature_dim
         self.hidden_state = None
@@ -94,7 +94,7 @@ class ReinforcedTeacherSelectionPolicy(nn.Module):
         self.policy = nn.Linear(hidden_size + num_teachers * teacher_feature_dim, num_teachers)
         nn.init.xavier_uniform_(self.policy.weight)
         nn.init.zeros_(self.policy.bias)
-        # Reuse the same pre-lm-head hidden state that the router sees.
+        # Reuse the same pre-lm-head hidden state the gate would have seen.
         self.hook_handle = hook_module.register_forward_pre_hook(self.capture_hidden_state)
 
     def capture_hidden_state(self, module, args):

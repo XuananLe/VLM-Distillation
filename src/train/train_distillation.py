@@ -30,12 +30,6 @@ def train_distillation():
     parser = HfArgumentParser((DataArguments, TrainingArguments, DistillationArguments))
 
     data_args, training_args, distillation_args = parser.parse_args_into_dataclasses()
-    if distillation_args.grace_warmup_ratio > 0.0 and training_args.deepspeed:
-        raise ValueError(
-            "Parameter-space GRACE uses torch.autograd.grad and is incompatible "
-            "with DeepSpeed hooks, including ZeRO stage 0. Run without --deepspeed "
-            "or set --grace_warmup_ratio 0."
-        )
 
     compute_dtype = torch.float16 if training_args.fp16 else torch.bfloat16 if training_args.bf16 else torch.float32
     teacher_ids = list(distillation_args.teacher_model_ids)
@@ -102,15 +96,6 @@ def train_distillation():
         student_temperature=distillation_args.student_temperature,
         teacher_temperature=distillation_args.teacher_temperature,
         alpha=distillation_args.alpha,
-        teacher_gate_top_k=distillation_args.teacher_gate_top_k,
-        teacher_gate_entropy_alpha=distillation_args.teacher_gate_entropy_alpha,
-        teacher_gate_router_z_loss_alpha=distillation_args.teacher_gate_router_z_loss_alpha,
-        grace_threshold=distillation_args.grace_threshold,
-        grace_warmup_ratio=distillation_args.grace_warmup_ratio,
-        grace_epsilon=distillation_args.grace_epsilon,
-        grace_softmax_beta=distillation_args.grace_softmax_beta,
-        grace_router_blend_lambda=distillation_args.grace_router_blend_lambda,
-        grace_ema_decay=distillation_args.grace_ema_decay,
         reinforced_selection_warmup_ratio=distillation_args.reinforced_selection_warmup_ratio,
         reinforced_selection_reward_type=distillation_args.reinforced_selection_reward_type,
         reinforced_selection_reward_ema_decay=distillation_args.reinforced_selection_reward_ema_decay,
