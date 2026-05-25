@@ -31,7 +31,7 @@ SUPPORTED_AUTO_MODEL_TYPES = {
 }
 
 
-def load_vlm_bundle(
+def load_vlm_components(
     *,
     model_id: str,
     cache_dir: str | None = None,
@@ -64,7 +64,7 @@ def load_vlm_bundle(
         vision_config = None
         if load_model:
             if device is None or compute_dtype is None:
-                raise ValueError("load_vlm_bundle requires `device` and `compute_dtype` when load_model=True.")
+                raise ValueError("load_vlm_components requires `device` and `compute_dtype` when load_model=True.")
             model = load_internvl_model(
                 model_id=model_id,
                 cache_dir=cache_dir,
@@ -115,7 +115,7 @@ def load_vlm_bundle(
         if not load_model:
             return model, processor, tokenizer, model_type
         if device is None or compute_dtype is None:
-            raise ValueError("load_vlm_bundle requires `device` and `compute_dtype` when load_model=True.")
+            raise ValueError("load_vlm_components requires `device` and `compute_dtype` when load_model=True.")
         loader_kwargs = {"device_map": {"": device}}
         loader_kwargs.update(model_kwargs or {})
         if model_type == "gemma3":
@@ -137,5 +137,5 @@ def load_vlm_bundle(
 
 
 __all__ = [
-    "load_vlm_bundle",
+    "load_vlm_components",
 ]

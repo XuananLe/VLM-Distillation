@@ -11,7 +11,7 @@ from torch.utils.data import Dataset
 from src.params import DataArguments
 
 from .data_collator import DataCollatorForSupervisedDataset
-from .smolvlm_encoder import smolvlm_encode_conversation
+from .smolvlm_encoder import encode_vlm_conversation
 from .teacher_logits_cache import TeacherLogitsCache
 
 # One encoded sample contains processor-owned multimodal tensors plus optional
@@ -57,8 +57,8 @@ class SupervisedDataset(Dataset):
         return len(self.training_records)
 
     def __getitem__(self, i) -> Dict[str, torch.Tensor]:
-        sources = self.training_records[i]
-        image_files = sources["image"]
+        record = self.training_records[i]
+        image_files = record["image"]
         image_folder = self.data_args.image_folder
         if isinstance(image_files, str):
             image_files = [image_files]
@@ -70,9 +70,9 @@ class SupervisedDataset(Dataset):
                 resolved_path = os.path.join(image_folder, image_file)
             images.append(Image.open(resolved_path).convert("RGB"))
 
-        sources = sources["conversations"]
+        sources = record["conversations"]
 
-        encoded_sample = smolvlm_encode_conversation(
+        encoded_sample = encode_vlm_conversation(
             sources,
             images,
             self.processor,

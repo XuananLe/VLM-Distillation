@@ -16,7 +16,7 @@ from src.train.distillation_setup import (
     DistillationArguments,
     log_distillation_setup,
 )
-from src.train.model_setup import load_vlm_bundle
+from src.train.model_setup import load_vlm_components
 from src.trainer.distillation_trainer import DistillationTrainer
 
 
@@ -50,7 +50,7 @@ def train_distillation():
 
     print("Loading student model...")
     print(f"Training device: {training_args.device}; n_gpu={training_args.n_gpu}")
-    student_model, processor, _, _ = load_vlm_bundle(
+    student_model, processor, _, _ = load_vlm_components(
         model_id=distillation_args.student_model_id,
         cache_dir=training_args.cache_dir,
         device=training_args.device,
@@ -73,7 +73,7 @@ def train_distillation():
         print("Preparing trie-Wasserstein tokenizers...")
         student_loss_tokenizer = getattr(processor, "tokenizer", None) or processor
         teacher_loss_tokenizers = [
-            load_vlm_bundle(
+            load_vlm_components(
                 model_id=teacher_id,
                 cache_dir=training_args.cache_dir,
                 load_model=False,

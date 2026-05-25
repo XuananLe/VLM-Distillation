@@ -2,7 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
-from src.components.pooling import masked_mean_pool_sequence
+from src.constants import IGNORE_INDEX
 
 
 class DeepRouter(nn.Module):
@@ -64,7 +64,13 @@ class Gate(nn.Module):
             raise RuntimeError("Teacher gate hidden state was not captured during the student forward pass.")
         hidden_state = self.hidden_state
         self.hidden_state = None
-        pooled_features = masked_mean_pool_sequence(hidden_state, student_labels)
+        label_mask = student_labels.ne(IGNORE_INDEX)
+        pooled_features = torch.masked.mean(
+            hidden_state,
+            dim=1,
+            mask=label_mask.unsqueeze(-1),
+        )
+        pooled_features = torch.nan_to_num(pooled_features)
         return self.router(pooled_features)
 
 
